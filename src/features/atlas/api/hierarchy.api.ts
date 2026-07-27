@@ -1,59 +1,84 @@
-import { AtlasStructure } from "@/features/atlas";
+import { TerminologyRow } from "../models/terminology-row.model";
 
 /**
- * Presentation-ready tree node built from an {@link AtlasStructure}.
+ * Presentation-ready tree node built from a {@link TerminologyRow}.
  */
 export interface HierarchyModel {
-  id: number;
-  acronym: string;
-  fullName: string;
+  identifier: number;
+  abbreviation: string;
+  name: string;
   color: string;
   children: HierarchyModel[];
 }
 
 /**
- * Build a tree hierarchy from a structure metadata.
- * @param id Index of the current structure in `structures` to recurse down.
- * @param structures All structures in atlas metadata.
+ * Convert a terminology name to title case for display.
+ * @param name Name to convert.
  */
-export function buildHierarchy(
-  id: number,
-  structures: AtlasStructure[]
-): HierarchyModel | null {
-  // Get the structure.
-  const structure = structures[id];
-  if (!structure) return null;
-
-  // Convert name to title case.
-  const titleCaseName = structure.name
+export function toTitleCase(name: string): string {
+  return name
     .split(" ")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
-
-  return {
-    id,
-    acronym: structure.acronym.toUpperCase(),
-    fullName: titleCaseName,
-    color: `rgb(${structure.color[0]} ${structure.color[1]} ${structure.color[2]})`,
-    children: structure.childrenIds.flatMap(
-      childId => buildHierarchy(childId, structures) ?? []
-    )
-  };
 }
 
 /**
- * Flatten a hierarchy tree into a depth-first list of nodes (parents appear
- * before their children).
- * @param nodes Root-level nodes to flatten.
+ * Build a tree hierarchy from parsed terminology rows, linking each row to
+ * its parent via `parent_identifier`.
+ *
+ * `root_identifier_path` isn't used here: it's not reliably root-anchored
+ * across atlases (some author it as relative `[parent, self]` pairs), so
+ * relying on it silently drops rows for those atlases.
+ * @param terminologyRows Parsed terminology rows.
  */
-export function flattenHierarchy(nodes: HierarchyModel[]): HierarchyModel[] {
-  const flattened: HierarchyModel[] = [];
-  const walk = (level: HierarchyModel[]) => {
-    for (const node of level) {
-      flattened.push(node);
-      walk(node.children);
-    }
+export function buildHierarchy(
+  terminologyRows: TerminologyRow[]
+): HierarchyModel | null {
+  const rootRow = terminologyRows.find(row => row.parent_identifier === null);
+  if (!rootRow) return null;
+
+  const nodesByIdentifier = new Map(
+    terminologyRows.map(row => [row.identifier, toNode(row)])
+  );
+
+  for (const row of terminologyRows) {
+    if (row.parent_identifier === null) continue;
+    nodesByIdentifier
+      .get(row.parent_identifier)
+      ?.children.push(nodesByIdentifier.get(row.identifier)!);
+  }
+
+  return nodesByIdentifier.get(rootRow.identifier) ?? null;
+}
+
+/**
+ * Return the identifiers of the default structures.
+ *
+ * Currently, this is the identifiers of the direct children of root.
+ *
+ * @param terminologyRows Parsed terminology rows.
+ */
+export function getDefaultStructureIdentifiers(
+  terminologyRows: TerminologyRow[]
+): number[] {
+  const rootRow = terminologyRows.find(row => row.parent_identifier === null);
+  if (!rootRow) return [];
+
+  return terminologyRows
+    .filter(row => row.parent_identifier === rootRow.identifier)
+    .map(row => row.identifier);
+}
+
+/**
+ * Build a {@link HierarchyModel} node from a terminology row.
+ * @param terminologyRow Terminology row to convert.
+ */
+function toNode(terminologyRow: TerminologyRow): HierarchyModel {
+  return {
+    identifier: terminologyRow.identifier,
+    abbreviation: terminologyRow.abbreviation,
+    name: toTitleCase(terminologyRow.name),
+    color: terminologyRow.color_hex_triplet,
+    children: []
   };
-  walk(nodes);
-  return flattened;
 }

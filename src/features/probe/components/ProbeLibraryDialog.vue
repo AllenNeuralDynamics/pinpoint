@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useDialogPluginComponent, useQuasar } from "quasar";
-import { InstallProbeDialog } from "@/features/probe";
+import InstallProbeDialog from "./InstallProbeDialog.vue";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 
 // Setup dialog.

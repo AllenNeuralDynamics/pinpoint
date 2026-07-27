@@ -1,65 +1,136 @@
-import { describe, it, expect } from "vitest";
-import { buildHierarchy, flattenHierarchy } from "./hierarchy.api";
-import { makeStructures } from "@/test/fixtures";
+import { describe, expect, it } from "vitest";
+import {
+  buildHierarchy,
+  getDefaultStructureIdentifiers,
+  toTitleCase
+} from "./hierarchy.api";
+import {
+  makeRelativePathTerminologyRows,
+  makeTerminologyRow,
+  makeTerminologyRows
+} from "@/test/fixtures";
 
 describe("buildHierarchy", () => {
-  it("title-cases the name and upper-cases the acronym", () => {
-    const structures = makeStructures({
-      0: { name: "primary motor area", acronym: "mop" }
-    });
+  it("returns the root node with its own identifier, abbreviation, and color", () => {
+    const node = buildHierarchy(makeTerminologyRows());
 
-    const node = buildHierarchy(0, structures);
-
-    expect(node?.fullName).toBe("Primary Motor Area");
-    expect(node?.acronym).toBe("MOP");
+    expect(node?.identifier).toBe(997);
+    expect(node?.abbreviation).toBe("root");
+    expect(node?.color).toBe("#FFFFFF");
   });
 
-  it("formats color as an rgb() string", () => {
-    const structures = makeStructures({ 0: { color: [10, 20, 30] } });
+  it("nests children by parent_identifier", () => {
+    const node = buildHierarchy(makeTerminologyRows());
 
-    const node = buildHierarchy(0, structures);
-
-    expect(node?.color).toBe("rgb(10 20 30)");
+    expect(node?.children.map(c => c.identifier)).toEqual([8]);
+    expect(node?.children[0]?.children.map(c => c.identifier)).toEqual([
+      567, 700
+    ]);
+    expect(
+      node?.children[0]?.children[0]?.children.map(c => c.identifier)
+    ).toEqual([688]);
   });
 
-  it("recurses into childrenIds, nesting descendants", () => {
-    const structures = makeStructures();
+  it("title-cases every node's name, including the root", () => {
+    const node = buildHierarchy(makeTerminologyRows());
 
-    const node = buildHierarchy(0, structures);
-
-    expect(node?.children.map(c => c.id)).toEqual([1, 2]);
-    expect(node?.children[0]?.children.map(c => c.id)).toEqual([3]);
-    expect(node?.children[1]?.children).toEqual([]);
+    expect(node?.name).toBe("Root");
+    expect(node?.children[0]?.name).toBe("Basic Cell Groups And Regions");
   });
 
-  it("returns null when the id doesn't exist in structures", () => {
-    const structures = makeStructures();
-    expect(buildHierarchy(999, structures)).toBeNull();
+  it("passes color_hex_triplet through as color, not an rgb() string", () => {
+    const node = buildHierarchy(makeTerminologyRows());
+
+    expect(node?.children[0]?.color).toBe("#BFDAE3");
   });
 
-  it("skips (rather than nulls out) missing children via flatMap", () => {
-    const structures = makeStructures({
-      0: { childrenIds: [1, 999] }
-    });
+  it("returns null for an empty list", () => {
+    expect(buildHierarchy([])).toBeNull();
+  });
 
-    const node = buildHierarchy(0, structures);
+  it("returns null when no row has a null parent_identifier", () => {
+    const rows = makeTerminologyRows().map(row => ({
+      ...row,
+      parent_identifier: row.parent_identifier ?? 1
+    }));
 
-    expect(node?.children.map(c => c.id)).toEqual([1]);
+    expect(buildHierarchy(rows)).toBeNull();
+  });
+
+  it("skips a row whose parent_identifier references a missing id", () => {
+    const rows = [
+      ...makeTerminologyRows(),
+      makeTerminologyRow({ identifier: 12345, parent_identifier: 99999 })
+    ];
+
+    const node = buildHierarchy(rows);
+
+    const flatten = (n: NonNullable<typeof node>): number[] => [
+      n.identifier,
+      ...n.children.flatMap(flatten)
+    ];
+    expect(flatten(node!)).not.toContain(12345);
+  });
+
+  it("keeps children in input row order", () => {
+    const node = buildHierarchy(makeTerminologyRows());
+
+    expect(node?.children[0]?.children.map(c => c.identifier)).toEqual([
+      567, 700
+    ]);
+  });
+
+  // Regression: atlases like `african_molerat` author root_identifier_path
+  // as relative [parent, self] pairs rather than full root-anchored paths.
+  // buildHierarchy must not depend on root_identifier_path at all, or it
+  // silently drops every row past the first level.
+  it("places every row even when root_identifier_path is relative, not root-anchored", () => {
+    const rows = makeRelativePathTerminologyRows();
+
+    const node = buildHierarchy(rows);
+
+    const flatten = (n: NonNullable<typeof node>): number[] => [
+      n.identifier,
+      ...n.children.flatMap(flatten)
+    ];
+    const numericSort = (a: number, b: number) => a - b;
+    expect(flatten(node!).sort(numericSort)).toEqual(
+      rows.map(r => r.identifier).sort(numericSort)
+    );
   });
 });
 
-describe("flattenHierarchy", () => {
-  it("returns an empty list for an empty tree", () => {
-    expect(flattenHierarchy([])).toEqual([]);
+describe("getDefaultStructureIdentifiers", () => {
+  it("returns the identifiers of root's direct children", () => {
+    const result = getDefaultStructureIdentifiers(makeTerminologyRows());
+
+    expect(result).toEqual([8]);
   });
 
-  it("flattens depth-first, parents before children", () => {
-    const structures = makeStructures();
-    const root = buildHierarchy(0, structures)!;
+  it("returns an empty list when no row has a null parent_identifier", () => {
+    const rows = makeTerminologyRows().map(row => ({
+      ...row,
+      parent_identifier: row.parent_identifier ?? 1
+    }));
 
-    const flat = flattenHierarchy(root.children);
+    expect(getDefaultStructureIdentifiers(rows)).toEqual([]);
+  });
 
-    // root.children = [child-a(1), child-b(2)]; child-a has leaf(3).
-    expect(flat.map(n => n.id)).toEqual([1, 3, 2]);
+  it("returns an empty list for an empty list", () => {
+    expect(getDefaultStructureIdentifiers([])).toEqual([]);
+  });
+});
+
+describe("toTitleCase", () => {
+  it("title-cases a multi-word, mixed-case name", () => {
+    expect(toTitleCase("basic cell GROUPS")).toBe("Basic Cell Groups");
+  });
+
+  it("title-cases a single word", () => {
+    expect(toTitleCase("root")).toBe("Root");
+  });
+
+  it("returns an empty string unchanged", () => {
+    expect(toTitleCase("")).toBe("");
   });
 });

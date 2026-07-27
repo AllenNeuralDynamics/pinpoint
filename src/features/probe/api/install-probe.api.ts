@@ -1,5 +1,8 @@
 import axios from "axios";
-import { ProbeInterfaceFile, ProbeInterfaceProbe } from "@/features/probe";
+import {
+  ProbeInterfaceFile,
+  ProbeInterfaceProbe
+} from "../models/probe-interface.model";
 
 interface GitHubItem {
   name: string;
@@ -30,14 +33,6 @@ const FILE_API_BASE_URL =
 const fileApi = axios.create({
   baseURL: FILE_API_BASE_URL
 });
-
-/**
- * Check if a GitHub response was a 404 message.
- * @param response response data from a GitHub content fetch.
- */
-function isGitHub404(response: GitHubItemResponse): response is GitHub404 {
-  return !Array.isArray(response) && response.status === "404";
-}
 
 /**
  * Return the list of probe vendors.
@@ -129,33 +124,6 @@ export function buildProbeOverviewImageSrc(
 }
 
 /**
- * Check that a value has the minimal shape of a ProbeInterface probe.
- * @param value Value to check.
- */
-function isProbeInterfaceProbe(value: unknown): value is ProbeInterfaceProbe {
-  if (!value || typeof value !== "object") return false;
-
-  const probe = value as Record<string, unknown>;
-  if (
-    typeof probe.ndim !== "number" ||
-    typeof probe.si_units !== "string" ||
-    !Array.isArray(probe.contact_positions)
-  ) {
-    return false;
-  }
-
-  if (!probe.annotations || typeof probe.annotations !== "object") {
-    return false;
-  }
-
-  const annotations = probe.annotations as Record<string, unknown>;
-  return (
-    typeof annotations.model_name === "string" &&
-    typeof annotations.manufacturer === "string"
-  );
-}
-
-/**
  * Parse and minimally validate a ProbeInterface file's contents, returning
  * its first probe.
  *
@@ -183,4 +151,39 @@ export function parseProbeInterfaceFile(
   if (!Array.isArray(probes) || !probes[0]) return null;
 
   return isProbeInterfaceProbe(probes[0]) ? probes[0] : null;
+}
+
+/**
+ * Check if a GitHub response was a 404 message.
+ * @param response response data from a GitHub content fetch.
+ */
+function isGitHub404(response: GitHubItemResponse): response is GitHub404 {
+  return !Array.isArray(response) && response.status === "404";
+}
+
+/**
+ * Check that a value has the minimal shape of a ProbeInterface probe.
+ * @param value Value to check.
+ */
+function isProbeInterfaceProbe(value: unknown): value is ProbeInterfaceProbe {
+  if (!value || typeof value !== "object") return false;
+
+  const probe = value as Record<string, unknown>;
+  if (
+    typeof probe.ndim !== "number" ||
+    typeof probe.si_units !== "string" ||
+    !Array.isArray(probe.contact_positions)
+  ) {
+    return false;
+  }
+
+  if (!probe.annotations || typeof probe.annotations !== "object") {
+    return false;
+  }
+
+  const annotations = probe.annotations as Record<string, unknown>;
+  return (
+    typeof annotations.model_name === "string" &&
+    typeof annotations.manufacturer === "string"
+  );
 }

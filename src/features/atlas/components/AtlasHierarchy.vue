@@ -9,9 +9,9 @@ import {
 import { useFuse } from "@vueuse/integrations/useFuse";
 import {
   buildHierarchy,
-  flattenHierarchy,
-  HierarchyModel
-} from "@/features/atlas";
+  HierarchyModel,
+  toTitleCase
+} from "../api/hierarchy.api";
 import { QScrollArea, QTree } from "quasar";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 
@@ -28,13 +28,11 @@ const hierarchy = ref<HierarchyModel[]>([]);
 // Expose scroll area target for the search result virtual scroll.
 const scrollAreaTarget = computed(() => scrollArea.value?.getScrollTarget());
 
-// Flatten the hierarchy into a searchable list for fuzzy matching.
-const flatNodes = computed(() => flattenHierarchy(hierarchy.value));
-
-// Fuzzy search across the acronym (label) and the full name.
+// Fuzzy search across the abbreviation (label) and the full name.
 const searchQuery = computed(() => filter.value ?? "");
-const { results } = useFuse(searchQuery, flatNodes, {
-  fuseOptions: { keys: ["acronym", "fullName"] }
+const terminologyRows = computed(() => currentExperiment.terminologyRows);
+const { results } = useFuse(searchQuery, terminologyRows, {
+  fuseOptions: { keys: ["name", "abbreviation"] }
 });
 
 // Search mode: replace tree with flat result list.
@@ -43,11 +41,9 @@ const searchResults = computed(() => results.value.map(r => r.item));
 
 // Update the tree data to match the current atlas.
 watchEffect(() => {
-  if (!currentExperiment.metadata) return;
-  const { rootId, structures } = currentExperiment.metadata;
-
   // Build from root but exclude it.
-  hierarchy.value = buildHierarchy(rootId, structures)?.children ?? [];
+  hierarchy.value =
+    buildHierarchy(currentExperiment.terminologyRows)?.children ?? [];
 });
 
 // Ensure the tree is always fully expanded.
@@ -74,25 +70,30 @@ watchPostEffect(() => {
         dense
       >
         <template #default="{ item: node }">
-          <q-item :key="node.id" dense>
+          <q-item :key="node.identifier" dense>
             <q-item-section side>
               <q-checkbox
-                :model-value="currentExperiment.isStructureVisible(node.id)"
+                :model-value="
+                  currentExperiment.isStructureVisible(node.identifier)
+                "
                 dense
                 @update:model-value="
                   visible =>
-                    currentExperiment.setStructureVisibility(node.id, visible)
+                    currentExperiment.setStructureVisibility(
+                      node.identifier,
+                      visible
+                    )
                 "
               />
             </q-item-section>
             <q-item-section>
               <div class="row items-center q-gutter-x-xs no-wrap">
                 <q-icon
-                  :style="{ color: node.color }"
+                  :style="{ color: node.color_hex_triplet }"
                   name="radio_button_checked"
                 />
-                <b>{{ node.acronym }}</b>
-                <span class="text-no-wrap">{{ node.fullName }}</span>
+                <b>{{ node.abbreviation }}</b>
+                <span class="text-no-wrap">{{ toTitleCase(node.name) }}</span>
               </div>
             </q-item-section>
           </q-item>
@@ -105,7 +106,7 @@ watchPostEffect(() => {
         :nodes="hierarchy"
         dense
         no-transition
-        node-key="id"
+        node-key="identifier"
         tick-strategy="strict"
       >
         <template #default-header="{ node }">
@@ -114,8 +115,8 @@ watchPostEffect(() => {
               :style="{ color: node.color }"
               name="radio_button_checked"
             />
-            <b>{{ node.acronym }}</b>
-            <span class="text-no-wrap">{{ node.fullName }}</span>
+            <b>{{ node.abbreviation }}</b>
+            <span class="text-no-wrap">{{ node.name }}</span>
           </div>
         </template>
       </q-tree>

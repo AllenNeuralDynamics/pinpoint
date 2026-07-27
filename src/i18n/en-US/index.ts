@@ -1,25 +1,13 @@
 export default {
   atlasPicker: {
     title: "Atlas",
-    pinpointAtlases: "Pinpoint Atlases",
-    locallyHosted: "Locally Hosted",
+    brainglobeHosted: "BrainGlobe Hosted",
+    customHTTPHost: "Custom HTTP Host",
     sourceUrl: "Source URL",
-    connect: "Connect",
     search: "Search",
     atlasCount: "no atlases | one atlas | {count} atlases",
-    connectFailed: "Unable to access atlases from source.",
-    connectFailedCaption: "Check source URL and try again.",
-    pinpointOutdated: "This atlas requires a newer version of Pinpoint.",
-    pinpointOutdatedCaption: "Update Pinpoint to use this atlas.",
-    atlasOutdated: "This atlas was built for an older version of Pinpoint.",
-    atlasOutdatedCaption:
-      "Update the atlas to use it with this version of Pinpoint.",
-    versionWarn:
-      "This atlas may not support all features in this version of Pinpoint.",
-    versionWarnCaption: "Some features may not work as expected.",
-    versionUnverifiable: "Unable to verify this atlas's compatibility.",
-    versionUnverifiableCaption:
-      "Its metadata is missing or has an invalid converter version.",
+    noAtlases: "No atlases found.",
+    noAtlasesCaption: "Check your connection to the source.",
     addFavorite: "Add to favorites",
     removeFavorite: "Remove from favorites"
   },

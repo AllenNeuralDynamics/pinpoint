@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import axios from "axios";
 import {
-  getVendors,
-  getProbeNames,
   getProbeInterfaceProbe,
+  getProbeNames,
+  getVendors,
   parseProbeInterfaceFile
-} from "@/features/probe";
+} from "./install-probe.api";
 
 // install-probe.api.ts calls `axios.create()` to build dedicated instances
 // (githubApi, fileApi), so mocking `axios.get` alone wouldn't reach their

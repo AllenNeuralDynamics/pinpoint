@@ -1,6 +1,6 @@
 {
   "name": "pinpoint-v",
-  "version": "5.0.0-dev1",
+  "version": "5.0.0-dev2",
   "private": true,
   "description": "A Quasar Project",
   "keywords": [
@@ -24,20 +24,20 @@
     "coverage": "vitest run --coverage",
     "testui": "vitest --ui",
     "postinstall": "quasar prepare --silent",
-    "local-atlas": "serve -C ~/pinpoint_atlases/"
+    "local-atlas": "pnpx serve -C ~/.brainglobe/"
   },
   "dependencies": {
     "@babylonjs/core": "^9.17.1",
-    "@babylonjs/loaders": "^9.17.1",
     "@quasar/extras": "^2.0.0",
+    "@types/papaparse": "^5.5.2",
     "@vueuse/core": "^14.3.0",
     "@vueuse/integrations": "^14.3.0",
     "axios": "^1.18.1",
     "fuse.js": "^7.5.0",
+    "papaparse": "^5.5.4",
     "pinia": "^4.0.2",
     "pinia-plugin-persistedstate": "^4.7.1",
     "quasar": "^2.22.0",
-    "semver": "^7.8.5",
     "vue": "^3.5.40",
     "vue-i18n": "^11.4.7",
     "vue-router": "^5.2.0"
@@ -48,7 +48,6 @@
     "@quasar/vite-plugin": "^1.12.0",
     "@testing-library/vue": "^8.1.0",
     "@types/node": "^26.1.1",
-    "@types/semver": "^7.7.1",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vitest/coverage-v8": "^4.1.10",
     "@vitest/ui": "^4.1.10",
@@ -59,7 +58,6 @@
     "oxfmt": "^0.x",
     "oxlint": "^1.x",
     "oxlint-tsgolint": "^7.x",
-    "serve": "^14.2.6",
     "typescript": "6.0.3",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.8"

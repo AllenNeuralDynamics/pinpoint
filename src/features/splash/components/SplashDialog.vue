@@ -2,12 +2,12 @@
 import { useDialogPluginComponent, useQuasar } from "quasar";
 import { NewExperimentDialog } from "@/features/experiment";
 
+const appVersion = import.meta.env.APP_VERSION;
+
 defineEmits([...useDialogPluginComponent.emits]);
 
 const { dialogRef, onDialogHide } = useDialogPluginComponent();
 const $q = useQuasar();
-
-const appVersion = import.meta.env.APP_VERSION;
 </script>
 
 <template>

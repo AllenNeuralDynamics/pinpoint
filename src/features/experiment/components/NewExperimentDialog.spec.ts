@@ -4,14 +4,15 @@ import { createPinia, setActivePinia } from "pinia";
 import NewExperimentDialog from "./NewExperimentDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { fetchAtlasMetadata } from "@/features/atlas";
-import { makeAtlas, makeAtlasMetadata } from "@/test/fixtures";
+import { getManifest } from "@/features/atlas";
+import { makeAtlas, makeManifest } from "@/test/fixtures";
 
-vi.mock("@/features/atlas/api/metadata.api", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/features/atlas/api/metadata.api")
-  >("@/features/atlas/api/metadata.api");
-  return { ...actual, fetchAtlasMetadata: vi.fn() };
+vi.mock("@/features/atlas", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/features/atlas")>(
+      "@/features/atlas"
+    );
+  return { ...actual, getManifest: vi.fn() };
 });
 
 type DialogWrapper = VueWrapper<
@@ -54,7 +55,7 @@ function createButton(wrapper: DialogWrapper) {
 describe("NewExperimentDialog", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked(fetchAtlasMetadata).mockReset();
+    vi.mocked(getManifest).mockReset();
   });
 
   afterEach(() => {
@@ -86,12 +87,14 @@ describe("NewExperimentDialog", () => {
   });
 
   describe("create", () => {
-    it("seeds the reference coordinate from the atlas's metadata when available", async () => {
+    it("seeds the reference coordinate from the atlas's manifest when available", async () => {
       const atlas = makeAtlas();
-      const metadata = makeAtlasMetadata({
-        defaultReferenceCoordinate: [1, 2, 3]
+      const manifest = makeManifest({
+        name: "allen_human",
+        resolutions: [[0.02, 0.02, 0.02]],
+        shape: [[100, 100, 100]]
       });
-      vi.mocked(fetchAtlasMetadata).mockResolvedValue(metadata);
+      vi.mocked(getManifest).mockResolvedValue(manifest);
 
       const wrapper = await mountDialog();
       await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
@@ -105,12 +108,12 @@ describe("NewExperimentDialog", () => {
       const store = useCurrentExperimentStore();
       expect(store.name).toBe("My Experiment");
       expect(store.atlas).toEqual(atlas);
-      expect(store.referenceCoordinate).toEqual([1, 2, 3]);
+      expect(store.referenceCoordinate).toEqual([1, 1, 1]);
     });
 
-    it("falls back to [0, 0, 0] when metadata can't be fetched", async () => {
+    it("falls back to [0, 0, 0] when the manifest can't be fetched", async () => {
       const atlas = makeAtlas();
-      vi.mocked(fetchAtlasMetadata).mockResolvedValue(null);
+      vi.mocked(getManifest).mockResolvedValue(null);
 
       const wrapper = await mountDialog();
       await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
@@ -133,9 +136,6 @@ describe("NewExperimentDialog", () => {
       await createButton(wrapper).trigger("click");
       await flush();
 
-      // Note: fetchAtlasMetadata is also called by the store's own
-      // computedAsync `metadata` on store init, so assert on the store
-      // mutation `create()` guards on rather than the shared mock.
       expect(createSpy).not.toHaveBeenCalled();
     });
   });

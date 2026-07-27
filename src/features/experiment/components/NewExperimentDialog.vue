@@ -1,14 +1,12 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
-import { Atlas, AtlasPicker, fetchAtlasMetadata } from "@/features/atlas";
+import { Atlas, AtlasPicker, getManifest } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDialogPluginComponent } from "quasar";
-
-/**
- * Reference coordinate used when an atlas's metadata (and thus its default
- * reference coordinate) can't be fetched.
- */
-const FALLBACK_REFERENCE_COORDINATE: [number, number, number] = [0, 0, 0];
+import {
+  buildInitialReferenceCoordinate,
+  FALLBACK_REFERENCE_COORDINATE
+} from "../api/reference-coordinate.api";
 
 defineEmits([...useDialogPluginComponent.emits]);
 
@@ -30,9 +28,11 @@ const isCreateDisabled = computed(() => !name.value || !atlas.value);
 async function create() {
   if (!name.value || !atlas.value) return;
 
-  const metadata = await fetchAtlasMetadata(atlas.value);
-  const referenceCoordinate =
-    metadata?.defaultReferenceCoordinate ?? FALLBACK_REFERENCE_COORDINATE;
+  // Build initial reference coordinate.
+  const manifest = await getManifest(atlas.value);
+  const referenceCoordinate = manifest
+    ? buildInitialReferenceCoordinate(manifest)
+    : FALLBACK_REFERENCE_COORDINATE;
 
   currentExperimentStore.create(name.value, atlas.value, referenceCoordinate);
 }

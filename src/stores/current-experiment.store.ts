@@ -4,16 +4,12 @@ import { computedAsync } from "@vueuse/core";
 import { Experiment } from "@/features/experiment";
 import {
   Atlas,
-  AtlasMetadata,
-  fetchAtlasMetadata,
-  getDefaultStructureIds
+  BRAINGLOBE_BASE_URL,
+  getDefaultStructureIdentifiers,
+  getManifest,
+  getTerminologyRows,
+  Manifest
 } from "@/features/atlas";
-
-/**
- * Default reference coordinate for the starter experiment's atlas
- * (`allen_mouse`'s default reference coordinate, in ASR, mm).
- */
-const DEFAULT_REFERENCE_COORDINATE: [number, number, number] = [5.7, 0.44, 5.4];
 
 export const useCurrentExperimentStore = defineStore(
   "current-experiment",
@@ -23,8 +19,11 @@ export const useCurrentExperimentStore = defineStore(
      */
     const experiment = ref<Experiment>({
       name: "My First Experiment",
-      atlas: { source: "http://localhost:3000", name: "allen_mouse" },
-      referenceCoordinate: DEFAULT_REFERENCE_COORDINATE,
+      atlas: {
+        source: BRAINGLOBE_BASE_URL,
+        name: "allen_mouse"
+      },
+      referenceCoordinate: [5.7, 0.44, 5.4],
       visibleStructures: []
     });
 
@@ -67,18 +66,26 @@ export const useCurrentExperimentStore = defineStore(
      */
     const atlas = computed(() => experiment.value.atlas);
 
-    /**
-     * Fetch the metadata for the current experiment's atlas.
-     */
-    const metadata = computedAsync<AtlasMetadata | null>(async () =>
-      fetchAtlasMetadata(atlas.value)
+    const manifest = computedAsync<Manifest | null>(
+      async () => await getManifest(atlas.value)
     );
 
     /**
-     * Default (top-level) structure ids for the current experiment's atlas.
+     * Fetch the terminology rows which provide the regions of the atlas.
      */
-    const defaultStructureIds = computed<number[]>(() =>
-      metadata.value ? getDefaultStructureIds(metadata.value) : []
+    const terminologyRows = computedAsync(
+      async () => await getTerminologyRows(atlas.value),
+      []
+    );
+
+    /**
+     * Default (top-level) structure identifiers for the current experiment's
+     * atlas.
+     */
+    const defaultStructureIdentifiers = computed<number[]>(() =>
+      terminologyRows.value
+        ? getDefaultStructureIdentifiers(terminologyRows.value)
+        : []
     );
 
     /**
@@ -100,7 +107,7 @@ export const useCurrentExperimentStore = defineStore(
     );
 
     /**
-     * List of structure ids actively being made shown in the atlas.
+     * List of structure identifiers actively being shown in the atlas.
      */
     const visibleStructures = computed({
       get: () => experiment.value.visibleStructures,
@@ -111,24 +118,24 @@ export const useCurrentExperimentStore = defineStore(
 
     /**
      * Is the structure visible on the atlas in the experiment.
-     * @param id ID of the structure to check.
+     * @param identifier Identifier of the structure to check.
      */
-    function isStructureVisible(id: number) {
-      return visibleStructures.value.includes(id);
+    function isStructureVisible(identifier: number) {
+      return visibleStructures.value.includes(identifier);
     }
 
     /**
      * Set the visibility of the structure in the atlas.
-     * @param id ID of the structure to set the visibility of.
+     * @param identifier Identifier of the structure to set the visibility of.
      * @param value Is the structure visible or not.
      */
-    function setStructureVisibility(id: number, value: boolean) {
+    function setStructureVisibility(identifier: number, value: boolean) {
       if (value) {
-        if (!isStructureVisible(id)) {
-          visibleStructures.value.push(id);
+        if (!isStructureVisible(identifier)) {
+          visibleStructures.value.push(identifier);
         }
       } else {
-        const index = visibleStructures.value.indexOf(id);
+        const index = visibleStructures.value.indexOf(identifier);
         if (index !== -1) {
           visibleStructures.value.splice(index, 1);
         }
@@ -149,8 +156,9 @@ export const useCurrentExperimentStore = defineStore(
       setName,
       name,
       atlas,
-      metadata,
-      defaultStructureIds,
+      manifest,
+      terminologyRows,
+      defaultStructureIdentifiers,
       setReferenceCoordinate,
       referenceCoordinate,
       isStructureVisible,
@@ -158,5 +166,14 @@ export const useCurrentExperimentStore = defineStore(
       clearVisibleStructures
     };
   },
-  { persist: true }
+  {
+    // Only `experiment` is real state. `manifest` and `terminologyRows` are
+    // `computedAsync`, which returns a plain
+    // `shallowRef` -- pinia's `isComputed` check can't tell that apart from
+    // state (it looks for a `.effect` property, which only a `computed`
+    // has), so without this `pick` the entire fetched terminology CSV would
+    // be persisted to `localStorage` and hydrated back on startup, ahead of
+    // (and then overwritten by) the actual fetch.
+    persist: { pick: ["experiment"] }
+  }
 );

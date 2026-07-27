@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import { Vector3 } from "@babylonjs/core";
-import { asrToBabylon, babylonToAsr } from "@/features/scene";
+import { asrToBabylon, babylonToAsr } from "./coordinate-transforms.api";
 
 describe("asrToBabylon", () => {
   it("maps A -> -Z, S -> -Y, R -> +X", () => {

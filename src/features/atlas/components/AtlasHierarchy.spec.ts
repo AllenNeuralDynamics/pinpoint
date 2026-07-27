@@ -5,8 +5,8 @@ import { flushPromises } from "@vue/test-utils";
 import AtlasHierarchy from "./AtlasHierarchy.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { fetchAtlasMetadata } from "@/features/atlas";
-import { makeAtlasMetadata } from "@/test/fixtures";
+import { getTerminologyRows } from "../api/source.api";
+import { makeTerminologyRows } from "@/test/fixtures";
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -29,11 +29,12 @@ const QVirtualScrollStub = defineComponent({
   }
 });
 
-vi.mock("@/features/atlas/api/metadata.api", async () => {
-  const actual = await vi.importActual<
-    typeof import("@/features/atlas/api/metadata.api")
-  >("@/features/atlas/api/metadata.api");
-  return { ...actual, fetchAtlasMetadata: vi.fn() };
+vi.mock("../api/source.api", async () => {
+  const actual =
+    await vi.importActual<typeof import("../api/source.api")>(
+      "../api/source.api"
+    );
+  return { ...actual, getTerminologyRows: vi.fn() };
 });
 
 async function mountHierarchy() {
@@ -50,8 +51,8 @@ async function mountHierarchy() {
 
 describe("AtlasHierarchy", () => {
   beforeEach(() => {
-    vi.mocked(fetchAtlasMetadata).mockReset();
-    vi.mocked(fetchAtlasMetadata).mockResolvedValue(makeAtlasMetadata());
+    vi.mocked(getTerminologyRows).mockReset();
+    vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
   });
 
   it("renders the q-tree (not the virtual scroll) when the filter is empty", async () => {
@@ -66,7 +67,7 @@ describe("AtlasHierarchy", () => {
   it("switches to the virtual-scroll result list once a filter is entered", async () => {
     const wrapper = await mountHierarchy();
 
-    await wrapper.findComponent({ name: "QInput" }).setValue("ca");
+    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findComponent({ name: "QVirtualScrollStub" }).exists()).toBe(
@@ -88,14 +89,14 @@ describe("AtlasHierarchy", () => {
     const wrapper = await mountHierarchy();
     const store = useCurrentExperimentStore();
 
-    await wrapper.findComponent({ name: "QInput" }).setValue("ca");
+    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
     await wrapper.vm.$nextTick();
 
     const checkbox = wrapper.findComponent({ name: "QCheckbox" });
     expect(checkbox.props("modelValue")).toBe(false);
 
     await checkbox.vm.$emit("update:modelValue", true);
-    expect(store.isStructureVisible(1)).toBe(true);
+    expect(store.isStructureVisible(8)).toBe(true);
   });
 
   it("shows the Clear button only when structures are visible, and clears on click", async () => {
@@ -108,7 +109,7 @@ describe("AtlasHierarchy", () => {
         .some(b => b.props("icon") === "clear_all")
     ).toBe(false);
 
-    store.setStructureVisibility(1, true);
+    store.setStructureVisibility(8, true);
     await wrapper.vm.$nextTick();
 
     const clearBtn = wrapper
@@ -118,5 +119,41 @@ describe("AtlasHierarchy", () => {
 
     await clearBtn.trigger("click");
     expect(store.visibleStructures).toEqual([]);
+  });
+
+  it("colors the search-result icon from color_hex_triplet, matching tree mode", async () => {
+    const wrapper = await mountHierarchy();
+
+    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
+    await wrapper.vm.$nextTick();
+
+    const icon = wrapper
+      .findAllComponents({ name: "QIcon" })
+      .find(i => i.props("name") === "radio_button_checked")!;
+    expect(icon.attributes("style")).toContain("#BFDAE3");
+  });
+
+  it("title-cases the search-result name, same as tree mode", async () => {
+    const wrapper = await mountHierarchy();
+
+    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain("Basic Cell Groups And Regions");
+  });
+
+  it("leaves the tree empty when the fetch fails", async () => {
+    vi.mocked(getTerminologyRows).mockResolvedValue([]);
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const wrapper = mountWithQuasar(AtlasHierarchy, {
+      pinia,
+      global: { stubs: { QVirtualScroll: QVirtualScrollStub } }
+    });
+
+    await flushPromises();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "QTree" }).props("nodes")).toEqual([]);
   });
 });

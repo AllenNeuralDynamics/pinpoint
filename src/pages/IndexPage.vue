@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { SceneCanvas } from "@/features/scene";
 import { TouchPanValue, useQuasar } from "quasar";
-import { SplashDialog } from "@/features/splash";
 import { NewExperimentDialog } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { AtlasHierarchy } from "@/features/atlas";
 import { ProbeLibraryDialog } from "@/features/probe";
+import { SplashDialog } from "@/features/splash";
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
@@ -17,9 +17,6 @@ const rightDrawerOpen = ref(false);
 const leftDrawerWidth = ref(350);
 const rightDrawerWidth = ref(350);
 const tab = ref("scene");
-
-// Show splash.
-$q.dialog({ component: SplashDialog });
 
 /**
  * Toggle left drawer open state.
@@ -77,6 +74,11 @@ function fixedQPageHeight(offset: number) {
     height
   };
 }
+
+onMounted(() => {
+  // Show splash.
+  $q.dialog({ component: SplashDialog });
+});
 </script>
 
 <template>

@@ -1,34 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { flushPromises } from "@vue/test-utils";
 import axios from "axios";
 import AtlasPicker from "./AtlasPicker.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useFavoriteAtlasesStore } from "@/stores/favorite-atlases.store";
-import {
-  checkAtlasCompatibility,
-  ConverterCompatibility
-} from "@/features/atlas";
-import { makeAtlas, makeAtlasMetadata } from "@/test/fixtures";
+import { makeAtlas } from "@/test/fixtures";
 
 vi.mock("axios");
-
-// Delegates to the real implementation by default so most tests exercise the
-// actual compatibility logic; individual tests can override with
-// mockReturnValueOnce for cases that aren't reachable via a real APP_VERSION
-// (e.g. a minor mismatch where Pinpoint is newer, since the app's minor is 0).
-vi.mock("@/features/atlas", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/features/atlas")>();
-  return {
-    ...actual,
-    checkAtlasCompatibility: vi.fn(actual.checkAtlasCompatibility)
-  };
-});
 
 // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
 // called unbound.
 // oxlint-disable-next-line typescript/unbound-method
 const mockedGet = vi.mocked(axios.get);
-const mockedCheckAtlasCompatibility = vi.mocked(checkAtlasCompatibility);
+
+/**
+ * Source toggle values, mirroring the component's internal `SourceToggle`
+ * enum (BrainGlobe = 0, Custom = 1). Not exported by the component, so the
+ * raw values are duplicated here to drive `QBtnToggle`.
+ */
+const CUSTOM_SOURCE = 1;
 
 function mountPicker(
   modelValue: ReturnType<typeof makeAtlas> | null = null,
@@ -40,21 +31,52 @@ function mountPicker(
   });
 }
 
-function connectButton(wrapper: ReturnType<typeof mountPicker>) {
-  return wrapper
-    .findAllComponents({ name: "QBtn" })
-    .find(btn => btn.text().includes("Connect"))!;
+async function settle() {
+  await flushPromises();
+  await flushPromises();
+}
+
+/**
+ * Mounts, then switches to the Custom HTTP host source and enters a URL, so
+ * atlases are loaded via `listAtlasesHTTP` against a predictable mocked
+ * response instead of the real BrainGlobe S3 bucket.
+ */
+async function mountOnCustomSource() {
+  const wrapper = mountPicker();
+  await wrapper
+    .findComponent({ name: "QBtnToggle" })
+    .vm.$emit("update:modelValue", CUSTOM_SOURCE);
+  await wrapper
+    .findComponent({ name: "QInput" })
+    .vm.$emit("update:modelValue", "http://localhost:3000");
+  await settle();
+  return wrapper;
 }
 
 describe("AtlasPicker", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     mockedGet.mockReset();
-    mockedCheckAtlasCompatibility.mockClear();
   });
 
-  describe("connect", () => {
-    it("populates atlases and connects on a successful folder-only response", async () => {
+  describe("source loading", () => {
+    it("auto-loads atlases from the BrainGlobe source by default", async () => {
+      mockedGet.mockResolvedValue({
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <CommonPrefixes><Prefix>atlas-rc2/terminologies/allen_mouse-terminology/</Prefix></CommonPrefixes>
+</ListBucketResult>`
+      });
+
+      const wrapper = mountPicker();
+      await settle();
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.text()).toContain("allen_mouse");
+    });
+
+    it("loads atlases from the custom HTTP host once toggled and a URL is set", async () => {
       mockedGet.mockResolvedValue({
         data: {
           files: [
@@ -64,48 +86,55 @@ describe("AtlasPicker", () => {
         }
       });
 
-      const wrapper = mountPicker();
-      await connectButton(wrapper).trigger("click");
-      await new Promise(resolve => setTimeout(resolve, 0));
-      await wrapper.vm.$nextTick();
+      const wrapper = await mountOnCustomSource();
 
-      // Connected state renders the atlas list; the folder-only atlas shows,
-      // the file entry is excluded.
       const items = wrapper.findAllComponents({ name: "QItem" });
       expect(items).toHaveLength(1);
       expect(items[0]!.text()).toContain("allen_mouse");
     });
 
-    it("notifies and stays disconnected when the response has no data", async () => {
+    it("shows the empty state when the source returns no atlases", async () => {
       mockedGet.mockResolvedValue({ data: null });
 
-      const wrapper = mountPicker();
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+      const wrapper = await mountOnCustomSource();
 
-      await connectButton(wrapper).trigger("click");
-      await new Promise(resolve => setTimeout(resolve, 0));
-      await wrapper.vm.$nextTick();
-
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
-      );
+      expect(wrapper.text()).toContain("No atlases found.");
       expect(wrapper.findAllComponents({ name: "QItem" })).toHaveLength(0);
     });
 
-    it("notifies and stays disconnected when the request throws", async () => {
+    it("shows the empty state when the request throws", async () => {
       mockedGet.mockRejectedValue(new Error("network error"));
 
-      const wrapper = mountPicker();
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+      const wrapper = await mountOnCustomSource();
 
-      await connectButton(wrapper).trigger("click");
-      await new Promise(resolve => setTimeout(resolve, 0));
+      expect(wrapper.text()).toContain("No atlases found.");
+      expect(wrapper.findAllComponents({ name: "QItem" })).toHaveLength(0);
+    });
+  });
+
+  describe("search", () => {
+    async function connectedWrapper() {
+      mockedGet.mockResolvedValue({
+        data: {
+          files: [
+            { name: "allen_mouse", type: "folder" },
+            { name: "allen_human", type: "folder" }
+          ]
+        }
+      });
+      return mountOnCustomSource();
+    }
+
+    it("narrows the list to fuzzy matches of the search query", async () => {
+      const wrapper = await connectedWrapper();
+
+      const search = wrapper.findAllComponents({ name: "QInput" })[1]!;
+      await search.vm.$emit("update:modelValue", "human");
       await wrapper.vm.$nextTick();
 
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
-      );
-      expect(wrapper.findAllComponents({ name: "QItem" })).toHaveLength(0);
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.text()).toContain("allen_human");
     });
   });
 
@@ -121,9 +150,13 @@ describe("AtlasPicker", () => {
       });
 
       const wrapper = mountPicker(null, pinia);
-      await connectButton(wrapper).trigger("click");
-      await new Promise(resolve => setTimeout(resolve, 0));
-      await wrapper.vm.$nextTick();
+      await wrapper
+        .findComponent({ name: "QBtnToggle" })
+        .vm.$emit("update:modelValue", CUSTOM_SOURCE);
+      await wrapper
+        .findComponent({ name: "QInput" })
+        .vm.$emit("update:modelValue", "http://localhost:3000");
+      await settle();
       return wrapper;
     }
 
@@ -183,88 +216,18 @@ describe("AtlasPicker", () => {
     });
   });
 
-  describe("converter compatibility", () => {
-    async function connectedWrapper() {
-      mockedGet.mockResolvedValueOnce({
+  describe("selection", () => {
+    it("emits update:modelValue with the clicked atlas", async () => {
+      mockedGet.mockResolvedValue({
         data: { files: [{ name: "allen_mouse", type: "folder" }] }
       });
 
-      const wrapper = mountPicker();
-      await connectButton(wrapper).trigger("click");
-      await new Promise(resolve => setTimeout(resolve, 0));
-      await wrapper.vm.$nextTick();
-      return wrapper;
-    }
-
-    async function selectFirstAtlas(
-      wrapper: Awaited<ReturnType<typeof connectedWrapper>>
-    ) {
+      const wrapper = await mountOnCustomSource();
       await wrapper.findComponent({ name: "QItem" }).trigger("click");
-      await new Promise(resolve => setTimeout(resolve, 0));
-      await wrapper.vm.$nextTick();
-    }
-
-    it("emits update:modelValue with the clicked atlas when compatible", async () => {
-      const wrapper = await connectedWrapper();
-      mockedGet.mockResolvedValueOnce({
-        data: makeAtlasMetadata({
-          version: import.meta.env.APP_VERSION
-        })
-      });
-
-      await selectFirstAtlas(wrapper);
 
       expect(wrapper.emitted("update:modelValue")).toEqual([
         [{ name: "allen_mouse", source: "http://localhost:3000" }]
       ]);
-    });
-
-    it("blocks selection and notifies negatively on a major version mismatch", async () => {
-      const wrapper = await connectedWrapper();
-      mockedGet.mockResolvedValueOnce({
-        data: makeAtlasMetadata({ version: "1.0.0" })
-      });
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
-
-      await selectFirstAtlas(wrapper);
-
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
-      );
-      expect(wrapper.emitted("update:modelValue")).toBeUndefined();
-    });
-
-    it("warns but still selects on a minor version mismatch where Pinpoint is newer", async () => {
-      const wrapper = await connectedWrapper();
-      mockedGet.mockResolvedValueOnce({ data: makeAtlasMetadata() });
-      // A real APP_VERSION with a newer minor than any converter version isn't
-      // guaranteed to exist, so stub the compatibility check for this case.
-      mockedCheckAtlasCompatibility.mockReturnValueOnce(
-        ConverterCompatibility.Warn
-      );
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
-
-      await selectFirstAtlas(wrapper);
-
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "warning" })
-      );
-      expect(wrapper.emitted("update:modelValue")).toEqual([
-        [{ name: "allen_mouse", source: "http://localhost:3000" }]
-      ]);
-    });
-
-    it("blocks selection when the atlas metadata can't be fetched", async () => {
-      const wrapper = await connectedWrapper();
-      mockedGet.mockRejectedValueOnce(new Error("network error"));
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
-
-      await selectFirstAtlas(wrapper);
-
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
-      );
-      expect(wrapper.emitted("update:modelValue")).toBeUndefined();
     });
   });
 });

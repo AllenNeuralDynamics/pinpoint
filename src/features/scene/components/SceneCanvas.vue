@@ -3,16 +3,18 @@ import {
   computed,
   onMounted,
   onUnmounted,
+  ref,
   useTemplateRef,
   watchEffect
 } from "vue";
 import { useBabylonRuntimeService } from "@/composable/useBabylonRuntimeService";
 import {
   setAtlasRootReference,
-  setZoom,
   syncStructureVisibility
-} from "@/features/scene";
-import { StructureEntity, structureEntityFromId } from "@/features/atlas";
+} from "../api/entity-loader.api";
+import { setInitialZoom } from "../api/camera.api";
+import { StructureEntity } from "../models/structure-entity.model";
+import { structureEntityFromIdentifier } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 
 const currentExperiment = useCurrentExperimentStore();
@@ -21,15 +23,25 @@ const runtime = useBabylonRuntimeService();
 const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
 
 /**
+ * Whether structures are currently being synced into the scene, driving the
+ * loading bar overlaid on the canvas.
+ */
+const isLoadingStructures = ref(false);
+
+/**
  * Atlas structures that must always be present in the scene, faded out when
  * not visible instead of being removed.
  */
 const alwaysPresentStructures = computed<StructureEntity[]>(() => {
-  const { atlas, metadata } = currentExperiment;
-  if (!atlas || !metadata) return [];
+  const { atlas, terminologyRows } = currentExperiment;
+  if (!atlas || !terminologyRows) return [];
 
-  return currentExperiment.defaultStructureIds.flatMap(id => {
-    const structureEntity = structureEntityFromId(atlas, metadata, id);
+  return currentExperiment.defaultStructureIdentifiers.flatMap(identifier => {
+    const structureEntity = structureEntityFromIdentifier(
+      atlas,
+      terminologyRows,
+      identifier
+    );
     return structureEntity ? [structureEntity] : [];
   });
 });
@@ -38,11 +50,15 @@ const alwaysPresentStructures = computed<StructureEntity[]>(() => {
  * Structures the current experiment has marked visible.
  */
 const visibleStructures = computed<StructureEntity[]>(() => {
-  const { atlas, metadata } = currentExperiment;
-  if (!atlas || !metadata) return [];
+  const { atlas, terminologyRows } = currentExperiment;
+  if (!atlas || !terminologyRows) return [];
 
-  return currentExperiment.visibleStructures.flatMap(id => {
-    const structureEntity = structureEntityFromId(atlas, metadata, id);
+  return currentExperiment.visibleStructures.flatMap(identifier => {
+    const structureEntity = structureEntityFromIdentifier(
+      atlas,
+      terminologyRows,
+      identifier
+    );
     return structureEntity ? [structureEntity] : [];
   });
 });
@@ -69,11 +85,16 @@ onMounted(async () => {
     const scene = runtime.scene.value;
     if (!scene) return;
 
-    await syncStructureVisibility(
-      scene,
-      alwaysPresentStructures.value,
-      visibleStructures.value
-    );
+    isLoadingStructures.value = true;
+    try {
+      await syncStructureVisibility(
+        scene,
+        alwaysPresentStructures.value,
+        visibleStructures.value
+      );
+    } finally {
+      isLoadingStructures.value = false;
+    }
   });
 
   // Keep the atlas root positioned so the experiment's reference coordinate
@@ -88,9 +109,9 @@ onMounted(async () => {
   // Set the camera's initial zoom relative to the AP length of the atlas.
   watchEffect(() => {
     const camera = runtime.camera.value;
-    if (!camera || !currentExperiment.metadata) return;
+    if (!camera || !currentExperiment.manifest) return;
 
-    setZoom(currentExperiment.metadata.dimensions[0] * 1.5, camera);
+    setInitialZoom(currentExperiment.manifest, camera);
   });
 });
 
@@ -100,7 +121,16 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <canvas ref="canvas" class="fit" />
+  <div class="fit relative-position">
+    <canvas ref="canvas" class="fit" />
+    <q-linear-progress
+      v-if="isLoadingStructures"
+      indeterminate
+      color="secondary"
+      size="lg"
+      class="absolute-bottom"
+    />
+  </div>
   <q-resize-observer @resize="onResize" />
 </template>
 

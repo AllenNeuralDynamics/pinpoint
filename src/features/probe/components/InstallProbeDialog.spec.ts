@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
@@ -6,13 +6,11 @@ import {
   getProbeInterfaceProbe,
   getProbeNames,
   getVendors
-} from "@/features/probe";
+} from "../api/install-probe.api";
 
-vi.mock("@/features/probe/api/install-probe.api", async importOriginal => {
+vi.mock("../api/install-probe.api", async importOriginal => {
   const actual =
-    await importOriginal<
-      typeof import("@/features/probe/api/install-probe.api")
-    >();
+    await importOriginal<typeof import("../api/install-probe.api")>();
   return {
     ...actual,
     getVendors: vi.fn(),

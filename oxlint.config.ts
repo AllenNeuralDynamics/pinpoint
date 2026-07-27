@@ -32,6 +32,9 @@ export default defineConfig({
   },
 
   rules: {
+    // Note: this only inspects `import` statements, not string arguments to
+    // `vi.mock()`. A spec that mocks a feature's internals must still follow
+    // AGENTS.md's import boundaries by hand.
     "no-restricted-imports": [
       "error",
       {

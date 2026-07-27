@@ -10,5 +10,8 @@ export interface Experiment {
    */
   referenceCoordinate: [number, number, number];
 
+  /**
+   * Identifiers of the atlas structures currently marked visible.
+   */
   visibleStructures: number[];
 }

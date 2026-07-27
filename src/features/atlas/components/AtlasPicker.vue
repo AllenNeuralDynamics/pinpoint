@@ -1,53 +1,52 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
-import { useQuasar } from "quasar";
-import { useI18n } from "vue-i18n";
 import { useFavoriteAtlasesStore } from "@/stores/favorite-atlases.store";
 import { useFuse } from "@vueuse/integrations/useFuse";
-import {
-  Atlas,
-  checkAtlasCompatibility,
-  ConverterCompatibility,
-  fetchAtlasMetadata,
-  fetchAtlasSource
-} from "@/features/atlas";
+import { Atlas } from "../models/atlas.model";
+import { listAtlases, listAtlasesHTTP } from "../api/source.api";
+import { computedAsync } from "@vueuse/core";
 
-enum ConnectionState {
-  Disconnected,
-  Connecting,
-  Connected
+enum SourceToggle {
+  BrainGlobe,
+  Custom
 }
 
 // Props.
 const selectedAtlas = defineModel<Atlas | null>({ required: true });
 
 // Composables.
-
-const $q = useQuasar();
-const { t } = useI18n();
 const favoriteAtlasesStore = useFavoriteAtlasesStore();
 
 // State.
+const sourceToggle = ref<SourceToggle>(SourceToggle.BrainGlobe);
 
 /**
- * Atlas source URL.
+ * Custom HTTP host URL.
  */
-const atlasSource = ref<string | null>("http://localhost:3000");
-
-/**
- * Connection to source.
- */
-const connectionState = ref<ConnectionState>(ConnectionState.Disconnected);
+const customHTTPHost = ref<string | null>("http://localhost:3000");
 
 /**
  * Filter string.
  */
 const searchQuery = ref<string | null>(null);
 
+const atlasesEvaluating = ref(false);
+
 /**
- * Full list of atlases from the last connection.
+ * Full list of atlases from the source URL.
  */
-const atlases = ref<Atlas[]>([]);
+const atlases = computedAsync<Atlas[]>(
+  async () => {
+    if (sourceToggle.value == SourceToggle.BrainGlobe) {
+      return (await listAtlases()) ?? [];
+    } else {
+      if (!customHTTPHost.value) return [];
+      return (await listAtlasesHTTP(customHTTPHost.value)) ?? [];
+    }
+  },
+  [],
+  atlasesEvaluating
+);
 
 // Getters.
 
@@ -67,7 +66,7 @@ const favoritesSet = computed(() => {
   }
 
   // Otherwise, return the empty set.
-  return new Set();
+  return new Set<string>();
 });
 
 /**
@@ -101,95 +100,13 @@ const filteredNonFavorites = computed(() =>
 );
 
 /**
- * Notify if a connection fails and set the connection status to disconnected.
+ * Compare atlases by identity fields, since instances are not stable references.
  */
-function notifyFail() {
-  $q.notify({
-    message: t("atlasPicker.connectFailed"),
-    caption: t("atlasPicker.connectFailedCaption"),
-    color: "negative",
-    icon: "mobiledata_off"
-  });
-  connectionState.value = ConnectionState.Disconnected;
-}
-
-/**
- * Make a connection to the atlas source and populate the atlas list.
- */
-async function connect() {
-  // Disconnect if no source.
-  if (!atlasSource.value) {
-    connectionState.value = ConnectionState.Disconnected;
-    return;
-  }
-
-  // Set to connecting.
-  connectionState.value = ConnectionState.Connecting;
-
-  // Make the connection.
-  const fetchedAtlases = await fetchAtlasSource(atlasSource.value);
-  if (fetchedAtlases) {
-    atlases.value = fetchedAtlases;
-    connectionState.value = ConnectionState.Connected;
-  } else {
-    notifyFail();
-  }
-}
-
-/**
- * Select an atlas, first checking that its version is compatible with the
- * running Pinpoint version. Blocks selection (and notifies) on a major
- * version mismatch or an unverifiable version; warns but still selects on a
- * minor version mismatch.
- */
-async function selectAtlas(atlas: Atlas) {
-  const metadata = await fetchAtlasMetadata(atlas);
-  const compatibility = checkAtlasCompatibility(
-    metadata?.version,
-    import.meta.env.APP_VERSION
+function isSelected(atlas: Atlas) {
+  return (
+    selectedAtlas.value?.source === atlas.source &&
+    selectedAtlas.value?.name === atlas.name
   );
-
-  switch (compatibility) {
-    case ConverterCompatibility.BlockPinpointOutdated:
-      $q.notify({
-        message: t("atlasPicker.pinpointOutdated"),
-        caption: t("atlasPicker.pinpointOutdatedCaption"),
-        color: "negative",
-        icon: "error"
-      });
-      selectedAtlas.value = null;
-      return;
-    case ConverterCompatibility.BlockAtlasOutdated:
-      $q.notify({
-        message: t("atlasPicker.atlasOutdated"),
-        caption: t("atlasPicker.atlasOutdatedCaption"),
-        color: "negative",
-        icon: "error"
-      });
-      selectedAtlas.value = null;
-      return;
-    case ConverterCompatibility.Unverifiable:
-      $q.notify({
-        message: t("atlasPicker.versionUnverifiable"),
-        caption: t("atlasPicker.versionUnverifiableCaption"),
-        color: "negative",
-        icon: "error"
-      });
-      selectedAtlas.value = null;
-      return;
-    case ConverterCompatibility.Warn:
-      $q.notify({
-        message: t("atlasPicker.versionWarn"),
-        caption: t("atlasPicker.versionWarnCaption"),
-        color: "warning",
-        icon: "warning"
-      });
-      break;
-    case ConverterCompatibility.Compatible:
-      break;
-  }
-
-  selectedAtlas.value = atlas;
 }
 </script>
 
@@ -197,97 +114,93 @@ async function selectAtlas(atlas: Atlas) {
   <q-form class="q-gutter-y-sm">
     <p class="text-h6">{{ $t("atlasPicker.title") }}</p>
 
-    <div class="row q-gutter-x-md">
-      <q-btn
-        :label="$t('atlasPicker.pinpointAtlases')"
-        color="primary"
-        icon="public"
-        @click="
-          atlasSource =
-            'https://virtualbrainlab.alleninstitute.org/pinpoint/atlases'
-        "
-      />
-      <q-btn
-        :label="$t('atlasPicker.locallyHosted')"
-        icon="home"
-        @click="atlasSource = 'http://localhost:3000'"
-      />
-    </div>
+    <q-btn-toggle
+      v-model="sourceToggle"
+      :options="[
+        {
+          label: $t('atlasPicker.brainglobeHosted'),
+          value: SourceToggle.BrainGlobe
+        },
+        { label: $t('atlasPicker.customHTTPHost'), value: SourceToggle.Custom }
+      ]"
+      spread
+      toggle-color="primary"
+    />
 
     <q-input
-      v-model="atlasSource"
+      v-if="sourceToggle === SourceToggle.Custom"
+      v-model="customHTTPHost"
       :label="$t('atlasPicker.sourceUrl')"
       class="col"
       clearable
     />
 
-    <q-btn
-      :label="$t('atlasPicker.connect')"
-      :loading="connectionState === ConnectionState.Connecting"
-      color="primary"
-      @click="connect"
-    />
-
-    <template v-if="connectionState === ConnectionState.Connected">
-      <q-input
-        v-model="searchQuery"
-        :label="$t('atlasPicker.search')"
-        clearable
-      >
-        <template #prepend>
-          <q-icon name="search" />
-        </template>
-      </q-input>
-      <p>{{
-        $t(
-          "atlasPicker.atlasCount",
-          { count: filteredAtlases.length },
-          filteredAtlases.length
-        )
-      }}</p>
-
-      <q-list class="dialog-list" separator>
-        <q-item
-          v-for="atlas in filteredFavorites"
-          :key="`${atlas.source}-${atlas.name}`"
-          v-ripple
-          :active="selectedAtlas === atlas"
-          clickable
-          @click="selectAtlas(atlas)"
+    <template v-if="!atlasesEvaluating">
+      <template v-if="atlases.length > 0">
+        <q-input
+          v-model="searchQuery"
+          :label="$t('atlasPicker.search')"
+          clearable
         >
-          <q-item-section>{{ atlas.name }}</q-item-section>
-          <q-item-section side>
-            <q-btn
-              :aria-label="$t('atlasPicker.removeFavorite')"
-              color="pink"
-              flat
-              icon="favorite"
-              round
-              @click.stop="favoriteAtlasesStore.remove(atlas)"
-            />
-          </q-item-section>
-        </q-item>
+          <template #prepend>
+            <q-icon name="search" />
+          </template>
+        </q-input>
+        <p>{{
+          $t(
+            "atlasPicker.atlasCount",
+            { count: filteredAtlases.length },
+            filteredAtlases.length
+          )
+        }}</p>
 
-        <q-item
-          v-for="atlas in filteredNonFavorites"
-          :key="`${atlas.source}-${atlas.name}`"
-          v-ripple
-          :active="selectedAtlas === atlas"
-          clickable
-          @click="selectAtlas(atlas)"
-        >
-          <q-item-section>{{ atlas.name }}</q-item-section>
-          <q-item-section side>
-            <q-btn
-              :aria-label="$t('atlasPicker.addFavorite')"
-              flat
-              icon="favorite_border"
-              round
-              @click.stop="favoriteAtlasesStore.add(atlas)"
-            />
-          </q-item-section>
-        </q-item>
-      </q-list>
+        <q-list class="dialog-list" separator>
+          <q-item
+            v-for="atlas in filteredFavorites"
+            :key="`${atlas.source}-${atlas.name}`"
+            v-ripple
+            :active="isSelected(atlas)"
+            clickable
+            @click="selectedAtlas = atlas"
+          >
+            <q-item-section>{{ atlas.name }}</q-item-section>
+            <q-item-section side>
+              <q-btn
+                :aria-label="$t('atlasPicker.removeFavorite')"
+                color="pink"
+                flat
+                icon="favorite"
+                round
+                @click.stop="favoriteAtlasesStore.remove(atlas)"
+              />
+            </q-item-section>
+          </q-item>
+
+          <q-item
+            v-for="atlas in filteredNonFavorites"
+            :key="`${atlas.source}-${atlas.name}`"
+            v-ripple
+            :active="isSelected(atlas)"
+            clickable
+            @click="selectedAtlas = atlas"
+          >
+            <q-item-section>{{ atlas.name }}</q-item-section>
+            <q-item-section side>
+              <q-btn
+                :aria-label="$t('atlasPicker.addFavorite')"
+                flat
+                icon="favorite_border"
+                round
+                @click.stop="favoriteAtlasesStore.add(atlas)"
+              />
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </template>
+      <template v-else>
+        <p>{{ $t("atlasPicker.noAtlases") }}</p>
+        <p class="text-caption">{{ $t("atlasPicker.noAtlasesCaption") }}</p>
+      </template>
     </template>
   </q-form>
 </template>

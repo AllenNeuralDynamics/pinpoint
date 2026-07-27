@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import ProbeLibraryDialog from "./ProbeLibraryDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
-import { InstallProbeDialog } from "@/features/probe";
+import InstallProbeDialog from "./InstallProbeDialog.vue";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { makeProbe } from "@/test/fixtures";
 

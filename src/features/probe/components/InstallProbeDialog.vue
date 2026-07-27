@@ -10,7 +10,7 @@ import {
   getProbeNames,
   getVendors,
   parseProbeInterfaceFile
-} from "@/features/probe";
+} from "../api/install-probe.api";
 
 // Setup dialog.
 defineEmits([...useDialogPluginComponent.emits]);
@@ -21,13 +21,18 @@ const $q = useQuasar();
 const { t } = useI18n();
 
 const selectedVendorName = ref<string | null>(null);
+const searchQuery = ref<string | null>(null);
+const selectedProbeName = ref<string | null>(null);
+const probeNamesEvaluating = ref(false);
+
+// Loading state for the two ways to resolve the dialog.
+const installing = ref(false);
+const uploading = ref(false);
+
+const fileInput = useTemplateRef<HTMLInputElement>("file-input");
+
 const vendors = computedAsync<string[]>(async () => await getVendors());
 
-const searchQuery = ref<string | null>(null);
-
-const selectedProbeName = ref<string | null>(null);
-
-const probeNamesEvaluating = ref(false);
 const probeNames = computedAsync<string[]>(
   async () => {
     if (!selectedVendorName.value) return [];
@@ -56,12 +61,6 @@ const selectedProbeOverviewImageSrc = computed<string>(() => {
     selectedProbeName.value
   );
 });
-
-// Loading state for the two ways to resolve the dialog.
-const installing = ref(false);
-const uploading = ref(false);
-
-const fileInput = useTemplateRef<HTMLInputElement>("file-input");
 
 /**
  * Notify that installing or reading a probe failed.
