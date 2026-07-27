@@ -6,7 +6,7 @@ const appVersion = import.meta.env.APP_VERSION;
 
 defineEmits([...useDialogPluginComponent.emits]);
 
-const { dialogRef, onDialogHide } = useDialogPluginComponent();
+const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const $q = useQuasar();
 </script>
 
@@ -25,7 +25,9 @@ const $q = useQuasar();
               icon="add"
               :label="$t('splash.new')"
               size="xl"
-              @click="$q.dialog({ component: NewExperimentDialog })"
+              @click="
+                $q.dialog({ component: NewExperimentDialog }).onOk(onDialogOK)
+              "
             />
             <q-btn
               v-close-popup

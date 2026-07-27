@@ -6,9 +6,10 @@ import { flushPromises } from "@vue/test-utils";
 import { useCurrentExperimentStore } from "./current-experiment.store";
 import {
   getDefaultStructureIdentifiers,
+  getManifest,
   getTerminologyRows
 } from "@/features/atlas";
-import { makeAtlas, makeTerminologyRows } from "@/test/fixtures";
+import { makeAtlas, makeManifest, makeTerminologyRows } from "@/test/fixtures";
 
 vi.mock("@/features/atlas", () => ({
   BRAINGLOBE_BASE_URL:
@@ -22,6 +23,9 @@ describe("useCurrentExperimentStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.mocked(getDefaultStructureIdentifiers).mockReset();
+    vi.mocked(getDefaultStructureIdentifiers).mockReturnValue([]);
+    vi.mocked(getManifest).mockReset();
+    vi.mocked(getTerminologyRows).mockReset();
   });
 
   describe("create", () => {
@@ -127,10 +131,15 @@ describe("useCurrentExperimentStore", () => {
 
     it("delegates to getDefaultStructureIdentifiers once terminologyRows resolves", async () => {
       const terminologyRows = makeTerminologyRows();
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
       vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
       vi.mocked(getDefaultStructureIdentifiers).mockReturnValue([7, 8]);
 
       const store = useCurrentExperimentStore();
+      // terminologyRows now depends on manifest, which resolves through its
+      // own computedAsync first, so flush an extra microtask round for that
+      // hop to settle before terminologyRows's callback re-runs.
+      await flushPromises();
       await flushPromises();
 
       expect(store.terminologyRows).toEqual(terminologyRows);
@@ -141,11 +150,99 @@ describe("useCurrentExperimentStore", () => {
         terminologyRows
       );
     });
+
+    it("is [] while the manifest is still evaluating, even once terminologyRows has rows", async () => {
+      const terminologyRows = makeTerminologyRows();
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+      vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
+      vi.mocked(getDefaultStructureIdentifiers).mockReturnValue([7, 8]);
+
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+      // terminologyRows has resolved with rows, but re-trigger evaluation by
+      // switching the atlas -- the guard must hold even once rows were
+      // previously populated, not just before their first resolution.
+      vi.mocked(getManifest).mockReturnValue(new Promise(() => {}));
+      store.create(
+        "New Experiment",
+        makeAtlas({ name: "allen_human" }),
+        [0, 0, 0]
+      );
+      await flushPromises();
+
+      expect(store.terminologyRows).toEqual(terminologyRows);
+      expect(store.areAtlasComponentsEvaluating).toBe(true);
+      expect(store.defaultStructureIdentifiers).toEqual([]);
+    });
+  });
+
+  describe("areAtlasComponentsEvaluating", () => {
+    it("is true while getManifest is still pending", async () => {
+      vi.mocked(getManifest).mockReturnValue(new Promise(() => {}));
+
+      const store = useCurrentExperimentStore();
+      // `computedAsync`'s `evaluating` flag flips on a microtask after the
+      // callback starts, not synchronously with store creation.
+      await flushPromises();
+
+      expect(store.areAtlasComponentsEvaluating).toBe(true);
+    });
+
+    it("is true while getTerminologyRows is still pending, once the manifest has resolved", async () => {
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+      vi.mocked(getTerminologyRows).mockReturnValue(new Promise(() => {}));
+
+      const store = useCurrentExperimentStore();
+      // Let the manifest's own computedAsync resolve before checking that
+      // terminologyRows's own evaluating flag has taken over.
+      await flushPromises();
+
+      expect(store.manifest).not.toBeNull();
+      expect(store.areAtlasComponentsEvaluating).toBe(true);
+    });
+
+    it("is false once both the manifest and terminologyRows have resolved", async () => {
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+
+      expect(store.areAtlasComponentsEvaluating).toBe(false);
+    });
+  });
+
+  describe("terminologyRows", () => {
+    it("is [] when getManifest resolves null, without calling getTerminologyRows", async () => {
+      vi.mocked(getManifest).mockResolvedValue(null);
+
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+
+      expect(store.terminologyRows).toEqual([]);
+      expect(getTerminologyRows).not.toHaveBeenCalled();
+    });
+
+    it("calls getTerminologyRows with the resolved manifest", async () => {
+      const manifest = makeManifest();
+      vi.mocked(getManifest).mockResolvedValue(manifest);
+      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+
+      useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+
+      expect(getTerminologyRows).toHaveBeenCalledWith(manifest);
+    });
   });
 
   describe("persistence", () => {
     it("only writes experiment to storage, not the computedAsync-derived state", async () => {
       const terminologyRows = makeTerminologyRows();
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
       vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
       localStorage.removeItem("current-experiment");
 
@@ -160,6 +257,9 @@ describe("useCurrentExperimentStore", () => {
       setActivePinia(pinia);
 
       const store = useCurrentExperimentStore();
+      // terminologyRows now depends on manifest resolving first - see the
+      // defaultStructureIdentifiers test above.
+      await flushPromises();
       await flushPromises();
 
       // `terminologyRows` is populated (proving it isn't just absent because

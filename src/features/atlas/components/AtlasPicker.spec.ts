@@ -64,7 +64,7 @@ describe("AtlasPicker", () => {
       mockedGet.mockResolvedValue({
         data: `<?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-  <CommonPrefixes><Prefix>atlas-rc2/terminologies/allen_mouse-terminology/</Prefix></CommonPrefixes>
+  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
 </ListBucketResult>`
       });
 
@@ -80,7 +80,7 @@ describe("AtlasPicker", () => {
       mockedGet.mockResolvedValue({
         data: {
           files: [
-            { name: "allen_mouse", type: "folder" },
+            { name: "allen_mouse_25um", type: "folder" },
             { name: "readme.txt", type: "file" }
           ]
         }
@@ -117,8 +117,8 @@ describe("AtlasPicker", () => {
       mockedGet.mockResolvedValue({
         data: {
           files: [
-            { name: "allen_mouse", type: "folder" },
-            { name: "allen_human", type: "folder" }
+            { name: "allen_mouse_25um", type: "folder" },
+            { name: "allen_human_500um", type: "folder" }
           ]
         }
       });
@@ -143,8 +143,8 @@ describe("AtlasPicker", () => {
       mockedGet.mockResolvedValue({
         data: {
           files: [
-            { name: "allen_mouse", type: "folder" },
-            { name: "allen_human", type: "folder" }
+            { name: "allen_mouse_25um", type: "folder" },
+            { name: "allen_human_500um", type: "folder" }
           ]
         }
       });
@@ -219,7 +219,7 @@ describe("AtlasPicker", () => {
   describe("selection", () => {
     it("emits update:modelValue with the clicked atlas", async () => {
       mockedGet.mockResolvedValue({
-        data: { files: [{ name: "allen_mouse", type: "folder" }] }
+        data: { files: [{ name: "allen_mouse_25um", type: "folder" }] }
       });
 
       const wrapper = await mountOnCustomSource();

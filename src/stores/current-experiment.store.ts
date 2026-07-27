@@ -66,16 +66,40 @@ export const useCurrentExperimentStore = defineStore(
      */
     const atlas = computed(() => experiment.value.atlas);
 
+    /**
+     * Flag for when the manifest is being updated to match the new atlas.
+     */
+    const isManifestEvaluating = ref(false);
+
+    /**
+     * Manifest of the current atlas.
+     */
     const manifest = computedAsync<Manifest | null>(
-      async () => await getManifest(atlas.value)
+      async () => await getManifest(atlas.value),
+      null,
+      isManifestEvaluating
     );
 
     /**
-     * Fetch the terminology rows which provide the regions of the atlas.
+     * Flag for when the terminology rows are being updated to match the new atlas.
+     */
+    const isTerminologyRowsEvaluating = ref(false);
+
+    /**
+     * Terminology rows of the current atlas.
      */
     const terminologyRows = computedAsync(
-      async () => await getTerminologyRows(atlas.value),
-      []
+      async () =>
+        manifest.value ? await getTerminologyRows(manifest.value) : [],
+      [],
+      isTerminologyRowsEvaluating
+    );
+
+    /**
+     * Are the getters into the current atlas still evaluating.
+     */
+    const areAtlasComponentsEvaluating = computed(
+      () => isManifestEvaluating.value || isTerminologyRowsEvaluating.value
     );
 
     /**
@@ -83,7 +107,7 @@ export const useCurrentExperimentStore = defineStore(
      * atlas.
      */
     const defaultStructureIdentifiers = computed<number[]>(() =>
-      terminologyRows.value
+      terminologyRows.value && !areAtlasComponentsEvaluating.value
         ? getDefaultStructureIdentifiers(terminologyRows.value)
         : []
     );
@@ -158,6 +182,7 @@ export const useCurrentExperimentStore = defineStore(
       atlas,
       manifest,
       terminologyRows,
+      areAtlasComponentsEvaluating,
       defaultStructureIdentifiers,
       setReferenceCoordinate,
       referenceCoordinate,

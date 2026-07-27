@@ -3,12 +3,12 @@ import {
   buildInitialReferenceCoordinate,
   FALLBACK_REFERENCE_COORDINATE
 } from "./reference-coordinate.api";
-import { makeManifest } from "@/test/fixtures";
+import { makeAtlas, makeManifest } from "@/test/fixtures";
 
 describe("buildInitialReferenceCoordinate", () => {
   it("uses the override for a known atlas name", () => {
     const manifest = makeManifest({
-      name: "allen_mouse",
+      atlas: makeAtlas({ name: "allen_mouse" }),
       resolutions: [[0.1, 0.1, 0.1]],
       shape: [[100, 100, 100]]
     });
@@ -18,7 +18,7 @@ describe("buildInitialReferenceCoordinate", () => {
 
   it("computes the atlas center when no override exists", () => {
     const manifest = makeManifest({
-      name: "allen_human",
+      atlas: makeAtlas({ name: "allen_human" }),
       resolutions: [[0.02, 0.04, 0.06]],
       shape: [[100, 200, 300]]
     });
@@ -28,7 +28,7 @@ describe("buildInitialReferenceCoordinate", () => {
 
   it("falls back when the manifest has no resolutions or shape", () => {
     const manifest = makeManifest({
-      name: "allen_human",
+      atlas: makeAtlas({ name: "allen_human" }),
       resolutions: [],
       shape: []
     });

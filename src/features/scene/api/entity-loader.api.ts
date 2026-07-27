@@ -1,7 +1,6 @@
 import type { AbstractMesh, IndicesArray, Scene } from "@babylonjs/core";
 import {
   DracoDecoder,
-  Logger,
   Mesh,
   QuadraticErrorSimplification,
   StandardMaterial,
@@ -86,6 +85,11 @@ export function setAtlasRootReference(
  *
  * Missing structures are imported concurrently rather than one at a time, so
  * total load time is bound by the slowest structure rather than their sum.
+ * Every import runs to completion even if a sibling fails -- a failure only
+ * rejects the overall sync once every structure's placeholder has either
+ * been filled in or disposed, so no structure is left claimed by a
+ * permanently-invisible placeholder that a later sync would mistake for
+ * already present and never retry.
  *
  * Safe to call repeatedly and concurrently for the same desired state --
  * every phase up to and including alpha assignment runs synchronously, with
@@ -159,12 +163,32 @@ export async function syncStructureVisibility(
   }
 
   // Load every missing structure's geometry concurrently, and await them
-  // collectively rather than one at a time.
-  await Promise.all(
+  // collectively rather than one at a time. `allSettled` (not `all`) so a
+  // failing structure doesn't leave its still-loading siblings' placeholders
+  // dangling -- every import disposes its own placeholder on failure, but
+  // only once it's had the chance to run.
+  const results = await Promise.allSettled(
     pendingImports.map(({ structure, mesh }) =>
       loadStructureGeometry(structure, mesh, scene)
     )
   );
+
+  // Surface the first failure now that every import has settled, so callers
+  // can notify -- but without hiding a sync that otherwise succeeded.
+  const failure = results.find(result => result.status === "rejected");
+  if (failure) throw failure.reason;
+}
+
+/**
+ * Clear the structures in the scene.
+ * @param scene Scene to clear structures for.
+ */
+export function removeAllStructures(scene: Scene) {
+  const atlasRootNode = buildAtlasRootNode(scene);
+  const children = childStructureMeshes(atlasRootNode);
+  for (const [_, mesh] of children) {
+    mesh.dispose(false, true);
+  }
 }
 
 /**
@@ -279,13 +303,11 @@ async function loadStructureGeometry(
     vertexData.applyToMesh(mesh);
     mesh.isVisible = true;
   } catch (error) {
-    // Skip structures that fail to load, but don't hide why. Dispose the
-    // placeholder too so a later sync retries rather than leaving an empty,
-    // permanently-hidden mesh behind.
+    // Dispose mesh and skip this mesh.
     mesh.dispose(false, true);
-    Logger.Warn(
-      `Failed to import structure ${structure.identifier}: ${String(error)}`
-    );
+
+    // Percolate error up.
+    throw error;
   }
 }
 

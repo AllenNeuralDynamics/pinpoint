@@ -10,7 +10,7 @@ import {
 
 defineEmits([...useDialogPluginComponent.emits]);
 
-const { dialogRef, onDialogHide } = useDialogPluginComponent();
+const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
 
 const name = ref<string | null>(null);
@@ -35,6 +35,8 @@ async function create() {
     : FALLBACK_REFERENCE_COORDINATE;
 
   currentExperimentStore.create(name.value, atlas.value, referenceCoordinate);
+
+  onDialogOK();
 }
 </script>
 
@@ -59,7 +61,6 @@ async function create() {
           icon="add"
           :label="$t('newExperiment.create')"
           :disable="isCreateDisabled"
-          v-close-popup
           @click="create"
         >
           <q-tooltip v-if="isCreateDisabled">

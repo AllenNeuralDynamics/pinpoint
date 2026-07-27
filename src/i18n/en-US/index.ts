@@ -30,6 +30,11 @@ export default {
     vblWebsite: "VBL Website",
     recentExperiment: "Some Recent Experiment {n}"
   },
+  sceneCanvas: {
+    problemLoadingAtlasMeshes:
+      "There was a problem loading the meshes for this atlas.",
+    atlasLikelyNotSupportedYet: "It's likely not fully supported yet."
+  },
   installProbe: {
     title: "Install Probe",
     vendor: "Vendor",

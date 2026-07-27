@@ -19,7 +19,9 @@ export function makeAtlas(overrides: Partial<Atlas> = {}): Atlas {
 
 export function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
   return {
-    name: "allen_mouse",
+    atlas: makeAtlas(),
+    terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
+    annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
     resolutions: [[0.025, 0.025, 0.025]],
     shape: [[528, 320, 456]],
     ...overrides

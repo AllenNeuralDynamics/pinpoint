@@ -23,7 +23,7 @@ export function buildInitialReferenceCoordinate(
   manifest: Manifest
 ): [number, number, number] {
   // Check overrides first.
-  const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[manifest.name];
+  const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[manifest.atlas.name];
   if (override) return override;
 
   // Use fallback if manifest does not have resolutions or shape.

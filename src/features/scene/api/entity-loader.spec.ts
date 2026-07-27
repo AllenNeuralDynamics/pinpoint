@@ -4,7 +4,6 @@ import {
   Color3,
   DracoDecoder,
   Geometry,
-  Logger,
   Mesh,
   MeshBuilder,
   NullEngine,
@@ -12,9 +11,11 @@ import {
   StandardMaterial,
   Vector3,
   VertexBuffer,
-  VertexData
+  VertexData,
+  WorkerPool
 } from "@babylonjs/core";
 import {
+  removeAllStructures,
   setAtlasRootReference,
   syncStructureVisibility
 } from "./entity-loader.api";
@@ -22,6 +23,15 @@ import type { StructureEntity } from "../models/structure-entity.model";
 import { asrToBabylon } from "./coordinate-transforms.api";
 
 vi.mock("axios");
+
+// Every test spies on `decodeMeshToGeometryAsync` directly, so the codec's
+// own worker pool is never exercised -- but merely accessing
+// `DracoDecoder.Default` still lazily constructs it, and its default
+// configuration would fetch the real wasm binary from
+// cdn.babylonjs.com. Supplying an (unused) empty worker pool short-circuits
+// that construction with no network access.
+DracoDecoder.ResetDefault(true);
+DracoDecoder.DefaultConfiguration = { workerPool: new WorkerPool([]) };
 
 function makeStructureEntity(
   overrides: Partial<StructureEntity> = {}
@@ -63,6 +73,13 @@ function makeUnlitMesh(scene: Scene, name = "raw"): Mesh {
   const mesh = new Mesh(name, scene);
   makeRawGeometry(scene, `${name}_geometry`).applyToMesh(mesh);
   return mesh;
+}
+
+/** Stub Draco decoding with a real, positions-only sphere geometry. */
+function stubDecode(scene: Scene) {
+  return vi
+    .spyOn(DracoDecoder.Default, "decodeMeshToGeometryAsync")
+    .mockImplementation(name => Promise.resolve(makeRawGeometry(scene, name)));
 }
 
 /**
@@ -134,15 +151,6 @@ describe("syncStructureVisibility", () => {
     mockedGet.mockReset();
     mockedGet.mockResolvedValue({ data: new ArrayBuffer(0) });
   });
-
-  /** Stub Draco decoding with a real, positions-only sphere geometry. */
-  function stubDecode(scene: Scene) {
-    return vi
-      .spyOn(DracoDecoder.Default, "decodeMeshToGeometryAsync")
-      .mockImplementation(name =>
-        Promise.resolve(makeRawGeometry(scene, name))
-      );
-  }
 
   it("imports a new structure, parented to the atlas root and colored", async () => {
     const scene = makeScene();
@@ -357,12 +365,14 @@ describe("syncStructureVisibility", () => {
     decodeSpy.mockRestore();
   });
 
-  it("swallows a failed mesh fetch and adds nothing to the scene", async () => {
+  it("rejects on a failed mesh fetch and adds nothing to the scene", async () => {
     const scene = makeScene();
     mockedGet.mockRejectedValue(new Error("network error"));
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructureVisibility(scene, [], [structure]);
+    await expect(
+      syncStructureVisibility(scene, [], [structure])
+    ).rejects.toThrow("network error");
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     expect(atlasRootNode.getChildren()).toEqual([]);
@@ -371,14 +381,16 @@ describe("syncStructureVisibility", () => {
     expect(scene.materials).toEqual([]);
   });
 
-  it("swallows a failed decode and adds nothing to the scene", async () => {
+  it("rejects on a failed decode and adds nothing to the scene", async () => {
     const scene = makeScene();
     const decodeSpy = vi
       .spyOn(DracoDecoder.Default, "decodeMeshToGeometryAsync")
       .mockRejectedValue(new Error("bad draco data"));
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructureVisibility(scene, [], [structure]);
+    await expect(
+      syncStructureVisibility(scene, [], [structure])
+    ).rejects.toThrow("bad draco data");
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     expect(atlasRootNode.getChildren()).toEqual([]);
@@ -387,26 +399,78 @@ describe("syncStructureVisibility", () => {
     decodeSpy.mockRestore();
   });
 
-  it("logs the failure reason when a decode fails, instead of hiding it", async () => {
+  it("rejects with the original error so the caller can surface it", async () => {
     const scene = makeScene();
     const decodeError = new Error("bad draco data");
     const decodeSpy = vi
       .spyOn(DracoDecoder.Default, "decodeMeshToGeometryAsync")
       .mockRejectedValue(decodeError);
-    const warnSpy = vi.spyOn(Logger, "Warn").mockImplementation(() => {});
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructureVisibility(scene, [], [structure]);
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Failed to import structure 1")
-    );
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining(decodeError.toString())
+    await expect(syncStructureVisibility(scene, [], [structure])).rejects.toBe(
+      decodeError
     );
 
-    warnSpy.mockRestore();
     decodeSpy.mockRestore();
+  });
+
+  it("finishes and disposes every failing structure's placeholder even when a sibling also fails, so a later sync retries them", async () => {
+    const scene = makeScene();
+    stubDecode(scene);
+    const failing = makeStructureEntity({
+      identifier: 1,
+      meshPath: "http://localhost:3000/allen_mouse/meshes/1.glb"
+    });
+    const succeeding = makeStructureEntity({
+      identifier: 2,
+      meshPath: "http://localhost:3000/allen_mouse/meshes/2.glb"
+    });
+
+    // Gate both fetches on deferred promises so the failing one's rejection
+    // lands while the succeeding one is still in flight -- reproducing the
+    // case where `Promise.all` would have left the succeeding structure's
+    // placeholder abandoned mid-import.
+    let resolveSucceeding!: (value: { data: ArrayBuffer }) => void;
+    mockedGet.mockImplementation(url =>
+      url === failing.meshPath
+        ? Promise.reject(new Error("network error"))
+        : new Promise(resolve => (resolveSucceeding = resolve))
+    );
+
+    const syncPromise = syncStructureVisibility(
+      scene,
+      [],
+      [failing, succeeding]
+    );
+    await Promise.resolve();
+    await Promise.resolve();
+    resolveSucceeding({ data: new ArrayBuffer(0) });
+
+    await expect(syncPromise).rejects.toThrow("network error");
+
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    expect(
+      atlasRootNode.getChildren().some(c => c.name === "1_structure")
+    ).toBe(false);
+    expect(scene.materials.some(m => m.name === "1_material")).toBe(false);
+    const succeedingMesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "2_structure") as Mesh;
+    expect(succeedingMesh).toBeDefined();
+    expect(succeedingMesh.isVisible).toBe(true);
+
+    // The failed structure's placeholder was disposed rather than left
+    // dangling, so a later sync sees it as absent and retries it.
+    mockedGet.mockReset();
+    mockedGet.mockResolvedValue({ data: new ArrayBuffer(0) });
+    await syncStructureVisibility(scene, [], [failing, succeeding]);
+
+    expect(mockedGet).toHaveBeenCalledWith(failing.meshPath, {
+      responseType: "arraybuffer"
+    });
+    expect(
+      atlasRootNode.getChildren().some(c => c.name === "1_structure")
+    ).toBe(true);
   });
 
   it("imports missing structures concurrently rather than one at a time", async () => {
@@ -530,6 +594,72 @@ describe("syncStructureVisibility", () => {
       atlasRootNode.getChildren().some(c => c.name === "1_structure")
     ).toBe(false);
     expect(scene.materials).toEqual([]);
+  });
+});
+
+describe("removeAllStructures", () => {
+  // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
+  // called unbound.
+  // oxlint-disable-next-line typescript/unbound-method
+  const mockedGet = vi.mocked(axios.get);
+
+  beforeEach(() => {
+    mockedGet.mockReset();
+    mockedGet.mockResolvedValue({ data: new ArrayBuffer(0) });
+  });
+
+  it("disposes every structure mesh and its material", async () => {
+    const scene = makeScene();
+    const decodeSpy = stubDecode(scene);
+    const structures = [
+      makeStructureEntity({ identifier: 1 }),
+      makeStructureEntity({ identifier: 2 })
+    ];
+    await syncStructureVisibility(scene, [], structures);
+    decodeSpy.mockRestore();
+
+    removeAllStructures(scene);
+
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    expect(atlasRootNode.getChildren()).toEqual([]);
+    expect(scene.materials).toEqual([]);
+  });
+
+  it("leaves the atlas root node itself in place", async () => {
+    const scene = makeScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructureVisibility(scene, [], [structure]);
+    decodeSpy.mockRestore();
+
+    removeAllStructures(scene);
+
+    expect(scene.getTransformNodeByName("atlasRoot_node")).not.toBeNull();
+  });
+
+  it("leaves a non-structure child of the atlas root alone", async () => {
+    const scene = makeScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructureVisibility(scene, [], [structure]);
+    decodeSpy.mockRestore();
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const unrelatedMesh = new Mesh("probeTip_mesh", scene);
+    unrelatedMesh.parent = atlasRootNode;
+
+    removeAllStructures(scene);
+
+    expect(atlasRootNode.getChildren()).toEqual([unrelatedMesh]);
+  });
+
+  it("creates the atlas root node and no-ops on a scene with no structures", () => {
+    const scene = makeScene();
+
+    removeAllStructures(scene);
+
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node");
+    expect(atlasRootNode).not.toBeNull();
+    expect(atlasRootNode!.getChildren()).toEqual([]);
   });
 });
 

@@ -4,15 +4,21 @@ import { createPinia, setActivePinia } from "pinia";
 import NewExperimentDialog from "./NewExperimentDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { getManifest } from "@/features/atlas";
+import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { makeAtlas, makeManifest } from "@/test/fixtures";
 
-vi.mock("@/features/atlas", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/features/atlas")>(
-      "@/features/atlas"
-    );
-  return { ...actual, getManifest: vi.fn() };
+// `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
+// `computedAsync`, refetching from the real atlas API whenever the atlas
+// changes -- both must be mocked or mounting this dialog (and clicking
+// Create) triggers real network requests. Mocking the leaf module (rather
+// than the `@/features/atlas` barrel it's re-exported through) is required:
+// mocking the barrel by the same specifier it re-exports from doesn't
+// consistently intercept the store's own import of it.
+vi.mock("@/features/atlas/api/source.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/features/atlas/api/source.api")
+  >("@/features/atlas/api/source.api");
+  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
 });
 
 type DialogWrapper = VueWrapper<
@@ -56,6 +62,8 @@ describe("NewExperimentDialog", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.mocked(getManifest).mockReset();
+    vi.mocked(getTerminologyRows).mockReset();
+    vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 
   afterEach(() => {
@@ -90,7 +98,7 @@ describe("NewExperimentDialog", () => {
     it("seeds the reference coordinate from the atlas's manifest when available", async () => {
       const atlas = makeAtlas();
       const manifest = makeManifest({
-        name: "allen_human",
+        atlas: makeAtlas({ name: "allen_human" }),
         resolutions: [[0.02, 0.02, 0.02]],
         shape: [[100, 100, 100]]
       });
@@ -109,6 +117,9 @@ describe("NewExperimentDialog", () => {
       expect(store.name).toBe("My Experiment");
       expect(store.atlas).toEqual(atlas);
       expect(store.referenceCoordinate).toEqual([1, 1, 1]);
+      // Closing is now driven by `onDialogOK` (so the splash dialog that
+      // opened this one can close itself too), not `v-close-popup`.
+      expect(wrapper.emitted("ok")).toBeTruthy();
     });
 
     it("falls back to [0, 0, 0] when the manifest can't be fetched", async () => {
@@ -137,6 +148,7 @@ describe("NewExperimentDialog", () => {
       await flush();
 
       expect(createSpy).not.toHaveBeenCalled();
+      expect(wrapper.emitted("ok")).toBeFalsy();
     });
   });
 });

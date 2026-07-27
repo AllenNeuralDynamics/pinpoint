@@ -30,6 +30,8 @@ interface RawManifest {
   name: string;
   resolution: [number, number, number];
   shape: [number, number, number];
+  terminology: { location: string };
+  annotation_set: { location: string };
 }
 
 /**
@@ -42,70 +44,43 @@ export const BRAINGLOBE_BASE_URL =
   "https://brainglobe.s3.us-west-2.amazonaws.com/atlas-rc2/";
 const ATLAS_VERSION_STRING = "3_0";
 
-const TERMINOLOGY_SUFFIX = "-terminology";
-const ANNOTATION_SUFFIX = "-annotation";
-
 const ATLASES_DIRECTORY = "atlases";
 const MANIFEST_FILE = "manifest.json";
 const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
 
 /**
- * Fetch and parse the list of atlases available in the BrainGlobe
- * terminology bucket.
+ * Fetch and parse the list of atlases available in the BrainGlobe atlases
+ * bucket.
  * @returns The parsed atlases, or null if the bucket couldn't be reached.
  */
 export async function listAtlases(): Promise<Atlas[] | null> {
   try {
-    const bucket = new URL(BRAINGLOBE_BASE_URL);
-    const params = new URLSearchParams({
-      "list-type": "2",
-      prefix: `${bucket.pathname.slice(1)}terminologies/`,
-      delimiter: "/"
-    });
-
-    const response = await axios.get<string>(`${bucket.origin}/?${params}`, {
-      responseType: "text"
-    });
-
-    const doc = new DOMParser().parseFromString(
-      response.data,
-      "application/xml"
-    );
-    return Array.from(doc.getElementsByTagName("CommonPrefixes"))
-      .map(el => el.getElementsByTagName("Prefix")[0]?.textContent ?? "")
-      .map(prefix => prefix.split("/").filter(Boolean).pop() ?? "")
-      .filter(Boolean)
-      .map(name =>
-        name.endsWith(TERMINOLOGY_SUFFIX)
-          ? name.slice(0, -TERMINOLOGY_SUFFIX.length)
-          : name
-      )
-      .map(name => ({ name, source: BRAINGLOBE_BASE_URL }));
+    const directoryNames =
+      await listBucketAtlasDirectories(BRAINGLOBE_BASE_URL);
+    return atlasNamesFromDirectories(directoryNames).map(name => ({
+      name,
+      source: BRAINGLOBE_BASE_URL
+    }));
   } catch {
     return null;
   }
 }
 
 /**
- * Fetch and parse the list of atlases available in the terminologies
- * directory of a BrainGlobe HTTP server.
+ * Fetch and parse the list of atlases available in the atlases directory of
+ * a BrainGlobe HTTP server.
  * @param source Root URL of the BrainGlobe HTTP server.
  * @returns The parsed atlases, or null if the host couldn't be reached.
  */
 export async function listAtlasesHTTP(source: string): Promise<Atlas[] | null> {
   try {
-    const response = await axios.get<AtlasSourceResponse>(
-      `${source}/${HTTP_SOURCE_PREFIX}/terminologies`
+    const directoryNames = await listServerAtlasDirectories(
+      `${source}/${HTTP_SOURCE_PREFIX}/${ATLASES_DIRECTORY}`
     );
-
-    return response.data.files
-      .filter(item => item.type === "folder")
-      .map(item =>
-        item.name.endsWith(TERMINOLOGY_SUFFIX)
-          ? item.name.slice(0, -TERMINOLOGY_SUFFIX.length)
-          : item.name
-      )
-      .map(name => ({ name, source: source }));
+    return atlasNamesFromDirectories(directoryNames).map(name => ({
+      name,
+      source
+    }));
   } catch {
     return null;
   }
@@ -113,19 +88,20 @@ export async function listAtlasesHTTP(source: string): Promise<Atlas[] | null> {
 
 /**
  * Fetch and parse the terminology list for an atlas.
- * @param atlas Atlas to get the terminology list for and parse.
+ * @param manifest Manifest of the atlas to get the terminology list for and
+ * parse.
  * @returns Parsed terminology list, or an empty list if it couldn't be
  * fetched or parsed.
  */
 export async function getTerminologyRows(
-  atlas: Atlas
+  manifest: Manifest
 ): Promise<TerminologyRow[]> {
   return new Promise(resolve => {
     Papa.parse<RawTerminologyRow>(
-      new URL(
-        `terminologies/${atlas.name}${TERMINOLOGY_SUFFIX}/${ATLAS_VERSION_STRING}/terminology.csv`,
-        atlas.source
-      ).toString(),
+      resolveSourcePath(
+        manifest.atlas.source,
+        `${manifest.terminologyLocation}/terminology.csv`
+      ),
       {
         download: true,
         header: true,
@@ -178,14 +154,14 @@ export async function getManifest(atlas: Atlas): Promise<Manifest | null> {
 }
 
 /**
- * Returns a structure entity for a structure by identifier from an atlas
- * and its parsed terminology row.
- * @param atlas Atlas to pull mesh info from.
+ * Returns a structure entity for a structure by identifier from an atlas's
+ * manifest and its parsed terminology row.
+ * @param manifest Manifest of the atlas to pull mesh info from.
  * @param terminologyRows Parsed terminology rows for the atlas.
  * @param identifier Structure identifier to build for.
  */
 export function structureEntityFromIdentifier(
-  atlas: Atlas,
+  manifest: Manifest,
   terminologyRows: TerminologyRow[],
   identifier: number
 ): StructureEntity | null {
@@ -196,10 +172,10 @@ export function structureEntityFromIdentifier(
 
   return {
     identifier: terminologyRow.identifier,
-    meshPath: new URL(
-      `annotation-sets/${atlas.name}${ANNOTATION_SUFFIX}/${ATLAS_VERSION_STRING}/annotations.precomputed/mesh/${terminologyRow.identifier}`,
-      atlas.source
-    ).toString(),
+    meshPath: resolveSourcePath(
+      manifest.atlas.source,
+      `${manifest.annotationSetLocation}/annotations.precomputed/mesh/${terminologyRow.identifier}`
+    ),
     color: Color3.FromHexString(terminologyRow.color_hex_triplet)
   };
 }
@@ -227,6 +203,38 @@ function parseTerminologyRow(row: RawTerminologyRow): TerminologyRow {
     color_hex_triplet: row.color_hex_triplet,
     root_identifier_path: rootIdentifierPath
   };
+}
+
+/**
+ * Derive the unique atlas names from a list of `atlases/` directory names,
+ * by slicing off the resolution suffix (everything after the last
+ * underscore), e.g. `allen_mouse_25um` -> `allen_mouse`. Multiple size
+ * variants of the same atlas collapse to one name.
+ * @param directoryNames Directory names listed under `atlases/`.
+ */
+function atlasNamesFromDirectories(directoryNames: string[]): string[] {
+  return [
+    ...new Set(
+      directoryNames.filter(Boolean).map(name => {
+        const index = name.lastIndexOf("_");
+        return index === -1 ? name : name.slice(0, index);
+      })
+    )
+  ];
+}
+
+/**
+ * Resolve a manifest's source-root-relative location (e.g.
+ * `/terminologies/allen_mouse-terminology/3_0`) against an atlas source,
+ * using the same BrainGlobe-bucket-vs-HTTP-server branching as
+ * {@link getManifest}.
+ * @param source Root URL of the atlas source.
+ * @param path Source-root-relative path, starting with `/`.
+ */
+function resolveSourcePath(source: string, path: string): string {
+  return source === BRAINGLOBE_BASE_URL
+    ? new URL(path.replace(/^\//, ""), source).toString()
+    : `${source}/${HTTP_SOURCE_PREFIX}${path}`;
 }
 
 /**
@@ -311,8 +319,17 @@ async function buildManifest(
     .map(response => response.data)
     .sort((a, b) => Math.min(...a.resolution) - Math.min(...b.resolution));
 
+  // All size variants of an atlas share the same terminology and annotation
+  // set, so the finest variant's locations apply to the whole manifest.
+  const finest = variants[0];
+  if (!finest?.terminology?.location || !finest.annotation_set?.location) {
+    return null;
+  }
+
   return {
-    name: atlas.name,
+    atlas,
+    terminologyLocation: finest.terminology.location,
+    annotationSetLocation: finest.annotation_set.location,
     resolutions: variants.map(variant => {
       // Convert um to mm.
       const [ap, dv, ml] = variant.resolution;
