@@ -21,13 +21,3 @@ Additional things:
 
 - Lefthook has enabled pre-commit hooks that run the formatter, linter, and type checker.
 - Skills was used to install agent skills. Symlink them for your agent (i.e. `pnpx skills add antfu/skills -a claude-code`)
-
-## Hosting local atlases.
-
-Build atlases using [Atlas Converter](https://github.com/kennethjyang/atlas-converter), which will put them in `~/pinpoint_atlases` by default. Then run:
-
-```bash
-pnpm local-atlas
-```
-
-to serve them locally.
