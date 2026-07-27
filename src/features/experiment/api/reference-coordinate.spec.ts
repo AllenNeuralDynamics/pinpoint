@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildInitialReferenceCoordinate,
-  FALLBACK_REFERENCE_COORDINATE
-} from "./reference-coordinate.api";
+import { buildInitialReferenceCoordinate } from "./reference-coordinate.api";
 import { makeAtlas, makeManifest } from "@/test/fixtures";
 
 describe("buildInitialReferenceCoordinate", () => {
@@ -26,15 +23,13 @@ describe("buildInitialReferenceCoordinate", () => {
     expect(buildInitialReferenceCoordinate(manifest)).toEqual([1, 4, 9]);
   });
 
-  it("falls back when the manifest has no resolutions or shape", () => {
+  it("falls back to [0, 0, 0] when the manifest has no resolutions or shape", () => {
     const manifest = makeManifest({
       atlas: makeAtlas({ name: "allen_human" }),
       resolutions: [],
       shape: []
     });
 
-    expect(buildInitialReferenceCoordinate(manifest)).toEqual(
-      FALLBACK_REFERENCE_COORDINATE
-    );
+    expect(buildInitialReferenceCoordinate(manifest)).toEqual([0, 0, 0]);
   });
 });

@@ -5,8 +5,9 @@ export interface Experiment {
   atlas: Atlas;
 
   /**
-   * Offset (in ASR, AP/DV/ML, mm) that the atlas root should be moved by such
-   * that the scene origin is at this location in ASR.
+   * Reference coordinate (in ASR, AP/DV/ML, mm) marking the experiment's
+   * landmark of interest within the atlas. Tracked separately from the
+   * scene's origin, which is anchored to the atlas center instead.
    */
   referenceCoordinate: [number, number, number];
 

@@ -1,12 +1,4 @@
-import { Manifest } from "@/features/atlas";
-
-/**
- * Reference coordinate used when an atlas's manifest (and thus its default
- * reference coordinate) can't be fetched.
- */
-export const FALLBACK_REFERENCE_COORDINATE: [number, number, number] = [
-  0, 0, 0
-];
+import { getAtlasCenter, Manifest } from "@/features/atlas";
 
 const DEFAULT_REFERENCE_COORDINATE_OVERRIDES: Record<
   string,
@@ -26,16 +18,6 @@ export function buildInitialReferenceCoordinate(
   const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[manifest.atlas.name];
   if (override) return override;
 
-  // Use fallback if manifest does not have resolutions or shape.
-  if (!manifest.resolutions[0] || !manifest.shape[0])
-    return FALLBACK_REFERENCE_COORDINATE;
-
-  // Otherwise, use atlas center.
-  const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
-  const [apShape, dvShape, mlShape] = manifest.shape[0];
-  return [
-    (apResolution * apShape) / 2,
-    (dvResolution * dvShape) / 2,
-    (mlResolution * mlShape) / 2
-  ];
+  // Otherwise, just use atlas center.
+  return getAtlasCenter(manifest);
 }

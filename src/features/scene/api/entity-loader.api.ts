@@ -60,19 +60,17 @@ const STRUCTURE_MESH_SUFFIX = "_structure";
 const STRUCTURE_MATERIAL_SUFFIX = "_material";
 
 /**
- * Offset the atlas root node so the given reference coordinate sits at the
- * scene origin.
+ * Offset the atlas root node so the atlas is centered on the origin
  *
  * @param scene Scene containing the atlas root.
- * @param referenceCoordinate Reference coordinate (in ASR, mm) that the atlas
- * root should be offset by.
+ * @param centerCoordinate Coordinates of the center of the atlas.
  */
-export function setAtlasRootReference(
+export function setAtlasCenterOffset(
   scene: Scene,
-  referenceCoordinate: [number, number, number]
+  centerCoordinate: [number, number, number]
 ) {
   const atlasRootNode = buildAtlasRootNode(scene);
-  atlasRootNode.position = asrToBabylon(referenceCoordinate).negate();
+  atlasRootNode.position = asrToBabylon(centerCoordinate).negate();
 }
 
 /**

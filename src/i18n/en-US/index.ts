@@ -20,7 +20,10 @@ export default {
     experimentName: "Experiment name",
     cancel: "Cancel",
     create: "Create",
-    pickNameAndAtlas: "Pick an experiment name and atlas"
+    pickNameAndAtlas: "Pick an experiment name and atlas",
+    failedToFetchAtlas: "Failed to fetch atlas.",
+    checkAtlas:
+      "Please check your connection to the source and the atlas's existence."
   },
   splash: {
     new: "New",

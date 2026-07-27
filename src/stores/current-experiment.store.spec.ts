@@ -5,6 +5,7 @@ import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { flushPromises } from "@vue/test-utils";
 import { useCurrentExperimentStore } from "./current-experiment.store";
 import {
+  getAtlasCenter,
   getDefaultStructureIdentifiers,
   getManifest,
   getTerminologyRows
@@ -14,6 +15,7 @@ import { makeAtlas, makeManifest, makeTerminologyRows } from "@/test/fixtures";
 vi.mock("@/features/atlas", () => ({
   BRAINGLOBE_BASE_URL:
     "https://brainglobe.s3.us-west-2.amazonaws.com/atlas-rc2/",
+  getAtlasCenter: vi.fn(),
   getDefaultStructureIdentifiers: vi.fn(),
   getManifest: vi.fn(),
   getTerminologyRows: vi.fn()
@@ -22,6 +24,7 @@ vi.mock("@/features/atlas", () => ({
 describe("useCurrentExperimentStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.mocked(getAtlasCenter).mockReset();
     vi.mocked(getDefaultStructureIdentifiers).mockReset();
     vi.mocked(getDefaultStructureIdentifiers).mockReturnValue([]);
     vi.mocked(getManifest).mockReset();
@@ -174,6 +177,61 @@ describe("useCurrentExperimentStore", () => {
       expect(store.terminologyRows).toEqual(terminologyRows);
       expect(store.areAtlasComponentsEvaluating).toBe(true);
       expect(store.defaultStructureIdentifiers).toEqual([]);
+    });
+  });
+
+  describe("atlasCenter", () => {
+    it("is [0, 0, 0] before the manifest resolves", async () => {
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      expect(store.atlasCenter).toEqual([0, 0, 0]);
+    });
+
+    it("delegates to getAtlasCenter with the resolved manifest", async () => {
+      const manifest = makeManifest();
+      vi.mocked(getManifest).mockResolvedValue(manifest);
+      vi.mocked(getAtlasCenter).mockReturnValue([1, 2, 3]);
+
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+
+      // atlasCenter is a lazy computed - read it before asserting on the
+      // mock it delegates to.
+      expect(store.atlasCenter).toEqual([1, 2, 3]);
+      expect(getAtlasCenter).toHaveBeenCalledWith(manifest);
+    });
+
+    it("uses the resolved atlas center even while terminologyRows is still evaluating", async () => {
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+      vi.mocked(getTerminologyRows).mockReturnValue(new Promise(() => {}));
+      vi.mocked(getAtlasCenter).mockReturnValue([1, 2, 3]);
+
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+
+      expect(store.areAtlasComponentsEvaluating).toBe(true);
+      expect(store.atlasCenter).toEqual([1, 2, 3]);
+    });
+
+    it("is [0, 0, 0] while a newly-selected atlas's manifest is still evaluating", async () => {
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+      vi.mocked(getAtlasCenter).mockReturnValue([1, 2, 3]);
+
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+      expect(store.atlasCenter).toEqual([1, 2, 3]);
+
+      vi.mocked(getManifest).mockReturnValue(new Promise(() => {}));
+      store.create(
+        "New Experiment",
+        makeAtlas({ name: "allen_human" }),
+        [0, 0, 0]
+      );
+      await flushPromises();
+
+      expect(store.atlasCenter).toEqual([0, 0, 0]);
     });
   });
 

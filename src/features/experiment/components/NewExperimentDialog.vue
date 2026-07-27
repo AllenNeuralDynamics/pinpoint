@@ -2,14 +2,14 @@
 import { computed, ref } from "vue";
 import { Atlas, AtlasPicker, getManifest } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { useDialogPluginComponent } from "quasar";
-import {
-  buildInitialReferenceCoordinate,
-  FALLBACK_REFERENCE_COORDINATE
-} from "../api/reference-coordinate.api";
+import { useDialogPluginComponent, useQuasar } from "quasar";
+import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
+import { useI18n } from "vue-i18n";
 
 defineEmits([...useDialogPluginComponent.emits]);
 
+const $q = useQuasar();
+const { t } = useI18n();
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
 
@@ -28,14 +28,27 @@ const isCreateDisabled = computed(() => !name.value || !atlas.value);
 async function create() {
   if (!name.value || !atlas.value) return;
 
-  // Build initial reference coordinate.
+  // Fetch the manifest.
   const manifest = await getManifest(atlas.value);
-  const referenceCoordinate = manifest
-    ? buildInitialReferenceCoordinate(manifest)
-    : FALLBACK_REFERENCE_COORDINATE;
 
+  // Stop creation if manifest doesn't exist.
+  if (!manifest) {
+    $q.notify({
+      message: t("newExperiment.failedToFetchAtlas"),
+      caption: t("newExperiment.checkAtlas"),
+      color: "negative",
+      icon: "error"
+    });
+    return;
+  }
+
+  // Build initial reference coordinate.
+  const referenceCoordinate = buildInitialReferenceCoordinate(manifest);
+
+  // Build experiment and set current.
   currentExperimentStore.create(name.value, atlas.value, referenceCoordinate);
 
+  // Close.
   onDialogOK();
 }
 </script>

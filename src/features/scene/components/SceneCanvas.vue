@@ -11,7 +11,7 @@ import {
 import { useBabylonRuntimeService } from "@/composable/useBabylonRuntimeService";
 import {
   removeAllStructures,
-  setAtlasRootReference,
+  setAtlasCenterOffset,
   syncStructureVisibility
 } from "../api/entity-loader.api";
 import { setInitialZoom } from "../api/camera.api";
@@ -104,21 +104,20 @@ onMounted(async () => {
       $q.notify({
         message: t("sceneCanvas.problemLoadingAtlasMeshes"),
         caption: t("sceneCanvas.atlasLikelyNotSupportedYet"),
-        color: "negative",
-        icon: "error"
+        color: "warning",
+        icon: "warning"
       });
     } finally {
       isLoadingStructures.value = false;
     }
   });
 
-  // Keep the atlas root positioned so the experiment's reference coordinate
-  // sits at the scene origin.
+  // Keep the atlas root positioned so the atlas center sits at the scene origin.
   watchEffect(() => {
     const scene = runtime.scene.value;
     if (!scene) return;
 
-    setAtlasRootReference(scene, currentExperiment.referenceCoordinate);
+    setAtlasCenterOffset(scene, currentExperiment.atlasCenter);
   });
 
   // Set the camera's initial zoom relative to the AP length of the atlas.

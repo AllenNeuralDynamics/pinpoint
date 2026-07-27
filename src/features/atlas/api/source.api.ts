@@ -49,6 +49,11 @@ const MANIFEST_FILE = "manifest.json";
 const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
 
 /**
+ * Fallback value if an atlas center coordinate can't be determined.
+ */
+const FALLBACK_ATLAS_CENTER: [number, number, number] = [0, 0, 0];
+
+/**
  * Fetch and parse the list of atlases available in the BrainGlobe atlases
  * bucket.
  * @returns The parsed atlases, or null if the bucket couldn't be reached.
@@ -178,6 +183,25 @@ export function structureEntityFromIdentifier(
     ),
     color: Color3.FromHexString(terminologyRow.color_hex_triplet)
   };
+}
+
+/**
+ * Computes the center of the atlas volume in mm.
+ * @param manifest Atlas manifest to compute the center for.
+ */
+export function getAtlasCenter(manifest: Manifest): [number, number, number] {
+  // If the atlas doesn't have resolution or shape, use 0, 0, 0.
+  if (!manifest.resolutions[0] || !manifest.shape[0])
+    return FALLBACK_ATLAS_CENTER;
+
+  // Otherwise, compute the center
+  const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
+  const [apShape, dvShape, mlShape] = manifest.shape[0];
+  return [
+    (apResolution * apShape) / 2,
+    (dvResolution * dvShape) / 2,
+    (mlResolution * mlShape) / 2
+  ];
 }
 
 /**

@@ -4,6 +4,7 @@ import Papa from "papaparse";
 import { Color3 } from "@babylonjs/core";
 import {
   BRAINGLOBE_BASE_URL,
+  getAtlasCenter,
   getManifest,
   getTerminologyRows,
   listAtlases,
@@ -757,5 +758,49 @@ describe("structureEntityFromIdentifier", () => {
     const result = structureEntityFromIdentifier(manifest, terminologyRows, 8);
 
     expect(result?.color).toEqual(Color3.FromHexString("#BFDAE3"));
+  });
+});
+
+describe("getAtlasCenter", () => {
+  it("halves resolution * shape per axis", () => {
+    const manifest = makeManifest({
+      resolutions: [[0.02, 0.04, 0.06]],
+      shape: [[100, 200, 300]]
+    });
+
+    expect(getAtlasCenter(manifest)).toEqual([1, 4, 9]);
+  });
+
+  it("uses only the finest (first) size variant when several are present", () => {
+    const manifest = makeManifest({
+      resolutions: [
+        [0.02, 0.04, 0.06],
+        [0.2, 0.4, 0.6]
+      ],
+      shape: [
+        [100, 200, 300],
+        [10, 20, 30]
+      ]
+    });
+
+    expect(getAtlasCenter(manifest)).toEqual([1, 4, 9]);
+  });
+
+  it("falls back to [0, 0, 0] when the manifest has no resolutions", () => {
+    const manifest = makeManifest({
+      resolutions: [],
+      shape: [[100, 200, 300]]
+    });
+
+    expect(getAtlasCenter(manifest)).toEqual([0, 0, 0]);
+  });
+
+  it("falls back to [0, 0, 0] when the manifest has no shape", () => {
+    const manifest = makeManifest({
+      resolutions: [[0.02, 0.04, 0.06]],
+      shape: []
+    });
+
+    expect(getAtlasCenter(manifest)).toEqual([0, 0, 0]);
   });
 });

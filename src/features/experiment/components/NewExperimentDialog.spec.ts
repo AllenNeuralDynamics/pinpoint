@@ -122,11 +122,14 @@ describe("NewExperimentDialog", () => {
       expect(wrapper.emitted("ok")).toBeTruthy();
     });
 
-    it("falls back to [0, 0, 0] when the manifest can't be fetched", async () => {
+    it("notifies and doesn't create the experiment when the manifest can't be fetched", async () => {
       const atlas = makeAtlas();
       vi.mocked(getManifest).mockResolvedValue(null);
 
       const wrapper = await mountDialog();
+      const store = useCurrentExperimentStore();
+      const createSpy = vi.spyOn(store, "create");
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
       await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
       await wrapper
         .findComponent({ name: "AtlasPicker" })
@@ -135,8 +138,11 @@ describe("NewExperimentDialog", () => {
       await createButton(wrapper).trigger("click");
       await flush();
 
-      const store = useCurrentExperimentStore();
-      expect(store.referenceCoordinate).toEqual([0, 0, 0]);
+      expect(notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "negative" })
+      );
+      expect(createSpy).not.toHaveBeenCalled();
+      expect(wrapper.emitted("ok")).toBeFalsy();
     });
 
     it("does nothing when name or atlas is missing", async () => {
