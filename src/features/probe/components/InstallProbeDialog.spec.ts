@@ -3,9 +3,9 @@ import type { VueWrapper } from "@vue/test-utils";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import {
+  getManufacturers,
   getProbeInterfaceProbe,
-  getProbeNames,
-  getVendors
+  getProbeNames
 } from "../api/install-probe.api";
 
 vi.mock("../api/install-probe.api", async importOriginal => {
@@ -13,13 +13,13 @@ vi.mock("../api/install-probe.api", async importOriginal => {
     await importOriginal<typeof import("../api/install-probe.api")>();
   return {
     ...actual,
-    getVendors: vi.fn(),
+    getManufacturers: vi.fn(),
     getProbeNames: vi.fn(),
     getProbeInterfaceProbe: vi.fn()
   };
 });
 
-const mockedGetVendors = vi.mocked(getVendors);
+const mockedGetManufacturers = vi.mocked(getManufacturers);
 const mockedGetProbeNames = vi.mocked(getProbeNames);
 const mockedGetProbeInterfaceProbe = vi.mocked(getProbeInterfaceProbe);
 
@@ -51,21 +51,24 @@ async function mountDialog(): Promise<DialogWrapper> {
   return wrapper;
 }
 
-async function selectVendor(wrapper: DialogWrapper, vendor: string) {
+async function selectManufacturer(
+  wrapper: DialogWrapper,
+  manufacturer: string
+) {
   wrapper
     .findComponent({ name: "QSelect" })
-    .vm.$emit("update:modelValue", vendor);
+    .vm.$emit("update:modelValue", manufacturer);
   await wrapper.vm.$nextTick();
   await flush();
   await wrapper.vm.$nextTick();
 }
 
-async function selectVendorAndProbe(
+async function selectManufacturerAndProbe(
   wrapper: DialogWrapper,
-  vendor: string,
+  manufacturer: string,
   probeName: string
 ) {
-  await selectVendor(wrapper, vendor);
+  await selectManufacturer(wrapper, manufacturer);
 
   const item = wrapper
     .findAllComponents({ name: "QItem" })
@@ -108,7 +111,7 @@ async function uploadFile(wrapper: DialogWrapper, text: string) {
 
 describe("InstallProbeDialog", () => {
   beforeEach(() => {
-    mockedGetVendors
+    mockedGetManufacturers
       .mockReset()
       .mockResolvedValue(["neuropixels", "cambridge"]);
     mockedGetProbeNames
@@ -124,7 +127,7 @@ describe("InstallProbeDialog", () => {
   describe("probe search", () => {
     it("shows all probe names when the search query is empty", async () => {
       const wrapper = await mountDialog();
-      await selectVendor(wrapper, "neuropixels");
+      await selectManufacturer(wrapper, "neuropixels");
 
       const items = wrapper.findAllComponents({ name: "QItem" });
       expect(items.map(i => i.text())).toEqual([
@@ -136,13 +139,51 @@ describe("InstallProbeDialog", () => {
 
     it("narrows the list to fuzzy matches when searching", async () => {
       const wrapper = await mountDialog();
-      await selectVendor(wrapper, "neuropixels");
+      await selectManufacturer(wrapper, "neuropixels");
 
       await wrapper.findComponent({ name: "QInput" }).setValue("Cambridge");
       await wrapper.vm.$nextTick();
 
       const items = wrapper.findAllComponents({ name: "QItem" });
       expect(items.map(i => i.text())).toEqual(["Cambridge H3"]);
+    });
+
+    it("shows the known human-readable label for a recognized probe", async () => {
+      mockedGetProbeNames.mockResolvedValue(["NP1000", "NP2013"]);
+
+      const wrapper = await mountDialog();
+      await selectManufacturer(wrapper, "imec");
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items.map(i => i.text())).toEqual([
+        "Neuropixels 1.0 probe (NP1000)",
+        "Neuropixels 2.0 multishank probe"
+      ]);
+    });
+
+    it("falls back to the identifier for an unrecognized probe", async () => {
+      mockedGetProbeNames.mockResolvedValue(["ASSY-1-E-1"]);
+
+      const wrapper = await mountDialog();
+      await selectManufacturer(wrapper, "cambridgeneurotech");
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items.map(i => i.text())).toEqual(["ASSY-1-E-1"]);
+    });
+
+    it("matches a search query against the human-readable label", async () => {
+      mockedGetProbeNames.mockResolvedValue(["NP1000", "NP2013"]);
+
+      const wrapper = await mountDialog();
+      await selectManufacturer(wrapper, "imec");
+
+      await wrapper.findComponent({ name: "QInput" }).setValue("multishank");
+      await wrapper.vm.$nextTick();
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items.map(i => i.text())).toEqual([
+        "Neuropixels 2.0 multishank probe"
+      ]);
     });
   });
 
@@ -151,17 +192,25 @@ describe("InstallProbeDialog", () => {
       const wrapper = await mountDialog();
       expect(installButton(wrapper).props("disable")).toBe(true);
 
-      await selectVendorAndProbe(wrapper, "neuropixels", "Neuropixels 1.0");
+      await selectManufacturerAndProbe(
+        wrapper,
+        "neuropixels",
+        "Neuropixels 1.0"
+      );
 
       expect(installButton(wrapper).props("disable")).toBe(false);
     });
 
-    it("clears the selected probe when the vendor changes", async () => {
+    it("clears the selected probe when the manufacturer changes", async () => {
       const wrapper = await mountDialog();
-      await selectVendorAndProbe(wrapper, "neuropixels", "Neuropixels 1.0");
+      await selectManufacturerAndProbe(
+        wrapper,
+        "neuropixels",
+        "Neuropixels 1.0"
+      );
       expect(installButton(wrapper).props("disable")).toBe(false);
 
-      await selectVendor(wrapper, "cambridge");
+      await selectManufacturer(wrapper, "cambridge");
 
       expect(installButton(wrapper).props("disable")).toBe(true);
     });
@@ -177,7 +226,11 @@ describe("InstallProbeDialog", () => {
       mockedGetProbeInterfaceProbe.mockResolvedValue(probe);
 
       const wrapper = await mountDialog();
-      await selectVendorAndProbe(wrapper, "neuropixels", "Neuropixels 1.0");
+      await selectManufacturerAndProbe(
+        wrapper,
+        "neuropixels",
+        "Neuropixels 1.0"
+      );
 
       await installButton(wrapper).trigger("click");
       await flush();
@@ -189,12 +242,42 @@ describe("InstallProbeDialog", () => {
       expect(wrapper.emitted("ok")).toEqual([[probe]]);
     });
 
+    it("uses the probe identifier, not its label, to fetch and install", async () => {
+      mockedGetProbeNames.mockResolvedValue(["NP2013"]);
+      const probe = {
+        ndim: 2,
+        si_units: "um",
+        contact_positions: [[0, 0]]
+      };
+      mockedGetProbeInterfaceProbe.mockResolvedValue(probe);
+
+      const wrapper = await mountDialog();
+      await selectManufacturerAndProbe(
+        wrapper,
+        "imec",
+        "Neuropixels 2.0 multishank probe"
+      );
+
+      await installButton(wrapper).trigger("click");
+      await flush();
+
+      expect(mockedGetProbeInterfaceProbe).toHaveBeenCalledWith(
+        "imec",
+        "NP2013"
+      );
+      expect(wrapper.emitted("ok")).toEqual([[probe]]);
+    });
+
     it("notifies an error and doesn't resolve when the probe can't be found", async () => {
       mockedGetProbeInterfaceProbe.mockResolvedValue(null);
 
       const wrapper = await mountDialog();
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
-      await selectVendorAndProbe(wrapper, "neuropixels", "Neuropixels 1.0");
+      await selectManufacturerAndProbe(
+        wrapper,
+        "neuropixels",
+        "Neuropixels 1.0"
+      );
 
       await installButton(wrapper).trigger("click");
       await flush();

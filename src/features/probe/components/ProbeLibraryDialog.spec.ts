@@ -76,7 +76,7 @@ describe("ProbeLibraryDialog", () => {
   });
 
   describe("library list", () => {
-    it("renders each probe's manufacturer and model name", async () => {
+    it("renders each probe's manufacturer and model name when unknown", async () => {
       const wrapper = await mountDialog();
       const probeLibraryStore = useProbeLibraryStore();
       probeLibraryStore.add(
@@ -99,6 +99,20 @@ describe("ProbeLibraryDialog", () => {
         expect.stringContaining("IMEC Neuropixels 1.0"),
         expect.stringContaining("cambridgeneurotech ASSY-156")
       ]);
+    });
+
+    it("renders the known display name when the probe is in KNOWN_PROBES", async () => {
+      const wrapper = await mountDialog();
+      const probeLibraryStore = useProbeLibraryStore();
+      probeLibraryStore.add(
+        makeProbe({
+          annotations: { manufacturer: "imec", model_name: "NP2013" }
+        })
+      );
+      await wrapper.vm.$nextTick();
+
+      const item = wrapper.findComponent({ name: "QItem" });
+      expect(item.text()).toContain("Neuropixels 2.0 multishank probe");
     });
   });
 

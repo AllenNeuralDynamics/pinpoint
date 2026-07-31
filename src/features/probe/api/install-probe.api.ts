@@ -35,15 +35,15 @@ const fileApi = axios.create({
 });
 
 /**
- * Return the list of probe vendors.
+ * Return the list of probe manufacturers.
  *
  * Computed as the top level non-scripting folders.
  */
-export async function getVendors(): Promise<string[]> {
+export async function getManufacturers(): Promise<string[]> {
   try {
     const { data } = await githubApi.get<GitHubItemResponse>("/");
 
-    // Exit if we can't find vendors.
+    // Exit if we can't find manufacturers.
     if (!data || isGitHub404(data)) return [];
 
     return data
@@ -60,15 +60,17 @@ export async function getVendors(): Promise<string[]> {
 }
 
 /**
- * Return the list of probes by the vendor.
+ * Return the list of probes by the manufacturer.
  *
- * Computed as the names of directories in a vendor folder.
+ * Computed as the names of directories in a manufacturer folder.
  *
- * @param vendor Vendor to get probes from.
+ * @param manufacturer Manufacturer to get probes from.
  */
-export async function getProbeNames(vendor: string): Promise<string[]> {
+export async function getProbeNames(manufacturer: string): Promise<string[]> {
   try {
-    const { data } = await githubApi.get<GitHubItemResponse>(`/${vendor}`);
+    const { data } = await githubApi.get<GitHubItemResponse>(
+      `/${manufacturer}`
+    );
 
     // Exit if we can't find any probes.
     if (!data || isGitHub404(data)) return [];
@@ -86,16 +88,16 @@ export async function getProbeNames(vendor: string): Promise<string[]> {
  *
  * @remarks Will currently only extract the first probe in a ProbeInterface file.
  *
- * @param vendor Vendor to get probe from.
- * @param name Probe from vendor.
+ * @param manufacturer Manufacturer to get probe from.
+ * @param name Probe from manufacturer.
  */
 export async function getProbeInterfaceProbe(
-  vendor: string,
+  manufacturer: string,
   name: string
 ): Promise<ProbeInterfaceProbe | null> {
   try {
     const { data } = await fileApi.get<ProbeInterfaceFile>(
-      `/${vendor}/${name}/${name}.json`
+      `/${manufacturer}/${name}/${name}.json`
     );
 
     // Exit if we can't find the probe.
@@ -113,14 +115,17 @@ export async function getProbeInterfaceProbe(
 
 /**
  * Return a probe overview image URL from Probe Library.
- * @param vendor Vendor to get probe from.
+ * @param manufacturer Manufacturer to get probe from.
  * @param name Probe to get the overview image for.
  */
 export function buildProbeOverviewImageSrc(
-  vendor: string,
+  manufacturer: string,
   name: string
 ): string {
-  return new URL(`${vendor}/${name}/${name}.png`, FILE_API_BASE_URL).toString();
+  return new URL(
+    `${manufacturer}/${name}/${name}.png`,
+    FILE_API_BASE_URL
+  ).toString();
 }
 
 /**

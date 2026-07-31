@@ -40,7 +40,7 @@ export default {
   },
   installProbe: {
     title: "Install Probe",
-    vendor: "Vendor",
+    manufacturer: "Manufacturer",
     search: "Search",
     cancel: "Cancel",
     uploadCustom: "Upload Custom Probe",

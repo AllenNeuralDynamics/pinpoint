@@ -6,11 +6,19 @@ import { useDialogPluginComponent, useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import {
   buildProbeOverviewImageSrc,
+  getManufacturers,
   getProbeInterfaceProbe,
   getProbeNames,
-  getVendors,
   parseProbeInterfaceFile
 } from "../api/install-probe.api";
+import { KNOWN_PROBES } from "../models/known-probes.model";
+
+// A selectable probe, pairing its identifier with a human-readable label
+// (falling back to the identifier itself when not in KNOWN_PROBES).
+interface ProbeOption {
+  probeName: string;
+  label: string;
+}
 
 // Setup dialog.
 defineEmits([...useDialogPluginComponent.emits]);
@@ -20,7 +28,7 @@ const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
 const $q = useQuasar();
 const { t } = useI18n();
 
-const selectedVendorName = ref<string | null>(null);
+const selectedManufacturerName = ref<string | null>(null);
 const searchQuery = ref<string | null>(null);
 const selectedProbeName = ref<string | null>(null);
 const probeNamesEvaluating = ref(false);
@@ -31,33 +39,49 @@ const uploading = ref(false);
 
 const fileInput = useTemplateRef<HTMLInputElement>("file-input");
 
-const vendors = computedAsync<string[]>(async () => await getVendors());
+const manufacturers = computedAsync<string[]>(
+  async () => await getManufacturers()
+);
 
 const probeNames = computedAsync<string[]>(
   async () => {
-    if (!selectedVendorName.value) return [];
-    return await getProbeNames(selectedVendorName.value);
+    if (!selectedManufacturerName.value) return [];
+    return await getProbeNames(selectedManufacturerName.value);
   },
   [],
   probeNamesEvaluating
 );
 
-// Fuzzy search across probe names, falling back to the full list when empty.
+const probeOptions = computed<ProbeOption[]>(() =>
+  probeNames.value.map(probeName => ({
+    probeName,
+    label:
+      KNOWN_PROBES[`${selectedManufacturerName.value} ${probeName}`]?.trim() ??
+      probeName
+  }))
+);
+
+// Fuzzy search across probe identifiers and labels, falling back to the full
+// list when empty.
 const unwrappedSearchQuery = computed(() => searchQuery.value ?? "");
-const { results: probeNameFuse } = useFuse(unwrappedSearchQuery, probeNames, {
-  fuseOptions: {}
-});
-const filteredProbeNames = computed(() =>
+const { results: probeOptionFuse } = useFuse(
+  unwrappedSearchQuery,
+  probeOptions,
+  {
+    fuseOptions: { keys: ["probeName", "label"] }
+  }
+);
+const filteredProbeOptions = computed(() =>
   searchQuery.value
-    ? probeNameFuse.value.map(result => result.item)
-    : probeNames.value
+    ? probeOptionFuse.value.map(result => result.item)
+    : probeOptions.value
 );
 
 const selectedProbeOverviewImageSrc = computed<string>(() => {
-  if (!selectedVendorName.value || !selectedProbeName.value) return "";
+  if (!selectedManufacturerName.value || !selectedProbeName.value) return "";
 
   return buildProbeOverviewImageSrc(
-    selectedVendorName.value,
+    selectedManufacturerName.value,
     selectedProbeName.value
   );
 });
@@ -78,11 +102,11 @@ function notifyInstallFailed() {
  * Fetch the selected probe from the library and resolve the dialog with it.
  */
 async function install() {
-  if (!selectedVendorName.value || !selectedProbeName.value) return;
+  if (!selectedManufacturerName.value || !selectedProbeName.value) return;
 
   installing.value = true;
   const probe = await getProbeInterfaceProbe(
-    selectedVendorName.value,
+    selectedManufacturerName.value,
     selectedProbeName.value
   );
   installing.value = false;
@@ -144,7 +168,7 @@ async function onFileSelected(event: Event) {
   }
 }
 
-watch(selectedVendorName, () => {
+watch(selectedManufacturerName, () => {
   selectedProbeName.value = null;
 });
 </script>
@@ -157,12 +181,12 @@ watch(selectedVendorName, () => {
           <p class="text-h5">{{ $t("installProbe.title") }}</p>
 
           <q-select
-            v-model="selectedVendorName"
-            :label="$t('installProbe.vendor')"
-            :options="vendors"
+            v-model="selectedManufacturerName"
+            :label="$t('installProbe.manufacturer')"
+            :options="manufacturers"
           />
 
-          <template v-if="selectedVendorName">
+          <template v-if="selectedManufacturerName">
             <q-input
               v-model="searchQuery"
               :label="$t('installProbe.search')"
@@ -182,14 +206,14 @@ watch(selectedVendorName, () => {
               </template>
               <template v-else>
                 <q-item
-                  v-for="probeName in filteredProbeNames"
-                  :key="probeName"
+                  v-for="probeOption in filteredProbeOptions"
+                  :key="probeOption.probeName"
                   v-ripple
-                  :active="selectedProbeName === probeName"
+                  :active="selectedProbeName === probeOption.probeName"
                   clickable
-                  @click="selectedProbeName = probeName"
+                  @click="selectedProbeName = probeOption.probeName"
                 >
-                  <q-item-section>{{ probeName }}</q-item-section>
+                  <q-item-section>{{ probeOption.label }}</q-item-section>
                 </q-item>
               </template>
             </q-list>
