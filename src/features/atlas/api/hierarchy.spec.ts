@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   atlasDisplayName,
-  buildHierarchy,
+  flattenHierarchy,
   getDefaultStructureIdentifiers,
   toTitleCase
 } from "./hierarchy.api";
@@ -11,51 +11,49 @@ import {
   makeTerminologyRows
 } from "@/test/fixtures";
 
-describe("buildHierarchy", () => {
-  it("returns the root node with its own identifier, abbreviation, and color", () => {
-    const node = buildHierarchy(makeTerminologyRows());
+describe("flattenHierarchy", () => {
+  it("flattens into DFS pre-order, excluding the root", () => {
+    const items = flattenHierarchy(makeTerminologyRows());
 
-    expect(node?.identifier).toBe(997);
-    expect(node?.abbreviation).toBe("root");
-    expect(node?.color).toBe("#FFFFFF");
+    expect(items.map(i => i.identifier)).toEqual([8, 567, 688, 700]);
   });
 
-  it("nests children by parent_identifier", () => {
-    const node = buildHierarchy(makeTerminologyRows());
+  it("derives indent guides from each row's position in the tree", () => {
+    const items = flattenHierarchy(makeTerminologyRows());
+    const guidesFor = (identifier: number) =>
+      items.find(i => i.identifier === identifier)?.guides;
 
-    expect(node?.children.map(c => c.identifier)).toEqual([8]);
-    expect(node?.children[0]?.children.map(c => c.identifier)).toEqual([
-      567, 700
-    ]);
-    expect(
-      node?.children[0]?.children[0]?.children.map(c => c.identifier)
-    ).toEqual([688]);
+    expect(guidesFor(8)).toEqual([]);
+    expect(guidesFor(567)).toEqual(["tee"]);
+    expect(guidesFor(688)).toEqual(["line", "elbow"]);
+    expect(guidesFor(700)).toEqual(["elbow"]);
   });
 
-  it("title-cases every node's name, including the root", () => {
-    const node = buildHierarchy(makeTerminologyRows());
+  it("title-cases every row's name", () => {
+    const items = flattenHierarchy(makeTerminologyRows());
 
-    expect(node?.name).toBe("Root");
-    expect(node?.children[0]?.name).toBe("Basic Cell Groups And Regions");
+    expect(items.find(i => i.identifier === 8)?.name).toBe(
+      "Basic Cell Groups And Regions"
+    );
   });
 
   it("passes color_hex_triplet through as color, not an rgb() string", () => {
-    const node = buildHierarchy(makeTerminologyRows());
+    const items = flattenHierarchy(makeTerminologyRows());
 
-    expect(node?.children[0]?.color).toBe("#BFDAE3");
+    expect(items.find(i => i.identifier === 8)?.color).toBe("#BFDAE3");
   });
 
-  it("returns null for an empty list", () => {
-    expect(buildHierarchy([])).toBeNull();
+  it("returns an empty list for an empty list", () => {
+    expect(flattenHierarchy([])).toEqual([]);
   });
 
-  it("returns null when no row has a null parent_identifier", () => {
+  it("returns an empty list when no row has a null parent_identifier", () => {
     const rows = makeTerminologyRows().map(row => ({
       ...row,
       parent_identifier: row.parent_identifier ?? 1
     }));
 
-    expect(buildHierarchy(rows)).toBeNull();
+    expect(flattenHierarchy(rows)).toEqual([]);
   });
 
   it("skips a row whose parent_identifier references a missing id", () => {
@@ -64,39 +62,37 @@ describe("buildHierarchy", () => {
       makeTerminologyRow({ identifier: 12345, parent_identifier: 99999 })
     ];
 
-    const node = buildHierarchy(rows);
+    const items = flattenHierarchy(rows);
 
-    const flatten = (n: NonNullable<typeof node>): number[] => [
-      n.identifier,
-      ...n.children.flatMap(flatten)
-    ];
-    expect(flatten(node!)).not.toContain(12345);
+    expect(items.map(i => i.identifier)).not.toContain(12345);
   });
 
-  it("keeps children in input row order", () => {
-    const node = buildHierarchy(makeTerminologyRows());
+  it("keeps siblings in input row order", () => {
+    const items = flattenHierarchy(makeTerminologyRows());
 
-    expect(node?.children[0]?.children.map(c => c.identifier)).toEqual([
-      567, 700
-    ]);
+    expect(
+      items
+        .filter(i => [567, 700].includes(i.identifier))
+        .map(i => i.identifier)
+    ).toEqual([567, 700]);
   });
 
   // Regression: atlases like `african_molerat` author root_identifier_path
   // as relative [parent, self] pairs rather than full root-anchored paths.
-  // buildHierarchy must not depend on root_identifier_path at all, or it
+  // flattenHierarchy must not depend on root_identifier_path at all, or it
   // silently drops every row past the first level.
   it("places every row even when root_identifier_path is relative, not root-anchored", () => {
     const rows = makeRelativePathTerminologyRows();
 
-    const node = buildHierarchy(rows);
+    const items = flattenHierarchy(rows);
 
-    const flatten = (n: NonNullable<typeof node>): number[] => [
-      n.identifier,
-      ...n.children.flatMap(flatten)
-    ];
+    const rootRow = rows.find(r => r.parent_identifier === null)!;
+    const expectedIdentifiers = rows
+      .filter(r => r.identifier !== rootRow.identifier)
+      .map(r => r.identifier);
     const numericSort = (a: number, b: number) => a - b;
-    expect(flatten(node!).sort(numericSort)).toEqual(
-      rows.map(r => r.identifier).sort(numericSort)
+    expect(items.map(i => i.identifier).sort(numericSort)).toEqual(
+      expectedIdentifiers.sort(numericSort)
     );
   });
 });

@@ -1,14 +1,28 @@
 import type { TerminologyRow } from "../models/terminology-row.model";
 
 /**
- * Presentation-ready tree node built from a {@link TerminologyRow}.
+ * A single indent cell drawn to the left of a row:
+ * - `line`  - an ancestor at this level has more siblings below (│)
+ * - `blank` - an ancestor at this level was its parent's last child
+ * - `tee`   - this row's own connector, more siblings follow (├)
+ * - `elbow` - this row's own connector, it is the last child (└)
  */
-export interface HierarchyModel {
+export type HierarchyGuide = "line" | "blank" | "tee" | "elbow";
+
+/**
+ * Presentation-ready row of a DFS-flattened {@link TerminologyRow} hierarchy.
+ */
+export interface HierarchyItem {
   identifier: number;
   abbreviation: string;
   name: string;
   color: string;
-  children: HierarchyModel[];
+  /**
+   * One cell per indent level, outermost first. Length equals the row's
+   * depth below the top level; the final entry is always `tee` or `elbow`.
+   * Top-level rows get `[]`.
+   */
+  guides: HierarchyGuide[];
 }
 
 /**
@@ -61,41 +75,75 @@ export function atlasDisplayName(name: string): string {
 }
 
 /**
- * Build a tree hierarchy from parsed terminology rows, linking each row to
- * its parent via `parent_identifier`.
+ * Flatten parsed terminology rows into a DFS pre-order list, linking each row
+ * to its parent via `parent_identifier`. The root row itself is excluded.
+ *
+ * `root_identifier_path` isn't used here: it's not reliably root-anchored
+ * across atlases (some author it as relative `[parent, self]` pairs), so
+ * relying on it silently drops rows for those atlases.
  * @param terminologyRows Parsed terminology rows.
  */
-export function buildHierarchy(
+export function flattenHierarchy(
   terminologyRows: TerminologyRow[]
-): HierarchyModel | null {
+): HierarchyItem[] {
   const rootRow = terminologyRows.find(row => row.parent_identifier === null);
-  if (!rootRow) return null;
+  if (!rootRow) return [];
 
-  const nodesByIdentifier = new Map(
-    terminologyRows.map(row => [row.identifier, toNode(row)])
-  );
-
+  const childrenByParent = new Map<number, TerminologyRow[]>();
   for (const row of terminologyRows) {
     if (row.parent_identifier === null) continue;
-    nodesByIdentifier
-      .get(row.parent_identifier)
-      ?.children.push(nodesByIdentifier.get(row.identifier)!);
+    const siblings = childrenByParent.get(row.parent_identifier) ?? [];
+    siblings.push(row);
+    childrenByParent.set(row.parent_identifier, siblings);
   }
 
-  return nodesByIdentifier.get(rootRow.identifier) ?? null;
+  const items: HierarchyItem[] = [];
+  const visited = new Set<number>([rootRow.identifier]);
+
+  // The root itself is never rendered, so its direct children draw no
+  // connector to it - they start the tree at `guides: []`.
+  function visit(
+    parentIdentifier: number,
+    prefix: HierarchyGuide[],
+    isTopLevel: boolean
+  ): void {
+    const children = childrenByParent.get(parentIdentifier) ?? [];
+    children.forEach((row, index) => {
+      if (visited.has(row.identifier)) return;
+      visited.add(row.identifier);
+
+      const isLast = index === children.length - 1;
+      const guides: HierarchyGuide[] = isTopLevel
+        ? []
+        : [...prefix, isLast ? "elbow" : "tee"];
+      items.push(toItem(row, guides));
+
+      const childPrefix: HierarchyGuide[] = isTopLevel
+        ? []
+        : [...prefix, isLast ? "blank" : "line"];
+      visit(row.identifier, childPrefix, false);
+    });
+  }
+
+  visit(rootRow.identifier, [], true);
+  return items;
 }
 
 /**
- * Build a {@link HierarchyModel} node from a terminology row.
+ * Build a {@link HierarchyItem} row from a terminology row.
  * @param terminologyRow Terminology row to convert.
+ * @param guides Indent guides for this row, outermost first.
  */
-function toNode(terminologyRow: TerminologyRow): HierarchyModel {
+function toItem(
+  terminologyRow: TerminologyRow,
+  guides: HierarchyGuide[]
+): HierarchyItem {
   return {
     identifier: terminologyRow.identifier,
     abbreviation: terminologyRow.abbreviation,
     name: toTitleCase(terminologyRow.name),
     color: terminologyRow.color_hex_triplet,
-    children: []
+    guides
   };
 }
 

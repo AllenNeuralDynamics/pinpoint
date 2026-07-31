@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import CommittedInput from "./CommittedInput.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 

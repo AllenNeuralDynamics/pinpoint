@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { MeshBuilder, PointerEventTypes, PointerInfo } from "@babylonjs/core";
 import type { PickingInfo } from "@babylonjs/core";
+import { MeshBuilder, PointerEventTypes, PointerInfo } from "@babylonjs/core";
 import {
   addProbe,
   buildExperiment,

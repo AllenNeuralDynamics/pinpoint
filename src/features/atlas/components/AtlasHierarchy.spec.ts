@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import { flushPromises } from "@vue/test-utils";
@@ -64,42 +64,45 @@ describe("AtlasHierarchy", () => {
     vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
   });
 
-  it("renders the q-tree (not the virtual scroll) when the filter is empty", async () => {
+  it("renders every row in DFS hierarchy order when the filter is empty", async () => {
     const wrapper = await mountHierarchy();
 
-    expect(wrapper.findComponent({ name: "QTree" }).exists()).toBe(true);
-    expect(wrapper.findComponent({ name: "QVirtualScrollStub" }).exists()).toBe(
-      false
-    );
+    const stub = wrapper.findComponent({ name: "QVirtualScrollStub" });
+    expect(stub.exists()).toBe(true);
+    expect(
+      (stub.props("items") as { identifier: number }[]).map(i => i.identifier)
+    ).toEqual([8, 567, 688, 700]);
   });
 
-  it("switches to the virtual-scroll result list once a filter is entered", async () => {
+  it("reorders to the Fuse results once a filter is entered, ranking the exact match first", async () => {
     const wrapper = await mountHierarchy();
 
     await wrapper.findComponent({ name: "QInput" }).setValue("grey");
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.findComponent({ name: "QVirtualScrollStub" }).exists()).toBe(
-      true
+    const stub = wrapper.findComponent({ name: "QVirtualScrollStub" });
+    const identifiers = (stub.props("items") as { identifier: number }[]).map(
+      i => i.identifier
     );
-    expect(wrapper.findComponent({ name: "QTree" }).exists()).toBe(false);
+    expect(identifiers[0]).toBe(8);
+    expect(identifiers).not.toEqual([8, 567, 688, 700]);
   });
 
-  it("stays in tree mode when the filter is only whitespace", async () => {
+  it("keeps hierarchy order when the filter is only whitespace", async () => {
     const wrapper = await mountHierarchy();
 
     await wrapper.findComponent({ name: "QInput" }).setValue("   ");
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.findComponent({ name: "QTree" }).exists()).toBe(true);
+    const stub = wrapper.findComponent({ name: "QVirtualScrollStub" });
+    expect(
+      (stub.props("items") as { identifier: number }[]).map(i => i.identifier)
+    ).toEqual([8, 567, 688, 700]);
   });
 
-  it("reflects and toggles structure visibility via the checkbox in search results", async () => {
+  it("reflects and toggles structure visibility via the checkbox", async () => {
     const wrapper = await mountHierarchy();
     const store = useCurrentExperimentStore();
-
-    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
-    await wrapper.vm.$nextTick();
 
     const checkbox = wrapper.findComponent({ name: "QCheckbox" });
     expect(checkbox.props("modelValue")).toBe(false);
@@ -130,11 +133,28 @@ describe("AtlasHierarchy", () => {
     expect(store.visibleStructures).toEqual([]);
   });
 
-  it("colors the search-result icon from color_hex_triplet, matching tree mode", async () => {
+  it("orders each row as guides, then checkbox, then icon, then text", async () => {
     const wrapper = await mountHierarchy();
 
-    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
-    await wrapper.vm.$nextTick();
+    // Identifier 567 is nested (has at least one guide), so its row exercises
+    // the guide-then-checkbox ordering that a top-level row wouldn't.
+    const row = wrapper
+      .findAll(".hierarchy-row")
+      .find(r => r.text().includes("CH"))!;
+    const children = Array.from(row.element.children);
+
+    const firstGuideIndex = children.findIndex(child =>
+      child.classList.contains("guide")
+    );
+    const checkboxGroupIndex = children.findIndex(
+      child => child.querySelector(".q-checkbox") !== null
+    );
+    expect(firstGuideIndex).toBeGreaterThanOrEqual(0);
+    expect(firstGuideIndex).toBeLessThan(checkboxGroupIndex);
+  });
+
+  it("colors each row's icon from color_hex_triplet", async () => {
+    const wrapper = await mountHierarchy();
 
     const icon = wrapper
       .findAllComponents({ name: "QIcon" })
@@ -142,16 +162,13 @@ describe("AtlasHierarchy", () => {
     expect(icon.attributes("style")).toContain("#BFDAE3");
   });
 
-  it("title-cases the search-result name, same as tree mode", async () => {
+  it("title-cases each row's name", async () => {
     const wrapper = await mountHierarchy();
-
-    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
-    await wrapper.vm.$nextTick();
 
     expect(wrapper.text()).toContain("Basic Cell Groups And Regions");
   });
 
-  it("leaves the tree empty when the fetch fails", async () => {
+  it("renders no items when the fetch fails", async () => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
     const pinia = createPinia();
     setActivePinia(pinia);
@@ -164,6 +181,8 @@ describe("AtlasHierarchy", () => {
     await flushPromises();
     await wrapper.vm.$nextTick();
 
-    expect(wrapper.findComponent({ name: "QTree" }).props("nodes")).toEqual([]);
+    expect(
+      wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items")
+    ).toEqual([]);
   });
 });

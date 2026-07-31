@@ -1,12 +1,8 @@
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef, watchPostEffect } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
 import { useFuse } from "@vueuse/integrations/useFuse";
-import {
-  buildHierarchy,
-  HierarchyModel,
-  toTitleCase
-} from "../api/hierarchy.api";
-import { QScrollArea, QTree } from "quasar";
+import { QScrollArea } from "quasar";
+import { flattenHierarchy } from "../api/hierarchy.api";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
   clearVisibleStructures,
@@ -16,33 +12,30 @@ import {
 
 const currentExperiment = useCurrentExperimentStore();
 
-const tree = useTemplateRef<QTree>("tree");
+// Components.
 const scrollArea = useTemplateRef<QScrollArea>("scroll-area");
 
 const filter = ref<string | null>(null);
 
-/** Root's children from the current atlas's hierarchy. */
-const hierarchy = computed(
-  () => buildHierarchy(currentExperiment.terminologyRows)?.children ?? []
-);
-
+// Expose scroll area target for the virtual scroll.
 const scrollAreaTarget = computed(() => scrollArea.value?.getScrollTarget());
 
+// DFS-flattened hierarchy, carrying each row's indent guides.
+const items = computed(() =>
+  flattenHierarchy(currentExperiment.terminologyRows)
+);
+
+// Fuzzy search across the abbreviation (label) and the full name.
 const searchQuery = computed(() => filter.value ?? "");
-const terminologyRows = computed(() => currentExperiment.terminologyRows);
-const { results } = useFuse(searchQuery, terminologyRows, {
+const { results } = useFuse(searchQuery, items, {
   fuseOptions: { keys: ["name", "abbreviation"] }
 });
 
+// Search mode: replace hierarchy order with the Fuse-ranked flat order.
 const isSearching = computed(() => (filter.value ?? "").trim().length > 0);
-const searchResults = computed(() => results.value.map(r => r.item));
-
-// Ensure the tree is always fully expanded.
-watchPostEffect(() => {
-  if (hierarchy.value.length > 0) {
-    tree.value?.expandAll();
-  }
-});
+const displayedItems = computed(() =>
+  isSearching.value ? results.value.map(r => r.item) : items.value
+);
 </script>
 
 <template>
@@ -55,19 +48,29 @@ watchPostEffect(() => {
 
     <q-scroll-area ref="scroll-area" class="col">
       <q-virtual-scroll
-        v-if="isSearching"
-        :items="searchResults"
+        :items="displayedItems"
+        :virtual-scroll-item-size="32"
         :scroll-target="scrollAreaTarget"
-        dense
       >
-        <template #default="{ item: node }">
-          <q-item :key="node.identifier" dense>
-            <q-item-section side>
+        <template #default="{ item }">
+          <div
+            :key="item.identifier"
+            class="hierarchy-row row items-center no-wrap"
+          >
+            <template v-if="!isSearching">
+              <span
+                v-for="(guide, index) in item.guides"
+                :key="index"
+                class="guide"
+                :class="`guide--${guide}`"
+              />
+            </template>
+            <div class="row q-gutter-x-xs items-center">
               <q-checkbox
                 :model-value="
                   isStructureVisible(
                     currentExperiment.experiment,
-                    node.identifier
+                    item.identifier
                   )
                 "
                 dense
@@ -75,46 +78,22 @@ watchPostEffect(() => {
                   visible =>
                     setStructureVisibility(
                       currentExperiment.experiment,
-                      node.identifier,
+                      item.identifier,
                       visible
                     )
                 "
               />
-            </q-item-section>
-            <q-item-section>
-              <div class="row items-center q-gutter-x-xs no-wrap">
-                <q-icon
-                  :style="{ color: node.color_hex_triplet }"
-                  name="radio_button_checked"
-                />
-                <b>{{ node.abbreviation }}</b>
-                <span class="text-no-wrap">{{ toTitleCase(node.name) }}</span>
-              </div>
-            </q-item-section>
-          </q-item>
-        </template>
-      </q-virtual-scroll>
-      <q-tree
-        v-else
-        ref="tree"
-        v-model:ticked="currentExperiment.visibleStructures"
-        :nodes="hierarchy"
-        dense
-        no-transition
-        node-key="identifier"
-        tick-strategy="strict"
-      >
-        <template #default-header="{ node }">
-          <div class="row items-center q-gutter-x-xs no-wrap">
-            <q-icon
-              :style="{ color: node.color }"
-              name="radio_button_checked"
-            />
-            <b>{{ node.abbreviation }}</b>
-            <span class="text-no-wrap">{{ node.name }}</span>
+              <q-icon
+                :style="{ color: item.color }"
+                name="radio_button_checked"
+                size="sm"
+              />
+              <b>{{ item.abbreviation }}</b>
+              <span class="text-no-wrap">{{ item.name }}</span>
+            </div>
           </div>
         </template>
-      </q-tree>
+      </q-virtual-scroll>
     </q-scroll-area>
 
     <template v-if="currentExperiment.visibleStructures.length">
@@ -127,4 +106,51 @@ watchPostEffect(() => {
   </div>
 </template>
 
-<style lang="sass" scoped></style>
+<style lang="sass" scoped>
+$guide-width: 2px
+
+.hierarchy-row
+  height: 32px
+  width: max-content
+  min-width: 100%
+
+.guide
+  flex: 0 0 1rem
+  align-self: stretch
+  position: relative
+
+.guide--line::before, .guide--tee::before
+  content: ''
+  position: absolute
+  top: 0
+  left: 50%
+  height: 100%
+  border-left: $guide-width solid $separator-color
+
+.guide--elbow::before
+  content: ''
+  position: absolute
+  top: 0
+  left: 50%
+  height: 50%
+  border-left: $guide-width solid $separator-color
+
+.guide--tee::after, .guide--elbow::after
+  content: ''
+  position: absolute
+  top: 50%
+  left: calc(50% + $guide-width / 2)
+  width: 50%
+  margin-top: -($guide-width * 0.5)
+  border-top: $guide-width solid $separator-color
+
+body.body--dark
+  .guide--line::before, .guide--tee::before
+    border-left-color: $separator-dark-color
+
+  .guide--elbow::before
+    border-left-color: $separator-dark-color
+
+  .guide--tee::after, .guide--elbow::after
+    border-top-color: $separator-dark-color
+</style>

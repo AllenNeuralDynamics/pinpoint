@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { configDefaults, defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { quasar } from "@quasar/vite-plugin";
-import pkg from "./package.json";
+import pkg from "./package.json" with { type: "json" };
 
 // Standalone Vitest config.
 //
