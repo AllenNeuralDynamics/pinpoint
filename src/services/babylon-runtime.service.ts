@@ -1,41 +1,77 @@
-import { InjectionKey, markRaw, shallowReadonly, shallowRef } from "vue";
+import type { InjectionKey } from "vue";
+import { markRaw, shallowReadonly, type ShallowRef, shallowRef } from "vue";
 import {
   ArcRotateCamera,
   GizmoManager,
   HemisphericLight,
-  MeshBuilder,
+  InitializeCSG2Async,
+  IsCSG2Ready,
   Scene,
-  TransformNode,
+  SelectionOutlineLayer,
   Vector3,
   WebGPUEngine
 } from "@babylonjs/core";
+import Module from "manifold-3d";
 
 /**
- * Service creator. Hosts the references to the engine and scene.
+ * Service holding the Babylon engine, scene, camera, and gizmo manager
+ * references for one runtime.
  */
-export function createBabylonRuntimeService() {
+export interface BabylonRuntimeService {
+  engine: Readonly<ShallowRef<WebGPUEngine | null>>;
+  scene: Readonly<ShallowRef<Scene | null>>;
+  camera: Readonly<ShallowRef<ArcRotateCamera | null>>;
+  gizmoManager: Readonly<ShallowRef<GizmoManager | null>>;
+  selectionOutlineLayer: Readonly<ShallowRef<SelectionOutlineLayer | null>>;
+  init: (canvas: HTMLCanvasElement) => Promise<void>;
+  dispose: () => void;
+}
+
+export const BabylonRuntimeServiceKey: InjectionKey<BabylonRuntimeService> =
+  Symbol("BabylonRuntimeService");
+
+/**
+ * Initialize Babylon's CSG2 from the bundled `manifold-3d` package, so its
+ * wasm loads from this app's own origin instead of Babylon's default CDN.
+ */
+async function initializeCSG2(): Promise<void> {
+  if (IsCSG2Ready()) return;
+
+  const manifold = await Module();
+  manifold.setup();
+  await InitializeCSG2Async({
+    manifoldInstance: manifold.Manifold,
+    manifoldMeshInstance: manifold.Mesh
+  });
+}
+
+/**
+ * Create a service holding the Babylon engine, scene, camera, and gizmo
+ * manager references for one runtime.
+ */
+export function createBabylonRuntimeService(): BabylonRuntimeService {
   const engine = shallowRef<WebGPUEngine | null>(null);
   const scene = shallowRef<Scene | null>(null);
   const camera = shallowRef<ArcRotateCamera | null>(null);
   const gizmoManager = shallowRef<GizmoManager | null>(null);
+  const selectionOutlineLayer = shallowRef<SelectionOutlineLayer | null>(null);
 
   /**
-   * Create the runtime from a canvas.
+   * Create the runtime from a canvas. Does nothing if already initialized.
    * @param canvas HTML canvas to attach the runtime to.
    */
   async function init(canvas: HTMLCanvasElement) {
-    // Cancel if already initialized.
     if (engine.value) return;
 
-    // Initialize engine.
+    // Setup engine and CSG2.
     const e = markRaw(new WebGPUEngine(canvas));
     e.compatibilityMode = false;
-    await e.initAsync();
+    await Promise.all([e.initAsync(), initializeCSG2()]);
 
-    // Attach scene.
+    // Setup scene.
     const s = markRaw(new Scene(e));
 
-    // Attach camera.
+    // Setup camera.
     const c = new ArcRotateCamera(
       "main_camera",
       -Math.PI / 2,
@@ -46,35 +82,24 @@ export function createBabylonRuntimeService() {
     );
     c.attachControl(canvas, true);
 
-    // Attach gizmo manager.
+    // Setup gizmo manager.
     const gm = new GizmoManager(s);
     gm.positionGizmoEnabled = true;
     gm.rotationGizmoEnabled = true;
 
-    // Add lights.
     new HemisphericLight("main_light", Vector3.Up(), s);
 
-    // Build a demo scene.
-    const probeMesh = MeshBuilder.CreateBox(
-      "probe_mesh",
-      { width: 0.25, depth: 0.25, height: 2 },
-      s
-    );
-    probeMesh.setAbsolutePosition(Vector3.Up());
-    const probeMover = new TransformNode("probeTip_node", s);
-    probeMover.addChild(probeMesh);
-    gm.attachToNode(probeMover);
+    const sol = new SelectionOutlineLayer("selection_outline_layer", s);
 
-    // Start render loop.
     e.runRenderLoop(() => {
       s.render();
     });
 
-    // Set refs.
     engine.value = e;
     scene.value = s;
     camera.value = c;
     gizmoManager.value = gm;
+    selectionOutlineLayer.value = sol;
   }
 
   /**
@@ -82,11 +107,13 @@ export function createBabylonRuntimeService() {
    */
   function dispose() {
     gizmoManager.value?.dispose();
+    selectionOutlineLayer.value?.dispose();
     camera.value?.dispose();
     scene.value?.dispose();
     engine.value?.dispose();
 
     gizmoManager.value = null;
+    selectionOutlineLayer.value = null;
     camera.value = null;
     scene.value = null;
     engine.value = null;
@@ -97,14 +124,8 @@ export function createBabylonRuntimeService() {
     scene: shallowReadonly(scene),
     camera: shallowReadonly(camera),
     gizmoManager: shallowReadonly(gizmoManager),
+    selectionOutlineLayer: shallowReadonly(selectionOutlineLayer),
     init,
     dispose
   };
 }
-
-export type BabylonRuntimeService = ReturnType<
-  typeof createBabylonRuntimeService
->;
-
-export const BabylonRuntimeServiceKey: InjectionKey<BabylonRuntimeService> =
-  Symbol("BabylonRuntimeService");

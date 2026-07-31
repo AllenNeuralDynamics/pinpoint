@@ -1,16 +1,17 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { computedAsync } from "@vueuse/core";
-import { Experiment } from "@/features/experiment";
+import { i18n } from "@/services/i18n.service";
+import type { Experiment } from "@/features/experiment";
+import type { Manifest } from "@/features/atlas";
 import {
-  Atlas,
   BRAINGLOBE_BASE_URL,
-  getAtlasCenter,
-  getDefaultStructureIdentifiers,
   getManifest,
-  getTerminologyRows,
-  Manifest
+  getTerminologyRows
 } from "@/features/atlas";
+import { detachProbeInterfaceProbe } from "@/features/probe";
+import type { Inspectable } from "@/features/scene";
+import { isSameInspectable } from "@/features/scene";
 
 export const useCurrentExperimentStore = defineStore(
   "current-experiment",
@@ -19,43 +20,35 @@ export const useCurrentExperimentStore = defineStore(
      * Current experiment instance.
      */
     const experiment = ref<Experiment>({
-      name: "My First Experiment",
+      name: i18n.global.t("currentExperiment.defaultName"),
       atlas: {
         source: BRAINGLOBE_BASE_URL,
         name: "allen_mouse"
       },
       referenceCoordinate: [5.7, 0.44, 5.4],
-      visibleStructures: []
+      visibleStructures: [],
+      probeInterfaceProbes: {},
+      probes: []
     });
 
-    /**
-     * Create a new experiment with the given name, atlas, and reference
-     * coordinate.
-     * @param name Experiment name.
-     * @param atlas Full atlas object.
-     * @param referenceCoordinate Reference coordinate (in ASR, mm) marking
-     * the experiment's landmark of interest within the atlas.
-     */
-    function create(
-      name: string,
-      atlas: Atlas,
-      referenceCoordinate: [number, number, number]
-    ) {
-      experiment.value = {
-        name,
-        atlas,
-        referenceCoordinate,
-        visibleStructures: []
-      };
-    }
+    const selectedInspectable = ref<Inspectable | null>(null);
 
     /**
-     * Set the name of the experiment.
-     * @param name Experiment name.
+     * ID of the probe currently being dragged.
+     *
+     * Used to ignore updates from pinia going to writing the probe's location.
      */
-    function setName(name: string) {
-      experiment.value.name = name;
-    }
+    const draggedProbeId = ref<string | null>(null);
+
+    /**
+     * Flag for when the manifest is being updated to match the new atlas.
+     */
+    const isManifestEvaluating = ref(false);
+
+    /**
+     * Flag for when the terminology rows are being updated to match the new atlas.
+     */
+    const isTerminologyRowsEvaluating = ref(false);
 
     /**
      * Get the current experiment name.
@@ -68,11 +61,6 @@ export const useCurrentExperimentStore = defineStore(
     const atlas = computed(() => experiment.value.atlas);
 
     /**
-     * Flag for when the manifest is being updated to match the new atlas.
-     */
-    const isManifestEvaluating = ref(false);
-
-    /**
      * Manifest of the current atlas.
      */
     const manifest = computedAsync<Manifest | null>(
@@ -80,11 +68,6 @@ export const useCurrentExperimentStore = defineStore(
       null,
       isManifestEvaluating
     );
-
-    /**
-     * Flag for when the terminology rows are being updated to match the new atlas.
-     */
-    const isTerminologyRowsEvaluating = ref(false);
 
     /**
      * Terminology rows of the current atlas.
@@ -104,36 +87,6 @@ export const useCurrentExperimentStore = defineStore(
     );
 
     /**
-     * Default (top-level) structure identifiers for the current experiment's
-     * atlas.
-     */
-    const defaultStructureIdentifiers = computed<number[]>(() =>
-      terminologyRows.value && !areAtlasComponentsEvaluating.value
-        ? getDefaultStructureIdentifiers(terminologyRows.value)
-        : []
-    );
-
-    /**
-     * Current experiment's atlas center.
-     */
-    const atlasCenter = computed<[number, number, number]>(() =>
-      manifest.value && !isManifestEvaluating.value
-        ? getAtlasCenter(manifest.value)
-        : [0, 0, 0]
-    );
-
-    /**
-     * Set the reference coordinate of the experiment.
-     * @param referenceCoordinate Reference coordinate (in ASR, mm) marking
-     * the experiment's landmark of interest within the atlas.
-     */
-    function setReferenceCoordinate(
-      referenceCoordinate: [number, number, number]
-    ) {
-      experiment.value.referenceCoordinate = referenceCoordinate;
-    }
-
-    /**
      * Get the current experiment's reference coordinate.
      */
     const referenceCoordinate = computed(
@@ -145,71 +98,64 @@ export const useCurrentExperimentStore = defineStore(
      */
     const visibleStructures = computed({
       get: () => experiment.value.visibleStructures,
-      set: (value: number[]) => {
-        experiment.value.visibleStructures = value;
-      }
+      set: (value: number[]) => (experiment.value.visibleStructures = value)
     });
 
     /**
-     * Is the structure visible on the atlas in the experiment.
-     * @param identifier Identifier of the structure to check.
+     * Probe interface definitions used by this experiment's probes, keyed by
+     * probe identifier.
      */
-    function isStructureVisible(identifier: number) {
-      return visibleStructures.value.includes(identifier);
-    }
+    const probeInterfaceProbes = computed(
+      () => experiment.value.probeInterfaceProbes
+    );
+
+    const probes = computed(() => experiment.value.probes);
 
     /**
-     * Set the visibility of the structure in the atlas.
-     * @param identifier Identifier of the structure to set the visibility of.
-     * @param value Is the structure visible or not.
+     * Is the passed entity the actively selected one.
+     * @param entity Entity to compare against the current selection.
      */
-    function setStructureVisibility(identifier: number, value: boolean) {
-      if (value) {
-        if (!isStructureVisible(identifier)) {
-          visibleStructures.value.push(identifier);
-        }
-      } else {
-        const index = visibleStructures.value.indexOf(identifier);
-        if (index !== -1) {
-          visibleStructures.value.splice(index, 1);
-        }
-      }
+    function isInspectableSelected(entity: Inspectable): boolean {
+      return (
+        !!selectedInspectable.value &&
+        isSameInspectable(selectedInspectable.value, entity)
+      );
     }
 
-    /**
-     * Reset visible structures.
-     */
-    function clearVisibleStructures() {
-      experiment.value.visibleStructures = [];
-    }
-
-    return {
+    const state = {
       experiment,
-      visibleStructures,
-      create,
-      setName,
+      selectedInspectable,
+      draggedProbeId,
+      isManifestEvaluating
+    };
+    const getters = {
       name,
       atlas,
       manifest,
       terminologyRows,
       areAtlasComponentsEvaluating,
-      defaultStructureIdentifiers,
-      atlasCenter,
-      setReferenceCoordinate,
       referenceCoordinate,
-      isStructureVisible,
-      setStructureVisibility,
-      clearVisibleStructures
+      visibleStructures,
+      probeInterfaceProbes,
+      probes
     };
+    const actions = { isInspectableSelected };
+    return { ...state, ...getters, ...actions };
   },
   {
-    // Only `experiment` is real state. `manifest` and `terminologyRows` are
-    // `computedAsync`, which returns a plain
-    // `shallowRef` -- pinia's `isComputed` check can't tell that apart from
-    // state (it looks for a `.effect` property, which only a `computed`
-    // has), so without this `pick` the entire fetched terminology CSV would
-    // be persisted to `localStorage` and hydrated back on startup, ahead of
-    // (and then overwritten by) the actual fetch.
-    persist: { pick: ["experiment"] }
+    persist: {
+      pick: ["experiment"],
+
+      // Re-mark probe interface definitions as raw to prevent tracking.
+      afterHydrate: context => {
+        const experiment: Experiment = context.store.experiment;
+        for (const [identifier, definition] of Object.entries(
+          experiment.probeInterfaceProbes
+        )) {
+          experiment.probeInterfaceProbes[identifier] =
+            detachProbeInterfaceProbe(definition);
+        }
+      }
+    }
   }
 );

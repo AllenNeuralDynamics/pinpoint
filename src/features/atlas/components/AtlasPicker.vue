@@ -7,10 +7,10 @@ import { atlasDisplayName } from "../api/hierarchy.api";
 import { listAtlases, listAtlasesHTTP } from "../api/source.api";
 import { computedAsync } from "@vueuse/core";
 
-enum SourceToggle {
-  BrainGlobe,
-  Custom
-}
+/**
+ * Atlas source the picker lists atlases from.
+ */
+type SourceToggle = "brainglobe" | "custom";
 
 /**
  * An atlas paired with its human-readable display name, for sorting, fuzzy
@@ -25,20 +25,10 @@ interface AtlasOption {
 // Props.
 const selectedAtlas = defineModel<Atlas | null>({ required: true });
 
-// Composables.
 const favoriteAtlasesStore = useFavoriteAtlasesStore();
 
-// State.
-const sourceToggle = ref<SourceToggle>(SourceToggle.BrainGlobe);
-
-/**
- * Custom HTTP host URL.
- */
+const sourceToggle = ref<SourceToggle>("brainglobe");
 const customHTTPHost = ref<string | null>("http://localhost:3000");
-
-/**
- * Filter string.
- */
 const searchQuery = ref<string | null>(null);
 
 const atlasesEvaluating = ref(false);
@@ -48,7 +38,7 @@ const atlasesEvaluating = ref(false);
  */
 const atlases = computedAsync<Atlas[]>(
   async () => {
-    if (sourceToggle.value == SourceToggle.BrainGlobe) {
+    if (sourceToggle.value === "brainglobe") {
       return (await listAtlases()) ?? [];
     } else {
       if (!customHTTPHost.value) return [];
@@ -59,24 +49,17 @@ const atlases = computedAsync<Atlas[]>(
   atlasesEvaluating
 );
 
-// Getters.
-
-/**
- * Null unwrapped search query.
- */
 const unwrappedSearchQuery = computed(() => searchQuery.value ?? "");
 
 /**
  * Favorites for this source as a set for fast lookup.
  */
 const favoritesSet = computed(() => {
-  // Return the source if there are atlases.
   if (atlases.value[0]) {
     const source = atlases.value[0].source;
     return new Set(favoriteAtlasesStore.favorites[source]);
   }
 
-  // Otherwise, return the empty set.
   return new Set<string>();
 });
 
@@ -129,7 +112,7 @@ const filteredNonFavorites = computed(() =>
 /**
  * Compare atlases by identity fields, since instances are not stable references.
  */
-function isSelected(atlas: Atlas) {
+function isSelected(atlas: Atlas): boolean {
   return (
     selectedAtlas.value?.source === atlas.source &&
     selectedAtlas.value?.name === atlas.name
@@ -144,18 +127,15 @@ function isSelected(atlas: Atlas) {
     <q-btn-toggle
       v-model="sourceToggle"
       :options="[
-        {
-          label: $t('atlasPicker.brainglobeHosted'),
-          value: SourceToggle.BrainGlobe
-        },
-        { label: $t('atlasPicker.customHTTPHost'), value: SourceToggle.Custom }
+        { label: $t('atlasPicker.brainglobeHosted'), value: 'brainglobe' },
+        { label: $t('atlasPicker.customHTTPHost'), value: 'custom' }
       ]"
       spread
       toggle-color="primary"
     />
 
     <q-input
-      v-if="sourceToggle === SourceToggle.Custom"
+      v-if="sourceToggle === 'custom'"
       v-model="customHTTPHost"
       :label="$t('atlasPicker.sourceUrl')"
       class="col"

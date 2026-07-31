@@ -1,4 +1,4 @@
-import { Color3 } from "@babylonjs/core";
+import type { Color3 } from "@babylonjs/core";
 
 /**
  * Structure 3D mesh entity config for Babylon.

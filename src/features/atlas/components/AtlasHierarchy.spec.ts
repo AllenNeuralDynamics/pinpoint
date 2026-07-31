@@ -5,6 +5,7 @@ import { flushPromises } from "@vue/test-utils";
 import AtlasHierarchy from "./AtlasHierarchy.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { setStructureVisibility } from "@/features/experiment";
 import { getManifest, getTerminologyRows } from "../api/source.api";
 import { makeManifest, makeTerminologyRows } from "@/test/fixtures";
 
@@ -104,7 +105,7 @@ describe("AtlasHierarchy", () => {
     expect(checkbox.props("modelValue")).toBe(false);
 
     await checkbox.vm.$emit("update:modelValue", true);
-    expect(store.isStructureVisible(8)).toBe(true);
+    expect(store.experiment.visibleStructures).toContain(8);
   });
 
   it("shows the Clear button only when structures are visible, and clears on click", async () => {
@@ -117,7 +118,7 @@ describe("AtlasHierarchy", () => {
         .some(b => b.props("icon") === "clear_all")
     ).toBe(false);
 
-    store.setStructureVisibility(8, true);
+    setStructureVisibility(store.experiment, 8, true);
     await wrapper.vm.$nextTick();
 
     const clearBtn = wrapper

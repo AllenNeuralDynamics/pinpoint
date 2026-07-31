@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { useProbeLibraryStore } from "./probe-library.store";
-import { makeProbe } from "@/test/fixtures";
+import { makeProbeInterfaceProbe } from "@/test/fixtures";
 
 describe("useProbeLibraryStore", () => {
   beforeEach(() => {
@@ -11,61 +11,82 @@ describe("useProbeLibraryStore", () => {
   describe("add", () => {
     it("adds a probe to the library", () => {
       const store = useProbeLibraryStore();
-      const probe = makeProbe();
+      const probe = makeProbeInterfaceProbe();
 
       store.add(probe);
 
       expect(store.library).toEqual([probe]);
     });
 
-    it("dedups structurally equal probes, even as distinct object instances", () => {
+    it("dedups probes with the same manufacturer and model, even as distinct object instances", () => {
       const store = useProbeLibraryStore();
 
-      store.add(makeProbe());
-      store.add(makeProbe());
+      store.add(makeProbeInterfaceProbe());
+      store.add(makeProbeInterfaceProbe());
 
-      expect(store.library).toEqual([makeProbe()]);
+      expect(store.library).toEqual([makeProbeInterfaceProbe()]);
     });
 
-    it("keeps distinct probes in the library", () => {
+    it("dedups probes with the same identifier even if their geometry differs", () => {
       const store = useProbeLibraryStore();
 
-      store.add(makeProbe({ si_units: "um" }));
-      store.add(makeProbe({ si_units: "mm" }));
+      store.add(makeProbeInterfaceProbe({ si_units: "um" }));
+      store.add(makeProbeInterfaceProbe({ si_units: "mm" }));
 
       expect(store.library).toEqual([
-        makeProbe({ si_units: "um" }),
-        makeProbe({ si_units: "mm" })
+        makeProbeInterfaceProbe({ si_units: "um" })
       ]);
+    });
+
+    it("keeps probes with different identifiers in the library", () => {
+      const store = useProbeLibraryStore();
+
+      const first = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np1" }
+      });
+      const second = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np2" }
+      });
+      store.add(first);
+      store.add(second);
+
+      expect(store.library).toEqual([first, second]);
     });
   });
 
   describe("remove", () => {
-    it("removes a structurally equal probe from the library", () => {
+    it("removes a probe with the same identifier from the library", () => {
       const store = useProbeLibraryStore();
-      store.add(makeProbe());
+      store.add(makeProbeInterfaceProbe());
 
-      store.remove(makeProbe());
+      store.remove(makeProbeInterfaceProbe());
 
       expect(store.library).toEqual([]);
     });
 
-    it("removes all structurally equal instances", () => {
+    it("removes all probes with the same identifier", () => {
       const store = useProbeLibraryStore();
-      store.library.push(makeProbe(), makeProbe());
+      store.library.push(makeProbeInterfaceProbe(), makeProbeInterfaceProbe());
 
-      store.remove(makeProbe());
+      store.remove(makeProbeInterfaceProbe());
 
       expect(store.library).toEqual([]);
     });
 
-    it("is a no-op when the probe doesn't exist", () => {
+    it("is a no-op when no probe has that identifier", () => {
       const store = useProbeLibraryStore();
-      store.add(makeProbe({ si_units: "um" }));
+      const kept = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np1" }
+      });
+      store.add(kept);
 
-      store.remove(makeProbe({ si_units: "mm" }));
+      store.remove(
+        makeProbeInterfaceProbe({
+          annotations: { manufacturer: "imec", model_name: "np2" }
+        })
+      );
 
-      expect(store.library).toEqual([makeProbe({ si_units: "um" })]);
+      expect(store.library).toEqual([kept]);
     });
   });
 });

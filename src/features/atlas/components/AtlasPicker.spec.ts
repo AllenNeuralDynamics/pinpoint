@@ -15,11 +15,11 @@ vi.mock("axios");
 const mockedGet = vi.mocked(axios.get);
 
 /**
- * Source toggle values, mirroring the component's internal `SourceToggle`
- * enum (BrainGlobe = 0, Custom = 1). Not exported by the component, so the
- * raw values are duplicated here to drive `QBtnToggle`.
+ * Value mirroring the component's internal `SourceToggle` union. Not
+ * exported by the component, so the literal is duplicated here to drive
+ * `QBtnToggle`.
  */
-const CUSTOM_SOURCE = 1;
+const CUSTOM_SOURCE = "custom";
 
 function mountPicker(
   modelValue: ReturnType<typeof makeAtlas> | null = null,

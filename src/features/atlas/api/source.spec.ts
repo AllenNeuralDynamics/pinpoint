@@ -9,6 +9,7 @@ import {
   getTerminologyRows,
   listAtlases,
   listAtlasesHTTP,
+  structureEntitiesFromIdentifiers,
   structureEntityFromIdentifier
 } from "./source.api";
 import { makeAtlas, makeManifest, makeTerminologyRows } from "@/test/fixtures";
@@ -21,9 +22,10 @@ vi.mock("axios");
 // directly.
 vi.mock("papaparse", () => ({ default: { parse: vi.fn() } }));
 
+// Throughout this file, axios.get is only ever passed to vi.mocked() to
+// retrieve its mock, never called unbound.
+
 describe("listAtlases", () => {
-  // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
-  // called unbound.
   // oxlint-disable-next-line typescript/unbound-method
   const mockedGet = vi.mocked(axios.get);
 
@@ -91,8 +93,6 @@ describe("listAtlases", () => {
 });
 
 describe("listAtlasesHTTP", () => {
-  // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
-  // called unbound.
   // oxlint-disable-next-line typescript/unbound-method
   const mockedGet = vi.mocked(axios.get);
 
@@ -346,8 +346,6 @@ describe("getTerminologyRows", () => {
 });
 
 describe("getManifest", () => {
-  // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
-  // called unbound.
   // oxlint-disable-next-line typescript/unbound-method
   const mockedGet = vi.mocked(axios.get);
 
@@ -758,6 +756,37 @@ describe("structureEntityFromIdentifier", () => {
     const result = structureEntityFromIdentifier(manifest, terminologyRows, 8);
 
     expect(result?.color).toEqual(Color3.FromHexString("#BFDAE3"));
+  });
+});
+
+describe("structureEntitiesFromIdentifiers", () => {
+  const manifest = makeManifest();
+  const terminologyRows = makeTerminologyRows();
+
+  it("resolves each identifier to its structure entity", () => {
+    const result = structureEntitiesFromIdentifiers(
+      manifest,
+      terminologyRows,
+      [8, 567]
+    );
+
+    expect(result.map(entity => entity.identifier)).toEqual([8, 567]);
+  });
+
+  it("drops identifiers that don't resolve to a row", () => {
+    const result = structureEntitiesFromIdentifiers(
+      manifest,
+      terminologyRows,
+      [8, 12345]
+    );
+
+    expect(result.map(entity => entity.identifier)).toEqual([8]);
+  });
+
+  it("returns an empty list for an empty input", () => {
+    expect(
+      structureEntitiesFromIdentifiers(manifest, terminologyRows, [])
+    ).toEqual([]);
   });
 });
 

@@ -6,6 +6,7 @@ export {
   getTerminologyRows,
   getManifest,
   structureEntityFromIdentifier,
+  structureEntitiesFromIdentifiers,
   getAtlasCenter
 } from "./api/source.api";
 export type { TerminologyRow } from "./models/terminology-row.model";

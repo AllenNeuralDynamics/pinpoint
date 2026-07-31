@@ -10,7 +10,7 @@ import {
   getProbeInterfaceProbe,
   getProbeNames,
   parseProbeInterfaceFile
-} from "../api/install-probe.api";
+} from "../api/install.api";
 import { KNOWN_PROBES } from "../models/known-probes.model";
 
 // A selectable probe, pairing its identifier with a human-readable label
@@ -20,7 +20,6 @@ interface ProbeOption {
   label: string;
 }
 
-// Setup dialog.
 defineEmits([...useDialogPluginComponent.emits]);
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
@@ -32,8 +31,6 @@ const selectedManufacturerName = ref<string | null>(null);
 const searchQuery = ref<string | null>(null);
 const selectedProbeName = ref<string | null>(null);
 const probeNamesEvaluating = ref(false);
-
-// Loading state for the two ways to resolve the dialog.
 const installing = ref(false);
 const uploading = ref(false);
 
@@ -87,12 +84,24 @@ const selectedProbeOverviewImageSrc = computed<string>(() => {
 });
 
 /**
- * Notify that installing or reading a probe failed.
+ * Notify that installing a probe from the library failed.
  */
 function notifyInstallFailed() {
   $q.notify({
     message: t("installProbe.installFailed"),
     caption: t("installProbe.installFailedCaption"),
+    color: "negative",
+    icon: "error"
+  });
+}
+
+/**
+ * Notify that an uploaded probe file couldn't be read or parsed.
+ */
+function notifyInvalidProbeFile() {
+  $q.notify({
+    message: t("installProbe.invalidProbeFile"),
+    caption: t("installProbe.invalidProbeFileCaption"),
     color: "negative",
     icon: "error"
   });
@@ -128,8 +137,7 @@ function openFilePicker() {
 
 /**
  * Read the selected file, validate it as a ProbeInterface file, and resolve
- * the dialog with its first probe. Notifies an error if the file can't be
- * read or parsed.
+ * the dialog with its first probe.
  */
 async function onFileSelected(event: Event) {
   const input = event.target as HTMLInputElement;
@@ -146,23 +154,13 @@ async function onFileSelected(event: Event) {
     const probe = parseProbeInterfaceFile(text);
 
     if (!probe) {
-      $q.notify({
-        message: t("installProbe.invalidProbeFile"),
-        caption: t("installProbe.invalidProbeFileCaption"),
-        color: "negative",
-        icon: "error"
-      });
+      notifyInvalidProbeFile();
       return;
     }
 
     onDialogOK(probe);
   } catch {
-    $q.notify({
-      message: t("installProbe.invalidProbeFile"),
-      caption: t("installProbe.invalidProbeFileCaption"),
-      color: "negative",
-      icon: "error"
-    });
+    notifyInvalidProbeFile();
   } finally {
     uploading.value = false;
   }

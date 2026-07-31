@@ -12,26 +12,22 @@ import {
 import axios from "axios";
 import type { StructureEntity } from "../models/structure-entity.model";
 import { asrToBabylon } from "./coordinate-transforms.api";
+import { setMaterialAlpha } from "./material.api";
 
-/**
- * Decoded structure geometry, ready to hand off to {@link simplifyGeometry}:
- * winding order corrected, and nanometer-scale coordinates converted to
- * millimeters.
- */
+/** Decoded structure geometry, ready to hand off to {@link simplifyGeometry}. */
 interface DecodedMeshData {
   positions: Float32Array;
   indices: Uint32Array;
 }
 
-/**
- * Simplified vertex data, ready to apply to a mesh with
- * `VertexData.applyToMesh`.
- */
+/** Simplified vertex data, ready to apply to a mesh. */
 interface SimplifiedGeometry {
   positions: Float32Array;
   normals: Float32Array;
   indices: Uint32Array;
 }
+
+const ATLAS_ROOT_NODE_NAME = "atlasRoot_node";
 
 /** BrainGlobe v3 Draco meshes store positions in nanometers. */
 const NANOMETERS_TO_MILLIMETERS = 1e-6;
@@ -42,26 +38,37 @@ const MESH_VERTEX_KEEP_FRACTION = 0.05;
 /** Hard ceiling on vertices per structure, regardless of original size. */
 const MESH_MAX_VERTICES = 8000;
 
-/**
- * Iterations `QuadraticErrorSimplification` runs between `setTimeout` yields.
- *
- * Babylon defaults this to 5000, which for these meshes means ~900 timer hops.
- * Browsers clamp nested `setTimeout` to a 4ms floor, so those hops cost more in
- * idle waiting (~3.4s, measured) than the simplification itself costs in CPU
- * (~2.4s, measured). Yielding less often trades a slightly longer worst-case
- * frame (~76ms, measured) for roughly half the wall-clock.
- */
+/** Iterations `QuadraticErrorSimplification` runs between `setTimeout` yields. */
 const SIMPLIFY_SYNC_ITERATIONS = 20000;
 
 /** Suffix applied to a structure's identifier to name its Babylon mesh. */
-const STRUCTURE_MESH_SUFFIX = "_structure";
+const STRUCTURE_MESH_SUFFIX = "_structure_mesh";
 
 /** Suffix applied to a structure's identifier to name its Babylon material. */
-const STRUCTURE_MATERIAL_SUFFIX = "_material";
+const STRUCTURE_MATERIAL_SUFFIX = "_structure_material";
+
+/** Alpha applied to a visible structure's material. */
+const STRUCTURE_VISIBLE_ALPHA = 1;
+
+/** Alpha applied to an always-present structure's material when faded out. */
+const STRUCTURE_FADED_ALPHA = 0.1;
 
 /**
- * Offset the atlas root node so the atlas is centered on the origin
- *
+ * Build the atlas root node or return the existing one.
+ * @param scene Babylon scene to get the atlas root node from.
+ */
+export function buildAtlasRootNode(scene: Scene): TransformNode {
+  let atlasRootNode = scene.getTransformNodeByName(ATLAS_ROOT_NODE_NAME);
+  if (!atlasRootNode) {
+    atlasRootNode = new TransformNode(ATLAS_ROOT_NODE_NAME, scene);
+    atlasRootNode.rotation = new Vector3(Math.PI, 0, 0);
+  }
+
+  return atlasRootNode;
+}
+
+/**
+ * Offset the atlas root node so the atlas is centered on the origin.
  * @param scene Scene containing the atlas root.
  * @param centerCoordinate Coordinates of the center of the atlas.
  */
@@ -74,34 +81,14 @@ export function setAtlasCenterOffset(
 }
 
 /**
- * Sync the scene's structures with the given visibility.
- *
- * Structures in `alwaysPresentStructures` are never removed from the scene;
- * when they aren't also in `visibleStructures` they're faded out instead.
- * Structures in `visibleStructures` are fully visible, and are removed from
- * the scene once they're no longer in either list.
- *
- * Missing structures are imported concurrently rather than one at a time, so
- * total load time is bound by the slowest structure rather than their sum.
- * Every import runs to completion even if a sibling fails -- a failure only
- * rejects the overall sync once every structure's placeholder has either
- * been filled in or disposed, so no structure is left claimed by a
- * permanently-invisible placeholder that a later sync would mistake for
- * already present and never retry.
- *
- * Safe to call repeatedly and concurrently for the same desired state --
- * every phase up to and including alpha assignment runs synchronously, with
- * a placeholder mesh claiming each missing structure's name before this
- * function ever yields. An overlapping call's presence check therefore sees
- * that placeholder and skips the structure instead of importing it a second
- * time, and never observes a structure at any alpha other than the one this
- * call assigns it.
- *
+ * Sync the scene's structures with the given visibility, importing missing
+ * geometry concurrently and fading always-present structures instead of
+ * removing them.
  * @param scene Scene to sync.
  * @param alwaysPresentStructures Structures to keep in the scene at all times.
  * @param visibleStructures Structures that should be fully visible.
  */
-export async function syncStructureVisibility(
+export async function syncStructuresVisibility(
   scene: Scene,
   alwaysPresentStructures: StructureEntity[],
   visibleStructures: StructureEntity[]
@@ -113,10 +100,8 @@ export async function syncStructureVisibility(
     visibleStructures.map(({ identifier }) => identifier)
   );
 
-  // Keyed by mesh name (not identifier) so it lines up with `presentMeshes`
-  // without either side having to parse a mesh name back into a number.
-  // Also gives always-present-and-visible structures a single entry, since
-  // both list a structure under the same identifier-derived mesh name.
+  // Keyed by mesh name so always-present-and-visible structures collapse to
+  // one entry and line up with `presentMeshes`.
   const desiredStructures = new Map(
     [...alwaysPresentStructures, ...visibleStructures].map(structure => [
       structureMeshName(structure.identifier),
@@ -124,19 +109,12 @@ export async function syncStructureVisibility(
     ])
   );
 
-  // Remove structures that are present but no longer desired. Disposing the
-  // material too avoids leaving an orphaned same-named material behind that
-  // would shadow a later re-import's material in any name-based lookup. Safe
-  // even if another sync's import for this identifier is still in flight --
-  // that import checks `mesh.isDisposed()` after every await and bails out.
   for (const [meshName, mesh] of presentMeshes) {
     if (!desiredStructures.has(meshName)) mesh.dispose(false, true);
   }
 
-  // Claim every missing structure with a placeholder mesh, synchronously, so
-  // a concurrent sync's presence check sees it before this call's first
-  // await. `pendingImports` tracks the ones this call is responsible for
-  // loading geometry for.
+  // Claim every missing structure with a placeholder mesh synchronously, so
+  // a concurrent call's presence check sees it before this call's first await.
   const desiredMeshes = new Map<string, AbstractMesh>();
   const pendingImports: { structure: StructureEntity; mesh: Mesh }[] = [];
   for (const [meshName, structure] of desiredStructures) {
@@ -146,33 +124,29 @@ export async function syncStructureVisibility(
       continue;
     }
 
-    const mesh = buildStructureMesh(structure, atlasRootNode, scene);
+    const mesh = buildStructureMesh(scene, atlasRootNode, structure);
     desiredMeshes.set(meshName, mesh);
     pendingImports.push({ structure, mesh });
   }
 
-  // Set every structure's alpha now, before any geometry has loaded, so one
-  // is never briefly visible at a material's default alpha.
   for (const [meshName, structure] of desiredStructures) {
     const material = desiredMeshes.get(meshName)?.material;
     if (material) {
-      material.alpha = visibleIdentifiers.has(structure.identifier) ? 1 : 0.1;
+      setMaterialAlpha(
+        material,
+        visibleIdentifiers.has(structure.identifier)
+          ? STRUCTURE_VISIBLE_ALPHA
+          : STRUCTURE_FADED_ALPHA
+      );
     }
   }
 
-  // Load every missing structure's geometry concurrently, and await them
-  // collectively rather than one at a time. `allSettled` (not `all`) so a
-  // failing structure doesn't leave its still-loading siblings' placeholders
-  // dangling -- every import disposes its own placeholder on failure, but
-  // only once it's had the chance to run.
   const results = await Promise.allSettled(
     pendingImports.map(({ structure, mesh }) =>
-      loadStructureGeometry(structure, mesh, scene)
+      loadStructureGeometry(mesh, structure, scene)
     )
   );
 
-  // Surface the first failure now that every import has settled, so callers
-  // can notify -- but without hiding a sync that otherwise succeeded.
   const failure = results.find(result => result.status === "rejected");
   if (failure) throw failure.reason;
 }
@@ -190,22 +164,6 @@ export function removeAllStructures(scene: Scene) {
 }
 
 /**
- * Build the atlas root node or return the existing one.
- *
- * Shared by both exported functions above.
- * @param scene Babylon scene to get the atlas root node from.
- */
-function buildAtlasRootNode(scene: Scene): TransformNode {
-  let atlasRootNode = scene.getTransformNodeByName("atlasRoot_node");
-  if (!atlasRootNode) {
-    atlasRootNode = new TransformNode("atlasRoot_node", scene);
-    atlasRootNode.rotation = new Vector3(Math.PI, 0, 0);
-  }
-
-  return atlasRootNode;
-}
-
-/**
  * Map the atlas root's direct structure-mesh children by name.
  * @param atlasRootNode Atlas root node to read structure meshes from.
  */
@@ -220,23 +178,32 @@ function childStructureMeshes(
 }
 
 /**
- * Synchronously create a structure's mesh and material, parented under the
- * atlas root, with no geometry yet -- hidden until
- * {@link loadStructureGeometry} fills it in.
- *
- * Kept synchronous (no awaits) so a mesh exists under `atlasRootNode` the
- * instant a structure is claimed, before anything yields to the event loop.
- * That's what lets an overlapping {@link syncStructureVisibility} call see
- * this structure as already accounted for instead of importing it again.
- *
- * @param structure Entity information for the structure.
- * @param atlasRootNode Atlas root node to parent the structure under.
+ * Babylon mesh name for a structure, derived from its identifier.
+ * @param identifier Structure identifier.
+ */
+function structureMeshName(identifier: number): string {
+  return `${identifier}${STRUCTURE_MESH_SUFFIX}`;
+}
+
+/**
+ * Babylon material name for a structure, derived from its identifier.
+ * @param identifier Structure identifier.
+ */
+function structureMaterialName(identifier: number): string {
+  return `${identifier}${STRUCTURE_MATERIAL_SUFFIX}`;
+}
+
+/**
+ * Synchronously create a structure's hidden placeholder mesh and material,
+ * parented under the atlas root, ready for {@link loadStructureGeometry}.
  * @param scene Scene to add the structure to.
+ * @param atlasRootNode Atlas root node to parent the structure under.
+ * @param structure Entity information for the structure.
  */
 function buildStructureMesh(
-  structure: StructureEntity,
+  scene: Scene,
   atlasRootNode: TransformNode,
-  scene: Scene
+  structure: StructureEntity
 ): Mesh {
   const mesh = new Mesh(structureMeshName(structure.identifier), scene);
   mesh.parent = atlasRootNode;
@@ -248,31 +215,34 @@ function buildStructureMesh(
   );
   material.diffuseColor = structure.color;
   mesh.material = material;
+  material.freeze();
 
   return mesh;
 }
 
 /**
+ * Compute the vertex budget for a simplified mesh: at most
+ * `MESH_VERTEX_KEEP_FRACTION` of the original, capped at `MESH_MAX_VERTICES`.
+ * @param vertexCount Original vertex count.
+ */
+function targetVertexCount(vertexCount: number): number {
+  return Math.min(
+    Math.round(vertexCount * MESH_VERTEX_KEEP_FRACTION),
+    MESH_MAX_VERTICES
+  );
+}
+
+/**
  * Fetch, decode, and simplify a structure's mesh geometry, then apply it to
- * its (already-present) placeholder mesh and reveal it.
- *
- * Simplification runs on the main thread, but {@link simplifyGeometry} yields
- * to the event loop throughout via Babylon's own chunked scheduling, so it
- * doesn't block rendering for its whole duration; concurrency across
- * structures comes from {@link syncStructureVisibility}'s `Promise.all`,
- * which lets their simplifications interleave instead of queuing.
- *
- * Bails out after each await if `mesh` was disposed in the meantime -- a
- * later sync decided this structure is no longer desired, so its geometry
- * shouldn't resurrect it.
- *
- * @param structure Entity information for the structure.
+ * its (already-present) placeholder mesh and reveal it. Bails out and
+ * disposes the mesh if it was disposed by a later sync while awaiting.
  * @param mesh Placeholder mesh created by {@link buildStructureMesh}.
+ * @param structure Entity information for the structure.
  * @param scene Scene the structure is being added to.
  */
 async function loadStructureGeometry(
-  structure: StructureEntity,
   mesh: Mesh,
+  structure: StructureEntity,
   scene: Scene
 ) {
   try {
@@ -280,17 +250,17 @@ async function loadStructureGeometry(
     if (mesh.isDisposed()) return;
 
     const decoded = await decodeMesh(
+      scene,
       `${structure.identifier}_geometry`,
-      data,
-      scene
+      data
     );
     if (mesh.isDisposed()) return;
 
     const simplified = await simplifyGeometry(
+      scene,
       decoded.positions,
       decoded.indices,
-      targetVertexCount(decoded.positions.length / 3),
-      scene
+      targetVertexCount(decoded.positions.length / 3)
     );
     if (mesh.isDisposed()) return;
 
@@ -301,10 +271,7 @@ async function loadStructureGeometry(
     vertexData.applyToMesh(mesh);
     mesh.isVisible = true;
   } catch (error) {
-    // Dispose mesh and skip this mesh.
     mesh.dispose(false, true);
-
-    // Percolate error up.
     throw error;
   }
 }
@@ -312,24 +279,16 @@ async function loadStructureGeometry(
 /**
  * Simplify a mesh's geometry down to (approximately) the given vertex count
  * and compute smooth-shaded normals for it.
- *
- * Builds its own temporary mesh in `scene` rather than taking one -- both the
- * source and `QuadraticErrorSimplification`'s reconstructed output are
- * disposed before returning, so nothing from this call lingers in the scene.
- * The temporary mesh is explicitly hidden and left unparented so it can never
- * flash on screen or be mistaken for a structure mesh by
- * {@link childStructureMeshes} while simplification runs.
- *
+ * @param scene Scene to build the temporary mesh in.
  * @param positions Flat `[x, y, z, ...]` vertex positions.
  * @param indices Triangle indices.
  * @param targetVertices Desired vertex count.
- * @param scene Scene to build the temporary mesh in.
  */
 async function simplifyGeometry(
+  scene: Scene,
   positions: Float32Array,
   indices: Uint32Array,
-  targetVertices: number,
-  scene: Scene
+  targetVertices: number
 ): Promise<SimplifiedGeometry> {
   const mesh = new Mesh("simplify_scratch", scene);
   mesh.isVisible = false;
@@ -385,14 +344,14 @@ async function fetchMeshData(meshPath: string): Promise<ArrayBuffer> {
 /**
  * Decode raw Draco mesh data into flat vertex data, correcting its winding
  * order and converting its nanometer-scale coordinates to millimeters.
+ * @param scene Scene to decode the mesh into.
  * @param name Name for the decoded geometry.
  * @param data Raw Draco-compressed mesh bytes.
- * @param scene Scene to decode the mesh into.
  */
 async function decodeMesh(
+  scene: Scene,
   name: string,
-  data: ArrayBuffer,
-  scene: Scene
+  data: ArrayBuffer
 ): Promise<DecodedMeshData> {
   const geometry = await DracoDecoder.Default.decodeMeshToGeometryAsync(
     name,
@@ -410,19 +369,14 @@ async function decodeMesh(
   const indices = Uint32Array.from(geometry.getIndices() ?? []);
   flipIndicesWindingOrder(indices);
 
-  // The geometry is registered with the scene, but only its raw arrays are
-  // needed here -- dispose it now that they've been copied out.
   geometry.dispose();
 
   return { positions, indices };
 }
 
 /**
- * Flip a flat array of triangle indices' winding order in place.
- *
- * BrainGlobe meshes are wound for a right-handed system, but the scene is
- * left-handed; without this, faces are backface-culled and computed normals
- * point inward.
+ * Flip a flat array of triangle indices' winding order in place, correcting
+ * BrainGlobe's right-handed meshes for the scene's left-handed convention.
  * @param indices Flat triangle indices, mutated in place.
  */
 function flipIndicesWindingOrder(indices: IndicesArray): void {
@@ -431,32 +385,4 @@ function flipIndicesWindingOrder(indices: IndicesArray): void {
     indices[i + 1] = indices[i + 2]!;
     indices[i + 2] = temp;
   }
-}
-
-/**
- * Compute the vertex budget for a simplified mesh: at most
- * `MESH_VERTEX_KEEP_FRACTION` of the original, capped at `MESH_MAX_VERTICES`.
- * @param vertexCount Original vertex count.
- */
-function targetVertexCount(vertexCount: number): number {
-  return Math.min(
-    Math.round(vertexCount * MESH_VERTEX_KEEP_FRACTION),
-    MESH_MAX_VERTICES
-  );
-}
-
-/**
- * Babylon mesh name for a structure, derived from its identifier.
- * @param identifier Structure identifier.
- */
-function structureMeshName(identifier: number): string {
-  return `${identifier}${STRUCTURE_MESH_SUFFIX}`;
-}
-
-/**
- * Babylon material name for a structure, derived from its identifier.
- * @param identifier Structure identifier.
- */
-function structureMaterialName(identifier: number): string {
-  return `${identifier}${STRUCTURE_MATERIAL_SUFFIX}`;
 }

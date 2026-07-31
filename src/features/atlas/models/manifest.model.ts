@@ -1,4 +1,4 @@
-import { Atlas } from "./atlas.model";
+import type { Atlas } from "./atlas.model";
 
 /**
  * Aggregated manifest of an atlas across all of its size variants, ordered

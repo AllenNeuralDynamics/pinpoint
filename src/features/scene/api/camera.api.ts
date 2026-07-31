@@ -1,24 +1,19 @@
-import { ArcRotateCamera } from "@babylonjs/core";
-import { Manifest } from "@/features/atlas";
+import type { ArcRotateCamera } from "@babylonjs/core";
+import type { Manifest } from "@/features/atlas";
+
+/** Initial camera zoom, as a multiple of the atlas's AP length. */
+const INITIAL_ZOOM_AP_MULTIPLIER = 1.5;
 
 /**
  * Set the initial zoom of the camera based on the dimension of the atlas.
- * @param manifest Atlas manifest which has its dimensions.
  * @param camera Camera to set the zoom of.
+ * @param manifest Atlas manifest which has its dimensions.
  */
-export function setInitialZoom(manifest: Manifest, camera: ArcRotateCamera) {
-  // Stop if there is no dimensions to pull.
+export function setInitialZoom(camera: ArcRotateCamera, manifest: Manifest) {
   if (!manifest.resolutions[0] || !manifest.shape[0]) return;
 
-  // Computed as 1.5 * AP length.
-  setZoom(manifest.resolutions[0][0] * manifest.shape[0][0] * 1.5, camera);
-}
-
-/**
- * Set the zoom of the camera.
- * @param radius Distance from the center point (zoom).
- * @param camera Scene to modify the camera of.
- */
-function setZoom(radius: number, camera: ArcRotateCamera) {
-  camera.radius = radius;
+  camera.radius =
+    manifest.resolutions[0][0] *
+    manifest.shape[0][0] *
+    INITIAL_ZOOM_AP_MULTIPLIER;
 }

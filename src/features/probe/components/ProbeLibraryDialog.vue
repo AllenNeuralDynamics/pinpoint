@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useDialogPluginComponent, useQuasar } from "quasar";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
+import { getProbeInterfaceIdentifier } from "../api/probe.api";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import { KNOWN_PROBES } from "../models/known-probes.model";
@@ -13,7 +14,6 @@ interface ProbeOption {
   label: string;
 }
 
-// Setup dialog.
 defineEmits([...useDialogPluginComponent.emits]);
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 
@@ -33,6 +33,9 @@ const probeOptions = computed<ProbeOption[]>(() =>
   })
 );
 
+/**
+ * Open the install-probe dialog and add its result to the library.
+ */
 function installProbe() {
   $q.dialog({ component: InstallProbeDialog }).onOk(probe => {
     probeLibraryStore.add(probe);
@@ -55,7 +58,7 @@ function installProbe() {
         <q-list class="dialog-list" separator>
           <q-item
             v-for="probeOption in probeOptions"
-            :key="`${probeOption.probe.annotations!.manufacturer}-${probeOption.probe.annotations!.model_name}`"
+            :key="getProbeInterfaceIdentifier(probeOption.probe)"
           >
             <q-item-section>{{ probeOption.label }}</q-item-section>
             <q-item-section side>

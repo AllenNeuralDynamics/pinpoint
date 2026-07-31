@@ -15,11 +15,15 @@
       script-src allows cdn.babylonjs.com because Babylon's Draco decoder
       loads its wasm wrapper from there via importScripts inside a blob
       worker; wasm-unsafe-eval is required for the worker to compile that
-      wasm module under a CSP with an explicit script-src.
+      wasm module under a CSP with an explicit script-src. unsafe-eval is
+      required by manifold-3d (CSG2's Manifold library): its Emscripten
+      embind bindings call `new Function(...)` once per bound class to
+      build method invokers during setup(), which wasm-unsafe-eval alone
+      does not cover.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.babylonjs.com 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://raw.githubusercontent.com; connect-src 'self' https: http:; worker-src 'self' blob:;"
+      content="default-src 'self'; script-src 'self' https://cdn.babylonjs.com 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://raw.githubusercontent.com; connect-src 'self' https:; worker-src 'self' blob:;"
     />
 
     <link

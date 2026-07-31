@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { Atlas } from "@/features/atlas";
+import type { Atlas } from "@/features/atlas";
 
 export const useFavoriteAtlasesStore = defineStore(
   "favorite-atlases",
@@ -22,21 +22,15 @@ export const useFavoriteAtlasesStore = defineStore(
     }
 
     /**
-     * Removes an atlas from its source's favorites list.
-     *
-     * Does nothing if the atlas or source doesn't exist.
-     *
+     * Remove an atlas from its source's favorites list, if present.
      * @param atlas Atlas to remove.
      */
     function remove(atlas: Atlas) {
-      // Get the source.
       const sourceList = favorites.value[atlas.source];
       if (!sourceList) return;
 
-      // Remove (all occurrences).
-      favorites.value[atlas.source] = sourceList.filter(
-        name => name !== atlas.name
-      );
+      const index = sourceList.indexOf(atlas.name);
+      if (index !== -1) sourceList.splice(index, 1);
     }
 
     /**
@@ -46,7 +40,9 @@ export const useFavoriteAtlasesStore = defineStore(
       favorites.value = {};
     }
 
-    return { favorites, add, remove, reset };
+    const state = { favorites };
+    const actions = { add, remove, reset };
+    return { ...state, ...actions };
   },
   { persist: true }
 );

@@ -5,6 +5,8 @@ export default defineConfig({
 
   ignorePatterns: [
     ".agents/",
+    ".claude",
+    ".direnv",
     "**/node_modules/",
     "dist/",
     "quasar.config.*.temporary.compiled*",

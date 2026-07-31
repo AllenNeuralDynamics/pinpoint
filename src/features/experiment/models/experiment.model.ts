@@ -1,4 +1,5 @@
-import { Atlas } from "@/features/atlas";
+import type { Atlas } from "@/features/atlas";
+import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 
 export interface Experiment {
   name: string;
@@ -15,4 +16,12 @@ export interface Experiment {
    * Identifiers of the atlas structures currently marked visible.
    */
   visibleStructures: number[];
+
+  /**
+   * Probe interface definitions used by this experiment's probes, keyed by
+   * probe identifier and referenced from `Probe.probeIdentifier`.
+   */
+  probeInterfaceProbes: Record<string, ProbeInterfaceProbe>;
+
+  probes: Probe[];
 }

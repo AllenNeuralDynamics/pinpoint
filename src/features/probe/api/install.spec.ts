@@ -5,7 +5,7 @@ import {
   getProbeInterfaceProbe,
   getProbeNames,
   parseProbeInterfaceFile
-} from "./install-probe.api";
+} from "./install.api";
 
 // install-probe.api.ts calls `axios.create()` to build dedicated instances
 // (githubApi, fileApi), so mocking `axios.get` alone wouldn't reach their
@@ -18,7 +18,7 @@ vi.mock("axios", async importOriginal => {
   return { default: mocked };
 });
 
-function makeProbe(
+function makeRawProbeInterfaceProbe(
   overrides: Record<string, unknown> = {}
 ): Record<string, unknown> {
   return {
@@ -31,7 +31,7 @@ function makeProbe(
 }
 
 function probeInterfaceFileText(
-  probes: Record<string, unknown>[] = [makeProbe()]
+  probes: Record<string, unknown>[] = [makeRawProbeInterfaceProbe()]
 ): string {
   return JSON.stringify({
     specification: "probeinterface",
@@ -118,8 +118,6 @@ describe("getManufacturers", () => {
 });
 
 describe("getProbeNames", () => {
-  // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
-  // called unbound.
   // oxlint-disable-next-line typescript/unbound-method
   const mockedGet = vi.mocked(axios.get);
 
@@ -169,8 +167,6 @@ describe("getProbeNames", () => {
 });
 
 describe("getProbeInterfaceProbe", () => {
-  // axios.get is only ever passed to vi.mocked() to retrieve its mock, never
-  // called unbound.
   // oxlint-disable-next-line typescript/unbound-method
   const mockedGet = vi.mocked(axios.get);
 
@@ -179,7 +175,7 @@ describe("getProbeInterfaceProbe", () => {
   });
 
   it("returns the first probe from a successful response", async () => {
-    const probe = makeProbe();
+    const probe = makeRawProbeInterfaceProbe();
     mockedGet.mockResolvedValue({
       data: {
         specification: "probeinterface",
@@ -204,11 +200,23 @@ describe("getProbeInterfaceProbe", () => {
 
     expect(await getProbeInterfaceProbe("neuropixels", "1.0")).toBeNull();
   });
+
+  it("returns null when the fetched probe is missing annotations", async () => {
+    mockedGet.mockResolvedValue({
+      data: {
+        specification: "probeinterface",
+        version: "0.2.24",
+        probes: [makeRawProbeInterfaceProbe({ annotations: undefined })]
+      }
+    });
+
+    expect(await getProbeInterfaceProbe("neuropixels", "1.0")).toBeNull();
+  });
 });
 
 describe("parseProbeInterfaceFile", () => {
   it("returns the first probe from a valid ProbeInterface file", () => {
-    const probe = makeProbe();
+    const probe = makeRawProbeInterfaceProbe();
 
     expect(parseProbeInterfaceFile(probeInterfaceFileText([probe]))).toEqual(
       probe
@@ -216,8 +224,8 @@ describe("parseProbeInterfaceFile", () => {
   });
 
   it("returns only the first probe when the file has more than one", () => {
-    const first = makeProbe();
-    const second = makeProbe({ ndim: 3, si_units: "mm" });
+    const first = makeRawProbeInterfaceProbe();
+    const second = makeRawProbeInterfaceProbe({ ndim: 3, si_units: "mm" });
 
     expect(
       parseProbeInterfaceFile(probeInterfaceFileText([first, second]))
@@ -255,7 +263,7 @@ describe("parseProbeInterfaceFile", () => {
   it("returns null when a required field has the wrong type", () => {
     expect(
       parseProbeInterfaceFile(
-        probeInterfaceFileText([makeProbe({ ndim: "2" })])
+        probeInterfaceFileText([makeRawProbeInterfaceProbe({ ndim: "2" })])
       )
     ).toBeNull();
   });
@@ -263,7 +271,9 @@ describe("parseProbeInterfaceFile", () => {
   it("returns null when annotations is missing", () => {
     expect(
       parseProbeInterfaceFile(
-        probeInterfaceFileText([makeProbe({ annotations: undefined })])
+        probeInterfaceFileText([
+          makeRawProbeInterfaceProbe({ annotations: undefined })
+        ])
       )
     ).toBeNull();
   });
@@ -272,7 +282,7 @@ describe("parseProbeInterfaceFile", () => {
     expect(
       parseProbeInterfaceFile(
         probeInterfaceFileText([
-          makeProbe({ annotations: { manufacturer: "IMEC" } })
+          makeRawProbeInterfaceProbe({ annotations: { manufacturer: "IMEC" } })
         ])
       )
     ).toBeNull();
@@ -282,7 +292,7 @@ describe("parseProbeInterfaceFile", () => {
     expect(
       parseProbeInterfaceFile(
         probeInterfaceFileText([
-          makeProbe({ annotations: { model_name: "1.0" } })
+          makeRawProbeInterfaceProbe({ annotations: { model_name: "1.0" } })
         ])
       )
     ).toBeNull();
@@ -292,7 +302,7 @@ describe("parseProbeInterfaceFile", () => {
     expect(
       parseProbeInterfaceFile(
         probeInterfaceFileText([
-          makeProbe({
+          makeRawProbeInterfaceProbe({
             annotations: { model_name: 1, manufacturer: "IMEC" }
           })
         ])

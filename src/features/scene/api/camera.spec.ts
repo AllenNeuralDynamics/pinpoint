@@ -11,7 +11,7 @@ describe("setInitialZoom", () => {
       shape: [[528, 320, 456]]
     });
 
-    setInitialZoom(manifest, camera);
+    setInitialZoom(camera, manifest);
 
     expect(camera.radius).toBe(528 * 0.025 * 1.5);
   });
@@ -23,7 +23,7 @@ describe("setInitialZoom", () => {
       shape: [[528, 320, 456]]
     });
 
-    setInitialZoom(manifest, camera);
+    setInitialZoom(camera, manifest);
 
     expect(camera.radius).toBe(0);
   });
@@ -35,7 +35,7 @@ describe("setInitialZoom", () => {
       shape: []
     });
 
-    setInitialZoom(manifest, camera);
+    setInitialZoom(camera, manifest);
 
     expect(camera.radius).toBe(0);
   });

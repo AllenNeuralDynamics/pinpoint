@@ -4,7 +4,7 @@ import ProbeLibraryDialog from "./ProbeLibraryDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
-import { makeProbe } from "@/test/fixtures";
+import { makeProbeInterfaceProbe } from "@/test/fixtures";
 
 type DialogWrapper = VueWrapper<
   InstanceType<typeof ProbeLibraryDialog> & { show(): void }
@@ -68,7 +68,7 @@ describe("ProbeLibraryDialog", () => {
 
       await installProbeButton(wrapper).trigger("click");
 
-      const probe = makeProbe();
+      const probe = makeProbeInterfaceProbe();
       onOkCallback!(probe);
 
       expect(probeLibraryStore.library).toEqual([probe]);
@@ -80,12 +80,12 @@ describe("ProbeLibraryDialog", () => {
       const wrapper = await mountDialog();
       const probeLibraryStore = useProbeLibraryStore();
       probeLibraryStore.add(
-        makeProbe({
+        makeProbeInterfaceProbe({
           annotations: { manufacturer: "IMEC", model_name: "Neuropixels 1.0" }
         })
       );
       probeLibraryStore.add(
-        makeProbe({
+        makeProbeInterfaceProbe({
           annotations: {
             manufacturer: "cambridgeneurotech",
             model_name: "ASSY-156"
@@ -105,7 +105,7 @@ describe("ProbeLibraryDialog", () => {
       const wrapper = await mountDialog();
       const probeLibraryStore = useProbeLibraryStore();
       probeLibraryStore.add(
-        makeProbe({
+        makeProbeInterfaceProbe({
           annotations: { manufacturer: "imec", model_name: "NP2013" }
         })
       );
@@ -120,15 +120,14 @@ describe("ProbeLibraryDialog", () => {
     it("removes the corresponding probe when its delete button is clicked", async () => {
       const wrapper = await mountDialog();
       const probeLibraryStore = useProbeLibraryStore();
-      const probe = makeProbe();
+      const probe = makeProbeInterfaceProbe();
       probeLibraryStore.add(probe);
       await wrapper.vm.$nextTick();
 
-      const removeSpy = vi.spyOn(probeLibraryStore, "remove");
       const item = wrapper.findComponent({ name: "QItem" });
       await item.findComponent({ name: "QBtn" }).trigger("click");
 
-      expect(removeSpy).toHaveBeenCalledWith(probe);
+      expect(probeLibraryStore.library).not.toContain(probe);
     });
   });
 });

@@ -5,7 +5,7 @@ import NewExperimentDialog from "./NewExperimentDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getManifest, getTerminologyRows } from "@/features/atlas";
-import { makeAtlas, makeManifest } from "@/test/fixtures";
+import { makeAtlas, makeManifest, makeProbe } from "@/test/fixtures";
 
 // `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
 // `computedAsync`, refetching from the real atlas API whenever the atlas
@@ -122,13 +122,34 @@ describe("NewExperimentDialog", () => {
       expect(wrapper.emitted("ok")).toBeTruthy();
     });
 
+    it("clears the selected and dragged probe from the discarded experiment", async () => {
+      const atlas = makeAtlas();
+      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+
+      const wrapper = await mountDialog();
+      const store = useCurrentExperimentStore();
+      const staleProbe = makeProbe();
+      store.selectedInspectable = staleProbe;
+      store.draggedProbeId = staleProbe.id;
+
+      await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
+      await wrapper
+        .findComponent({ name: "AtlasPicker" })
+        .vm.$emit("update:modelValue", atlas);
+      await createButton(wrapper).trigger("click");
+      await flush();
+
+      expect(store.selectedInspectable).toBeNull();
+      expect(store.draggedProbeId).toBeNull();
+    });
+
     it("notifies and doesn't create the experiment when the manifest can't be fetched", async () => {
       const atlas = makeAtlas();
       vi.mocked(getManifest).mockResolvedValue(null);
 
       const wrapper = await mountDialog();
       const store = useCurrentExperimentStore();
-      const createSpy = vi.spyOn(store, "create");
+      const experimentBeforeClick = store.experiment;
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
       await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
       await wrapper
@@ -141,19 +162,19 @@ describe("NewExperimentDialog", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({ color: "negative" })
       );
-      expect(createSpy).not.toHaveBeenCalled();
+      expect(store.experiment).toBe(experimentBeforeClick);
       expect(wrapper.emitted("ok")).toBeFalsy();
     });
 
     it("does nothing when name or atlas is missing", async () => {
       const wrapper = await mountDialog();
       const store = useCurrentExperimentStore();
-      const createSpy = vi.spyOn(store, "create");
+      const experimentBeforeClick = store.experiment;
 
       await createButton(wrapper).trigger("click");
       await flush();
 
-      expect(createSpy).not.toHaveBeenCalled();
+      expect(store.experiment).toBe(experimentBeforeClick);
       expect(wrapper.emitted("ok")).toBeFalsy();
     });
   });

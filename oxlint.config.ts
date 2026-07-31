@@ -5,6 +5,8 @@ export default defineConfig({
 
   ignorePatterns: [
     ".agents/",
+    ".claude",
+    ".direnv",
     "**/node_modules/",
     "dist/",
     "quasar.config.*.temporary.compiled*",
@@ -46,6 +48,13 @@ export default defineConfig({
           }
         ]
       }
+    ],
+    // `disallowTypeAnnotations: false` keeps `type T = import("...")` legal,
+    // since specs rely on `vi.importActual<typeof import("...")>` for partial
+    // module mocks.
+    "typescript/consistent-type-imports": [
+      "error",
+      { disallowTypeAnnotations: false }
     ]
   },
 

@@ -1,4 +1,4 @@
-import { TerminologyRow } from "../models/terminology-row.model";
+import type { TerminologyRow } from "../models/terminology-row.model";
 
 /**
  * Presentation-ready tree node built from a {@link TerminologyRow}.
@@ -63,10 +63,6 @@ export function atlasDisplayName(name: string): string {
 /**
  * Build a tree hierarchy from parsed terminology rows, linking each row to
  * its parent via `parent_identifier`.
- *
- * `root_identifier_path` isn't used here: it's not reliably root-anchored
- * across atlases (some author it as relative `[parent, self]` pairs), so
- * relying on it silently drops rows for those atlases.
  * @param terminologyRows Parsed terminology rows.
  */
 export function buildHierarchy(
@@ -90,24 +86,6 @@ export function buildHierarchy(
 }
 
 /**
- * Return the identifiers of the default structures.
- *
- * Currently, this is the identifiers of the direct children of root.
- *
- * @param terminologyRows Parsed terminology rows.
- */
-export function getDefaultStructureIdentifiers(
-  terminologyRows: TerminologyRow[]
-): number[] {
-  const rootRow = terminologyRows.find(row => row.parent_identifier === null);
-  if (!rootRow) return [];
-
-  return terminologyRows
-    .filter(row => row.parent_identifier === rootRow.identifier)
-    .map(row => row.identifier);
-}
-
-/**
  * Build a {@link HierarchyModel} node from a terminology row.
  * @param terminologyRow Terminology row to convert.
  */
@@ -119,4 +97,19 @@ function toNode(terminologyRow: TerminologyRow): HierarchyModel {
     color: terminologyRow.color_hex_triplet,
     children: []
   };
+}
+
+/**
+ * Return the identifiers of the direct children of root.
+ * @param terminologyRows Parsed terminology rows.
+ */
+export function getDefaultStructureIdentifiers(
+  terminologyRows: TerminologyRow[]
+): number[] {
+  const rootRow = terminologyRows.find(row => row.parent_identifier === null);
+  if (!rootRow) return [];
+
+  return terminologyRows
+    .filter(row => row.parent_identifier === rootRow.identifier)
+    .map(row => row.identifier);
 }

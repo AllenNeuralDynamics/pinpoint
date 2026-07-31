@@ -1,11 +1,5 @@
 <script lang="ts" setup>
-import {
-  computed,
-  ref,
-  useTemplateRef,
-  watchEffect,
-  watchPostEffect
-} from "vue";
+import { computed, ref, useTemplateRef, watchPostEffect } from "vue";
 import { useFuse } from "@vueuse/integrations/useFuse";
 import {
   buildHierarchy,
@@ -14,37 +8,34 @@ import {
 } from "../api/hierarchy.api";
 import { QScrollArea, QTree } from "quasar";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import {
+  clearVisibleStructures,
+  isStructureVisible,
+  setStructureVisibility
+} from "@/features/experiment";
 
 const currentExperiment = useCurrentExperimentStore();
 
-// Components.
 const tree = useTemplateRef<QTree>("tree");
 const scrollArea = useTemplateRef<QScrollArea>("scroll-area");
 
-// Local state.
 const filter = ref<string | null>(null);
-const hierarchy = ref<HierarchyModel[]>([]);
 
-// Expose scroll area target for the search result virtual scroll.
+/** Root's children from the current atlas's hierarchy. */
+const hierarchy = computed(
+  () => buildHierarchy(currentExperiment.terminologyRows)?.children ?? []
+);
+
 const scrollAreaTarget = computed(() => scrollArea.value?.getScrollTarget());
 
-// Fuzzy search across the abbreviation (label) and the full name.
 const searchQuery = computed(() => filter.value ?? "");
 const terminologyRows = computed(() => currentExperiment.terminologyRows);
 const { results } = useFuse(searchQuery, terminologyRows, {
   fuseOptions: { keys: ["name", "abbreviation"] }
 });
 
-// Search mode: replace tree with flat result list.
 const isSearching = computed(() => (filter.value ?? "").trim().length > 0);
 const searchResults = computed(() => results.value.map(r => r.item));
-
-// Update the tree data to match the current atlas.
-watchEffect(() => {
-  // Build from root but exclude it.
-  hierarchy.value =
-    buildHierarchy(currentExperiment.terminologyRows)?.children ?? [];
-});
 
 // Ensure the tree is always fully expanded.
 watchPostEffect(() => {
@@ -74,12 +65,16 @@ watchPostEffect(() => {
             <q-item-section side>
               <q-checkbox
                 :model-value="
-                  currentExperiment.isStructureVisible(node.identifier)
+                  isStructureVisible(
+                    currentExperiment.experiment,
+                    node.identifier
+                  )
                 "
                 dense
                 @update:model-value="
                   visible =>
-                    currentExperiment.setStructureVisibility(
+                    setStructureVisibility(
+                      currentExperiment.experiment,
                       node.identifier,
                       visible
                     )
@@ -126,7 +121,7 @@ watchPostEffect(() => {
       <q-btn
         icon="clear_all"
         :label="$t('atlasHierarchy.clear')"
-        @click="currentExperiment.clearVisibleStructures"
+        @click="clearVisibleStructures(currentExperiment.experiment)"
       />
     </template>
   </div>

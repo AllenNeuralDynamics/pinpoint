@@ -15,6 +15,7 @@
   "author": "Kenneth Yang <kjy@is88.com>",
   "type": "module",
   "scripts": {
+    "format": "oxfmt",
     "lint": "oxfmt && oxlint --fix",
     "lint:check": "oxfmt --check && oxlint",
     "dev": "quasar dev",
@@ -33,7 +34,9 @@
     "@vueuse/core": "^14.3.0",
     "@vueuse/integrations": "^14.3.0",
     "axios": "^1.18.1",
+    "earcut": "^3.2.3",
     "fuse.js": "^7.5.0",
+    "manifold-3d": "^3.5.1",
     "papaparse": "^5.5.4",
     "pinia": "^4.0.2",
     "pinia-plugin-persistedstate": "^4.7.1",

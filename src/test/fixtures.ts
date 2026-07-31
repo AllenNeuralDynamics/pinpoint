@@ -1,5 +1,6 @@
 import type { Atlas, Manifest, TerminologyRow } from "@/features/atlas";
-import type { ProbeInterfaceProbe } from "@/features/probe";
+import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
+import { getProbeInterfaceIdentifier } from "@/features/probe";
 
 /**
  * Test fixture factories.
@@ -28,7 +29,7 @@ export function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
   };
 }
 
-export function makeProbe(
+export function makeProbeInterfaceProbe(
   overrides: Partial<ProbeInterfaceProbe> = {}
 ): ProbeInterfaceProbe {
   return {
@@ -36,6 +37,22 @@ export function makeProbe(
     si_units: "um",
     contact_positions: [[0, 0]],
     annotations: { manufacturer: "cambridgeneurotech", model_name: "ASSY-1" },
+    ...overrides
+  };
+}
+
+export function makeProbe(overrides: Partial<Probe> = {}): Probe {
+  return {
+    inspectableKind: "probe",
+    id: crypto.randomUUID(),
+    name: "Probe abc123",
+    color: "#ffffff",
+    visibility: "visible",
+    probeInterfaceIdentifier: getProbeInterfaceIdentifier(
+      makeProbeInterfaceProbe()
+    ),
+    tipPosition: [0, 0, 0],
+    rotation: [0, 0, 0],
     ...overrides
   };
 }
