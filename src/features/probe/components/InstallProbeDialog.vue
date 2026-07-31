@@ -11,10 +11,13 @@ import {
   getProbeNames,
   parseProbeInterfaceFile
 } from "../api/install.api";
-import { KNOWN_PROBES } from "../models/known-probes.model";
+import {
+  getManufacturerDisplayName,
+  getProbeModelDisplayName
+} from "../api/probe.api";
 
-// A selectable probe, pairing its identifier with a human-readable label
-// (falling back to the identifier itself when not in KNOWN_PROBES).
+// A selectable probe, pairing its identifier with a human-readable model
+// name (falling back to the identifier itself when not in KNOWN_PROBES).
 interface ProbeOption {
   probeName: string;
   label: string;
@@ -49,14 +52,15 @@ const probeNames = computedAsync<string[]>(
   probeNamesEvaluating
 );
 
-const probeOptions = computed<ProbeOption[]>(() =>
-  probeNames.value.map(probeName => ({
+const probeOptions = computed<ProbeOption[]>(() => {
+  const manufacturerName = selectedManufacturerName.value;
+  if (!manufacturerName) return [];
+
+  return probeNames.value.map(probeName => ({
     probeName,
-    label:
-      KNOWN_PROBES[`${selectedManufacturerName.value} ${probeName}`]?.trim() ??
-      probeName
-  }))
-);
+    label: getProbeModelDisplayName(manufacturerName, probeName)
+  }));
+});
 
 // Fuzzy search across probe identifiers and labels, falling back to the full
 // list when empty.
@@ -181,6 +185,7 @@ watch(selectedManufacturerName, () => {
           <q-select
             v-model="selectedManufacturerName"
             :label="$t('installProbe.manufacturer')"
+            :option-label="getManufacturerDisplayName"
             :options="manufacturers"
           />
 

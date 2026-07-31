@@ -5,7 +5,10 @@ import {
   buildProbe,
   detachProbeInterfaceProbe,
   findProbeInterfaceProbeByIdentifier,
+  getManufacturerDisplayName,
+  getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier,
+  getProbeModelDisplayName,
   rotateProbeVisibility
 } from "./probe.api";
 import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
@@ -119,6 +122,68 @@ describe("rotateProbeVisibility", () => {
     rotateProbeVisibility(probe);
 
     expect(probe.visibility).toBe("hidden");
+  });
+});
+
+describe("getProbeInterfaceDisplayName", () => {
+  it("combines the known manufacturer name and known model description", () => {
+    const spec = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "imec", model_name: "NP1000" }
+    });
+    expect(getProbeInterfaceDisplayName(spec)).toBe(
+      "IMEC Neuropixels 1.0 probe (NP1000)"
+    );
+  });
+
+  it("trims a known description with trailing whitespace", () => {
+    const spec = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "imec", model_name: "NP1014" }
+    });
+    expect(getProbeInterfaceDisplayName(spec)).not.toMatch(/\s$/);
+  });
+
+  it("falls back to the raw model name for a known manufacturer", () => {
+    const spec = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "cambridgeneurotech", model_name: "ASSY-1" }
+    });
+    expect(getProbeInterfaceDisplayName(spec)).toBe(
+      "Cambridge NeuroTech ASSY-1"
+    );
+  });
+
+  it("falls back to the raw manufacturer and model name when both are unknown", () => {
+    const spec = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "acme", model_name: "widget-9" }
+    });
+    expect(getProbeInterfaceDisplayName(spec)).toBe("acme widget-9");
+  });
+});
+
+describe("getManufacturerDisplayName", () => {
+  it("returns the proper noun for a known manufacturer", () => {
+    expect(getManufacturerDisplayName("cambridgeneurotech")).toBe(
+      "Cambridge NeuroTech"
+    );
+  });
+
+  it("falls back to the raw name for an unknown manufacturer", () => {
+    expect(getManufacturerDisplayName("acme")).toBe("acme");
+  });
+});
+
+describe("getProbeModelDisplayName", () => {
+  it("returns the known description for a recognized model", () => {
+    expect(getProbeModelDisplayName("imec", "NP2013")).toBe(
+      "Neuropixels 2.0 multishank probe"
+    );
+  });
+
+  it("trims a known description with trailing whitespace", () => {
+    expect(getProbeModelDisplayName("imec", "NP1014")).not.toMatch(/\s$/);
+  });
+
+  it("falls back to the raw model name for an unrecognized model", () => {
+    expect(getProbeModelDisplayName("imec", "nope")).toBe("nope");
   });
 });
 

@@ -7,6 +7,7 @@ export type { Probe } from "./models/probe.model";
 export {
   buildProbe,
   getProbeInterfaceIdentifier,
+  getProbeInterfaceDisplayName,
   detachProbeInterfaceProbe,
   rotateProbeVisibility,
   findProbeInterfaceProbeByIdentifier

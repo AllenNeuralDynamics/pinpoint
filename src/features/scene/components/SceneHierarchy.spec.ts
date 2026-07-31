@@ -183,7 +183,7 @@ describe("SceneHierarchy", () => {
     expect(currentExperiment.selectedInspectable).toEqual(kept);
   });
 
-  it("labels the dropdown entry with the probe's identifier", async () => {
+  it("labels the dropdown entry with the probe's display name, falling back to the raw model name when unknown", async () => {
     const pinia = createPinia();
     setActivePinia(pinia);
     const probeLibrary = useProbeLibraryStore(pinia);
@@ -202,6 +202,30 @@ describe("SceneHierarchy", () => {
     await new Promise(resolve => setTimeout(resolve));
 
     const entry = document.querySelector<HTMLElement>("[role='menu'] .q-item");
-    expect(entry?.textContent?.trim()).toBe("imec np1");
+    expect(entry?.textContent?.trim()).toBe("IMEC np1");
+  });
+
+  it("labels the dropdown entry with the known probe description when recognized", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const probeLibrary = useProbeLibraryStore(pinia);
+    useCurrentExperimentStore(pinia);
+    probeLibrary.add(
+      makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "NP1000" }
+      })
+    );
+
+    await mountHierarchy(pinia);
+    document
+      .querySelector<HTMLButtonElement>(".q-btn-dropdown__arrow-container")
+      ?.closest("button")
+      ?.click();
+    await new Promise(resolve => setTimeout(resolve));
+
+    const entry = document.querySelector<HTMLElement>("[role='menu'] .q-item");
+    expect(entry?.textContent?.trim()).toBe(
+      "IMEC Neuropixels 1.0 probe (NP1000)"
+    );
   });
 });

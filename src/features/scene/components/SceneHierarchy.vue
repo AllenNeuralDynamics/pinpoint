@@ -2,6 +2,7 @@
 import { useQuasar } from "quasar";
 import {
   buildProbe,
+  getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier,
   Probe,
   ProbeInterfaceProbe,
@@ -80,7 +81,7 @@ function removeProbeAndDeselect(probe: Probe) {
           @click="addProbeAndSelect(probeInterfaceProbe)"
         >
           <q-item-section>
-            {{ getProbeInterfaceIdentifier(probeInterfaceProbe) }}
+            {{ getProbeInterfaceDisplayName(probeInterfaceProbe) }}
           </q-item-section>
         </q-item>
         <q-separator />

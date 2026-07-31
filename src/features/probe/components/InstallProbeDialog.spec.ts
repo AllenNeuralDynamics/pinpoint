@@ -123,6 +123,39 @@ describe("InstallProbeDialog", () => {
     mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
   });
 
+  describe("manufacturer select", () => {
+    it("shows the known display name for a recognized manufacturer", async () => {
+      mockedGetManufacturers.mockResolvedValue(["cambridgeneurotech", "imec"]);
+
+      const wrapper = await mountDialog();
+      await selectManufacturer(wrapper, "cambridgeneurotech");
+
+      expect(wrapper.findComponent({ name: "QSelect" }).text()).toContain(
+        "Cambridge NeuroTech"
+      );
+    });
+
+    it("falls back to the raw folder name for an unrecognized manufacturer", async () => {
+      mockedGetManufacturers.mockResolvedValue(["acme"]);
+
+      const wrapper = await mountDialog();
+      await selectManufacturer(wrapper, "acme");
+
+      expect(wrapper.findComponent({ name: "QSelect" }).text()).toContain(
+        "acme"
+      );
+    });
+
+    it("uses the raw folder name, not its display label, to fetch probe names", async () => {
+      mockedGetManufacturers.mockResolvedValue(["cambridgeneurotech"]);
+
+      const wrapper = await mountDialog();
+      await selectManufacturer(wrapper, "cambridgeneurotech");
+
+      expect(mockedGetProbeNames).toHaveBeenCalledWith("cambridgeneurotech");
+    });
+  });
+
   describe("probe search", () => {
     it("shows all probe names when the search query is empty", async () => {
       const wrapper = await mountDialog();

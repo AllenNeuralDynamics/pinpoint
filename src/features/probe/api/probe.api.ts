@@ -1,6 +1,10 @@
 import { markRaw, toRaw } from "vue";
 import type { Probe } from "../models/probe.model";
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
+import {
+  KNOWN_MANUFACTURERS,
+  KNOWN_PROBES
+} from "../models/known-probes.model";
 import { STANDARD_COLORS } from "@/features/scene";
 
 /**
@@ -81,4 +85,42 @@ export function findProbeInterfaceProbeByIdentifier(
         getProbeInterfaceIdentifier(probeInterfaceProbe) === identifier
     ) ?? null
   );
+}
+
+/**
+ * Return a probe's human-readable manufacturer and model name for display,
+ * e.g. `IMEC Neuropixels 1.0 probe (NP1000)`.
+ * @param probeInterfaceProbe Probe interface definition to describe.
+ */
+export function getProbeInterfaceDisplayName(
+  probeInterfaceProbe: ProbeInterfaceProbe
+): string {
+  const manufacturerName = String(
+    probeInterfaceProbe.annotations!.manufacturer
+  );
+  const modelName = String(probeInterfaceProbe.annotations!.model_name);
+
+  return `${getManufacturerDisplayName(manufacturerName)} ${getProbeModelDisplayName(manufacturerName, modelName)}`;
+}
+
+/**
+ * Return a manufacturer's proper noun for display, falling back to the raw
+ * manufacturer name when unknown.
+ * @param manufacturerName Manufacturer name, e.g. `cambridgeneurotech`.
+ */
+export function getManufacturerDisplayName(manufacturerName: string): string {
+  return KNOWN_MANUFACTURERS[manufacturerName] ?? manufacturerName;
+}
+
+/**
+ * Return a probe model's human-readable description for display, falling
+ * back to the raw model name when unknown.
+ * @param manufacturerName Manufacturer the model belongs to.
+ * @param modelName Probe model name, e.g. `NP1000`.
+ */
+export function getProbeModelDisplayName(
+  manufacturerName: string,
+  modelName: string
+): string {
+  return KNOWN_PROBES[`${manufacturerName} ${modelName}`]?.trim() ?? modelName;
 }

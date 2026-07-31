@@ -8,7 +8,10 @@ import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { internProbeInterfaceProbe } from "@/features/experiment";
-import { getProbeInterfaceIdentifier } from "@/features/probe";
+import {
+  getProbeInterfaceDisplayName,
+  getProbeInterfaceIdentifier
+} from "@/features/probe";
 import enUS from "@/i18n/en-US";
 
 const t = enUS.probeInspector;
@@ -231,6 +234,55 @@ describe("ProbeInspector", () => {
 
     expect(store.isInspectableSelected(probe)).toBe(true);
     expect(store.selectedInspectable?.name).toBe("B");
+  });
+
+  describe("probe type select", () => {
+    it("shows the library probe's display name, not its raw identifier", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const spec = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "NP1000" }
+      });
+      useProbeLibraryStore(pinia).add(spec);
+      const store = useCurrentExperimentStore(pinia);
+      const probe = makeProbe({
+        probeInterfaceIdentifier: getProbeInterfaceIdentifier(spec)
+      });
+      store.experiment.probes = [probe];
+      internProbeInterfaceProbe(store.experiment, spec);
+      const wrapper = mountWithQuasar(ProbeInspector, {
+        pinia,
+        props: { probe }
+      });
+
+      const select = wrapper.findComponent({ name: "QSelect" });
+      expect(select.props("options")).toEqual([
+        {
+          label: getProbeInterfaceDisplayName(spec),
+          value: getProbeInterfaceIdentifier(spec)
+        }
+      ]);
+      expect(select.text()).toContain(getProbeInterfaceDisplayName(spec));
+    });
+
+    it("falls back to the raw identifier without throwing when the probe's type isn't in the library", () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const store = useCurrentExperimentStore(pinia);
+      const probe = makeProbe({
+        probeInterfaceIdentifier: "imec NP1000"
+      });
+      store.experiment.probes = [probe];
+
+      const wrapper = mountWithQuasar(ProbeInspector, {
+        pinia,
+        props: { probe }
+      });
+
+      expect(wrapper.findComponent({ name: "QSelect" }).text()).toContain(
+        "imec NP1000"
+      );
+    });
   });
 
   describe("switching probe type", () => {
