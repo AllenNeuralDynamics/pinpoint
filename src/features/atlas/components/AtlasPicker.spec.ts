@@ -73,7 +73,7 @@ describe("AtlasPicker", () => {
 
       const items = wrapper.findAllComponents({ name: "QItem" });
       expect(items).toHaveLength(1);
-      expect(items[0]!.text()).toContain("allen_mouse");
+      expect(items[0]!.text()).toContain("Allen Mouse");
     });
 
     it("loads atlases from the custom HTTP host once toggled and a URL is set", async () => {
@@ -90,7 +90,7 @@ describe("AtlasPicker", () => {
 
       const items = wrapper.findAllComponents({ name: "QItem" });
       expect(items).toHaveLength(1);
-      expect(items[0]!.text()).toContain("allen_mouse");
+      expect(items[0]!.text()).toContain("Allen Mouse");
     });
 
     it("shows the empty state when the source returns no atlases", async () => {
@@ -134,7 +134,7 @@ describe("AtlasPicker", () => {
 
       const items = wrapper.findAllComponents({ name: "QItem" });
       expect(items).toHaveLength(1);
-      expect(items[0]!.text()).toContain("allen_human");
+      expect(items[0]!.text()).toContain("Allen Human");
     });
   });
 
@@ -173,8 +173,8 @@ describe("AtlasPicker", () => {
       const items = wrapper.findAllComponents({ name: "QItem" });
       // Favorites render first: allen_human (favorite) then allen_mouse.
       expect(items.map(i => i.text())).toEqual([
-        expect.stringContaining("allen_human"),
-        expect.stringContaining("allen_mouse")
+        expect.stringContaining("Allen Human"),
+        expect.stringContaining("Allen Mouse")
       ]);
     });
 
