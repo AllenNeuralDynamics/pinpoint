@@ -2,14 +2,14 @@ import type { InjectionKey } from "vue";
 import { markRaw, shallowReadonly, type ShallowRef, shallowRef } from "vue";
 import {
   ArcRotateCamera,
+  Engine,
   GizmoManager,
   HemisphericLight,
   InitializeCSG2Async,
   IsCSG2Ready,
   Scene,
   SelectionOutlineLayer,
-  Vector3,
-  WebGPUEngine
+  Vector3
 } from "@babylonjs/core";
 import Module from "manifold-3d";
 
@@ -18,7 +18,7 @@ import Module from "manifold-3d";
  * references for one runtime.
  */
 export interface BabylonRuntimeService {
-  engine: Readonly<ShallowRef<WebGPUEngine | null>>;
+  engine: Readonly<ShallowRef<Engine | null>>;
   scene: Readonly<ShallowRef<Scene | null>>;
   camera: Readonly<ShallowRef<ArcRotateCamera | null>>;
   gizmoManager: Readonly<ShallowRef<GizmoManager | null>>;
@@ -50,7 +50,7 @@ async function initializeCSG2(): Promise<void> {
  * manager references for one runtime.
  */
 export function createBabylonRuntimeService(): BabylonRuntimeService {
-  const engine = shallowRef<WebGPUEngine | null>(null);
+  const engine = shallowRef<Engine | null>(null);
   const scene = shallowRef<Scene | null>(null);
   const camera = shallowRef<ArcRotateCamera | null>(null);
   const gizmoManager = shallowRef<GizmoManager | null>(null);
@@ -64,9 +64,8 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
     if (engine.value) return;
 
     // Setup engine and CSG2.
-    const e = markRaw(new WebGPUEngine(canvas));
-    e.compatibilityMode = false;
-    await Promise.all([e.initAsync(), initializeCSG2()]);
+    const e = markRaw(new Engine(canvas));
+    await initializeCSG2();
 
     // Setup scene.
     const s = markRaw(new Scene(e));

@@ -106,7 +106,7 @@ const mountedWrappers: CanvasWrapper[] = [];
  * `SelectionOutlineLayer` (both construct fine under `NullEngine`), and a
  * bare camera object, so `SceneCanvas`'s `watchEffect`s -- including probe
  * sync, gizmo drag, and selection -- have something to react to without a
- * real WebGPU context.
+ * real rendering context.
  */
 function makeRuntimeStub() {
   const engine = shallowRef<{ resize: () => void } | null>(null);
