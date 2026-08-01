@@ -6,10 +6,12 @@ import {
   toTitleCase
 } from "./hierarchy.api";
 import {
+  makeAtlas,
   makeRelativePathTerminologyRows,
   makeTerminologyRow,
   makeTerminologyRows
 } from "@/test/fixtures";
+import { KNOWN_DEFAULT_STRUCTURES } from "../models/known-default-structures.model";
 
 describe("flattenHierarchy", () => {
   it("flattens into DFS pre-order, excluding the root", () => {
@@ -98,8 +100,29 @@ describe("flattenHierarchy", () => {
 });
 
 describe("getDefaultStructureIdentifiers", () => {
-  it("returns the identifiers of root's direct children", () => {
-    const result = getDefaultStructureIdentifiers(makeTerminologyRows());
+  it("returns the known default structures for an atlas with a known list", () => {
+    const result = getDefaultStructureIdentifiers(
+      makeAtlas({ name: "allen_mouse" }),
+      makeTerminologyRows()
+    );
+
+    expect(result).toEqual(KNOWN_DEFAULT_STRUCTURES.allen_mouse);
+  });
+
+  it("ignores terminologyRows for an atlas with a known list", () => {
+    const result = getDefaultStructureIdentifiers(
+      makeAtlas({ name: "allen_mouse" }),
+      []
+    );
+
+    expect(result).toEqual(KNOWN_DEFAULT_STRUCTURES.allen_mouse);
+  });
+
+  it("falls back to root's direct children for an atlas with no known list", () => {
+    const result = getDefaultStructureIdentifiers(
+      makeAtlas({ name: "african_molerat" }),
+      makeTerminologyRows()
+    );
 
     expect(result).toEqual([8]);
   });
@@ -110,11 +133,18 @@ describe("getDefaultStructureIdentifiers", () => {
       parent_identifier: row.parent_identifier ?? 1
     }));
 
-    expect(getDefaultStructureIdentifiers(rows)).toEqual([]);
+    expect(
+      getDefaultStructureIdentifiers(
+        makeAtlas({ name: "african_molerat" }),
+        rows
+      )
+    ).toEqual([]);
   });
 
   it("returns an empty list for an empty list", () => {
-    expect(getDefaultStructureIdentifiers([])).toEqual([]);
+    expect(
+      getDefaultStructureIdentifiers(makeAtlas({ name: "african_molerat" }), [])
+    ).toEqual([]);
   });
 });
 

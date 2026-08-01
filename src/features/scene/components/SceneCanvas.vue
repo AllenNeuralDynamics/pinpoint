@@ -63,7 +63,7 @@ const alwaysPresentStructures = computed<StructureEntity[]>(() => {
   return structureEntitiesFromIdentifiers(
     manifest,
     terminologyRows,
-    getDefaultStructureIdentifiers(terminologyRows)
+    getDefaultStructureIdentifiers(manifest.atlas, terminologyRows)
   );
 });
 
