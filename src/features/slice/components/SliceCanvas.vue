@@ -1,6 +1,10 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, useTemplateRef, watch } from "vue";
-import { useDevicePixelRatio, useElementSize } from "@vueuse/core";
+import {
+  useDevicePixelRatio,
+  useElementSize,
+  useTimeoutFn
+} from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import type { TerminologyRow } from "@/features/atlas";
 import type { Probe } from "@/features/probe";
@@ -26,6 +30,9 @@ import { useAnnotationSampler } from "../composable/useAnnotationSampler";
 const MINIMUM_SIZE_PIXELS = 128;
 const MAXIMUM_SIZE_PIXELS = 1024;
 const SIZE_QUANTUM_PIXELS = 32;
+
+/** How long sampling must run before the loading bar is worth showing. */
+const LOADING_BAR_DELAY_MILLISECONDS = 500;
 
 const { probe } = defineProps<{ probe: Probe }>();
 
@@ -115,6 +122,32 @@ const { createStream } = useAnnotationSampler({
   terminologyRows: computed(() => currentExperiment.terminologyRows)
 });
 const { result, isLoading } = createStream(plane);
+
+/**
+ * Whether to show the loading bar. Sampling is usually fast enough that
+ * binding the bar straight to `isLoading` strobes it - a slider drag
+ * replans every frame - so it only appears once loading has run past
+ * `LOADING_BAR_DELAY_MILLISECONDS`, and hides the moment loading ends.
+ */
+const isLoadingBarVisible = ref(false);
+const { start: startLoadingBarDelay, stop: stopLoadingBarDelay } = useTimeoutFn(
+  () => (isLoadingBarVisible.value = true),
+  LOADING_BAR_DELAY_MILLISECONDS,
+  { immediate: false }
+);
+
+watch(
+  isLoading,
+  loading => {
+    if (loading) {
+      startLoadingBarDelay();
+    } else {
+      stopLoadingBarDelay();
+      isLoadingBarVisible.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 /** SVG polygon points for the contour overlay, in probe-local mm re-origined on the slice center. */
 const contourPoints = computed(() => {
@@ -313,7 +346,7 @@ watch(
         </svg>
 
         <q-linear-progress
-          v-if="isLoading"
+          v-if="isLoadingBarVisible"
           indeterminate
           color="secondary"
           size="sm"

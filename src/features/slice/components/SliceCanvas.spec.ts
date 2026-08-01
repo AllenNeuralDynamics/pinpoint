@@ -381,14 +381,70 @@ describe("SliceCanvas", () => {
     expect(store.experiment.visibleStructures).toEqual([]);
   });
 
-  it("shows a progress bar while loading", async () => {
-    mockIsLoading.value = true;
-    const { wrapper } = mountSlice();
-    await wrapper.vm.$nextTick();
+  it("shows a progress bar only once loading has run past the debounce delay", async () => {
+    vi.useFakeTimers();
+    try {
+      mockIsLoading.value = true;
+      const { wrapper } = mountSlice();
+      await wrapper.vm.$nextTick();
 
-    expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
-      true
-    );
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+
+      vi.advanceTimersByTime(500);
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        true
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never shows a progress bar for a load that finishes before the debounce delay", async () => {
+    vi.useFakeTimers();
+    try {
+      mockIsLoading.value = true;
+      const { wrapper } = mountSlice();
+      await wrapper.vm.$nextTick();
+
+      vi.advanceTimersByTime(200);
+      mockIsLoading.value = false;
+      await wrapper.vm.$nextTick();
+      vi.advanceTimersByTime(500);
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hides the progress bar immediately once loading finishes", async () => {
+    vi.useFakeTimers();
+    try {
+      mockIsLoading.value = true;
+      const { wrapper } = mountSlice();
+      await wrapper.vm.$nextTick();
+      vi.advanceTimersByTime(500);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        true
+      );
+
+      mockIsLoading.value = false;
+      await wrapper.vm.$nextTick();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("clears the canvas when switching to a different probe, instead of holding the old image", async () => {
