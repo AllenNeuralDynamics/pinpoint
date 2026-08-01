@@ -63,10 +63,12 @@ export default {
     preferences: "Preferences",
     probeLibrary: "Probe Library",
     view: "View",
+    splashScreen: "Splash Screen",
     toggleDarkMode: "Toggle Dark Mode",
     scene: "Scene",
     channelMaps: "Channel Maps",
-    atlas: "Atlas"
+    atlas: "Atlas",
+    help: "Help"
   },
   probeLibrary: {
     title: "Probe Library",

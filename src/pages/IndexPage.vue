@@ -7,6 +7,7 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { AtlasHierarchy } from "@/features/atlas";
 import { ProbeLibraryDialog } from "@/features/probe";
 import { Inspector } from "@/features/inspector";
+import { SplashDialog } from "@/features/splash";
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
@@ -128,6 +129,11 @@ onMounted(() => {
           <q-menu auto-close>
             <q-list>
               <q-item clickable>
+                <q-item-section @click="$q.dialog({ component: SplashDialog })"
+                  >{{ $t("layout.splashScreen") }}
+                </q-item-section>
+              </q-item>
+              <q-item clickable>
                 <q-item-section @click="$q.dark.toggle"
                   >{{ $t("layout.toggleDarkMode") }}
                 </q-item-section>
@@ -135,6 +141,8 @@ onMounted(() => {
             </q-list>
           </q-menu>
         </q-btn>
+
+        <q-btn :label="$t('layout.help')" flat href="/pinpoint-v/docs" />
 
         <q-space />
 
