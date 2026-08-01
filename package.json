@@ -25,7 +25,10 @@
     "coverage": "vitest run --coverage",
     "testui": "vitest --ui",
     "postinstall": "quasar prepare --silent",
-    "local-atlas": "pnpx serve -C ~/.brainglobe/"
+    "local-atlas": "pnpx serve -C ~/.brainglobe/",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
     "@babylonjs/core": "^9.18.1",
@@ -62,6 +65,7 @@
     "oxlint": "^1.x",
     "oxlint-tsgolint": "^7.x",
     "typescript": "6.0.3",
+    "vitepress": "2.0.0-alpha.18",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.8"
   },

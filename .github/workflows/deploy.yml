@@ -41,8 +41,14 @@ jobs:
       - name: 📦 Install dependencies
         run: pnpm install
 
-      - name: 🔨 Build
+      - name: 🔨 Build app
         run: pnpm build
+
+      - name: 📖 Build docs
+        run: pnpm docs:build
+
+      - name: 🔗 Merge docs into app build
+        run: cp -r docs/.vitepress/dist dist/spa/docs
 
       - name: ⬆️ Upload artifact
         if: github.ref == 'refs/heads/main'

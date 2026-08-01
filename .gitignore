@@ -22,6 +22,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Docs
+docs/.vitepress/dist
+docs/.vitepress/cache
+
 /.direnv
 /.claude
 /coverage
