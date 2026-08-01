@@ -41,4 +41,17 @@ export interface Probe {
    * - In radians.
    */
   rotation: [number, number, number];
+
+  /**
+   * Edge length of the inspector's slice view, in mm. Null until the user
+   * picks a zoom, so the slice view can default it proportionally to the
+   * current atlas instead of a fixed value.
+   */
+  sliceExtentMillimeters: number | null;
+
+  /**
+   * Height up the probe contour from the tip that the slice view centers on,
+   * in probe-local mm.
+   */
+  sliceCenterHeightMillimeters: number;
 }

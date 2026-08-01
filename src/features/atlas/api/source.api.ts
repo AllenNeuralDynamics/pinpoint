@@ -47,6 +47,7 @@ const ATLAS_VERSION_STRING = "3_0";
 const ATLASES_DIRECTORY = "atlases";
 const MANIFEST_FILE = "manifest.json";
 const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
+const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
 
 /**
  * Fallback value if an atlas center coordinate can't be determined.
@@ -331,6 +332,17 @@ export function structureEntitiesFromIdentifiers(
 }
 
 /**
+ * Absolute URL of an atlas's uint32 annotation volume (OME-Zarr root).
+ * @param manifest Manifest of the atlas to locate the volume for.
+ */
+export function getAnnotationVolumeUrl(manifest: Manifest): string {
+  return resolveSourcePath(
+    manifest.atlas.source,
+    `${manifest.annotationSetLocation}/${ANNOTATION_VOLUME_DIRECTORY}`
+  );
+}
+
+/**
  * Resolve a manifest's source-root-relative location against an atlas source.
  *
  * Shared by {@link getTerminologyRows} and {@link structureEntityFromIdentifier}.
@@ -358,4 +370,23 @@ export function getAtlasCenter(manifest: Manifest): [number, number, number] {
     (dvResolution * dvShape) / 2,
     (mlResolution * mlShape) / 2
   ];
+}
+
+/**
+ * Computes the longest edge of the atlas volume's bounding box, in mm, e.g.
+ * to scale a zoom range to the atlas's own size. Returns 0 if unknown.
+ * @param manifest Atlas manifest to compute the longest dimension for.
+ */
+export function getAtlasLongestDimensionMillimeters(
+  manifest: Manifest
+): number {
+  if (!manifest.resolutions[0] || !manifest.shape[0]) return 0;
+
+  const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
+  const [apShape, dvShape, mlShape] = manifest.shape[0];
+  return Math.max(
+    apResolution * apShape,
+    dvResolution * dvShape,
+    mlResolution * mlShape
+  );
 }

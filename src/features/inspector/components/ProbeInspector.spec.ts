@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shallowRef } from "vue";
 import type { VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ProbeInspector from "./ProbeInspector.vue";
@@ -30,6 +31,20 @@ vi.mock("@/features/atlas/api/source.api", async () => {
     getTerminologyRows: vi.fn()
   };
 });
+
+// ProbeInspector now renders SliceCanvas, which constructs its sampler
+// worker pool eagerly on setup (independent of whether the manifest ever
+// resolves) -- mock the composable so mounting doesn't hit the real
+// `Worker` global, which happy-dom doesn't provide. Mirrors the mocking
+// approach in SliceCanvas.spec.ts.
+vi.mock("@/features/slice/composable/useAnnotationSampler", () => ({
+  useAnnotationSampler: () => ({
+    createStream: () => ({
+      result: shallowRef(null),
+      isLoading: shallowRef(false)
+    })
+  })
+}));
 
 function fieldByLabel(wrapper: VueWrapper, label: string) {
   return wrapper

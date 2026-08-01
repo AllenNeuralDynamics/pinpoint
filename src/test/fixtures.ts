@@ -53,6 +53,8 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     ),
     tipPosition: [0, 0, 0],
     rotation: [0, 0, 0],
+    sliceExtentMillimeters: 2,
+    sliceCenterHeightMillimeters: 0,
     ...overrides
   };
 }
@@ -143,4 +145,95 @@ export function makeRelativePathTerminologyRows(): TerminologyRow[] {
           root_identifier_path: [row.parent_identifier, row.identifier]
         }
   );
+}
+
+/**
+ * Build an in-memory, single-level OME-Zarr v3 uint32 annotation volume
+ * store, keyed by path (a plain `Map` satisfies zarrita's `Readable`). Chunks
+ * are stored uncompressed so tests exercise the real codec pipeline and
+ * chunk-key encoding without a wasm decoder.
+ */
+export function makeAnnotationVolumeStore(options?: {
+  shapeVoxels?: [number, number, number];
+  chunkShapeVoxels?: [number, number, number];
+  scaleMillimeters?: [number, number, number];
+  translationMillimeters?: [number, number, number];
+  /** Chunk contents, keyed `"<ap>/<dv>/<ml>"`. Omitted chunks read as zero-filled. */
+  chunks?: Record<string, Uint32Array>;
+}): Map<string, Uint8Array> {
+  const shapeVoxels = options?.shapeVoxels ?? [4, 4, 4];
+  const chunkShapeVoxels = options?.chunkShapeVoxels ?? [2, 2, 2];
+  const scaleMillimeters = options?.scaleMillimeters ?? [0.01, 0.01, 0.01];
+  const translationMillimeters = options?.translationMillimeters ?? [0, 0, 0];
+
+  const store = new Map<string, Uint8Array>();
+  const encoder = new TextEncoder();
+
+  store.set(
+    "/zarr.json",
+    encoder.encode(
+      JSON.stringify({
+        zarr_format: 3,
+        node_type: "group",
+        attributes: {
+          ome: {
+            version: "0.5",
+            multiscales: [
+              {
+                axes: [
+                  { name: "z", type: "space", unit: "millimeter" },
+                  { name: "y", type: "space", unit: "millimeter" },
+                  { name: "x", type: "space", unit: "millimeter" }
+                ],
+                datasets: [
+                  {
+                    path: "s0",
+                    coordinateTransformations: [
+                      { type: "scale", scale: scaleMillimeters },
+                      {
+                        type: "translation",
+                        translation: translationMillimeters
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      })
+    )
+  );
+
+  store.set(
+    "/s0/zarr.json",
+    encoder.encode(
+      JSON.stringify({
+        zarr_format: 3,
+        node_type: "array",
+        shape: shapeVoxels,
+        data_type: "uint32",
+        chunk_grid: {
+          name: "regular",
+          configuration: { chunk_shape: chunkShapeVoxels }
+        },
+        chunk_key_encoding: {
+          name: "default",
+          configuration: { separator: "/" }
+        },
+        codecs: [{ name: "bytes", configuration: { endian: "little" } }],
+        fill_value: 0,
+        dimension_names: ["z", "y", "x"]
+      })
+    )
+  );
+
+  for (const [key, data] of Object.entries(options?.chunks ?? {})) {
+    store.set(
+      `/s0/c/${key}`,
+      new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+    );
+  }
+
+  return store;
 }

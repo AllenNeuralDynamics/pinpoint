@@ -9,6 +9,7 @@ import {
   Probe
 } from "@/features/probe";
 import { STANDARD_COLORS } from "@/features/scene";
+import { SliceCanvas } from "@/features/slice";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { setProbeInterface } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -107,6 +108,8 @@ const numberRules: ValidationRule<string>[] = [
 
 <template>
   <div class="column q q-gutter-y-md probe-inspector">
+    <SliceCanvas :probe="probe" />
+
     <CommittedInput
       v-model="name"
       :label="t('probeInspector.name')"

@@ -23,8 +23,28 @@ export function buildProbe(probeInterfaceProbe: ProbeInterfaceProbe): Probe {
     visibility: "visible",
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     tipPosition: [0, 0, 0],
-    rotation: [0, 0, Math.PI / 2]
+    rotation: [0, 0, Math.PI / 2],
+    // Null rather than a fixed value - the slice view resolves this
+    // proportionally to whichever atlas is current
+    // (`getDefaultSliceExtentMillimeters`), since a single constant can't
+    // fit both a mouse and a human atlas.
+    sliceExtentMillimeters: null,
+    sliceCenterHeightMillimeters: 0
   };
+}
+
+/**
+ * Fill in a probe's slice-view fields when missing, e.g. from an experiment
+ * persisted before those fields existed.
+ * @param probe Probe to normalize in place.
+ */
+export function normalizeProbeSliceView(probe: Probe): void {
+  if (typeof probe.sliceExtentMillimeters !== "number") {
+    probe.sliceExtentMillimeters = null;
+  }
+  if (typeof probe.sliceCenterHeightMillimeters !== "number") {
+    probe.sliceCenterHeightMillimeters = 0;
+  }
 }
 
 /**

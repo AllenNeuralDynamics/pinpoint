@@ -21,24 +21,12 @@ import {
 import earcut from "earcut";
 import type { Experiment } from "@/features/experiment";
 import { getInternedProbeInterfaceProbe } from "@/features/experiment";
-import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
-import { getProbeInterfaceIdentifier } from "@/features/probe";
+import type { Probe, ProbeContour } from "@/features/probe";
+import { getProbeContour, getProbeInterfaceIdentifier } from "@/features/probe";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "../api/coordinate-transforms.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
-
-/** A probe's planar contour in millimeters, re-origined on its center tip. */
-interface ProbeContour {
-  /** XoZ-plane points for `ExtrudePolygon`. */
-  shape: Vector3[];
-  /** Full x extent of the contour, in mm. */
-  width: number;
-  /** Distance from the center tip to the top of the contour, in mm. */
-  height: number;
-  /** Offset subtracted from scaled probe-definition coordinates to reach local space, in mm. */
-  origin: { x: number; y: number };
-}
 
 /** Probe entity suffix start */
 const PROBE_ENTITY_SUFFIX = "_probe_";
@@ -76,16 +64,6 @@ const ROD_LENGTH_MILLIMETERS = 200;
 /** Radius of the rod, in mm. */
 const ROD_DIAMETER_MILLIMETERS = 8;
 
-/** Conversion factor to millimeters, keyed by `ProbeInterfaceProbe.si_units`. */
-const SI_UNITS_TO_MILLIMETERS: Record<string, number> = {
-  m: 1000,
-  mm: 1,
-  um: 1e-3
-};
-
-/** Fallback conversion factor for an unrecognized `si_units` value. */
-const MICROMETERS_TO_MILLIMETERS = 1e-3;
-
 /**
  * Get a probe's transform node by ID.
  * @param scene Scene to search for probe.
@@ -120,7 +98,7 @@ export function buildProbe(
   const probeInterfaceProbe = getInternedProbeInterfaceProbe(experiment, probe);
   if (!probeInterfaceProbe) return null;
 
-  const contour = buildProbeContour(probeInterfaceProbe);
+  const contour = getProbeContour(probeInterfaceProbe);
   if (!contour) return null;
 
   const probeMetadata: ProbeMetadata = {
@@ -421,57 +399,11 @@ function attachedProbeFromGizmo(
 }
 
 /**
- * Reduce a probe interface definition's planar contour to millimeters,
- * re-origined on its center tip. Returns null if the contour is missing or
- * has too few usable points.
- * @param probeInterfaceProbe Probe interface definition to extract the contour from.
+ * Extrusion-ready shape for a probe contour, in the XoZ plane.
+ * @param contour Probe contour to map.
  */
-function buildProbeContour(
-  probeInterfaceProbe: ProbeInterfaceProbe
-): ProbeContour | null {
-  const contour = probeInterfaceProbe.probe_planar_contour;
-  if (!contour) return null;
-
-  const scale = millimetersPerUnit(probeInterfaceProbe);
-
-  const points: { x: number; y: number }[] = [];
-  for (const point of contour) {
-    const [x, y] = point;
-    if (typeof x !== "number" || typeof y !== "number") continue;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    points.push({ x: x * scale, y: y * scale });
-  }
-  if (points.length < 3) return null;
-
-  let minimumX = points[0]!.x;
-  let maximumX = minimumX;
-  let minimumY = points[0]!.y;
-  let maximumY = minimumY;
-  for (const { x, y } of points) {
-    if (x < minimumX) minimumX = x;
-    if (x > maximumX) maximumX = x;
-    if (y < minimumY) minimumY = y;
-    if (y > maximumY) maximumY = y;
-  }
-
-  const centerX = (minimumX + maximumX) / 2;
-  return {
-    shape: points.map(({ x, y }) => new Vector3(x - centerX, 0, y - minimumY)),
-    width: maximumX - minimumX,
-    height: maximumY - minimumY,
-    origin: { x: centerX, y: minimumY }
-  };
-}
-
-/**
- * Millimeters per unit of a probe interface definition's `si_units`.
- * @param probeInterfaceProbe Probe interface definition to derive the scale from.
- */
-function millimetersPerUnit(probeInterfaceProbe: ProbeInterfaceProbe): number {
-  return (
-    SI_UNITS_TO_MILLIMETERS[probeInterfaceProbe.si_units] ??
-    MICROMETERS_TO_MILLIMETERS
-  );
+function contourShape(contour: ProbeContour): Vector3[] {
+  return contour.points.map(({ x, y }) => new Vector3(x, 0, y));
 }
 
 /**
@@ -531,7 +463,7 @@ function buildShankMesh(
   const mesh = ExtrudePolygon(
     name,
     {
-      shape: contour.shape,
+      shape: contourShape(contour),
       depth: SHANK_THICKNESS_MILLIMETERS,
       sideOrientation: Mesh.DOUBLESIDE
     },
@@ -559,7 +491,7 @@ function buildHeadStageMesh(
     `${name}_base`,
     {
       height: HEAD_STAGE_HEIGHT_MILLIMETERS,
-      diameterBottom: contour.width,
+      diameterBottom: contour.widthMillimeters,
       diameterTop: HEAD_STAGE_TOP_DIAMETER_MILLIMETERS
     },
     scene
@@ -568,7 +500,7 @@ function buildHeadStageMesh(
   baseMesh.position = new Vector3(
     0,
     0,
-    contour.height + HEAD_STAGE_HEIGHT_MILLIMETERS / 2
+    contour.heightMillimeters + HEAD_STAGE_HEIGHT_MILLIMETERS / 2
   );
   const cutterMesh = MeshBuilder.CreateBox(
     `${name}_cutter`,
@@ -593,7 +525,7 @@ function buildHeadStageMesh(
   mesh.position = new Vector3(
     0,
     0,
-    contour.height + HEAD_STAGE_HEIGHT_MILLIMETERS / 2
+    contour.heightMillimeters + HEAD_STAGE_HEIGHT_MILLIMETERS / 2
   );
 
   // Cleanup base mesh and CSG manifolds (not GC'd; wrap native WASM memory).
@@ -624,7 +556,9 @@ function buildRodMesh(scene: Scene, contour: ProbeContour, name: string): Mesh {
   mesh.position = new Vector3(
     0,
     0,
-    contour.height + HEAD_STAGE_HEIGHT_MILLIMETERS + ROD_LENGTH_MILLIMETERS / 2
+    contour.heightMillimeters +
+      HEAD_STAGE_HEIGHT_MILLIMETERS +
+      ROD_LENGTH_MILLIMETERS / 2
   );
   return mesh;
 }

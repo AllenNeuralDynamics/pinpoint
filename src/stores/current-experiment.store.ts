@@ -9,7 +9,10 @@ import {
   getManifest,
   getTerminologyRows
 } from "@/features/atlas";
-import { detachProbeInterfaceProbe } from "@/features/probe";
+import {
+  detachProbeInterfaceProbe,
+  normalizeProbeSliceView
+} from "@/features/probe";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 
@@ -146,7 +149,9 @@ export const useCurrentExperimentStore = defineStore(
     persist: {
       pick: ["experiment"],
 
-      // Re-mark probe interface definitions as raw to prevent tracking.
+      // Re-mark probe interface definitions as raw to prevent tracking, and
+      // fill in probe fields missing from experiments persisted before they
+      // existed.
       afterHydrate: context => {
         const experiment: Experiment = context.store.experiment;
         for (const [identifier, definition] of Object.entries(
@@ -154,6 +159,9 @@ export const useCurrentExperimentStore = defineStore(
         )) {
           experiment.probeInterfaceProbes[identifier] =
             detachProbeInterfaceProbe(definition);
+        }
+        for (const probe of experiment.probes) {
+          normalizeProbeSliceView(probe);
         }
       }
     }
