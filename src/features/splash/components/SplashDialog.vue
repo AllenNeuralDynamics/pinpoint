@@ -1,6 +1,10 @@
 <script lang="ts" setup>
 import { useDialogPluginComponent, useQuasar } from "quasar";
-import { NewExperimentDialog } from "@/features/experiment";
+import {
+  NewExperimentDialog,
+  RecentExperimentsList,
+  useExperimentFile
+} from "@/features/experiment";
 
 const appVersion = import.meta.env.APP_VERSION;
 
@@ -8,13 +12,16 @@ defineEmits([...useDialogPluginComponent.emits]);
 
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const $q = useQuasar();
+const { openExperiment, onOpened } = useExperimentFile();
+
+onOpened(onDialogOK);
 </script>
 
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card class="splash">
       <q-card-section class="column full-width items-center">
-        <p class="text-h2">Pinpoint V</p>
+        <p class="text-h2">{{ $t("splash.title") }}</p>
         <i class="text-caption">{{ appVersion }}</i>
       </q-card-section>
 
@@ -36,25 +43,30 @@ const $q = useQuasar();
               :label="$t('splash.resume')"
               size="xl"
             />
-            <q-btn icon="file_open" :label="$t('splash.open')" size="xl" />
+            <q-btn
+              icon="file_open"
+              :label="$t('splash.open')"
+              size="xl"
+              @click="openExperiment"
+            />
           </div>
           <div class="row q-gutter-x-md justify-center">
-            <q-btn icon="menu_book" :label="$t('splash.userGuide')" />
-            <q-btn icon="web" :label="$t('splash.vblWebsite')" />
+            <q-btn
+              :label="$t('splash.userGuide')"
+              href="/pinpoint-v/docs"
+              icon="menu_book"
+            />
+            <q-btn
+              :label="$t('splash.vblWebsite')"
+              href="https://virtualbrainlab.org/index.html"
+              icon="web"
+            />
           </div>
         </div>
       </q-card-section>
 
       <q-card-section>
-        <q-scroll-area class="recents-list">
-          <q-list separator>
-            <q-item v-for="n in 20" :key="n" v-ripple clickable>
-              <q-item-section>{{
-                $t("splash.recentExperiment", { n })
-              }}</q-item-section>
-            </q-item>
-          </q-list>
-        </q-scroll-area>
+        <RecentExperimentsList @opened="onDialogOK" />
       </q-card-section>
     </q-card>
   </q-dialog>
@@ -64,7 +76,4 @@ const $q = useQuasar();
 .splash
   min-width: 30vw
   max-height: 70vh
-
-.recents-list
-  height: 30vh
 </style>

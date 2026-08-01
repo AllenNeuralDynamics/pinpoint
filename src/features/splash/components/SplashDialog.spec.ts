@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, afterEach } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import type { DialogChainObject } from "quasar";
 import SplashDialog from "./SplashDialog.vue";
@@ -69,13 +69,5 @@ describe("SplashDialog", () => {
     onDialogOK();
 
     expect(wrapper.emitted("ok")).toBeTruthy();
-  });
-
-  it("renders 20 recent experiment placeholder items", async () => {
-    const wrapper = await mountDialog();
-
-    const items = wrapper.findAllComponents({ name: "QItem" });
-
-    expect(items).toHaveLength(20);
   });
 });

@@ -3,6 +3,7 @@ import type {
   ProbeInterfaceFile,
   ProbeInterfaceProbe
 } from "../models/probe-interface.model";
+import { isProbeInterfaceProbe } from "./probe.api";
 
 interface GitHubItem {
   name: string;
@@ -137,31 +138,4 @@ export function parseProbeInterfaceFile(
   if (!Array.isArray(probes) || !probes[0]) return null;
 
   return isProbeInterfaceProbe(probes[0]) ? probes[0] : null;
-}
-
-/**
- * Check that a value has the minimal shape of a ProbeInterface probe.
- * @param value Value to check.
- */
-function isProbeInterfaceProbe(value: unknown): value is ProbeInterfaceProbe {
-  if (!value || typeof value !== "object") return false;
-
-  const probe = value as Record<string, unknown>;
-  if (
-    typeof probe.ndim !== "number" ||
-    typeof probe.si_units !== "string" ||
-    !Array.isArray(probe.contact_positions)
-  ) {
-    return false;
-  }
-
-  if (!probe.annotations || typeof probe.annotations !== "object") {
-    return false;
-  }
-
-  const annotations = probe.annotations as Record<string, unknown>;
-  return (
-    typeof annotations.model_name === "string" &&
-    typeof annotations.manufacturer === "string"
-  );
 }

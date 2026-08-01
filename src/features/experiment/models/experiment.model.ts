@@ -2,6 +2,13 @@ import type { Atlas } from "@/features/atlas";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 
 export interface Experiment {
+  // Unique identifier.
+  id: string;
+
+  // Semantic version of Pinpoint.
+  version: string;
+
+  // Can be anything since ID is unique.
   name: string;
   atlas: Atlas;
 

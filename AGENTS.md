@@ -4,7 +4,7 @@ Before starting any task, load all skills relevant to the work:
 
 - **Vue SFCs / components** → `vue`, `vue-best-practices`
 - **Pinia stores** → `pinia`
-- **Routing** → `vue-router-best-practice`
+- **Routing** → `vue-router-best-practices`
 - **Composables / utilities** → `vueuse-functions`
 - **Tests** → `vitest`, `vue-testing-best-practices`
 - **Package management / scripts** → `pnpm`
@@ -18,14 +18,14 @@ Load multiple skills when a task spans domains (e.g. a new feature touches a sto
 - Keep changes focused; do not refactor unrelated code unless explicitly tasked.
 - Preserve existing public APIs unless an idiomatic change requires updating them.
 - Design APIs to be as functional and pure as possible: prefer functions that take explicit inputs and return values over functions that read or mutate shared state. Pure APIs are inherently easier to test in isolation.
-- When dealing with Pinia stores, prefer mutation of state. Even in pure function settings.
+- Pure functions that mutate or use some object should have the object be the first argument.
+- When dealing with Pinia stores, prefer mutating state in place directly, even in otherwise-pure functions — Pinia's reactivity and persistence track mutations, not replaced references.
+- Never engineer for backwards compatibility with old data or file formats — this applies everywhere, not just stores. Concretely, this means: no `afterHydrate`/`beforeHydrate` migration logic in Pinia persist config, no functions that backfill, default, or "normalize" missing/legacy fields on loaded data, and no version-based branching that patches old data into the current shape. Type guards (`isX`) and parsers (`parseX`) must reject data that doesn't match the current shape outright rather than tolerate it — treat mismatched old data as invalid input to reject, not something to repair.
 - Add or update tests when behavior changes, including meaningful untested branches.
 - Do not export implementation details solely to enable testing; test through public APIs.
 - Put all user-visible strings in i18n resources.
 - Add TSDoc to every function. Keep it to 1-2 concise lines describing the function and its inputs/outputs. Avoid implementation details, extended rationale, performance explanations, and narrative comments. Use brief block comments only for non-obvious code. Surface notable tradeoffs, concerns, or implementation context in your response to the user, not in code comments.
 - Keep `@param` tags even when they restate the parameter name; omit `@returns` (the summary line already describes the output).
-- When modifying Pinia stores, do not try to engineer for backwards compatibility.
-- Pure functions that mutate or use some object should have the object be the first argument.
 
 ## Tooling
 

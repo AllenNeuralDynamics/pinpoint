@@ -9,9 +9,11 @@ export {
   getProbeInterfaceIdentifier,
   getProbeInterfaceDisplayName,
   detachProbeInterfaceProbe,
+  detachProbeInterfaceProbes,
   rotateProbeVisibility,
   findProbeInterfaceProbeByIdentifier,
-  normalizeProbeSliceView
+  isProbe,
+  isProbeInterfaceProbe
 } from "./api/probe.api";
 export type { ProbeContacts, ProbeContour } from "./api/contour.api";
 export {

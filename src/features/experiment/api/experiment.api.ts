@@ -18,6 +18,8 @@ export function buildExperiment(
   referenceCoordinate: [number, number, number]
 ): Experiment {
   return {
+    id: crypto.randomUUID(),
+    version: import.meta.env.APP_VERSION,
     name,
     atlas,
     referenceCoordinate,

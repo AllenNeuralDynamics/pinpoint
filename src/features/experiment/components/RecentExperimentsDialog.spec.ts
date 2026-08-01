@@ -1,0 +1,57 @@
+import { afterEach, describe, expect, it } from "vitest";
+import type { VueWrapper } from "@vue/test-utils";
+import RecentExperimentsDialog from "./RecentExperimentsDialog.vue";
+import RecentExperimentsList from "./RecentExperimentsList.vue";
+import { mountWithQuasar } from "@/test/mount-helper";
+
+type DialogWrapper = VueWrapper<
+  InstanceType<typeof RecentExperimentsDialog> & { show(): void }
+>;
+
+// Dialog content is teleported to `document.body` rather than into
+// `wrapper.element`'s subtree, so each mounted dialog must be unmounted after
+// its test or a later test's `document.body.querySelector` could pick up a
+// leftover teleported node from a previous test.
+const mountedWrappers: DialogWrapper[] = [];
+
+// The dialog plugin only renders its content once `show()` (exposed by
+// useDialogPluginComponent) is called, and needs to be attached to the DOM
+// for its teleported content to be queryable.
+async function mountDialog(): Promise<DialogWrapper> {
+  const wrapper = mountWithQuasar(RecentExperimentsDialog, {
+    attachTo: document.body
+  }) as DialogWrapper;
+  mountedWrappers.push(wrapper);
+  wrapper.vm.show();
+  await wrapper.vm.$nextTick();
+  return wrapper;
+}
+
+describe("RecentExperimentsDialog", () => {
+  afterEach(() => {
+    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+  });
+
+  it("renders the recent experiments list", async () => {
+    const wrapper = await mountDialog();
+
+    expect(wrapper.findComponent(RecentExperimentsList).exists()).toBe(true);
+  });
+
+  it("closes itself when the close button is clicked", async () => {
+    const wrapper = await mountDialog();
+
+    await wrapper.findComponent({ name: "QBtn" }).trigger("click");
+
+    expect(wrapper.emitted("ok")).toBeTruthy();
+  });
+
+  it("closes itself when the list emits opened", async () => {
+    const wrapper = await mountDialog();
+
+    wrapper.findComponent(RecentExperimentsList).vm.$emit("opened");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted("ok")).toBeTruthy();
+  });
+});

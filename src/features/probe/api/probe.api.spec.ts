@@ -4,12 +4,14 @@ import type { Probe } from "../models/probe.model";
 import {
   buildProbe,
   detachProbeInterfaceProbe,
+  detachProbeInterfaceProbes,
   findProbeInterfaceProbeByIdentifier,
   getManufacturerDisplayName,
   getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier,
   getProbeModelDisplayName,
-  normalizeProbeSliceView,
+  isProbe,
+  isProbeInterfaceProbe,
   rotateProbeVisibility
 } from "./probe.api";
 import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
@@ -130,32 +132,6 @@ describe("rotateProbeVisibility", () => {
   });
 });
 
-describe("normalizeProbeSliceView", () => {
-  it("leaves existing slice-view fields untouched", () => {
-    const probe = makeProbe({
-      sliceExtentMillimeters: 8,
-      sliceCenterHeightMillimeters: 3
-    });
-
-    normalizeProbeSliceView(probe);
-
-    expect(probe.sliceExtentMillimeters).toBe(8);
-    expect(probe.sliceCenterHeightMillimeters).toBe(3);
-  });
-
-  it("fills in defaults for a probe persisted before these fields existed", () => {
-    const probe = makeProbe();
-    delete (probe as Partial<Probe>).sliceExtentMillimeters;
-    delete (probe as Partial<Probe>).sliceCenterHeightMillimeters;
-
-    normalizeProbeSliceView(probe);
-
-    // Null, not a fixed mm value - same reasoning as `buildProbe`'s default.
-    expect(probe.sliceExtentMillimeters).toBeNull();
-    expect(probe.sliceCenterHeightMillimeters).toBe(0);
-  });
-});
-
 describe("getProbeInterfaceDisplayName", () => {
   it("combines the known manufacturer name and known model description", () => {
     const spec = makeProbeInterfaceProbe({
@@ -215,6 +191,139 @@ describe("getProbeModelDisplayName", () => {
 
   it("falls back to the raw model name for an unrecognized model", () => {
     expect(getProbeModelDisplayName("imec", "nope")).toBe("nope");
+  });
+});
+
+describe("detachProbeInterfaceProbes", () => {
+  it("detaches every entry from reactivity in place", () => {
+    const specA = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "imec", model_name: "np1" }
+    });
+    const specB = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "imec", model_name: "np2" }
+    });
+    const record = reactive({ a: specA, b: specB });
+
+    detachProbeInterfaceProbes(record);
+
+    expect(isReactive(record.a)).toBe(false);
+    expect(isReactive(record.b)).toBe(false);
+    expect(toRaw(record.a)).toEqual(specA);
+    expect(toRaw(record.b)).toEqual(specB);
+  });
+
+  it("replaces each entry with a fresh reference", () => {
+    const spec = makeProbeInterfaceProbe();
+    const record: Record<string, typeof spec> = { a: spec };
+
+    detachProbeInterfaceProbes(record);
+
+    expect(record.a).not.toBe(spec);
+  });
+});
+
+describe("isProbeInterfaceProbe", () => {
+  it("accepts a well-formed probe interface definition", () => {
+    expect(isProbeInterfaceProbe(makeProbeInterfaceProbe())).toBe(true);
+  });
+
+  it("rejects null", () => {
+    expect(isProbeInterfaceProbe(null)).toBe(false);
+  });
+
+  it("rejects a non-object", () => {
+    expect(isProbeInterfaceProbe("not an object")).toBe(false);
+  });
+
+  it("rejects a definition missing ndim", () => {
+    const { ndim: _ndim, ...spec } = makeProbeInterfaceProbe();
+    expect(isProbeInterfaceProbe(spec)).toBe(false);
+  });
+
+  it("rejects a definition missing si_units", () => {
+    const { si_units: _si_units, ...spec } = makeProbeInterfaceProbe();
+    expect(isProbeInterfaceProbe(spec)).toBe(false);
+  });
+
+  it("rejects a definition missing contact_positions", () => {
+    const { contact_positions: _contactPositions, ...spec } =
+      makeProbeInterfaceProbe();
+    expect(isProbeInterfaceProbe(spec)).toBe(false);
+  });
+
+  it("rejects a definition missing annotations", () => {
+    const { annotations: _annotations, ...spec } = makeProbeInterfaceProbe();
+    expect(isProbeInterfaceProbe(spec)).toBe(false);
+  });
+
+  it("rejects a definition missing model_name from annotations", () => {
+    const spec = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "imec" }
+    });
+    expect(isProbeInterfaceProbe(spec)).toBe(false);
+  });
+
+  it("rejects a definition missing manufacturer from annotations", () => {
+    const spec = makeProbeInterfaceProbe({
+      annotations: { model_name: "np1" }
+    });
+    expect(isProbeInterfaceProbe(spec)).toBe(false);
+  });
+});
+
+describe("isProbe", () => {
+  it("accepts a well-formed probe", () => {
+    expect(isProbe(makeProbe())).toBe(true);
+  });
+
+  it("rejects null", () => {
+    expect(isProbe(null)).toBe(false);
+  });
+
+  it("rejects a probe with the wrong inspectableKind", () => {
+    expect(isProbe({ ...makeProbe(), inspectableKind: "atlas" })).toBe(false);
+  });
+
+  it("rejects a probe with an empty id", () => {
+    expect(isProbe({ ...makeProbe(), id: "" })).toBe(false);
+  });
+
+  it("rejects a probe with an invalid color", () => {
+    expect(isProbe({ ...makeProbe(), color: "red" })).toBe(false);
+  });
+
+  it("rejects a probe with an unknown visibility", () => {
+    expect(isProbe({ ...makeProbe(), visibility: "invisible" })).toBe(false);
+  });
+
+  it("rejects a probe with a short tipPosition", () => {
+    expect(isProbe({ ...makeProbe(), tipPosition: [0, 0] })).toBe(false);
+  });
+
+  it("rejects a probe with a non-finite rotation component", () => {
+    expect(isProbe({ ...makeProbe(), rotation: [0, 0, NaN] })).toBe(false);
+  });
+
+  it("accepts a probe with a null sliceExtentMillimeters", () => {
+    expect(isProbe(makeProbe({ sliceExtentMillimeters: null }))).toBe(true);
+  });
+
+  it("rejects a probe with a non-numeric, non-null sliceExtentMillimeters", () => {
+    expect(isProbe({ ...makeProbe(), sliceExtentMillimeters: "8" })).toBe(
+      false
+    );
+  });
+
+  it("rejects a probe missing sliceCenterHeightMillimeters", () => {
+    const probe = makeProbe();
+    delete (probe as Partial<Probe>).sliceCenterHeightMillimeters;
+    expect(isProbe(probe)).toBe(false);
+  });
+
+  it("rejects a probe with a non-finite sliceCenterHeightMillimeters", () => {
+    expect(isProbe({ ...makeProbe(), sliceCenterHeightMillimeters: NaN })).toBe(
+      false
+    );
   });
 });
 

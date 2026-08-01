@@ -41,13 +41,9 @@ async function create() {
   }
 
   const referenceCoordinate = buildInitialReferenceCoordinate(manifest);
-  currentExperimentStore.experiment = buildExperiment(
-    name.value,
-    atlas.value,
-    referenceCoordinate
+  currentExperimentStore.loadExperiment(
+    buildExperiment(name.value, atlas.value, referenceCoordinate)
   );
-  currentExperimentStore.selectedInspectable = null;
-  currentExperimentStore.draggedProbeId = null;
 
   onDialogOK();
 }

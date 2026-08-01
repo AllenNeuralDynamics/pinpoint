@@ -9,20 +9,22 @@ import {
   getManifest,
   getTerminologyRows
 } from "@/features/atlas";
-import {
-  detachProbeInterfaceProbe,
-  normalizeProbeSliceView
-} from "@/features/probe";
+import { detachProbeInterfaceProbes } from "@/features/probe";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
+import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 
 export const useCurrentExperimentStore = defineStore(
   "current-experiment",
   () => {
+    const recentExperimentsStore = useRecentExperimentsStore();
+
     /**
      * Current experiment instance.
      */
     const experiment = ref<Experiment>({
+      id: crypto.randomUUID(),
+      version: import.meta.env.APP_VERSION,
       name: i18n.global.t("currentExperiment.defaultName"),
       atlas: {
         source: BRAINGLOBE_BASE_URL,
@@ -125,6 +127,21 @@ export const useCurrentExperimentStore = defineStore(
       );
     }
 
+    /**
+     * Move the current experiment into recents and load in a new one.
+     * @param newExperiment Experiment to load.
+     */
+    function loadExperiment(newExperiment: Experiment) {
+      // Add current experiment to recents.
+      recentExperimentsStore.add(experiment.value);
+
+      // Load in new one.
+      detachProbeInterfaceProbes(newExperiment.probeInterfaceProbes);
+      experiment.value = newExperiment;
+      selectedInspectable.value = null;
+      draggedProbeId.value = null;
+    }
+
     const state = {
       experiment,
       selectedInspectable,
@@ -142,27 +159,17 @@ export const useCurrentExperimentStore = defineStore(
       probeInterfaceProbes,
       probes
     };
-    const actions = { isInspectableSelected };
+    const actions = { isInspectableSelected, loadExperiment };
     return { ...state, ...getters, ...actions };
   },
   {
     persist: {
       pick: ["experiment"],
 
-      // Re-mark probe interface definitions as raw to prevent tracking, and
-      // fill in probe fields missing from experiments persisted before they
-      // existed.
+      // Re-mark probe interface definitions as raw to prevent tracking.
       afterHydrate: context => {
         const experiment: Experiment = context.store.experiment;
-        for (const [identifier, definition] of Object.entries(
-          experiment.probeInterfaceProbes
-        )) {
-          experiment.probeInterfaceProbes[identifier] =
-            detachProbeInterfaceProbe(definition);
-        }
-        for (const probe of experiment.probes) {
-          normalizeProbeSliceView(probe);
-        }
+        detachProbeInterfaceProbes(experiment.probeInterfaceProbes);
       }
     }
   }

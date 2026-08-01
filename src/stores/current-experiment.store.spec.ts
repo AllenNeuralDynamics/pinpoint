@@ -5,9 +5,14 @@ import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { flushPromises } from "@vue/test-utils";
 import { useCurrentExperimentStore } from "./current-experiment.store";
 import { getManifest, getTerminologyRows } from "@/features/atlas";
-import { addProbe, internProbeInterfaceProbe } from "@/features/experiment";
+import {
+  addProbe,
+  buildExperiment,
+  internProbeInterfaceProbe
+} from "@/features/experiment";
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
 import {
+  makeAtlas,
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
@@ -187,6 +192,67 @@ describe("useCurrentExperimentStore", () => {
       probe.name = "After";
 
       expect(store.isInspectableSelected(probe)).toBe(true);
+    });
+  });
+
+  describe("loadExperiment", () => {
+    it("replaces the current experiment", () => {
+      const store = useCurrentExperimentStore();
+      const newExperiment = buildExperiment(
+        "Loaded Experiment",
+        makeAtlas({ name: "allen_human" }),
+        [1, 2, 3]
+      );
+
+      store.loadExperiment(newExperiment);
+
+      expect(store.name).toBe("Loaded Experiment");
+      expect(store.atlas).toEqual(makeAtlas({ name: "allen_human" }));
+    });
+
+    it("clears the selected inspectable and dragged probe id", () => {
+      const store = useCurrentExperimentStore();
+      store.selectedInspectable = makeProbe();
+      store.draggedProbeId = "some-id";
+
+      store.loadExperiment(
+        buildExperiment("Loaded Experiment", makeAtlas(), [0, 0, 0])
+      );
+
+      expect(store.selectedInspectable).toBeNull();
+      expect(store.draggedProbeId).toBeNull();
+    });
+
+    it("detaches the loaded experiment's probe interface definitions from reactivity", () => {
+      const store = useCurrentExperimentStore();
+      const newExperiment = buildExperiment(
+        "Loaded Experiment",
+        makeAtlas(),
+        [0, 0, 0]
+      );
+      const spec = makeProbeInterfaceProbe();
+      const identifier = getProbeInterfaceIdentifier(spec);
+      internProbeInterfaceProbe(newExperiment, spec);
+
+      store.loadExperiment(newExperiment);
+
+      const loadedDefinition = store.probeInterfaceProbes[identifier]!;
+      expect(loadedDefinition).toEqual(spec);
+      expect(isReactive(loadedDefinition)).toBe(false);
+    });
+
+    it("writes the loaded experiment to storage", async () => {
+      usePersistedPinia();
+      localStorage.removeItem("current-experiment");
+
+      const store = useCurrentExperimentStore();
+      store.loadExperiment(
+        buildExperiment("Loaded Experiment", makeAtlas(), [0, 0, 0])
+      );
+      await nextTick();
+
+      const persisted = JSON.parse(localStorage.getItem("current-experiment")!);
+      expect(persisted.experiment.name).toBe("Loaded Experiment");
     });
   });
 

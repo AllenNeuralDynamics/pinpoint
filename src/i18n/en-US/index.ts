@@ -28,7 +28,16 @@ export default {
     checkAtlas:
       "Please check your connection to the source and the atlas's existence."
   },
+  recentExperiments: {
+    title: "Recent Experiments",
+    noRecents: "No recent experiments.",
+    deleteExperiment: "Delete Experiment",
+    confirmDelete: 'Are you sure you wish to delete "{name}"?',
+    delete: "Delete",
+    close: "Close"
+  },
   splash: {
+    title: "Pinpoint V",
     new: "New",
     resume: "Resume",
     open: "Open",
@@ -55,10 +64,39 @@ export default {
     invalidProbeFileCaption:
       "Check that the file is a valid ProbeInterface JSON file."
   },
+  experimentFile: {
+    invalidExperimentFile: "Unable to read experiment file.",
+    invalidExperimentFileCaption:
+      "Check that the file is a Pinpoint experiment JSON file.",
+    downloadFailed: "Unable to download experiment.",
+    downloadFailedCaption:
+      "Check your browser's download settings and try again.",
+    atlasUnavailable: "Loaded the experiment, but its atlas is unavailable.",
+    atlasUnavailableCaption:
+      "Check your connection to the atlas source. Probes are shown without the brain.",
+    versionMajorBehind: "This experiment is a major version behind Pinpoint.",
+    versionMajorBehindCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. It may not work at all. You can upgrade the version in the experiment settings dialog.",
+    versionMinorBehind: "This experiment is a minor version behind Pinpoint.",
+    versionMinorBehindCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Some features may not work. You can upgrade the version in the experiment settings dialog.",
+    versionMajorAhead:
+      "This experiment is from a newer major version of Pinpoint.",
+    versionMajorAheadCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Pinpoint may not be able to operate on this file at all.",
+    versionMinorAhead: "This experiment is from a newer version of Pinpoint.",
+    versionMinorAheadCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Pinpoint may not have some features used in this experiment.",
+    versionUnknown: "Unable to determine this experiment's Pinpoint version.",
+    versionUnknownCaption:
+      "Opened it anyway, but compatibility with this Pinpoint version is unknown."
+  },
   layout: {
     file: "File",
     new: "New",
-    save: "Save",
+    open: "Open",
+    openRecent: "Open Recent",
+    download: "Download",
     edit: "Edit",
     preferences: "Preferences",
     probeLibrary: "Probe Library",
