@@ -27,6 +27,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "happy-dom",
-    exclude: [...configDefaults.exclude, ".direnv", ".claude"]
+    exclude: [...configDefaults.exclude, ".direnv", ".claude"],
+    setupFiles: ["./src/test/setup.ts"]
   }
 });

@@ -5,6 +5,17 @@ import SplashDialog from "./SplashDialog.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { NewExperimentDialog } from "@/features/experiment";
 
+// SplashDialog's RecentExperimentsList creates the current-experiment store,
+// and useExperimentFile also reads from this module -- both fetch on store
+// creation via `computedAsync`, so mounting would trigger real network calls
+// otherwise. Mock the leaf module, not the `@/features/atlas` barrel.
+vi.mock("@/features/atlas/api/source.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/features/atlas/api/source.api")
+  >("@/features/atlas/api/source.api");
+  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
+});
+
 type DialogWrapper = VueWrapper<
   InstanceType<typeof SplashDialog> & { show(): void }
 >;

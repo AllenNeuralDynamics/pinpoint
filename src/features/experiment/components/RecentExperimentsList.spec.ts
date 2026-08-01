@@ -9,6 +9,17 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { buildExperiment } from "@/features/experiment";
 import { makeAtlas } from "@/test/fixtures";
 
+// The current-experiment store's `manifest`/`terminologyRows` are
+// `computedAsync` and fetch on store creation, so mounting would trigger real
+// network calls otherwise. Mock the leaf module, not the `@/features/atlas`
+// barrel.
+vi.mock("@/features/atlas/api/source.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/features/atlas/api/source.api")
+  >("@/features/atlas/api/source.api");
+  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
+});
+
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
  * height, which is always 0 in happy-dom - so its default slot never runs

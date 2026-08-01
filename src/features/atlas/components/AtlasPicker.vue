@@ -161,7 +161,7 @@ function isSelected(atlas: Atlas): boolean {
           )
         }}</p>
 
-        <q-list class="dialog-list" separator>
+        <q-list class="fixed-dialog-list" separator>
           <q-item
             v-for="option in filteredFavorites"
             :key="`${option.atlas.source}-${option.atlas.name}`"

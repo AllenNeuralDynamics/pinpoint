@@ -48,7 +48,7 @@ function onDeleteRecent(experiment: Experiment) {
     v-slot="{ item, index }"
     :items="recentExperimentsStore.recents"
     separator
-    class="dialog-list"
+    class="dynamic-dialog-list"
   >
     <q-item :key="index" v-ripple clickable @click="onOpenRecent(item)">
       <q-item-section> {{ item.name }} </q-item-section>
