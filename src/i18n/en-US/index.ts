@@ -110,6 +110,7 @@ export default {
   probeLibrary: {
     title: "Probe Library",
     installProbe: "Install Probe",
+    dragToReorder: "Drag to reorder",
     close: "Close"
   },
   sceneHierarchy: {

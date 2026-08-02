@@ -89,4 +89,72 @@ describe("useProbeLibraryStore", () => {
       expect(store.library).toEqual([kept]);
     });
   });
+
+  describe("reorder", () => {
+    it("moves a probe to a later index", () => {
+      const store = useProbeLibraryStore();
+      const np1 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np1" }
+      });
+      const np2 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np2" }
+      });
+      const np3 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np3" }
+      });
+      store.library.push(np1, np2, np3);
+
+      store.reorder(0, 2);
+
+      expect(store.library).toEqual([np2, np3, np1]);
+    });
+
+    it("moves a probe to an earlier index", () => {
+      const store = useProbeLibraryStore();
+      const np1 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np1" }
+      });
+      const np2 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np2" }
+      });
+      const np3 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np3" }
+      });
+      store.library.push(np1, np2, np3);
+
+      store.reorder(2, 0);
+
+      expect(store.library).toEqual([np3, np1, np2]);
+    });
+
+    it("is a no-op for equal indices", () => {
+      const store = useProbeLibraryStore();
+      const np1 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np1" }
+      });
+      const np2 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np2" }
+      });
+      store.library.push(np1, np2);
+
+      store.reorder(1, 1);
+
+      expect(store.library).toEqual([np1, np2]);
+    });
+
+    it("is a no-op for an out-of-range index", () => {
+      const store = useProbeLibraryStore();
+      const np1 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np1" }
+      });
+      const np2 = makeProbeInterfaceProbe({
+        annotations: { manufacturer: "imec", model_name: "np2" }
+      });
+      store.library.push(np1, np2);
+
+      store.reorder(0, 5);
+
+      expect(store.library).toEqual([np1, np2]);
+    });
+  });
 });

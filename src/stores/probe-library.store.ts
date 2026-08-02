@@ -37,8 +37,27 @@ export const useProbeLibraryStore = defineStore(
       }
     }
 
+    /**
+     * Move a probe within the library from one index to another.
+     * @param fromIndex Index of the probe to move.
+     * @param toIndex Index to move it to.
+     */
+    function reorder(fromIndex: number, toIndex: number) {
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= library.value.length ||
+        toIndex >= library.value.length
+      ) {
+        return;
+      }
+      const [probe] = library.value.splice(fromIndex, 1);
+      library.value.splice(toIndex, 0, probe!);
+    }
+
     const state = { library };
-    const actions = { add, remove };
+    const actions = { add, remove, reorder };
     return { ...state, ...actions };
   },
   { persist: true }

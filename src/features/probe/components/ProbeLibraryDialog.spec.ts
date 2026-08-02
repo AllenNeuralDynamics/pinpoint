@@ -6,6 +6,7 @@ import {
   mountDialogWithQuasar
 } from "@/test/mount-helper";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
+import { getProbeInterfaceIdentifier } from "../api/probe.api";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { makeProbeInterfaceProbe } from "@/test/fixtures";
 
@@ -120,6 +121,75 @@ describe("ProbeLibraryDialog", () => {
       await item.findComponent({ name: "QBtn" }).trigger("click");
 
       expect(probeLibraryStore.library).not.toContain(probe);
+    });
+  });
+
+  describe("reorder", () => {
+    async function addThreeProbes(wrapper: DialogWrapper) {
+      const probeLibraryStore = useProbeLibraryStore();
+      probeLibraryStore.add(
+        makeProbeInterfaceProbe({
+          annotations: { manufacturer: "imec", model_name: "np1" }
+        })
+      );
+      probeLibraryStore.add(
+        makeProbeInterfaceProbe({
+          annotations: { manufacturer: "imec", model_name: "np2" }
+        })
+      );
+      probeLibraryStore.add(
+        makeProbeInterfaceProbe({
+          annotations: { manufacturer: "imec", model_name: "np3" }
+        })
+      );
+      await wrapper.vm.$nextTick();
+    }
+
+    it("moves the dragged row to the dropped-on row's index", async () => {
+      const wrapper = await mountDialog();
+      const probeLibraryStore = useProbeLibraryStore();
+      await addThreeProbes(wrapper);
+
+      let items = wrapper.findAllComponents({ name: "QItem" });
+      await items[0]!.find(".probe-row__handle").trigger("dragstart");
+      await items[2]!.trigger("dragover");
+      await items[2]!.trigger("drop");
+
+      expect(
+        probeLibraryStore.library.map(getProbeInterfaceIdentifier)
+      ).toEqual(["imec np2", "imec np3", "imec np1"]);
+      items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items.map(item => item.text())).toEqual([
+        expect.stringContaining("IMEC np2"),
+        expect.stringContaining("IMEC np3"),
+        expect.stringContaining("IMEC np1")
+      ]);
+    });
+
+    it("is a no-op when a row is dropped on itself", async () => {
+      const wrapper = await mountDialog();
+      const probeLibraryStore = useProbeLibraryStore();
+      await addThreeProbes(wrapper);
+      const before = [...probeLibraryStore.library];
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      await items[1]!.find(".probe-row__handle").trigger("dragstart");
+      await items[1]!.trigger("dragover");
+      await items[1]!.trigger("drop");
+
+      expect(probeLibraryStore.library).toEqual(before);
+    });
+
+    it("is a no-op when a row is dropped without a preceding dragstart", async () => {
+      const wrapper = await mountDialog();
+      const probeLibraryStore = useProbeLibraryStore();
+      await addThreeProbes(wrapper);
+      const before = [...probeLibraryStore.library];
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      await items[1]!.trigger("drop");
+
+      expect(probeLibraryStore.library).toEqual(before);
     });
   });
 });
