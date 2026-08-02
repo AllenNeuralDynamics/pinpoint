@@ -20,7 +20,7 @@ Load multiple skills when a task spans domains (e.g. a new feature touches a sto
 - Design APIs to be as functional and pure as possible: prefer functions that take explicit inputs and return values over functions that read or mutate shared state. Pure APIs are inherently easier to test in isolation.
 - Pure functions that mutate or use some object should have the object be the first argument.
 - When dealing with Pinia stores, prefer mutating state in place directly, even in otherwise-pure functions — Pinia's reactivity and persistence track mutations, not replaced references.
-- Never engineer for backwards compatibility with old data or file formats — this applies everywhere, not just stores. Concretely, this means: no `afterHydrate`/`beforeHydrate` migration logic in Pinia persist config, no functions that backfill, default, or "normalize" missing/legacy fields on loaded data, and no version-based branching that patches old data into the current shape. Type guards (`isX`) and parsers (`parseX`) must reject data that doesn't match the current shape outright rather than tolerate it — treat mismatched old data as invalid input to reject, not something to repair.
+- Never engineer for backwards compatibility with old data or file formats — this applies everywhere, not just stores. Concretely, this means: no migration logic in Pinia persist config, no functions that backfill, default, or "normalize" missing/legacy fields on loaded data, and no version-based branching that patches old data into the current shape. Type guards (`isX`) and parsers (`parseX`) must reject data that doesn't match the current shape outright rather than tolerate it — treat mismatched old data as invalid input to reject, not something to repair. Exception: an `afterHydrate`/`beforeHydrate` hook that only re-applies runtime state lost in serialization (e.g. `markRaw` on a JSON round-trip) is not migration logic and is allowed — it repairs Vue reactivity metadata, not the persisted data's shape.
 - Add or update tests when behavior changes, including meaningful untested branches.
 - Do not export implementation details solely to enable testing; test through public APIs.
 - Put all user-visible strings in i18n resources.
@@ -42,8 +42,14 @@ Load multiple skills when a task spans domains (e.g. a new feature touches a sto
 - **Across features:** import only from the feature's public barrel — `@/features/<feature>`.
 - **Within a feature:** use direct relative imports (`./models/atlas.model`).
 - **Never** import a feature's own barrel from within that feature.
-- **Specs:** use relative imports for the unit under test; use the barrel only when testing the external contract.
-- **Shared code** (stores, composables, router, i18n, test utilities): use the `@/` alias.
+- **Specs:** use relative imports for the unit under test; use the barrel only when testing the external contract. Exception: `vi.mock(...)` must target the leaf module a store/component actually imports (e.g. `@/features/atlas/api/source.api`), not the barrel — mocking a re-export by its own specifier does not reliably intercept the original module's internal import of it.
+- **Shared code** (stores, composables, router, i18n, test utilities, `src/utils`): use the `@/` alias.
+- **`src/utils`**: framework-free pure helpers (math, type guards) with no Vue/Pinia/feature dependency. Prefer a feature's own `api/` module for anything domain-specific; reach for `src/utils` only when the same helper is needed by two or more features.
+- **`src/composable`** (singular): Vue composables shared by two or more features (e.g. `useNotify`, `useFuzzyFilter`). A composable used by only one feature belongs in that feature's own `composable/` directory instead.
+
+## Naming
+
+- `*.api.ts` in a feature's `api/` directory pairs with `*.spec.ts` (the `.api` segment is dropped in the spec's own filename); a Pinia store's `*.store.ts` keeps `.store` in its `*.store.spec.ts`.
 
 ## Vue `<script setup>` order
 

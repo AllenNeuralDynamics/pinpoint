@@ -4,6 +4,7 @@ import type {
   ProbeInterfaceProbe
 } from "../models/probe-interface.model";
 import { isProbeInterfaceProbe } from "./probe.api";
+import { isRecord } from "@/utils/type-guards";
 
 interface GitHubItem {
   name: string;
@@ -94,9 +95,7 @@ export async function getProbeInterfaceProbe(
       `/${manufacturer}/${name}/${name}.json`
     );
 
-    if (!data || !data.probes[0]) return null;
-
-    return isProbeInterfaceProbe(data.probes[0]) ? data.probes[0] : null;
+    return firstValidProbe(data);
   } catch {
     return null;
   }
@@ -132,9 +131,17 @@ export function parseProbeInterfaceFile(
     return null;
   }
 
-  if (!data || typeof data !== "object") return null;
+  return firstValidProbe(data);
+}
 
-  const { probes } = data as Record<string, unknown>;
+/**
+ * Extract the first valid probe from a ProbeInterface file's `probes` array.
+ * @param data Value to read `probes` from.
+ */
+function firstValidProbe(data: unknown): ProbeInterfaceProbe | null {
+  if (!isRecord(data)) return null;
+
+  const { probes } = data;
   if (!Array.isArray(probes) || !probes[0]) return null;
 
   return isProbeInterfaceProbe(probes[0]) ? probes[0] : null;

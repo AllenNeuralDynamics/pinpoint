@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onMounted, ref, type Ref } from "vue";
 import { SceneCanvas, SceneHierarchy } from "@/features/scene";
 import { TouchPanValue, useQuasar } from "quasar";
 import {
@@ -12,6 +12,10 @@ import { AtlasHierarchy } from "@/features/atlas";
 import { ProbeLibraryDialog } from "@/features/probe";
 import { Inspector } from "@/features/inspector";
 import { SplashDialog } from "@/features/splash";
+import { clamp } from "@/utils/math";
+
+/** Widest a drawer can be resized to, as a fraction of the window width. */
+const MAXIMUM_DRAWER_WIDTH_RATIO = 0.4;
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
@@ -24,48 +28,43 @@ const rightDrawerWidth = ref(350);
 const tab = ref("scene");
 
 /**
- * Toggle left drawer open state.
+ * Toggle a drawer's open state.
+ * @param drawerOpen Drawer open-state ref to toggle.
  */
+function toggleDrawer(drawerOpen: Ref<boolean>) {
+  drawerOpen.value = !drawerOpen.value;
+}
+
+/**
+ * Build a touch-pan handler that resizes a drawer, clamped to a maximum
+ * fraction of the window width.
+ * @param drawerWidth Drawer width ref to resize.
+ * @param sign +1 to grow with a rightward drag, -1 to grow with a leftward one.
+ */
+function makeResizeDrawer(
+  drawerWidth: Ref<number>,
+  sign: 1 | -1
+): TouchPanValue {
+  return function (details) {
+    const delta = sign * (details.delta?.x ?? 0);
+    drawerWidth.value = clamp(
+      drawerWidth.value + delta,
+      0,
+      window.innerWidth * MAXIMUM_DRAWER_WIDTH_RATIO
+    );
+  };
+}
+
 function toggleLeftDrawer() {
-  leftDrawerOpen.value = !leftDrawerOpen.value;
+  toggleDrawer(leftDrawerOpen);
 }
 
-/**
- * Toggle right drawer open state.
- */
 function toggleRightDrawer() {
-  rightDrawerOpen.value = !rightDrawerOpen.value;
+  toggleDrawer(rightDrawerOpen);
 }
 
-/**
- * Change the size of the left drawer based on the touch pan directive.
- * @param details Touch pan directive values.
- */
-const resizeLeftDrawer: TouchPanValue = function (details) {
-  let delta = details.delta?.x ?? 0;
-
-  // Clamp end value to be within 40% of the screen.
-  if (leftDrawerWidth.value + delta >= window.innerWidth * 0.4) {
-    delta = 0;
-  }
-
-  leftDrawerWidth.value += delta;
-};
-
-/**
- * Change the size of the right drawer based on the touch pan directive.
- * @param details Touch pan directive values.
- */
-const resizeRightDrawer: TouchPanValue = function (details) {
-  let delta = details.delta?.x ?? 0;
-
-  // Clamp end value to be within 40% of the screen.
-  if (rightDrawerWidth.value - delta >= window.innerWidth * 0.4) {
-    delta = 0;
-  }
-
-  rightDrawerWidth.value -= delta;
-};
+const resizeLeftDrawer = makeResizeDrawer(leftDrawerWidth, 1);
+const resizeRightDrawer = makeResizeDrawer(rightDrawerWidth, -1);
 
 /**
  * Force minHeight and height of QPage to be the same.

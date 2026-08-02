@@ -3,13 +3,9 @@ import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 
 /**
- * Test fixture factories.
- *
- * Each factory returns a fresh object (no shared references between calls) so
- * tests can freely mutate their own copy. `overrides` are shallow-merged on
- * top of the default shape.
+ * Build a fixture atlas.
+ * @param overrides Fields to override on the default atlas.
  */
-
 export function makeAtlas(overrides: Partial<Atlas> = {}): Atlas {
   return {
     name: "allen_mouse",
@@ -18,6 +14,10 @@ export function makeAtlas(overrides: Partial<Atlas> = {}): Atlas {
   };
 }
 
+/**
+ * Build a fixture atlas manifest, defaulting to Allen-mouse-scale resolutions.
+ * @param overrides Fields to override on the default manifest.
+ */
 export function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
   return {
     atlas: makeAtlas(),
@@ -29,6 +29,10 @@ export function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
   };
 }
 
+/**
+ * Build a fixture probe interface definition.
+ * @param overrides Fields to override on the default definition.
+ */
 export function makeProbeInterfaceProbe(
   overrides: Partial<ProbeInterfaceProbe> = {}
 ): ProbeInterfaceProbe {
@@ -41,6 +45,10 @@ export function makeProbeInterfaceProbe(
   };
 }
 
+/**
+ * Build a fixture probe.
+ * @param overrides Fields to override on the default probe.
+ */
 export function makeProbe(overrides: Partial<Probe> = {}): Probe {
   return {
     inspectableKind: "probe",
@@ -59,6 +67,10 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
   };
 }
 
+/**
+ * Build a fixture terminology row.
+ * @param overrides Fields to override on the default row.
+ */
 export function makeTerminologyRow(
   overrides: Partial<TerminologyRow> = {}
 ): TerminologyRow {
@@ -75,10 +87,8 @@ export function makeTerminologyRow(
 }
 
 /**
- * Build a small terminology row tree with root-anchored
- * `root_identifier_path`s (the well-formed case, e.g. `allen_mouse`).
- *
- * Tree shape: root(997) -> grey(8) -> [CH(567) -> CTX(688), leaf(700)].
+ * Build a small terminology row tree with root-anchored `root_identifier_path`s:
+ * root(997) -> grey(8) -> [CH(567) -> CTX(688), leaf(700)].
  */
 export function makeTerminologyRows(): TerminologyRow[] {
   return [
@@ -131,10 +141,7 @@ export function makeTerminologyRows(): TerminologyRow[] {
 
 /**
  * Build the same tree as {@link makeTerminologyRows}, but with
- * `root_identifier_path`s authored as relative `[parent, self]` pairs
- * instead of full root-anchored paths (the `african_molerat` case). Used to
- * regression-test that `buildHierarchy` relies on `parent_identifier`, not
- * `root_identifier_path`, since the latter drops rows for atlases like this.
+ * `root_identifier_path`s authored as relative `[parent, self]` pairs.
  */
 export function makeRelativePathTerminologyRows(): TerminologyRow[] {
   return makeTerminologyRows().map(row =>
@@ -149,9 +156,8 @@ export function makeRelativePathTerminologyRows(): TerminologyRow[] {
 
 /**
  * Build an in-memory, single-level OME-Zarr v3 uint32 annotation volume
- * store, keyed by path (a plain `Map` satisfies zarrita's `Readable`). Chunks
- * are stored uncompressed so tests exercise the real codec pipeline and
- * chunk-key encoding without a wasm decoder.
+ * store, keyed by path (a plain `Map` satisfies zarrita's `Readable`).
+ * @param options Volume shape, scale, and chunk contents.
  */
 export function makeAnnotationVolumeStore(options?: {
   shapeVoxels?: [number, number, number];

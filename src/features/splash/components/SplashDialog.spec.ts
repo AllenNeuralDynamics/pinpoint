@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import type { DialogChainObject } from "quasar";
 import SplashDialog from "./SplashDialog.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import {
+  createWrapperRegistry,
+  mountDialogWithQuasar
+} from "@/test/mount-helper";
 import { NewExperimentDialog } from "@/features/experiment";
 
 // SplashDialog's RecentExperimentsList creates the current-experiment store,
@@ -20,28 +23,17 @@ type DialogWrapper = VueWrapper<
   InstanceType<typeof SplashDialog> & { show(): void }
 >;
 
-// Dialog content is teleported to `document.body` rather than into
-// `wrapper.element`'s subtree, so each mounted dialog must be unmounted after
-// its test or a later test's `document.body.querySelector` could pick up a
-// leftover teleported node from a previous test.
-const mountedWrappers: DialogWrapper[] = [];
+const wrappers = createWrapperRegistry<DialogWrapper>();
 
-// The dialog plugin only renders its content once `show()` (exposed by
-// useDialogPluginComponent) is called, and needs to be attached to the DOM
-// for its teleported content to be queryable.
 async function mountDialog(): Promise<DialogWrapper> {
-  const wrapper = mountWithQuasar(SplashDialog, {
-    attachTo: document.body
-  }) as DialogWrapper;
-  mountedWrappers.push(wrapper);
-  wrapper.vm.show();
-  await wrapper.vm.$nextTick();
-  return wrapper;
+  return wrappers.track(
+    (await mountDialogWithQuasar(SplashDialog)) as DialogWrapper
+  );
 }
 
 describe("SplashDialog", () => {
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   it("opens the new-experiment dialog when the new button is clicked", async () => {

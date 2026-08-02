@@ -10,8 +10,6 @@ export interface ProbeFrame {
   rightMillimeters: [number, number, number];
   /** Unit ASR direction of probe-local +Z, up from the tip. */
   upMillimeters: [number, number, number];
-  /** Unit ASR normal of the shank plane (probe-local +Y). */
-  normalMillimeters: [number, number, number];
 }
 
 /**
@@ -45,9 +43,6 @@ export function getProbeFrame(
     ),
     upMillimeters: vector3ToAsr(
       Vector3.TransformNormal(new Vector3(0, 0, 1), basis)
-    ),
-    normalMillimeters: vector3ToAsr(
-      Vector3.TransformNormal(new Vector3(0, 1, 0), basis)
     )
   };
 }

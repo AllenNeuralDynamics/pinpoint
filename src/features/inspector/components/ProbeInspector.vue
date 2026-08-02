@@ -13,6 +13,7 @@ import { SliceCanvas } from "@/features/slice";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { setProbeInterface } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import CommittedInput from "./CommittedInput.vue";
 
 // A library probe's identifier paired with its display label. `emit-value`
@@ -65,35 +66,13 @@ const name = computed({
   set: (value: string) => (probe.name = value.trim())
 });
 
-const ap = computed({
-  get: () => String(probe.tipPosition[0]),
-  set: (value: string) => (probe.tipPosition[0] = Number(value))
-});
+const ap = useNumericTupleModel(() => probe.tipPosition, 0);
+const dv = useNumericTupleModel(() => probe.tipPosition, 1);
+const ml = useNumericTupleModel(() => probe.tipPosition, 2);
 
-const dv = computed({
-  get: () => String(probe.tipPosition[1]),
-  set: (value: string) => (probe.tipPosition[1] = Number(value))
-});
-
-const ml = computed({
-  get: () => String(probe.tipPosition[2]),
-  set: (value: string) => (probe.tipPosition[2] = Number(value))
-});
-
-const roll = computed({
-  get: () => String(probe.rotation[0]),
-  set: (value: string) => (probe.rotation[0] = Number(value))
-});
-
-const yaw = computed({
-  get: () => String(probe.rotation[1]),
-  set: (value: string) => (probe.rotation[1] = Number(value))
-});
-
-const pitch = computed({
-  get: () => String(probe.rotation[2]),
-  set: (value: string) => (probe.rotation[2] = Number(value))
-});
+const roll = useNumericTupleModel(() => probe.rotation, 0);
+const yaw = useNumericTupleModel(() => probe.rotation, 1);
+const pitch = useNumericTupleModel(() => probe.rotation, 2);
 
 const nameRules: ValidationRule<string>[] = [
   value => value.trim().length > 0 || t("probeInspector.nameRequired")

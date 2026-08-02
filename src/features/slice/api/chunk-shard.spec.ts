@@ -3,11 +3,7 @@ import type {
   SampleChunkRequest,
   SamplePlan
 } from "../models/sample-plan.model";
-import {
-  getChunkShard,
-  getWorkerCount,
-  groupRequestsByShard
-} from "./chunk-shard.api";
+import { getWorkerCount, groupRequestsByShard } from "./chunk-shard.api";
 
 function makeRequest(
   chunkCoordinates: [number, number, number]
@@ -39,54 +35,22 @@ describe("getWorkerCount", () => {
   });
 });
 
-describe("getChunkShard", () => {
-  it("is deterministic - the same chunk maps to the same shard every time", () => {
-    const coordinates: [number, number, number] = [3, 7, 12];
-
-    const first = getChunkShard(coordinates, 4);
-    const second = getChunkShard(coordinates, 4);
-
-    expect(first).toBe(second);
-  });
-
-  it("always returns 0 for a single worker", () => {
-    expect(getChunkShard([0, 0, 0], 1)).toBe(0);
-    expect(getChunkShard([99, 41, 7], 1)).toBe(0);
-  });
-
-  it("returns a shard within [0, workerCount)", () => {
-    for (let a = 0; a < 20; a++) {
-      const shard = getChunkShard([a, a * 2, a * 3], 4);
-      expect(shard).toBeGreaterThanOrEqual(0);
-      expect(shard).toBeLessThan(4);
-    }
-  });
-
-  it("spreads spatially adjacent chunks across shards rather than clumping", () => {
-    // A realistic plane's chunk footprint: a contiguous block of chunk
-    // coordinates. A bare modulo would put whole rows/columns on one shard.
-    const workerCount = 4;
-    const load = Array.from({ length: workerCount }, () => 0);
-    let total = 0;
-    for (let a = 0; a < 4; a++) {
-      for (let s = 0; s < 4; s++) {
-        for (let r = 0; r < 4; r++) {
-          const shard = getChunkShard([a, s, r], workerCount);
-          load[shard] = load[shard]! + 1;
-          total++;
-        }
-      }
-    }
-
-    const ideal = total / workerCount;
-    for (const count of load) {
-      expect(count).toBeLessThanOrEqual(ideal * 1.5);
-      expect(count).toBeGreaterThan(0);
-    }
-  });
-});
-
 describe("groupRequestsByShard", () => {
+  it("is deterministic - the same chunk maps to the same shard every time", () => {
+    const plan: SamplePlan = {
+      levelIndex: 0,
+      sampleCount: 0,
+      chunkRequests: [makeRequest([3, 7, 12])]
+    };
+
+    const first = groupRequestsByShard(plan, 4);
+    const second = groupRequestsByShard(plan, 4);
+
+    expect(first.findIndex(group => group.length > 0)).toBe(
+      second.findIndex(group => group.length > 0)
+    );
+  });
+
   it("partitions every request into exactly one group, none lost or duplicated", () => {
     const plan: SamplePlan = {
       levelIndex: 0,
@@ -132,5 +96,28 @@ describe("groupRequestsByShard", () => {
     const groups = groupRequestsByShard(plan, 3);
 
     expect(groups).toEqual([[], [], []]);
+  });
+
+  it("spreads spatially adjacent chunks across shards rather than clumping", () => {
+    // A realistic plane's chunk footprint: a contiguous block of chunk
+    // coordinates. A bare modulo would put whole rows/columns on one shard.
+    const workerCount = 4;
+    const chunkRequests: SampleChunkRequest[] = [];
+    for (let a = 0; a < 4; a++) {
+      for (let s = 0; s < 4; s++) {
+        for (let r = 0; r < 4; r++) {
+          chunkRequests.push(makeRequest([a, s, r]));
+        }
+      }
+    }
+    const plan: SamplePlan = { levelIndex: 0, sampleCount: 0, chunkRequests };
+
+    const groups = groupRequestsByShard(plan, workerCount);
+
+    const ideal = chunkRequests.length / workerCount;
+    for (const group of groups) {
+      expect(group.length).toBeLessThanOrEqual(ideal * 1.5);
+      expect(group.length).toBeGreaterThan(0);
+    }
   });
 });

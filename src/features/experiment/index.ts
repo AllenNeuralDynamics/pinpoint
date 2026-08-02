@@ -10,7 +10,6 @@ export {
   setStructureVisibility,
   clearVisibleStructures,
   internProbeInterfaceProbe,
-  removeInternProbeInterfaceProbe,
   getInternedProbeInterfaceProbe,
   addProbe,
   removeProbe,

@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import NewExperimentDialog from "./NewExperimentDialog.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import {
+  createWrapperRegistry,
+  flushMicrotasks,
+  mountDialogWithQuasar
+} from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { makeAtlas, makeManifest, makeProbe } from "@/test/fixtures";
@@ -25,30 +29,15 @@ type DialogWrapper = VueWrapper<
   InstanceType<typeof NewExperimentDialog> & { show(): void }
 >;
 
-async function flush() {
-  await new Promise(resolve => setTimeout(resolve, 0));
-}
+const wrappers = createWrapperRegistry<DialogWrapper>();
 
-// Dialog content is teleported to `document.body` rather than into
-// `wrapper.element`'s subtree, so each mounted dialog must be unmounted after
-// its test or a later test's `document.body.querySelector` could pick up a
-// leftover teleported node from a previous test.
-const mountedWrappers: DialogWrapper[] = [];
-
-// The dialog plugin only renders its content once `show()` (exposed by
-// useDialogPluginComponent) is called, and needs to be attached to the DOM
-// for its teleported content to be queryable.
 async function mountDialog(): Promise<DialogWrapper> {
-  const wrapper = mountWithQuasar(NewExperimentDialog, {
-    attachTo: document.body,
-    global: {
-      stubs: { AtlasPicker: true }
-    }
-  }) as DialogWrapper;
-  mountedWrappers.push(wrapper);
-  wrapper.vm.show();
-  await wrapper.vm.$nextTick();
-  await flush();
+  const wrapper = wrappers.track(
+    (await mountDialogWithQuasar(NewExperimentDialog, {
+      global: { stubs: { AtlasPicker: true } }
+    })) as DialogWrapper
+  );
+  await flushMicrotasks();
   return wrapper;
 }
 
@@ -67,7 +56,7 @@ describe("NewExperimentDialog", () => {
   });
 
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   describe("isCreateDisabled", () => {
@@ -111,7 +100,7 @@ describe("NewExperimentDialog", () => {
         .vm.$emit("update:modelValue", atlas);
 
       await createButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       const store = useCurrentExperimentStore();
       expect(store.name).toBe("My Experiment");
@@ -137,7 +126,7 @@ describe("NewExperimentDialog", () => {
         .findComponent({ name: "AtlasPicker" })
         .vm.$emit("update:modelValue", atlas);
       await createButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       expect(store.selectedInspectable).toBeNull();
       expect(store.draggedProbeId).toBeNull();
@@ -157,7 +146,7 @@ describe("NewExperimentDialog", () => {
         .vm.$emit("update:modelValue", atlas);
 
       await createButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({ color: "negative" })
@@ -172,7 +161,7 @@ describe("NewExperimentDialog", () => {
       const experimentBeforeClick = store.experiment;
 
       await createButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       expect(store.experiment).toBe(experimentBeforeClick);
       expect(wrapper.emitted("ok")).toBeFalsy();

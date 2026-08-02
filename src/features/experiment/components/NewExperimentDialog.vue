@@ -2,15 +2,16 @@
 import { computed, ref } from "vue";
 import { Atlas, AtlasPicker, getManifest } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { useDialogPluginComponent, useQuasar } from "quasar";
+import { useDialogPluginComponent } from "quasar";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
 import { useI18n } from "vue-i18n";
-import { buildExperiment } from "@/features/experiment";
+import { buildExperiment } from "../api/experiment.api";
+import { useNotify } from "@/composable/useNotify";
 
 defineEmits([...useDialogPluginComponent.emits]);
 
-const $q = useQuasar();
 const { t } = useI18n();
+const { notifyError } = useNotify();
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
 
@@ -31,12 +32,10 @@ async function create() {
 
   const manifest = await getManifest(atlas.value);
   if (!manifest) {
-    $q.notify({
-      message: t("newExperiment.failedToFetchAtlas"),
-      caption: t("newExperiment.checkAtlas"),
-      color: "negative",
-      icon: "error"
-    });
+    notifyError(
+      t("newExperiment.failedToFetchAtlas"),
+      t("newExperiment.checkAtlas")
+    );
     return;
   }
 

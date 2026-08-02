@@ -1,11 +1,12 @@
 import { onScopeDispose, type Ref, shallowRef, watch } from "vue";
 import { createSharedComposable, watchDebounced } from "@vueuse/core";
-import { FetchStore, type Readable, withByteCaching } from "zarrita";
+import type { Readable } from "zarrita";
 import type { Manifest, TerminologyRow } from "@/features/atlas";
 import { getAnnotationVolumeUrl } from "@/features/atlas";
+import { createAnnotationMetadataStore } from "../api/annotation-store.api";
 import { openAnnotationVolume } from "../api/annotation-volume.api";
 import { getWorkerCount, groupRequestsByShard } from "../api/chunk-shard.api";
-import { createSampleResult } from "../api/sample-paint.api";
+import { createSampleResult } from "../api/sample-result.api";
 import {
   planSamples,
   selectAnnotationLevelIndex
@@ -19,13 +20,7 @@ import type {
   SampledMessage
 } from "../models/sampler-message.model";
 
-/**
- * Milliseconds a geometry change is debounced before replanning, capped by
- * an equal `maxWait` so a sustained drag still replans at ~60fps instead of
- * only once it stops - trailing-only (no leading-edge sample), but unlike a
- * plain throttle, never drops the final, settled value of an isolated change
- * such as a probe switch.
- */
+/** Milliseconds a geometry change is debounced before replanning, capped by an equal `maxWait`. */
 const REPLAN_INTERVAL_MILLISECONDS = 1000 / 60;
 
 /** Builds one sampler worker. Overridable in tests to avoid a real `Worker`. */
@@ -62,31 +57,8 @@ function defaultWorkerFactory(): SamplerWorker {
 }
 
 /**
- * Default metadata store factory: a `FetchStore` with a byte cache scoped to
- * `zarr.json` metadata, so re-opening the same URL is instant.
- * @param url Annotation volume URL to open.
- */
-function defaultMetadataStoreFactory(url: string): Readable {
-  return withByteCaching(new FetchStore(url), {
-    keyFor: path => (path.endsWith("/zarr.json") ? path : undefined)
-  });
-}
-
-/**
  * A chunk-sharded pool of annotation-sampler workers, shared by every
- * `createStream` caller across the app - `createSharedComposable` gives
- * every call site the same pool (and the same open volume/colors) for as
- * long as at least one caller is still mounted, and tears it down once the
- * last one disposes. Planning (level selection, bucketing, sharding)
- * happens once on the main thread against the volume's metadata; workers
- * only fetch, decode, sample, and color.
- *
- * Because the pool is created once and reused, `workerFactory` and
- * `metadataStoreFactory` only take effect on the call that creates it (the
- * first, or the first after every prior caller has disposed) - callers that
- * only ever pass the defaults (every production caller) are unaffected;
- * tests must ensure any caller using fakes fully disposes before the next
- * one runs.
+ * `createStream` caller across the app via `createSharedComposable`.
  * @param options Reactive manifest and terminology inputs.
  * @param workerFactory Builds one pool worker. Overridable in tests.
  * @param metadataStoreFactory Builds the zarr store the main thread reads
@@ -99,7 +71,7 @@ export const useAnnotationSampler = createSharedComposable(
       terminologyRows: Ref<TerminologyRow[]>;
     },
     workerFactory: SamplerWorkerFactory = defaultWorkerFactory,
-    metadataStoreFactory: MetadataStoreFactory = defaultMetadataStoreFactory
+    metadataStoreFactory: MetadataStoreFactory = createAnnotationMetadataStore
   ): {
     createStream: (
       geometry: Ref<SampleGeometry | null>

@@ -3,10 +3,10 @@ import { defineComponent, h } from "vue";
 import { createPinia, type Pinia, setActivePinia } from "pinia";
 import type { VueWrapper } from "@vue/test-utils";
 import RecentExperimentsList from "./RecentExperimentsList.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { buildExperiment } from "@/features/experiment";
+import { buildExperiment } from "../api/experiment.api";
 import { makeAtlas } from "@/test/fixtures";
 
 // The current-experiment store's `manifest`/`terminologyRows` are
@@ -40,17 +40,17 @@ const QVirtualScrollStub = defineComponent({
   }
 });
 
-const mountedWrappers: VueWrapper[] = [];
+const wrappers = createWrapperRegistry<VueWrapper>();
 
 let pinia: Pinia;
 
 function mountList() {
-  const wrapper = mountWithQuasar(RecentExperimentsList, {
-    pinia,
-    global: { stubs: { QVirtualScroll: QVirtualScrollStub } }
-  });
-  mountedWrappers.push(wrapper);
-  return wrapper;
+  return wrappers.track(
+    mountWithQuasar(RecentExperimentsList, {
+      pinia,
+      global: { stubs: { QVirtualScroll: QVirtualScrollStub } }
+    })
+  );
 }
 
 describe("RecentExperimentsList", () => {
@@ -60,7 +60,7 @@ describe("RecentExperimentsList", () => {
   });
 
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   it("shows the empty-state hint when there are no recents", () => {

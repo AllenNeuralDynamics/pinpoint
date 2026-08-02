@@ -5,7 +5,6 @@ export {
   BRAINGLOBE_BASE_URL,
   getTerminologyRows,
   getManifest,
-  structureEntityFromIdentifier,
   structureEntitiesFromIdentifiers,
   getAtlasCenter,
   getAtlasLongestDimensionMillimeters,
@@ -14,3 +13,4 @@ export {
 export type { TerminologyRow } from "./models/terminology-row.model";
 export type { Atlas } from "./models/atlas.model";
 export type { Manifest } from "./models/manifest.model";
+export type { StructureEntity } from "./models/structure-entity.model";

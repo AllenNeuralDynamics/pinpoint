@@ -7,6 +7,7 @@ import {
   KNOWN_PROBES
 } from "../models/known-probes.model";
 import { STANDARD_COLORS } from "@/features/scene";
+import { isFiniteTriple, isFiniteNumber, isRecord } from "@/utils/type-guards";
 
 /** Every valid probe visibility, for validating untrusted probe data. */
 const PROBE_VISIBILITIES: ProbeVisibility[] = ["visible", "shanks", "hidden"];
@@ -197,31 +198,7 @@ export function isProbe(value: unknown): value is Probe {
     isFiniteTriple(value.tipPosition) &&
     isFiniteTriple(value.rotation) &&
     (value.sliceExtentMillimeters === null ||
-      (typeof value.sliceExtentMillimeters === "number" &&
-        Number.isFinite(value.sliceExtentMillimeters))) &&
-    typeof value.sliceCenterHeightMillimeters === "number" &&
-    Number.isFinite(value.sliceCenterHeightMillimeters)
-  );
-}
-
-/**
- * Check that a value is a plain object (not an array or null).
- * @param value Value to check.
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-/**
- * Check that a value is a tuple of three finite numbers.
- * @param value Value to check.
- */
-function isFiniteTriple(value: unknown): value is [number, number, number] {
-  return (
-    Array.isArray(value) &&
-    value.length === 3 &&
-    value.every(
-      component => typeof component === "number" && Number.isFinite(component)
-    )
+      isFiniteNumber(value.sliceExtentMillimeters)) &&
+    isFiniteNumber(value.sliceCenterHeightMillimeters)
   );
 }

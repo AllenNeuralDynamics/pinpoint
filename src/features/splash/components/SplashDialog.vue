@@ -5,6 +5,7 @@ import {
   RecentExperimentsList,
   useExperimentFile
 } from "@/features/experiment";
+import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 
 const appVersion = import.meta.env.APP_VERSION;
 
@@ -13,6 +14,7 @@ defineEmits([...useDialogPluginComponent.emits]);
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const $q = useQuasar();
 const { openExperiment, onOpened } = useExperimentFile();
+const recentExperimentStore = useRecentExperimentsStore();
 
 onOpened(onDialogOK);
 </script>
@@ -65,7 +67,7 @@ onOpened(onDialogOK);
         </div>
       </q-card-section>
 
-      <q-card-section>
+      <q-card-section v-if="recentExperimentStore.recents.length > 0">
         <RecentExperimentsList @opened="onDialogOK" />
       </q-card-section>
     </q-card>

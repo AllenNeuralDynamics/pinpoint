@@ -36,7 +36,7 @@ export function getWorkerCount(hardwareConcurrency: number): number {
  * @param chunkCoordinates Chunk grid coordinates as [ap, dv, ml].
  * @param workerCount Number of workers in the pool.
  */
-export function getChunkShard(
+function getChunkShard(
   chunkCoordinates: [number, number, number],
   workerCount: number
 ): number {

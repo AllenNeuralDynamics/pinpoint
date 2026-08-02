@@ -10,7 +10,7 @@ import {
   VertexData
 } from "@babylonjs/core";
 import axios from "axios";
-import type { StructureEntity } from "../models/structure-entity.model";
+import type { StructureEntity } from "@/features/atlas";
 import { asrToBabylon } from "./coordinate-transforms.api";
 import { setMaterialAlpha } from "./material.api";
 
@@ -81,9 +81,8 @@ export function setAtlasCenterOffset(
 }
 
 /**
- * Sync the scene's structures with the given visibility, importing missing
- * geometry concurrently and fading always-present structures instead of
- * removing them.
+ * Sync the scene's structures with the given visibility, fading
+ * always-present structures instead of removing them.
  * @param scene Scene to sync.
  * @param alwaysPresentStructures Structures to keep in the scene at all times.
  * @param visibleStructures Structures that should be fully visible.
@@ -194,8 +193,8 @@ function structureMaterialName(identifier: number): string {
 }
 
 /**
- * Synchronously create a structure's hidden placeholder mesh and material,
- * parented under the atlas root, ready for {@link loadStructureGeometry}.
+ * Create a structure's hidden placeholder mesh and material, parented under
+ * the atlas root.
  * @param scene Scene to add the structure to.
  * @param atlasRootNode Atlas root node to parent the structure under.
  * @param structure Entity information for the structure.
@@ -221,8 +220,7 @@ function buildStructureMesh(
 }
 
 /**
- * Compute the vertex budget for a simplified mesh: at most
- * `MESH_VERTEX_KEEP_FRACTION` of the original, capped at `MESH_MAX_VERTICES`.
+ * Compute the vertex budget for a simplified mesh.
  * @param vertexCount Original vertex count.
  */
 function targetVertexCount(vertexCount: number): number {
@@ -234,8 +232,7 @@ function targetVertexCount(vertexCount: number): number {
 
 /**
  * Fetch, decode, and simplify a structure's mesh geometry, then apply it to
- * its (already-present) placeholder mesh and reveal it. Bails out and
- * disposes the mesh if it was disposed by a later sync while awaiting.
+ * its placeholder mesh and reveal it.
  * @param mesh Placeholder mesh created by {@link buildStructureMesh}.
  * @param structure Entity information for the structure.
  * @param scene Scene the structure is being added to.
@@ -277,8 +274,7 @@ async function loadStructureGeometry(
 }
 
 /**
- * Simplify a mesh's geometry down to (approximately) the given vertex count
- * and compute smooth-shaded normals for it.
+ * Simplify a mesh's geometry to approximately the given vertex count.
  * @param scene Scene to build the temporary mesh in.
  * @param positions Flat `[x, y, z, ...]` vertex positions.
  * @param indices Triangle indices.
@@ -342,8 +338,7 @@ async function fetchMeshData(meshPath: string): Promise<ArrayBuffer> {
 }
 
 /**
- * Decode raw Draco mesh data into flat vertex data, correcting its winding
- * order and converting its nanometer-scale coordinates to millimeters.
+ * Decode raw Draco mesh data into flat vertex data, in millimeters.
  * @param scene Scene to decode the mesh into.
  * @param name Name for the decoded geometry.
  * @param data Raw Draco-compressed mesh bytes.
@@ -375,8 +370,7 @@ async function decodeMesh(
 }
 
 /**
- * Flip a flat array of triangle indices' winding order in place, correcting
- * BrainGlobe's right-handed meshes for the scene's left-handed convention.
+ * Flip a flat array of triangle indices' winding order in place.
  * @param indices Flat triangle indices, mutated in place.
  */
 function flipIndicesWindingOrder(indices: IndicesArray): void {

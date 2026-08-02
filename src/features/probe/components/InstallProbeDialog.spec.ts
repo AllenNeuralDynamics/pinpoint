@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import {
+  createWrapperRegistry,
+  flushMicrotasks,
+  mountDialogWithQuasar
+} from "@/test/mount-helper";
 import {
   getManufacturers,
   getProbeInterfaceProbe,
@@ -22,31 +26,52 @@ const mockedGetManufacturers = vi.mocked(getManufacturers);
 const mockedGetProbeNames = vi.mocked(getProbeNames);
 const mockedGetProbeInterfaceProbe = vi.mocked(getProbeInterfaceProbe);
 
+// `useFileDialog`'s input is never attached to the DOM, so it can't be
+// driven through a queryable `<input type="file">`. Replace it with a fake
+// that records the registered `onChange` callback and an `open` spy,
+// matching the pattern in `useExperimentFile.spec.ts`.
+const openFileDialogSpy = vi.fn();
+let capturedOnChange:
+  | ((files: FileList | null) => void | Promise<void>)
+  | null = null;
+
+vi.mock("@vueuse/core", async importOriginal => {
+  const actual = await importOriginal<typeof import("@vueuse/core")>();
+  return {
+    ...actual,
+    useFileDialog: () => ({
+      files: { value: null },
+      open: openFileDialogSpy,
+      reset: vi.fn(),
+      onChange: (
+        callback: (files: FileList | null) => void | Promise<void>
+      ) => {
+        capturedOnChange = callback;
+      },
+      onCancel: vi.fn()
+    })
+  };
+});
+
+/**
+ * Build a fake `FileList` containing a single file, matching what a real
+ * file input's `change` event would provide.
+ */
+function makeFileList(file: File): FileList {
+  return { 0: file, length: 1, item: () => file } as unknown as FileList;
+}
+
 type DialogWrapper = VueWrapper<
   InstanceType<typeof InstallProbeDialog> & { show(): void }
 >;
 
-async function flush() {
-  await new Promise(resolve => setTimeout(resolve, 0));
-}
+const wrappers = createWrapperRegistry<DialogWrapper>();
 
-// Dialog content is teleported to `document.body` rather than into
-// `wrapper.element`'s subtree, so each mounted dialog must be unmounted after
-// its test or a later test's `document.body.querySelector` could pick up a
-// leftover teleported node from a previous test.
-const mountedWrappers: DialogWrapper[] = [];
-
-// The dialog plugin only renders its content once `show()` (exposed by
-// useDialogPluginComponent) is called, and needs to be attached to the DOM
-// for its teleported content to be queryable.
 async function mountDialog(): Promise<DialogWrapper> {
-  const wrapper = mountWithQuasar(InstallProbeDialog, {
-    attachTo: document.body
-  }) as DialogWrapper;
-  mountedWrappers.push(wrapper);
-  wrapper.vm.show();
-  await wrapper.vm.$nextTick();
-  await flush();
+  const wrapper = wrappers.track(
+    (await mountDialogWithQuasar(InstallProbeDialog)) as DialogWrapper
+  );
+  await flushMicrotasks();
   return wrapper;
 }
 
@@ -58,7 +83,7 @@ async function selectManufacturer(
     .findComponent({ name: "QSelect" })
     .vm.$emit("update:modelValue", manufacturer);
   await wrapper.vm.$nextTick();
-  await flush();
+  await flushMicrotasks();
   await wrapper.vm.$nextTick();
 }
 
@@ -87,25 +112,10 @@ function uploadButton(wrapper: DialogWrapper) {
     .find(btn => btn.text().includes("Upload"))!;
 }
 
-// The file input is inside the dialog's teleported content, which lives
-// outside `wrapper.element`'s DOM subtree, so it has to be queried from
-// `document.body` directly rather than through the wrapper.
-function fileInputElement(): HTMLInputElement {
-  return document.body.querySelector('input[type="file"]')!;
-}
-
-async function uploadFile(wrapper: DialogWrapper, text: string) {
-  const input = fileInputElement();
-  const file = new File([text], "probe.json", {
-    type: "application/json"
-  });
-  Object.defineProperty(input, "files", {
-    value: [file],
-    configurable: true
-  });
-  input.dispatchEvent(new Event("change"));
-  await wrapper.vm.$nextTick();
-  await flush();
+async function uploadFile(text: string) {
+  const file = new File([text], "probe.json", { type: "application/json" });
+  await capturedOnChange!(makeFileList(file));
+  await flushMicrotasks();
 }
 
 describe("InstallProbeDialog", () => {
@@ -117,10 +127,12 @@ describe("InstallProbeDialog", () => {
       .mockReset()
       .mockResolvedValue(["Neuropixels 1.0", "ASSY-156", "Cambridge H3"]);
     mockedGetProbeInterfaceProbe.mockReset();
+    openFileDialogSpy.mockReset();
+    capturedOnChange = null;
   });
 
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   describe("manufacturer select", () => {
@@ -265,7 +277,7 @@ describe("InstallProbeDialog", () => {
       );
 
       await installButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       expect(mockedGetProbeInterfaceProbe).toHaveBeenCalledWith(
         "neuropixels",
@@ -291,7 +303,7 @@ describe("InstallProbeDialog", () => {
       );
 
       await installButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       expect(mockedGetProbeInterfaceProbe).toHaveBeenCalledWith(
         "imec",
@@ -312,7 +324,7 @@ describe("InstallProbeDialog", () => {
       );
 
       await installButton(wrapper).trigger("click");
-      await flush();
+      await flushMicrotasks();
 
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({ color: "negative" })
@@ -332,7 +344,6 @@ describe("InstallProbeDialog", () => {
       };
 
       await uploadFile(
-        wrapper,
         JSON.stringify({
           specification: "probeinterface",
           version: "0.2.24",
@@ -347,7 +358,7 @@ describe("InstallProbeDialog", () => {
       const wrapper = await mountDialog();
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
-      await uploadFile(wrapper, "not json");
+      await uploadFile("not json");
 
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({ color: "negative" })
@@ -357,11 +368,10 @@ describe("InstallProbeDialog", () => {
 
     it("clicking the upload button opens the file picker", async () => {
       const wrapper = await mountDialog();
-      const clickSpy = vi.spyOn(fileInputElement(), "click");
 
       await uploadButton(wrapper).trigger("click");
 
-      expect(clickSpy).toHaveBeenCalled();
+      expect(openFileDialogSpy).toHaveBeenCalled();
     });
   });
 });

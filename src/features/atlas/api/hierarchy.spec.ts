@@ -2,8 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   atlasDisplayName,
   flattenHierarchy,
-  getDefaultStructureIdentifiers,
-  toTitleCase
+  getDefaultStructureIdentifiers
 } from "./hierarchy.api";
 import {
   makeAtlas,
@@ -145,20 +144,6 @@ describe("getDefaultStructureIdentifiers", () => {
     expect(
       getDefaultStructureIdentifiers(makeAtlas({ name: "african_molerat" }), [])
     ).toEqual([]);
-  });
-});
-
-describe("toTitleCase", () => {
-  it("title-cases a multi-word, mixed-case name", () => {
-    expect(toTitleCase("basic cell GROUPS")).toBe("Basic Cell Groups");
-  });
-
-  it("title-cases a single word", () => {
-    expect(toTitleCase("root")).toBe("Root");
-  });
-
-  it("returns an empty string unchanged", () => {
-    expect(toTitleCase("")).toBe("");
   });
 });
 

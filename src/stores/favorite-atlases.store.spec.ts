@@ -70,16 +70,4 @@ describe("useFavoriteAtlasesStore", () => {
       expect(store.favorites["http://a.com"]).toEqual(["allen_mouse"]);
     });
   });
-
-  describe("reset", () => {
-    it("clears all favorites across all sources", () => {
-      const store = useFavoriteAtlasesStore();
-      store.add(makeAtlas({ source: "http://a.com", name: "allen_mouse" }));
-      store.add(makeAtlas({ source: "http://b.com", name: "allen_human" }));
-
-      store.reset();
-
-      expect(store.favorites).toEqual({});
-    });
-  });
 });

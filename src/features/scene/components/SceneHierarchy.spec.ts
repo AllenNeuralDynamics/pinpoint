@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import { createPinia, type Pinia, setActivePinia } from "pinia";
 import SceneHierarchy from "./SceneHierarchy.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
@@ -33,17 +33,13 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 // rather than into `wrapper.element`'s subtree (Quasar's `QMenu`), so each
 // mounted instance must be attached to, and torn down from, `document.body`
 // -- otherwise a leftover teleported node from one test could be picked up
-// by `document.body.querySelector` in another. Mirrors the approach in
-// ProbeLibraryDialog.spec.ts.
-const mountedWrappers: VueWrapper[] = [];
+// by `document.body.querySelector` in another.
+const wrappers = createWrapperRegistry<VueWrapper>();
 
 async function mountHierarchy(pinia: Pinia) {
-  const wrapper = mountWithQuasar(SceneHierarchy, {
-    pinia,
-    attachTo: document.body
-  });
-  mountedWrappers.push(wrapper);
-  return wrapper;
+  return wrappers.track(
+    mountWithQuasar(SceneHierarchy, { pinia, attachTo: document.body })
+  );
 }
 
 /**
@@ -69,7 +65,7 @@ describe("SceneHierarchy", () => {
   });
 
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   it("interns the picked library probe's definition before adding a probe", async () => {

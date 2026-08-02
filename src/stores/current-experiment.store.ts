@@ -36,13 +36,10 @@ export const useCurrentExperimentStore = defineStore(
       probes: []
     });
 
+    /** Currently selected inspectable, or null if nothing is selected. */
     const selectedInspectable = ref<Inspectable | null>(null);
 
-    /**
-     * ID of the probe currently being dragged.
-     *
-     * Used to ignore updates from pinia going to writing the probe's location.
-     */
+    /** ID of the probe currently being dragged, or null. */
     const draggedProbeId = ref<string | null>(null);
 
     /**
@@ -114,6 +111,7 @@ export const useCurrentExperimentStore = defineStore(
       () => experiment.value.probeInterfaceProbes
     );
 
+    /** Probes in the current experiment. */
     const probes = computed(() => experiment.value.probes);
 
     /**

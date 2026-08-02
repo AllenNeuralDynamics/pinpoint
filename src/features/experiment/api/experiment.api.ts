@@ -68,9 +68,8 @@ export function clearVisibleStructures(experiment: Experiment) {
 }
 
 /**
- * Intern a probe interface definition into the experiment,
- * keeping the existing definition if one is already interned
- * under that identifier.
+ * Intern a probe interface definition into the experiment, keeping the
+ * existing definition if one is already interned under that identifier.
  * @param experiment Experiment to intern a probe into.
  * @param probeInterfaceProbe Probe interface definition to intern.
  */
@@ -86,9 +85,8 @@ export function internProbeInterfaceProbe(
 }
 
 /**
- * Remove a probe interface definition by identifier from the experiment.
- *
- * Does nothing if there is at least 1 reference left in the experiment.
+ * Remove a probe interface definition by identifier, unless another probe
+ * still references it.
  * @param experiment Experiment to remove an interned probe interface definition from.
  * @param probeIdentifier Probe interface definition identifier.
  */
@@ -106,8 +104,8 @@ export function removeInternProbeInterfaceProbe(
 }
 
 /**
- * Repoint a probe to a new interface definition: intern the new definition,
- * update the probe, then drop the old definition if nothing else uses it.
+ * Repoint a probe to a new interface definition, dropping the old one if
+ * nothing else uses it.
  * @param experiment Experiment the probe and definitions belong to.
  * @param probe Probe to repoint.
  * @param probeInterfaceProbe New probe interface definition for the probe.
@@ -140,9 +138,7 @@ export function getInternedProbeInterfaceProbe(
 }
 
 /**
- * Add a probe to the experiment.
- *
- * Do nothing if a probe with the same id already exists.
+ * Add a probe to the experiment, unless one with the same id already exists.
  * @param experiment Experiment to add a probe to.
  * @param probe Probe to add.
  */
@@ -154,10 +150,8 @@ export function addProbe(experiment: Experiment, probe: Probe) {
 }
 
 /**
- * Remove probe from experiment.
- *
- * Do nothing if the probe is not in the experiment. Drop interface definition
- * if no other probe references it.
+ * Remove a probe from the experiment, dropping its interface definition if
+ * no other probe references it.
  * @param experiment Experiment to remove this probe from.
  * @param probe Probe to remove.
  */

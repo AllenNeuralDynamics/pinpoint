@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef } from "vue";
-import { useFuse } from "@vueuse/integrations/useFuse";
 import { QScrollArea } from "quasar";
+import { useFuzzyFilter } from "@/composable/useFuzzyFilter";
 import { flattenHierarchy } from "../api/hierarchy.api";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
@@ -25,16 +25,13 @@ const items = computed(() =>
   flattenHierarchy(currentExperiment.terminologyRows)
 );
 
-// Fuzzy search across the abbreviation (label) and the full name.
-const searchQuery = computed(() => filter.value ?? "");
-const { results } = useFuse(searchQuery, items, {
-  fuseOptions: { keys: ["name", "abbreviation"] }
-});
-
-// Search mode: replace hierarchy order with the Fuse-ranked flat order.
-const isSearching = computed(() => (filter.value ?? "").trim().length > 0);
-const displayedItems = computed(() =>
-  isSearching.value ? results.value.map(r => r.item) : items.value
+// Fuzzy search across the abbreviation (label) and the full name. A
+// whitespace-only filter is treated as blank, keeping the hierarchy order.
+const { isSearching, filtered: displayedItems } = useFuzzyFilter(
+  computed(() => filter.value ?? ""),
+  items,
+  { keys: ["name", "abbreviation"] },
+  query => query.trim().length === 0
 );
 </script>
 

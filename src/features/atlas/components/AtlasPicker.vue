@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
+import { computedAsync } from "@vueuse/core";
 import { useFavoriteAtlasesStore } from "@/stores/favorite-atlases.store";
-import { useFuse } from "@vueuse/integrations/useFuse";
+import { useFuzzyFilter } from "@/composable/useFuzzyFilter";
 import { Atlas } from "../models/atlas.model";
 import { atlasDisplayName } from "../api/hierarchy.api";
 import { listAtlases, listAtlasesHTTP } from "../api/source.api";
-import { computedAsync } from "@vueuse/core";
 
 /**
  * Atlas source the picker lists atlases from.
@@ -49,8 +49,6 @@ const atlases = computedAsync<Atlas[]>(
   atlasesEvaluating
 );
 
-const unwrappedSearchQuery = computed(() => searchQuery.value ?? "");
-
 /**
  * Favorites for this source as a set for fast lookup.
  */
@@ -74,21 +72,15 @@ const atlasOptions = computed<AtlasOption[]>(() =>
 );
 
 /**
- * Fuzzy finding results.
+ * Fuzzy finding results, alphabetized when not searching.
  */
-const { results: atlasFuse } = useFuse(unwrappedSearchQuery, atlasOptions, {
-  fuseOptions: { keys: ["displayName"] }
-});
-
-/**
- * Switch between showing all atlases sorted or fuzzy finding results.
- */
-const filteredAtlases = computed(() =>
-  searchQuery.value
-    ? atlasFuse.value.map(result => result.item)
-    : [...atlasOptions.value].sort((a, b) =>
-        a.displayName.localeCompare(b.displayName)
-      )
+const { filtered: filteredAtlases } = useFuzzyFilter(
+  computed(() => searchQuery.value ?? ""),
+  atlasOptions,
+  { keys: ["displayName"] },
+  undefined,
+  options =>
+    [...options].sort((a, b) => a.displayName.localeCompare(b.displayName))
 );
 
 /**

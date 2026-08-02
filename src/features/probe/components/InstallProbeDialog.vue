@@ -1,9 +1,10 @@
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef, watch } from "vue";
-import { computedAsync } from "@vueuse/core";
-import { useFuse } from "@vueuse/integrations/useFuse";
-import { useDialogPluginComponent, useQuasar } from "quasar";
+import { computed, ref, watch } from "vue";
+import { computedAsync, useFileDialog } from "@vueuse/core";
+import { useDialogPluginComponent } from "quasar";
 import { useI18n } from "vue-i18n";
+import { useFuzzyFilter } from "@/composable/useFuzzyFilter";
+import { useNotify } from "@/composable/useNotify";
 import {
   buildProbeOverviewImageSrc,
   getManufacturers,
@@ -27,20 +28,26 @@ defineEmits([...useDialogPluginComponent.emits]);
 const { dialogRef, onDialogHide, onDialogOK, onDialogCancel } =
   useDialogPluginComponent();
 
-const $q = useQuasar();
 const { t } = useI18n();
+const { notifyError } = useNotify();
+const { open: openFileDialog, onChange: onFileSelected } = useFileDialog({
+  accept: "application/json",
+  multiple: false,
+  reset: true
+});
 
 const selectedManufacturerName = ref<string | null>(null);
 const searchQuery = ref<string | null>(null);
 const selectedProbeName = ref<string | null>(null);
+const manufacturersEvaluating = ref(false);
 const probeNamesEvaluating = ref(false);
 const installing = ref(false);
 const uploading = ref(false);
 
-const fileInput = useTemplateRef<HTMLInputElement>("file-input");
-
 const manufacturers = computedAsync<string[]>(
-  async () => await getManufacturers()
+  async () => await getManufacturers(),
+  [],
+  manufacturersEvaluating
 );
 
 const probeNames = computedAsync<string[]>(
@@ -62,20 +69,11 @@ const probeOptions = computed<ProbeOption[]>(() => {
   }));
 });
 
-// Fuzzy search across probe identifiers and labels, falling back to the full
-// list when empty.
-const unwrappedSearchQuery = computed(() => searchQuery.value ?? "");
-const { results: probeOptionFuse } = useFuse(
-  unwrappedSearchQuery,
+/** Fuzzy search across probe identifiers and labels. */
+const { filtered: filteredProbeOptions } = useFuzzyFilter(
+  computed(() => searchQuery.value ?? ""),
   probeOptions,
-  {
-    fuseOptions: { keys: ["probeName", "label"] }
-  }
-);
-const filteredProbeOptions = computed(() =>
-  searchQuery.value
-    ? probeOptionFuse.value.map(result => result.item)
-    : probeOptions.value
+  { keys: ["probeName", "label"] }
 );
 
 const selectedProbeOverviewImageSrc = computed<string>(() => {
@@ -88,27 +86,10 @@ const selectedProbeOverviewImageSrc = computed<string>(() => {
 });
 
 /**
- * Notify that installing a probe from the library failed.
+ * Open the file dialog to let the user pick a custom probe file.
  */
-function notifyInstallFailed() {
-  $q.notify({
-    message: t("installProbe.installFailed"),
-    caption: t("installProbe.installFailedCaption"),
-    color: "negative",
-    icon: "error"
-  });
-}
-
-/**
- * Notify that an uploaded probe file couldn't be read or parsed.
- */
-function notifyInvalidProbeFile() {
-  $q.notify({
-    message: t("installProbe.invalidProbeFile"),
-    caption: t("installProbe.invalidProbeFileCaption"),
-    color: "negative",
-    icon: "error"
-  });
+function openFilePicker() {
+  openFileDialog();
 }
 
 /**
@@ -125,50 +106,43 @@ async function install() {
   installing.value = false;
 
   if (!probe) {
-    notifyInstallFailed();
+    notifyError(
+      t("installProbe.installFailed"),
+      t("installProbe.installFailedCaption")
+    );
     return;
   }
 
   onDialogOK(probe);
 }
 
-/**
- * Open the hidden file input to let the user pick a custom probe file.
- */
-function openFilePicker() {
-  fileInput.value?.click();
-}
-
-/**
- * Read the selected file, validate it as a ProbeInterface file, and resolve
- * the dialog with its first probe.
- */
-async function onFileSelected(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-
-  // Reset so re-selecting the same file still fires `change`.
-  input.value = "";
-
+onFileSelected(async files => {
+  // `reset: true` fires a null change before opening the picker.
+  const file = files?.[0];
   if (!file) return;
 
   uploading.value = true;
   try {
-    const text = await file.text();
-    const probe = parseProbeInterfaceFile(text);
+    const probe = parseProbeInterfaceFile(await file.text());
 
     if (!probe) {
-      notifyInvalidProbeFile();
+      notifyError(
+        t("installProbe.invalidProbeFile"),
+        t("installProbe.invalidProbeFileCaption")
+      );
       return;
     }
 
     onDialogOK(probe);
   } catch {
-    notifyInvalidProbeFile();
+    notifyError(
+      t("installProbe.invalidProbeFile"),
+      t("installProbe.invalidProbeFileCaption")
+    );
   } finally {
     uploading.value = false;
   }
-}
+});
 
 watch(selectedManufacturerName, () => {
   selectedProbeName.value = null;
@@ -251,13 +225,6 @@ watch(selectedManufacturerName, () => {
             }}</q-tooltip>
           </q-btn>
         </q-card-actions>
-        <input
-          ref="file-input"
-          accept="application/json"
-          class="hidden"
-          type="file"
-          @change="onFileSelected"
-        />
       </div>
     </q-card>
   </q-dialog>

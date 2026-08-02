@@ -248,48 +248,6 @@ describe("createSamplerHandler", () => {
     expect(getChunkSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("close cancels every stream and clears the cache", async () => {
-    const store = makeAnnotationVolumeStore({
-      shapeVoxels: [4, 4, 4],
-      chunkShapeVoxels: [2, 2, 2],
-      chunks: { "0/0/0": Uint32Array.from([1, 0, 0, 0, 0, 0, 0, 0]) }
-    });
-    const getChunkSpy = vi.fn();
-    const originalGet = store.get.bind(store);
-    vi.spyOn(store, "get").mockImplementation(key => {
-      if (typeof key === "string" && key.includes("/c/")) getChunkSpy(key);
-      return originalGet(key);
-    });
-    const { handler, posted } = makeHandler(store);
-
-    await handler.handleMessage({ type: "open", url: "http://example.com" });
-    const sample = handler.handleMessage({
-      type: "sample",
-      streamId: "a",
-      generation: 0,
-      levelIndex: 0,
-      requests: [makeRequest([0, 0, 0], [0], [0])]
-    });
-    await handler.handleMessage({ type: "close" });
-    await sample;
-
-    // Cancelled before it could flush.
-    expect(posted.filter(m => m.streamId === "a")).toHaveLength(0);
-
-    // The cache was cleared along with the volume, so sampling again after
-    // close re-decodes the chunk from scratch rather than reading the (now
-    // stale) cached entry.
-    await handler.handleMessage({ type: "open", url: "http://example.com" });
-    await handler.handleMessage({
-      type: "sample",
-      streamId: "b",
-      generation: 0,
-      levelIndex: 0,
-      requests: [makeRequest([0, 0, 0], [0], [0])]
-    });
-    expect(getChunkSpy).toHaveBeenCalledTimes(2);
-  });
-
   it("evicts the oldest cached chunk once the byte budget is exceeded", async () => {
     // Four chunks of 2^3 uint32 voxels (32 bytes each) fit comfortably
     // within any real budget, but a 96-byte cap forces eviction after the

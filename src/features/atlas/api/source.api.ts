@@ -1,10 +1,10 @@
 import axios from "axios";
 import Papa from "papaparse";
 import { Color3 } from "@babylonjs/core";
-import type { StructureEntity } from "@/features/scene";
 import type { Atlas } from "../models/atlas.model";
 import type { Manifest } from "../models/manifest.model";
 import type { TerminologyRow } from "../models/terminology-row.model";
+import type { StructureEntity } from "../models/structure-entity.model";
 
 /**
  * Atlas item in an atlas source's response structure.
@@ -23,8 +23,7 @@ interface AtlasSourceResponse {
 
 /**
  * Manifest of a single size variant of an atlas, as stored at
- * `atlases/<atlas name>_<size>um/3_0/manifest.json`. Only the fields used to
- * build a {@link Manifest} are described here.
+ * `atlases/<atlas name>_<size>um/3_0/manifest.json`.
  */
 interface RawManifest {
   name: string;
@@ -34,10 +33,7 @@ interface RawManifest {
   annotation_set: { location: string };
 }
 
-/**
- * Raw terminology row as parsed from CSV, before numeric/array fields are
- * converted from their string representation.
- */
+/** Raw terminology row as parsed from CSV, before numeric/array fields are converted. */
 type RawTerminologyRow = Record<keyof TerminologyRow, string>;
 
 export const BRAINGLOBE_BASE_URL =
@@ -55,8 +51,8 @@ const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
 const FALLBACK_ATLAS_CENTER: [number, number, number] = [0, 0, 0];
 
 /**
- * Fetch and parse the list of atlases available in the BrainGlobe atlases
- * bucket. Returns null if the bucket couldn't be reached.
+ * Fetch the list of atlases in the BrainGlobe atlases bucket, or null if
+ * unreachable.
  */
 export async function listAtlases(): Promise<Atlas[] | null> {
   try {
@@ -73,7 +69,7 @@ export async function listAtlases(): Promise<Atlas[] | null> {
 
 /**
  * List the directory names directly under `atlases/` in an S3-backed
- * BrainGlobe bucket, via a delimited prefix listing.
+ * BrainGlobe bucket.
  * @param source Root URL of the bucket.
  */
 async function listBucketAtlasDirectories(source: string): Promise<string[]> {
@@ -111,8 +107,8 @@ function atlasNamesFromDirectories(directoryNames: string[]): string[] {
 }
 
 /**
- * Fetch and parse the list of atlases available in the atlases directory of
- * a BrainGlobe HTTP server. Returns null if the host couldn't be reached.
+ * Fetch the list of atlases in a BrainGlobe HTTP server's atlases directory,
+ * or null if unreachable.
  * @param source Root URL of the BrainGlobe HTTP server.
  */
 export async function listAtlasesHTTP(source: string): Promise<Atlas[] | null> {
@@ -144,8 +140,7 @@ async function listServerAtlasDirectories(
 }
 
 /**
- * Fetch and parse the terminology list for an atlas. Returns an empty list
- * if it couldn't be fetched or parsed.
+ * Fetch and parse an atlas's terminology list, or `[]` if unfetchable.
  * @param manifest Manifest of the atlas to get the terminology list for.
  */
 export async function getTerminologyRows(
@@ -201,8 +196,8 @@ function parseTerminologyRow(row: RawTerminologyRow): TerminologyRow {
 }
 
 /**
- * Fetch and aggregate the manifests of every size variant of an atlas.
- * Returns null if the source couldn't be reached or has no size variants.
+ * Fetch and aggregate the manifests of every size variant of an atlas, or
+ * null if unreachable or without variants.
  * @param atlas Atlas to build the aggregated manifest for.
  */
 export async function getManifest(atlas: Atlas): Promise<Manifest | null> {
@@ -283,8 +278,7 @@ async function buildManifest(
 }
 
 /**
- * Returns a structure entity for a structure by identifier from an atlas's
- * manifest and its parsed terminology row.
+ * Build a structure entity by identifier from an atlas's manifest.
  * @param manifest Manifest of the atlas to pull mesh info from.
  * @param terminologyRows Parsed terminology rows for the atlas.
  * @param identifier Structure identifier to build for.
@@ -344,8 +338,6 @@ export function getAnnotationVolumeUrl(manifest: Manifest): string {
 
 /**
  * Resolve a manifest's source-root-relative location against an atlas source.
- *
- * Shared by {@link getTerminologyRows} and {@link structureEntityFromIdentifier}.
  * @param source Root URL of the atlas source.
  * @param path Source-root-relative path, starting with `/`.
  */
@@ -373,8 +365,8 @@ export function getAtlasCenter(manifest: Manifest): [number, number, number] {
 }
 
 /**
- * Computes the longest edge of the atlas volume's bounding box, in mm, e.g.
- * to scale a zoom range to the atlas's own size. Returns 0 if unknown.
+ * Compute the longest edge of the atlas volume's bounding box, in mm, or 0
+ * if unknown.
  * @param manifest Atlas manifest to compute the longest dimension for.
  */
 export function getAtlasLongestDimensionMillimeters(

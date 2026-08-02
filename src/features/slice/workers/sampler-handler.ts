@@ -1,6 +1,6 @@
 import type { Readable } from "zarrita";
-import { FetchStore, withByteCaching } from "zarrita";
 import type { AnnotationVolume } from "../models/annotation-level.model";
+import { createAnnotationMetadataStore } from "../api/annotation-store.api";
 import {
   openAnnotationVolume,
   readAnnotationChunk
@@ -54,18 +54,6 @@ interface StreamState {
 }
 
 /**
- * Default store factory for the real worker: a `FetchStore` with a byte
- * cache scoped to `zarr.json` metadata (decoded chunks are cached separately,
- * by {@link createChunkCache}).
- * @param url Annotation volume URL to open.
- */
-function defaultStoreFactory(url: string): Readable {
-  return withByteCaching(new FetchStore(url), {
-    keyFor: path => (path.endsWith("/zarr.json") ? path : undefined)
-  });
-}
-
-/**
  * Create a message handler for one annotation-sampler worker. Pure aside
  * from its own private state, so it's testable without a real `Worker` -
  * drive it directly with a recording `post` callback.
@@ -78,7 +66,7 @@ function defaultStoreFactory(url: string): Readable {
  */
 export function createSamplerHandler(
   post: SamplerPost,
-  storeFactory: SamplerStoreFactory = defaultStoreFactory,
+  storeFactory: SamplerStoreFactory = createAnnotationMetadataStore,
   maximumCachedChunkBytes: number = MAXIMUM_CACHED_CHUNK_BYTES
 ): SamplerHandler {
   let volume: AnnotationVolume | null = null;
@@ -102,11 +90,6 @@ export function createSamplerHandler(
         return handleSample(message);
       case "cancel":
         cancelStream(message.streamId);
-        return;
-      case "close":
-        for (const streamId of streams.keys()) cancelStream(streamId);
-        volume = null;
-        chunkCache.clear();
         return;
     }
   }

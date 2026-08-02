@@ -11,10 +11,12 @@ export const useRecentExperimentsStore = defineStore(
     const recents = ref<Experiment[]>([]);
 
     /**
-     * Add the most recent experiment.
+     * Add the most recent experiment, replacing any existing entry with the
+     * same id so re-opening an experiment doesn't list it twice.
      * @param experiment Experiment to add as the latest.
      */
     function add(experiment: Experiment) {
+      remove(experiment);
       recents.value.unshift(experiment);
     }
 
@@ -31,14 +33,9 @@ export const useRecentExperimentsStore = defineStore(
       recents.value.splice(experimentIndex, 1);
     }
 
-    /**
-     * Remove all recents.
-     */
-    function clear() {
-      recents.value = [];
-    }
-
-    return { recents, add, remove, clear };
+    const state = { recents };
+    const actions = { add, remove };
+    return { ...state, ...actions };
   },
   {
     persist: true

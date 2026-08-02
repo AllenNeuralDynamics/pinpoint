@@ -42,8 +42,7 @@ export default {
     resume: "Resume",
     open: "Open",
     userGuide: "User Guide",
-    vblWebsite: "VBL Website",
-    recentExperiment: "Some Recent Experiment {n}"
+    vblWebsite: "VBL Website"
   },
   sceneCanvas: {
     problemLoadingAtlasMeshes:
@@ -123,9 +122,6 @@ export default {
   probeInspector: {
     name: "Name",
     probeType: "Probe Type",
-    tipPosition: "Tip Position",
-    orientation: "Orientation",
-    color: "Color",
     ap: "AP",
     dv: "DV",
     ml: "ML",
@@ -139,8 +135,6 @@ export default {
     zoom: "Zoom",
     center: "Center along probe",
     extent: "{extent} mm",
-    loading: "Loading annotations...",
-    noAnnotations: "No annotation volume for this atlas.",
     noContour: "This probe has no contour to slice through."
   },
   errorNotFound: {

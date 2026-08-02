@@ -79,8 +79,8 @@ export function getProbeTransformNode(
 }
 
 /**
- * Build a probe's shank, head stage, and rod meshes, or return the existing
- * entity if already built. Returns null if there's no usable contour.
+ * Build a probe's shank, head stage, and rod meshes, or return its existing
+ * entity if already built.
  * @param scene Scene to add the probe to.
  * @param probe Probe to build.
  * @param experiment Experiment this probe belongs to (to extract probe interface definition).
@@ -147,7 +147,6 @@ export function buildProbe(
 
 /**
  * Dispose a probe's transform node, its meshes, and its own materials.
- * Detaches the gizmo first if it was attached to this probe's node.
  * @param scene Scene the probe was built in.
  * @param probeId Probe ID to remove any existing entity for.
  * @param gizmoManager Gizmo manager to remove probe meshes from.
@@ -260,8 +259,7 @@ export function syncProbes(
 }
 
 /**
- * Attach the gizmo to a probe's transform node and put its meshes into the
- * selection outline layer, replacing any prior selection.
+ * Attach the gizmo to a probe's transform node and select its meshes.
  * @param gizmoManager Gizmo manager to attach to the probe's node.
  * @param selectionOutlineLayer Selection outline layer to add the probe's meshes to.
  * @param probeTransformNode Probe transform node to attach and select.
@@ -278,8 +276,6 @@ export function attachProbeSelection(
 
 /**
  * Select a probe in the scene based on the Gizmo's pick.
- *
- * Does nothing if the attached mesh was not a probe.
  * @param scene Scene with probes.
  * @param gizmoManager Gizmo manager to update.
  * @param selectionOutlineLayer Selection outline layer to add probe to selection.
@@ -433,8 +429,7 @@ function probeIdFromEntityName(entityName: string): string {
 }
 
 /**
- * Build a probe's shank-and-head-stage material, colored from the probe and
- * frozen immediately.
+ * Build a probe's shank-and-head-stage material, colored from the probe.
  * @param scene Scene to build the material in.
  * @param probe Probe to derive the material's color from.
  */
@@ -449,8 +444,7 @@ function buildProbeMaterial(scene: Scene, probe: Probe): StandardMaterial {
 }
 
 /**
- * Extrude the probe's contour into a thin shank mesh standing up in the XY
- * plane, tip at the origin.
+ * Extrude the probe's contour into a thin shank mesh.
  * @param scene Scene to build the mesh in.
  * @param contour Probe contour to extrude.
  * @param name Name for the mesh.
@@ -475,8 +469,7 @@ function buildShankMesh(
 }
 
 /**
- * Build the truncated cone ("head stage") sitting on top of the probe's
- * shanks, as wide as the contour at its base.
+ * Build the truncated cone ("head stage") sitting on top of the probe's shanks.
  * @param scene Scene to build the mesh in.
  * @param contour Probe contour the head stage sits on top of.
  * @param name Name for the mesh.

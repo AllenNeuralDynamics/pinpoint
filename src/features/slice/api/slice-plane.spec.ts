@@ -9,8 +9,12 @@ import { getProbeFrame } from "./probe-frame.api";
 import {
   clampSliceCenterHeight,
   clampSliceExtent,
+  formatSliceExtentMillimeters,
+  getContourPolygonPoints,
   getDefaultSliceExtentMillimeters,
   getProbeSlicePlane,
+  getQuantizedSizePixels,
+  getSlicePixelFromRect,
   getSliceZoomExponentRange
 } from "./slice-plane.api";
 
@@ -158,5 +162,71 @@ describe("getDefaultSliceExtentMillimeters", () => {
     expect(getDefaultSliceExtentMillimeters({ minimum: -7, maximum: -1 })).toBe(
       0.0625
     );
+  });
+});
+
+describe("getQuantizedSizePixels", () => {
+  it("returns 0 when the canvas has no width yet", () => {
+    expect(getQuantizedSizePixels(0, 2)).toBe(0);
+  });
+
+  it("quantizes device pixels down to the nearest step", () => {
+    expect(getQuantizedSizePixels(300, 1)).toBe(288);
+  });
+
+  it("clamps below the minimum edge length", () => {
+    expect(getQuantizedSizePixels(10, 1)).toBe(128);
+  });
+
+  it("clamps above the maximum edge length", () => {
+    expect(getQuantizedSizePixels(2000, 1)).toBe(1024);
+  });
+});
+
+describe("getContourPolygonPoints", () => {
+  const contour = getProbeContour(
+    makeProbeInterfaceProbe({
+      si_units: "mm",
+      probe_planar_contour: [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+        [0, 10]
+      ]
+    })
+  )!;
+
+  it("re-origins points on the given center height", () => {
+    expect(getContourPolygonPoints(contour, 0)).toBe(
+      contour.points.map(({ x, y }) => `${x},${-y}`).join(" ")
+    );
+  });
+});
+
+describe("getSlicePixelFromRect", () => {
+  const rect = { left: 0, top: 0, width: 16, height: 16 } as DOMRect;
+
+  it("maps a point within the rect to a device pixel", () => {
+    expect(getSlicePixelFromRect(rect, 8, 8, 16)).toEqual({ x: 8, y: 8 });
+  });
+
+  it("returns null outside the rect", () => {
+    expect(getSlicePixelFromRect(rect, -1, 0, 16)).toBeNull();
+    expect(getSlicePixelFromRect(rect, 16, 0, 16)).toBeNull();
+  });
+
+  it("returns null for a degenerate rect", () => {
+    const zeroRect = { left: 0, top: 0, width: 0, height: 0 } as DOMRect;
+    expect(getSlicePixelFromRect(zeroRect, 0, 0, 16)).toBeNull();
+  });
+});
+
+describe("formatSliceExtentMillimeters", () => {
+  it("rounds to two significant figures", () => {
+    expect(formatSliceExtentMillimeters(2.0001)).toBe("2");
+  });
+
+  it("keeps a fractional extent readable", () => {
+    expect(formatSliceExtentMillimeters(0.0625)).toBe("0.063");
   });
 });

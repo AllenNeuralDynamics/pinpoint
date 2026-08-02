@@ -1,11 +1,15 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { ProbeInterfaceProbe } from "@/features/probe";
-import { getProbeInterfaceIdentifier } from "@/features/probe";
+import {
+  findProbeInterfaceProbeByIdentifier,
+  getProbeInterfaceIdentifier
+} from "@/features/probe";
 
 export const useProbeLibraryStore = defineStore(
   "probe-library",
   () => {
+    /** Installed probe interface definitions. */
     const library = ref<ProbeInterfaceProbe[]>([]);
 
     /**
@@ -13,14 +17,10 @@ export const useProbeLibraryStore = defineStore(
      * @param probe Probe to add.
      */
     function add(probe: ProbeInterfaceProbe) {
-      if (
-        library.value.some(
-          libraryProbe =>
-            getProbeInterfaceIdentifier(libraryProbe) ===
-            getProbeInterfaceIdentifier(probe)
-        )
-      )
+      const identifier = getProbeInterfaceIdentifier(probe);
+      if (findProbeInterfaceProbeByIdentifier(library.value, identifier)) {
         return;
+      }
       library.value.push(probe);
     }
 

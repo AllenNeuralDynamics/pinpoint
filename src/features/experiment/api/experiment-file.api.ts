@@ -5,11 +5,9 @@ import {
   isProbe,
   isProbeInterfaceProbe
 } from "@/features/probe";
+import { isFiniteNumber, isFiniteTriple, isRecord } from "@/utils/type-guards";
 
-/**
- * How an experiment file's Pinpoint version relates to the running one, once
- * patch and prerelease differences are ignored.
- */
+/** How an experiment file's Pinpoint version relates to the running one. */
 export type ExperimentVersionRelation =
   | "match"
   | "unknown"
@@ -53,8 +51,7 @@ export function parseExperimentFile(text: string): Experiment | null {
 
 /**
  * Compare an experiment file's Pinpoint version to the running one, ignoring
- * patch and prerelease differences so dev builds don't flag their own
- * release line.
+ * patch and prerelease differences.
  * @param version Version recorded in the experiment file.
  * @param appVersion Running Pinpoint version.
  */
@@ -122,10 +119,7 @@ function isExperiment(value: unknown): value is Experiment {
   if (!isFiniteTriple(referenceCoordinate)) return false;
   if (
     !Array.isArray(visibleStructures) ||
-    !visibleStructures.every(
-      identifier =>
-        typeof identifier === "number" && Number.isFinite(identifier)
-    )
+    !visibleStructures.every(isFiniteNumber)
   ) {
     return false;
   }
@@ -133,8 +127,6 @@ function isExperiment(value: unknown): value is Experiment {
 
   for (const [identifier, definition] of Object.entries(probeInterfaceProbes)) {
     if (!isProbeInterfaceProbe(definition)) return false;
-    // The scene tags a probe's meshes with the identifier derived from its
-    // definition, so a disagreeing key would rebuild the probe on every sync.
     if (getProbeInterfaceIdentifier(definition) !== identifier) return false;
   }
 
@@ -145,27 +137,5 @@ function isExperiment(value: unknown): value is Experiment {
 
   return probes.every(probe =>
     Object.hasOwn(probeInterfaceProbes, probe.probeInterfaceIdentifier)
-  );
-}
-
-/**
- * Check that a value is a plain object (not an array or null).
- * @param value Value to check.
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-/**
- * Check that a value is a tuple of three finite numbers.
- * @param value Value to check.
- */
-function isFiniteTriple(value: unknown): value is [number, number, number] {
-  return (
-    Array.isArray(value) &&
-    value.length === 3 &&
-    value.every(
-      component => typeof component === "number" && Number.isFinite(component)
-    )
   );
 }

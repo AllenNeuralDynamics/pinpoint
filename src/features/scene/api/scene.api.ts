@@ -6,7 +6,7 @@ import type {
   SelectionOutlineLayer
 } from "@babylonjs/core";
 import { PointerEventTypes } from "@babylonjs/core";
-import type { Inspectable } from "@/features/scene";
+import type { Inspectable } from "../models/inspectable.model";
 import { attachProbeSelection, getProbeTransformNode } from "../api/probe.api";
 
 /**

@@ -16,14 +16,13 @@ import {
   syncStructuresVisibility
 } from "../api/structures.api";
 import { setInitialZoom } from "../api/camera.api";
-import { StructureEntity } from "../models/structure-entity.model";
+import type { StructureEntity } from "@/features/atlas";
 import {
   getAtlasCenter,
   getDefaultStructureIdentifiers,
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import {
   endProbeGizmoDrag,
@@ -37,9 +36,10 @@ import {
   deselectFromPointerDown,
   selectFromSelectedInspectableState
 } from "../api/scene.api";
+import { useNotify } from "@/composable/useNotify";
 
-const $q = useQuasar();
 const { t } = useI18n();
+const { notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
 const runtime = useBabylonRuntimeService();
 
@@ -103,12 +103,10 @@ watchEffect(async () => {
       visibleStructureEntities.value
     );
   } catch {
-    $q.notify({
-      message: t("sceneCanvas.problemLoadingAtlasMeshes"),
-      caption: t("sceneCanvas.atlasLikelyNotSupportedYet"),
-      color: "warning",
-      icon: "warning"
-    });
+    notifyWarning(
+      t("sceneCanvas.problemLoadingAtlasMeshes"),
+      t("sceneCanvas.atlasLikelyNotSupportedYet")
+    );
   } finally {
     isLoadingStructures.value = false;
   }
@@ -132,11 +130,8 @@ watchEffect(() => {
   setInitialZoom(camera, manifest);
 });
 
-// Clear the scene whenever the atlas changes, but not when the scene itself
-// has just become available for the first time. `currentExperiment.atlas`
-// must be read through a getter, not passed as a snapshot value: reading a
-// Pinia store getter by property access unwraps it once at call time, so a
-// plain value here would never be tracked as a watch source.
+// Clear the scene whenever the atlas changes, but not on the scene's own
+// first availability.
 watch(
   [runtime.scene, () => currentExperiment.atlas],
   ([newScene], [oldScene]) => {
@@ -153,10 +148,7 @@ watchEffect(() => {
   setReferenceCoordinateNodePosition(scene, currentExperiment.experiment);
 });
 
-// Sync probes from state. If the currently selected probe's entity was
-// disposed and rebuilt (e.g. from a type change), reattach the gizmo and
-// selection outline to the new one -- otherwise they'd be left pointing at
-// the disposed node/meshes, desynced from the still-selected probe.
+// Sync probes from state, reattaching selection to any rebuilt entity.
 watchEffect(() => {
   const scene = runtime.scene.value;
   const gizmoManager = runtime.gizmoManager.value;
@@ -185,9 +177,7 @@ watchEffect(() => {
   }
 });
 
-// Sync state from probes. Re-registers whenever the experiment itself is
-// replaced (e.g. creating a new experiment), so the drag observers never
-// close over a discarded experiment's probes.
+// Sync state from probes, re-registering when the experiment is replaced.
 watch(
   [runtime.scene, runtime.gizmoManager, () => currentExperiment.experiment],
   ([scene, gizmoManager, experiment]) => {
@@ -220,9 +210,8 @@ watch(
   }
 );
 
-// Register callbacks for selection and deselection. Re-registers whenever
-// the experiment itself is replaced, so selection never resolves against a
-// discarded experiment's probes.
+// Register selection and deselection callbacks, re-registering when the
+// experiment is replaced.
 watch(
   [
     runtime.scene,
@@ -293,7 +282,7 @@ onUnmounted(() => {
     <q-linear-progress
       v-if="isLoadingStructures"
       indeterminate
-      color="secondary"
+      color="primary"
       size="lg"
       class="absolute-top"
     />

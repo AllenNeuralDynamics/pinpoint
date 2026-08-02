@@ -23,8 +23,8 @@ interface Multiscale {
   datasets: MultiscaleDataset[];
 }
 
-/** Fallback per-axis translation when a dataset omits one. */
-const ZERO_TRANSLATION: [number, number, number] = [0, 0, 0];
+/** Fallback per-axis triple when a dataset omits a transformation. */
+const ZERO_TRIPLE: [number, number, number] = [0, 0, 0];
 
 /**
  * Open an atlas's annotation volume and describe its multiscale levels,
@@ -54,7 +54,7 @@ export async function openAnnotationVolume(
       });
       if (array.dtype !== "uint32" || array.shape.length !== 3) continue;
 
-      const scale = getScale(dataset);
+      const scale = getCoordinateTransformation(dataset, "scale");
       if (!scale) continue;
 
       levels.push({
@@ -67,7 +67,8 @@ export async function openAnnotationVolume(
           array.chunks[2]!
         ],
         scaleMillimeters: scale,
-        translationMillimeters: getTranslation(dataset)
+        translationMillimeters:
+          getCoordinateTransformation(dataset, "translation") ?? ZERO_TRIPLE
       });
     }
     if (levels.length === 0) return null;
@@ -117,28 +118,19 @@ function getMultiscale(attrs: Record<string, unknown>): Multiscale | null {
 }
 
 /**
- * Extract a dataset's per-axis scale in mm, or null when absent or malformed.
+ * Extract a dataset's per-axis scale or translation in mm, or null when
+ * absent or malformed.
  * @param dataset Dataset to read.
+ * @param type Transformation kind to extract.
  */
-function getScale(dataset: MultiscaleDataset): [number, number, number] | null {
+function getCoordinateTransformation(
+  dataset: MultiscaleDataset,
+  type: "scale" | "translation"
+): [number, number, number] | null {
   const transformation = dataset.coordinateTransformations.find(
-    entry => entry.type === "scale"
+    entry => entry.type === type
   );
-  const scale = transformation?.scale;
-  if (!scale || scale.length !== 3) return null;
-  return [scale[0]!, scale[1]!, scale[2]!];
-}
-
-/**
- * Extract a dataset's per-axis translation in mm, defaulting to zero when
- * absent.
- * @param dataset Dataset to read.
- */
-function getTranslation(dataset: MultiscaleDataset): [number, number, number] {
-  const transformation = dataset.coordinateTransformations.find(
-    entry => entry.type === "translation"
-  );
-  const translation = transformation?.translation;
-  if (!translation || translation.length !== 3) return ZERO_TRANSLATION;
-  return [translation[0]!, translation[1]!, translation[2]!];
+  const triple = transformation?.[type];
+  if (!triple || triple.length !== 3) return null;
+  return [triple[0]!, triple[1]!, triple[2]!];
 }

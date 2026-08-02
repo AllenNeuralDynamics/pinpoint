@@ -1,5 +1,5 @@
 import { createEventHook, useFileDialog } from "@vueuse/core";
-import { exportFile, useQuasar } from "quasar";
+import { exportFile } from "quasar";
 import { useI18n } from "vue-i18n";
 import type { ExperimentVersionRelation } from "../api/experiment-file.api";
 import {
@@ -10,14 +10,15 @@ import {
 } from "../api/experiment-file.api";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getManifest } from "@/features/atlas";
+import { useNotify } from "@/composable/useNotify";
 
 /**
  * Open and download the current experiment as a JSON file, notifying on
  * unreadable files, unreachable atlases, and failed downloads.
  */
 export function useExperimentFile() {
-  const $q = useQuasar();
   const { t } = useI18n();
+  const { notifyError, notifyWarning } = useNotify();
   const currentExperimentStore = useCurrentExperimentStore();
   const { open: openFileDialog, onChange } = useFileDialog({
     accept: "application/json",
@@ -30,36 +31,30 @@ export function useExperimentFile() {
    * Notify that the picked file couldn't be read as an experiment.
    */
   function notifyInvalidExperimentFile() {
-    $q.notify({
-      message: t("experimentFile.invalidExperimentFile"),
-      caption: t("experimentFile.invalidExperimentFileCaption"),
-      color: "negative",
-      icon: "error"
-    });
+    notifyError(
+      t("experimentFile.invalidExperimentFile"),
+      t("experimentFile.invalidExperimentFileCaption")
+    );
   }
 
   /**
    * Notify that the browser refused the download.
    */
   function notifyDownloadFailed() {
-    $q.notify({
-      message: t("experimentFile.downloadFailed"),
-      caption: t("experimentFile.downloadFailedCaption"),
-      color: "negative",
-      icon: "error"
-    });
+    notifyError(
+      t("experimentFile.downloadFailed"),
+      t("experimentFile.downloadFailedCaption")
+    );
   }
 
   /**
    * Notify that the loaded experiment's atlas couldn't be fetched.
    */
   function notifyAtlasUnavailable() {
-    $q.notify({
-      message: t("experimentFile.atlasUnavailable"),
-      caption: t("experimentFile.atlasUnavailableCaption"),
-      color: "warning",
-      icon: "warning"
-    });
+    notifyWarning(
+      t("experimentFile.atlasUnavailable"),
+      t("experimentFile.atlasUnavailableCaption")
+    );
   }
 
   /**
@@ -107,12 +102,8 @@ export function useExperimentFile() {
     };
 
     const { message, caption, color } = messageKeys[relation];
-    $q.notify({
-      message: t(message),
-      caption: t(caption, { fileVersion, appVersion }),
-      color,
-      icon: color === "negative" ? "error" : "warning"
-    });
+    const notify = color === "negative" ? notifyError : notifyWarning;
+    notify(t(message), t(caption, { fileVersion, appVersion }));
   }
 
   /**

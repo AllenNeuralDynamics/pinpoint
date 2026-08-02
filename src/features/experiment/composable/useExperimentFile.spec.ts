@@ -5,7 +5,11 @@ import type { VueWrapper } from "@vue/test-utils";
 import { useExperimentFile } from "./useExperimentFile";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getManifest } from "@/features/atlas";
-import { mountWithQuasar } from "@/test/mount-helper";
+import {
+  createWrapperRegistry,
+  flushMicrotasks,
+  mountWithQuasar
+} from "@/test/mount-helper";
 import { makeAtlas, makeManifest } from "@/test/fixtures";
 import { serializeExperiment } from "../api/experiment-file.api";
 import { buildExperiment } from "../api/experiment.api";
@@ -70,16 +74,10 @@ const Harness = defineComponent({
 
 type HarnessWrapper = VueWrapper<InstanceType<typeof Harness>>;
 
-const mountedWrappers: HarnessWrapper[] = [];
+const wrappers = createWrapperRegistry<HarnessWrapper>();
 
 function mountHarness(): HarnessWrapper {
-  const wrapper = mountWithQuasar(Harness) as HarnessWrapper;
-  mountedWrappers.push(wrapper);
-  return wrapper;
-}
-
-async function flush() {
-  await new Promise(resolve => setTimeout(resolve, 0));
+  return wrappers.track(mountWithQuasar(Harness) as HarnessWrapper);
 }
 
 /**
@@ -107,7 +105,7 @@ describe("useExperimentFile", () => {
   });
 
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   describe("openExperiment", () => {
@@ -135,7 +133,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(store.name).toBe("Loaded Experiment");
       expect(notifySpy).not.toHaveBeenCalled();
@@ -151,7 +149,7 @@ describe("useExperimentFile", () => {
       });
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(onOpenedSpy).toHaveBeenCalled();
     });
@@ -166,7 +164,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
@@ -183,7 +181,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
@@ -198,7 +196,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(null);
-      await flush();
+      await flushMicrotasks();
 
       expect(notifySpy).not.toHaveBeenCalled();
       expect(store.name).toBe(originalName);
@@ -215,7 +213,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(store.name).toBe("Loaded");
       expect(notifySpy).toHaveBeenCalledTimes(1);
@@ -233,7 +231,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
@@ -254,7 +252,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(store.name).toBe("Loaded");
       expect(store.experiment.version).toBe(experiment.version);
@@ -279,7 +277,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(store.name).toBe("Loaded");
       expect(store.experiment.version).toBe(experiment.version);
@@ -304,7 +302,7 @@ describe("useExperimentFile", () => {
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
-      await flush();
+      await flushMicrotasks();
 
       expect(store.name).toBe("Loaded");
       expect(notifySpy).toHaveBeenCalledWith(
@@ -326,7 +324,7 @@ describe("useExperimentFile", () => {
         .mockImplementation(() => {});
 
       wrapper.vm.downloadExperiment();
-      await flush();
+      await flushMicrotasks();
 
       expect(clickSpy).toHaveBeenCalled();
       clickSpy.mockRestore();

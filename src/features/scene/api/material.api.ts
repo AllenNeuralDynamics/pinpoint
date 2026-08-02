@@ -1,8 +1,7 @@
 import type { Color3, Material, StandardMaterial } from "@babylonjs/core";
 
 /**
- * Set a material's alpha, forcing the change through to the GPU, and skip
- * entirely when the alpha is unchanged.
+ * Set a material's alpha, skipping the update when unchanged.
  * @param material Material to set the alpha of.
  * @param alpha Alpha to set.
  */
@@ -14,8 +13,7 @@ export function setMaterialAlpha(material: Material, alpha: number): void {
 }
 
 /**
- * Set a material's diffuse color, forcing the change through to the GPU, and
- * skip entirely when the color is unchanged.
+ * Set a material's diffuse color, skipping the update when unchanged.
  * @param material Material to set the diffuse color of.
  * @param diffuseColor Diffuse color to set.
  */

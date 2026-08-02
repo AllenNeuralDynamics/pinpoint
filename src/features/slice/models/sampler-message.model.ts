@@ -27,18 +27,12 @@ export interface CancelSamplerMessage {
   streamId: string;
 }
 
-/** Abort every stream and release the open volume. */
-export interface CloseSamplerMessage {
-  type: "close";
-}
-
 /** Messages the main thread sends to a sampler worker. */
 export type InboundSamplerMessage =
   | OpenSamplerMessage
   | ColorsSamplerMessage
   | SampleSamplerMessage
-  | CancelSamplerMessage
-  | CloseSamplerMessage;
+  | CancelSamplerMessage;
 
 /**
  * One coalesced batch of sampled chunks for a stream. `sampleIndices`,

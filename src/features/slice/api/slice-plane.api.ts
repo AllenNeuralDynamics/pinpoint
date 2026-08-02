@@ -1,6 +1,7 @@
 import type { Manifest } from "@/features/atlas";
 import { getAtlasLongestDimensionMillimeters } from "@/features/atlas";
 import type { ProbeContour } from "@/features/probe";
+import { clamp } from "@/utils/math";
 import type { PlaneGeometry } from "../models/sample-geometry.model";
 import type { ProbeFrame } from "./probe-frame.api";
 import { toAtlasMillimeters } from "./probe-frame.api";
@@ -14,6 +15,11 @@ const SLICE_ZOOM_RANGE_OCTAVES = 6;
  * formula also reproduces once the manifest is available.
  */
 const FALLBACK_MAXIMUM_ZOOM_EXPONENT = 4;
+
+/** Device-pixel edge lengths the slice canvas is quantized to. */
+const MINIMUM_SIZE_PIXELS = 128;
+const MAXIMUM_SIZE_PIXELS = 1024;
+const SIZE_QUANTUM_PIXELS = 32;
 
 /** A slice zoom range, as log2 mm exponents. */
 export interface SliceZoomExponentRange {
@@ -50,10 +56,7 @@ export function clampSliceExtent(
   extentMillimeters: number,
   range: SliceZoomExponentRange
 ): number {
-  return Math.min(
-    Math.max(extentMillimeters, 2 ** range.minimum),
-    2 ** range.maximum
-  );
+  return clamp(extentMillimeters, 2 ** range.minimum, 2 ** range.maximum);
 }
 
 /**
@@ -101,8 +104,69 @@ export function clampSliceCenterHeight(
   centerHeightMillimeters: number,
   contour: ProbeContour
 ): number {
-  return Math.min(
-    Math.max(centerHeightMillimeters, 0),
-    contour.heightMillimeters
-  );
+  return clamp(centerHeightMillimeters, 0, contour.heightMillimeters);
+}
+
+/**
+ * Quantize a canvas's device-pixel width into the bounded edge length the
+ * slice is sampled at, so small resizes don't trigger a replan.
+ * @param cssWidth Canvas element width, in CSS pixels.
+ * @param pixelRatio Device pixel ratio.
+ */
+export function getQuantizedSizePixels(
+  cssWidth: number,
+  pixelRatio: number
+): number {
+  if (cssWidth === 0) return 0;
+  const devicePixels = cssWidth * pixelRatio;
+  const quantized =
+    Math.floor(devicePixels / SIZE_QUANTUM_PIXELS) * SIZE_QUANTUM_PIXELS;
+  return clamp(quantized, MINIMUM_SIZE_PIXELS, MAXIMUM_SIZE_PIXELS);
+}
+
+/**
+ * Build the SVG polygon `points` for a contour overlay, re-origined on the
+ * slice center height.
+ * @param contour Probe contour to render.
+ * @param centerHeightMillimeters Height the slice is currently centered on, in probe-local mm.
+ */
+export function getContourPolygonPoints(
+  contour: ProbeContour,
+  centerHeightMillimeters: number
+): string {
+  return contour.points
+    .map(({ x, y }) => `${x},${centerHeightMillimeters - y}`)
+    .join(" ");
+}
+
+/**
+ * Map a pointer position to a device-pixel coordinate on the slice canvas,
+ * or null when outside the canvas's bounds.
+ * @param rect Canvas element's bounding rect.
+ * @param clientX Pointer's viewport x coordinate.
+ * @param clientY Pointer's viewport y coordinate.
+ * @param sizePixels Edge length of the square slice, in pixels.
+ */
+export function getSlicePixelFromRect(
+  rect: DOMRect,
+  clientX: number,
+  clientY: number,
+  sizePixels: number
+): { x: number; y: number } | null {
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const x = Math.floor(((clientX - rect.left) / rect.width) * sizePixels);
+  const y = Math.floor(((clientY - rect.top) / rect.height) * sizePixels);
+  if (x < 0 || y < 0 || x >= sizePixels || y >= sizePixels) return null;
+  return { x, y };
+}
+
+/**
+ * Format a slice extent for display, rounded to avoid runs of float noise.
+ * @param extentMillimeters Extent to format, in mm.
+ */
+export function formatSliceExtentMillimeters(
+  extentMillimeters: number
+): string {
+  return Number(extentMillimeters.toPrecision(2)).toString();
 }

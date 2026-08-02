@@ -1,4 +1,8 @@
-import { type ComponentMountingOptions, mount } from "@vue/test-utils";
+import {
+  type ComponentMountingOptions,
+  mount,
+  type VueWrapper
+} from "@vue/test-utils";
 import type { Component } from "vue";
 import { Notify, Quasar } from "quasar";
 import { createI18n } from "vue-i18n";
@@ -38,8 +42,7 @@ export function makeTestScene(): Scene {
 }
 
 /**
- * Initialize Babylon's CSG2 from the bundled `manifold-3d` package, mirroring
- * `initializeCSG2` in `babylon-runtime.service.ts`.
+ * Initialize Babylon's CSG2 from the bundled `manifold-3d` package.
  */
 export async function initializeTestCSG2(): Promise<void> {
   if (IsCSG2Ready()) return;
@@ -53,9 +56,8 @@ export async function initializeTestCSG2(): Promise<void> {
 }
 
 /**
- * Build a real Babylon `Scene` backed by a `NullEngine`, along with a
- * `GizmoManager` (both gizmos enabled) and a `SelectionOutlineLayer`, for
- * tests that need to exercise probe gizmo attachment and selection.
+ * Build a real Babylon `Scene`, `GizmoManager` (both gizmos enabled), and
+ * `SelectionOutlineLayer`, for tests exercising probe gizmo attachment.
  */
 export function makeTestSceneWithGizmo(): {
   scene: Scene;
@@ -81,7 +83,7 @@ export function makeTestSceneWithGizmo(): {
 
 /**
  * Short-circuit `DracoDecoder`'s lazy worker pool construction with an
- * (unused) empty pool, so it doesn't fetch the real wasm from a CDN.
+ * empty pool, so it never fetches the real wasm from a CDN.
  */
 export function stubDracoDecoder(): void {
   DracoDecoder.ResetDefault(true);
@@ -105,9 +107,8 @@ export function mountWithQuasar<T extends Component>(
     ...mountOptions,
     global: {
       ...mountOptions.global,
-      // Matches the app's own `framework.plugins` (quasar.config.ts) so
-      // components calling `useQuasar().notify(...)` don't blow up. Spread after `...mountOptions.global` so a caller's
-      // own `global.plugins` is merged in rather than clobbering this array.
+      // Spread after `...mountOptions.global` so a caller's own
+      // `global.plugins` is merged in rather than clobbering this array.
       plugins: [
         [Quasar, { plugins: { Notify } }],
         createTestI18n(),
@@ -116,4 +117,49 @@ export function mountWithQuasar<T extends Component>(
       ]
     }
   });
+}
+
+/**
+ * Mount a Quasar dialog component, attached to `document.body` so its
+ * teleported content is queryable, and call its exposed `show()`.
+ * @param component Dialog component to mount.
+ * @param options Mounting options, plus an optional `pinia` instance.
+ */
+export async function mountDialogWithQuasar<T extends Component>(
+  component: T,
+  options: ComponentMountingOptions<T> & { pinia?: Pinia } = {}
+): Promise<VueWrapper<{ show(): void }>> {
+  const wrapper = mountWithQuasar(component, {
+    ...options,
+    attachTo: options.attachTo ?? document.body
+  }) as unknown as VueWrapper<{ show(): void }>;
+
+  wrapper.vm.show();
+  await wrapper.vm.$nextTick();
+  return wrapper;
+}
+
+/**
+ * Track mounted wrappers so they can all be unmounted together, e.g. from
+ * an `afterEach`.
+ */
+export function createWrapperRegistry<T extends { unmount(): void }>(): {
+  track(wrapper: T): T;
+  unmountAll(): void;
+} {
+  const wrappers: T[] = [];
+  return {
+    track(wrapper: T): T {
+      wrappers.push(wrapper);
+      return wrapper;
+    },
+    unmountAll(): void {
+      wrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    }
+  };
+}
+
+/** Resolve after the current microtask queue drains. */
+export async function flushMicrotasks(): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0));
 }

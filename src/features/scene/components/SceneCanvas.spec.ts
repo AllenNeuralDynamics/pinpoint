@@ -19,6 +19,7 @@ import type {
 import { shallowRef } from "vue";
 import SceneCanvas from "./SceneCanvas.vue";
 import {
+  createWrapperRegistry,
   initializeTestCSG2,
   makeTestSceneWithGizmo,
   mountWithQuasar
@@ -98,7 +99,7 @@ type CanvasWrapper = VueWrapper<InstanceType<typeof SceneCanvas>>;
 // Mounted wrappers aren't teleported, but SceneCanvas's `onUnmounted` disposes
 // the runtime, and stray unresolved `watchEffect`s from a prior test could
 // otherwise fire against the next test's mocks -- unmount explicitly.
-const mountedWrappers: CanvasWrapper[] = [];
+const wrappers = createWrapperRegistry<CanvasWrapper>();
 
 /**
  * Build a `BabylonRuntimeService`-shaped stub whose `init` synchronously
@@ -146,10 +147,11 @@ function makeRuntimeStub() {
  * `AtlasHierarchy.spec.ts`).
  */
 async function mountCanvas(runtime = makeRuntimeStub()) {
-  const wrapper = mountWithQuasar(SceneCanvas, {
-    global: { provide: { [BabylonRuntimeServiceKey as symbol]: runtime } }
-  }) as CanvasWrapper;
-  mountedWrappers.push(wrapper);
+  const wrapper = wrappers.track(
+    mountWithQuasar(SceneCanvas, {
+      global: { provide: { [BabylonRuntimeServiceKey as symbol]: runtime } }
+    }) as CanvasWrapper
+  );
   await flushPromises();
   await flushPromises();
   return { wrapper, runtime };
@@ -176,7 +178,7 @@ describe("SceneCanvas", () => {
   });
 
   afterEach(() => {
-    mountedWrappers.splice(0).forEach(wrapper => wrapper.unmount());
+    wrappers.unmountAll();
   });
 
   it("initializes the runtime with the mounted canvas element", async () => {

@@ -33,15 +33,8 @@ export const useFavoriteAtlasesStore = defineStore(
       if (index !== -1) sourceList.splice(index, 1);
     }
 
-    /**
-     * Remove all favorites.
-     */
-    function reset() {
-      favorites.value = {};
-    }
-
     const state = { favorites };
-    const actions = { add, remove, reset };
+    const actions = { add, remove };
     return { ...state, ...actions };
   },
   { persist: true }
