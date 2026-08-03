@@ -12,9 +12,9 @@ Automatically update the height of a textarea depending on the content.
 
 ```vue
 <script setup lang="ts">
-import { useTextareaAutosize } from "@vueuse/core";
+import { useTextareaAutosize } from '@vueuse/core'
 
-const { textarea, input } = useTextareaAutosize();
+const { textarea, input } = useTextareaAutosize()
 </script>
 
 <template>
@@ -50,9 +50,9 @@ If you need support for the rows attribute on a textarea element, then you shoul
 
 ```vue
 <script setup lang="ts">
-import { useTextareaAutosize } from "@vueuse/core";
+import { useTextareaAutosize } from '@vueuse/core'
 
-const { textarea, input } = useTextareaAutosize({ styleProp: "minHeight" });
+const { textarea, input } = useTextareaAutosize({ styleProp: 'minHeight' })
 </script>
 
 <template>
@@ -72,12 +72,12 @@ Use the `maxHeight` option to cap the textarea height in pixels while keeping au
 
 ```vue
 <script setup lang="ts">
-import { useTextareaAutosize } from "@vueuse/core";
+import { useTextareaAutosize } from '@vueuse/core'
 
 const { textarea, input } = useTextareaAutosize({
   maxHeight: 180,
-  styleProp: "minHeight"
-});
+  styleProp: 'minHeight',
+})
 </script>
 
 <template>
@@ -96,26 +96,26 @@ const { textarea, input } = useTextareaAutosize({
 ```ts
 export interface UseTextareaAutosizeOptions extends ConfigurableWindow {
   /** Textarea element to autosize. */
-  element?: MaybeRef<HTMLTextAreaElement | undefined | null>;
+  element?: MaybeRef<HTMLTextAreaElement | undefined | null>
   /** Textarea content. */
-  input?: MaybeRef<string>;
+  input?: MaybeRef<string>
   /** Maximum autosized height in pixels. */
-  maxHeight?: number;
+  maxHeight?: number
   /** Watch sources that should trigger a textarea resize. */
-  watch?: WatchSource | MultiWatchSources;
+  watch?: WatchSource | MultiWatchSources
   /** Function called when the textarea size changes. */
-  onResize?: () => void;
+  onResize?: () => void
   /** Specify style target to apply the height based on textarea content. If not provided it will use textarea it self.  */
-  styleTarget?: MaybeRef<HTMLElement | undefined>;
+  styleTarget?: MaybeRef<HTMLElement | undefined>
   /** Specify the style property that will be used to manipulate height. Can be `height | minHeight`. Default value is `height`. */
-  styleProp?: "height" | "minHeight";
+  styleProp?: "height" | "minHeight"
 }
 export interface UseTextareaAutosizeReturn {
-  textarea: Ref<HTMLTextAreaElement | undefined | null>;
-  input: Ref<string>;
-  triggerResize: () => void;
+  textarea: Ref<HTMLTextAreaElement | undefined | null>
+  input: Ref<string>
+  triggerResize: () => void
 }
 export declare function useTextareaAutosize(
-  options?: UseTextareaAutosizeOptions
-): UseTextareaAutosizeReturn;
+  options?: UseTextareaAutosizeOptions,
+): UseTextareaAutosizeReturn
 ```

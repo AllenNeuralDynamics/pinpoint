@@ -9,17 +9,14 @@ Observe performance metrics.
 ## Usage
 
 ```ts
-import { usePerformanceObserver } from "@vueuse/core";
+import { usePerformanceObserver } from '@vueuse/core'
 
-const entrys = ref<PerformanceEntry[]>([]);
-usePerformanceObserver(
-  {
-    entryTypes: ["paint"]
-  },
-  list => {
-    entrys.value = list.getEntries();
-  }
-);
+const entrys = ref<PerformanceEntry[]>([])
+usePerformanceObserver({
+  entryTypes: ['paint'],
+}, (list) => {
+  entrys.value = list.getEntries()
+})
 ```
 
 ## Type Declarations
@@ -32,8 +29,8 @@ export type UsePerformanceObserverOptions = PerformanceObserverInit &
      *
      * @default true
      */
-    immediate?: boolean;
-  };
+    immediate?: boolean
+  }
 /**
  * Observe performance metrics.
  *
@@ -42,10 +39,10 @@ export type UsePerformanceObserverOptions = PerformanceObserverInit &
  */
 export declare function usePerformanceObserver(
   options: UsePerformanceObserverOptions,
-  callback: PerformanceObserverCallback
+  callback: PerformanceObserverCallback,
 ): {
-  isSupported: UseSupportedReturn;
-  start: () => void;
-  stop: () => void;
-};
+  isSupported: UseSupportedReturn
+  start: () => void
+  stop: () => void
+}
 ```

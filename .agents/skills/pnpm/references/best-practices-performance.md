@@ -52,8 +52,8 @@ Build-script approval is a single `allowBuilds` map (replaces `onlyBuiltDependen
 ```yaml title="pnpm-workspace.yaml"
 allowBuilds:
   esbuild: true
-  "@swc/core": true
-  core-js: false # explicitly skip
+  '@swc/core': true
+  core-js: false      # explicitly skip
 ```
 
 Packages not listed are treated as unreviewed (blocked by default). See `features-supply-chain-security` for the full build-approval workflow.
@@ -111,7 +111,6 @@ pnpm -r --parallel run build
 ```
 
 Control concurrency:
-
 ```yaml title="pnpm-workspace.yaml"
 workspaceConcurrency: 8
 ```
@@ -143,7 +142,6 @@ pnpm -r run build
 ```
 
 For explicit sequential builds:
-
 ```bash
 pnpm -r --workspace-concurrency=1 run build
 ```
@@ -158,7 +156,7 @@ registries:
 fetchRetries: 3
 fetchRetryMintimeout: 10000
 fetchRetryMaxtimeout: 60000
-networkConcurrency: 16 # auto: clamp(workers x 3, 16, 64)
+networkConcurrency: 16          # auto: clamp(workers x 3, 16, 64)
 httpProxy: http://proxy.company.com:8080
 httpsProxy: http://proxy.company.com:8080
 ```
@@ -174,7 +172,6 @@ sharedWorkspaceLockfile: true
 ```
 
 Benefits:
-
 - Single source of truth
 - Faster resolution
 - Consistent versions across workspace
@@ -229,7 +226,7 @@ optimisticRepeatInstall: true
 # Build approval (only what's necessary)
 allowBuilds:
   esbuild: true
-  "@swc/core": true
+  '@swc/core': true
 
 # Network
 fetchRetries: 3
@@ -244,15 +241,15 @@ enableGlobalVirtualStore: true
 
 ## Quick Reference
 
-| Scenario              | Command/Setting                              |
-| --------------------- | -------------------------------------------- |
-| CI installs           | `pnpm ci` / `pnpm install --frozen-lockfile` |
-| Offline development   | `--prefer-offline`                           |
-| Control native builds | `allowBuilds` map                            |
-| Parallel workspace    | `pnpm -r --parallel run build`               |
-| Build changed only    | `pnpm --filter "...[origin/main]" build`     |
-| Clean store           | `pnpm store prune`                           |
-| Many worktrees/agents | `enableGlobalVirtualStore: true`             |
+| Scenario | Command/Setting |
+|----------|-----------------|
+| CI installs | `pnpm ci` / `pnpm install --frozen-lockfile` |
+| Offline development | `--prefer-offline` |
+| Control native builds | `allowBuilds` map |
+| Parallel workspace | `pnpm -r --parallel run build` |
+| Build changed only | `pnpm --filter "...[origin/main]" build` |
+| Clean store | `pnpm store prune` |
+| Many worktrees/agents | `enableGlobalVirtualStore: true` |
 
 <!--
 Source references:
@@ -261,3 +258,4 @@ Source references:
 - https://pnpm.io/filtering
 - https://pnpm.io/global-virtual-store
 -->
+

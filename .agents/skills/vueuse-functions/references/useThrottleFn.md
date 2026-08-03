@@ -12,13 +12,13 @@ Throttle execution of a function. Especially useful for rate limiting execution 
 ## Usage
 
 ```ts
-import { useThrottleFn } from "@vueuse/core";
+import { useThrottleFn } from '@vueuse/core'
 
 const throttledFn = useThrottleFn(() => {
   // do something, it will be called at most 1 time per second
-}, 1000);
+}, 1000)
 
-useEventListener(window, "resize", throttledFn);
+useEventListener(window, 'resize', throttledFn)
 ```
 
 ## Recommended Reading
@@ -52,6 +52,6 @@ export declare function useThrottleFn<T extends FunctionArgs>(
   ms?: MaybeRefOrGetter<number>,
   trailing?: boolean,
   leading?: boolean,
-  rejectOnCancel?: boolean
-): PromisifyFn<T>;
+  rejectOnCancel?: boolean,
+): PromisifyFn<T>
 ```

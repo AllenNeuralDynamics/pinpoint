@@ -21,65 +21,71 @@ tags: [vue3, testing, async, defineAsyncComponent, flushPromises, vitest]
 **Incorrect:**
 
 ```javascript
-import { mount } from "@vue/test-utils";
-import { defineAsyncComponent } from "vue";
+import { mount } from '@vue/test-utils'
+import { defineAsyncComponent } from 'vue'
 
-const AsyncWidget = defineAsyncComponent(() => import("./Widget.vue"));
+const AsyncWidget = defineAsyncComponent(() =>
+  import('./Widget.vue')
+)
 
-test("renders async component", () => {
-  const wrapper = mount(AsyncWidget);
+test('renders async component', () => {
+  const wrapper = mount(AsyncWidget)
 
   // FAILS: Component hasn't loaded yet
-  expect(wrapper.text()).toContain("Widget Content");
-});
+  expect(wrapper.text()).toContain('Widget Content')
+})
 ```
 
 **Correct:**
 
 ```javascript
-import { mount, flushPromises } from "@vue/test-utils";
-import { defineAsyncComponent, nextTick } from "vue";
+import { mount, flushPromises } from '@vue/test-utils'
+import { defineAsyncComponent, nextTick } from 'vue'
 
-const AsyncWidget = defineAsyncComponent(() => import("./Widget.vue"));
+const AsyncWidget = defineAsyncComponent(() =>
+  import('./Widget.vue')
+)
 
-test("renders async component", async () => {
-  const wrapper = mount(AsyncWidget);
+test('renders async component', async () => {
+  const wrapper = mount(AsyncWidget)
 
   // Wait for async component to load
-  await flushPromises();
+  await flushPromises()
 
-  expect(wrapper.text()).toContain("Widget Content");
-});
+  expect(wrapper.text()).toContain('Widget Content')
+})
 
-test("shows loading state initially", async () => {
+test('shows loading state initially', async () => {
   const AsyncWithLoading = defineAsyncComponent({
-    loader: () => import("./Widget.vue"),
-    loadingComponent: { template: "<div>Loading...</div>" },
+    loader: () => import('./Widget.vue'),
+    loadingComponent: { template: '<div>Loading...</div>' },
     delay: 0
-  });
+  })
 
-  const wrapper = mount(AsyncWithLoading);
+  const wrapper = mount(AsyncWithLoading)
 
   // Check loading state immediately
-  expect(wrapper.text()).toContain("Loading...");
+  expect(wrapper.text()).toContain('Loading...')
 
   // Wait for component to load
-  await flushPromises();
+  await flushPromises()
 
   // Check final state
-  expect(wrapper.text()).toContain("Widget Content");
-});
+  expect(wrapper.text()).toContain('Widget Content')
+})
 ```
 
 ## Testing with Suspense
 
 ```javascript
-import { mount, flushPromises } from "@vue/test-utils";
-import { Suspense, defineAsyncComponent, h } from "vue";
+import { mount, flushPromises } from '@vue/test-utils'
+import { Suspense, defineAsyncComponent, h } from 'vue'
 
-const AsyncWidget = defineAsyncComponent(() => import("./Widget.vue"));
+const AsyncWidget = defineAsyncComponent(() =>
+  import('./Widget.vue')
+)
 
-test("renders async component with Suspense", async () => {
+test('renders async component with Suspense', async () => {
   const wrapper = mount({
     components: { AsyncWidget },
     template: `
@@ -90,46 +96,46 @@ test("renders async component with Suspense", async () => {
         </template>
       </Suspense>
     `
-  });
+  })
 
   // Initially shows fallback
-  expect(wrapper.text()).toContain("Loading...");
+  expect(wrapper.text()).toContain('Loading...')
 
   // Wait for async resolution
-  await flushPromises();
+  await flushPromises()
 
   // Now shows actual content
-  expect(wrapper.text()).toContain("Widget Content");
-});
+  expect(wrapper.text()).toContain('Widget Content')
+})
 ```
 
 ## Testing Error States
 
 ```javascript
-import { mount, flushPromises } from "@vue/test-utils";
-import { defineAsyncComponent } from "vue";
+import { mount, flushPromises } from '@vue/test-utils'
+import { defineAsyncComponent } from 'vue'
 
-test("shows error component on load failure", async () => {
+test('shows error component on load failure', async () => {
   const AsyncWithError = defineAsyncComponent({
-    loader: () => Promise.reject(new Error("Failed to load")),
-    errorComponent: { template: "<div>Error loading component</div>" }
-  });
+    loader: () => Promise.reject(new Error('Failed to load')),
+    errorComponent: { template: '<div>Error loading component</div>' }
+  })
 
-  const wrapper = mount(AsyncWithError);
+  const wrapper = mount(AsyncWithError)
 
-  await flushPromises();
+  await flushPromises()
 
-  expect(wrapper.text()).toContain("Error loading component");
-});
+  expect(wrapper.text()).toContain('Error loading component')
+})
 ```
 
 ## Utilities Reference
 
-| Utility                          | Purpose                               |
-| -------------------------------- | ------------------------------------- |
-| `await flushPromises()`          | Resolves all pending promises         |
-| `await nextTick()`               | Waits for Vue's next DOM update cycle |
-| `await wrapper.trigger('click')` | Triggers event and waits for update   |
+| Utility | Purpose |
+|---------|---------|
+| `await flushPromises()` | Resolves all pending promises |
+| `await nextTick()` | Waits for Vue's next DOM update cycle |
+| `await wrapper.trigger('click')` | Triggers event and waits for update |
 
 ## Dynamic Import Handling
 
@@ -142,13 +148,13 @@ test("shows error component on load failure", async () => {
 
 ```javascript
 // If flushPromises() isn't sufficient, mock the import
-vi.mock("./Widget.vue", () => ({
-  default: { template: "<div>Widget Content</div>" }
-}));
+vi.mock('./Widget.vue', () => ({
+  default: { template: '<div>Widget Content</div>' }
+}))
 
 // Or use multiple flush calls for nested async operations
-await flushPromises();
-await flushPromises();
+await flushPromises()
+await flushPromises()
 ```
 
 ## References

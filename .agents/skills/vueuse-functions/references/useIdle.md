@@ -9,30 +9,30 @@ Tracks whether the user is being inactive.
 ## Usage
 
 ```ts
-import { useIdle } from "@vueuse/core";
+import { useIdle } from '@vueuse/core'
 
-const { idle, lastActive } = useIdle(5 * 60 * 1000); // 5 min
+const { idle, lastActive } = useIdle(5 * 60 * 1000) // 5 min
 
-console.log(idle.value); // true or false
+console.log(idle.value) // true or false
 ```
 
 Programatically resetting:
 
 ```ts
-import { useCounter, useIdle } from "@vueuse/core";
-import { watch } from "vue";
+import { useCounter, useIdle } from '@vueuse/core'
+import { watch } from 'vue'
 
-const { inc, count } = useCounter();
+const { inc, count } = useCounter()
 
-const { idle, lastActive, reset } = useIdle(5 * 60 * 1000); // 5 min
+const { idle, lastActive, reset } = useIdle(5 * 60 * 1000) // 5 min
 
-watch(idle, idleValue => {
+watch(idle, (idleValue) => {
   if (idleValue) {
-    inc();
-    console.log(`Triggered ${count.value} times`);
-    reset(); // restarts the idle timer. Does not change lastActive value
+    inc()
+    console.log(`Triggered ${count.value} times`)
+    reset() // restarts the idle timer. Does not change lastActive value
   }
-});
+})
 ```
 
 ## Component Usage
@@ -55,24 +55,24 @@ export interface UseIdleOptions
    *
    * @default ['mousemove', 'mousedown', 'resize', 'keydown', 'touchstart', 'wheel']
    */
-  events?: WindowEventName[];
+  events?: WindowEventName[]
   /**
    * Listen for document visibility change
    *
    * @default true
    */
-  listenForVisibilityChange?: boolean;
+  listenForVisibilityChange?: boolean
   /**
    * Initial state of the ref idle
    *
    * @default false
    */
-  initialState?: boolean;
+  initialState?: boolean
 }
 export interface UseIdleReturn extends Stoppable {
-  idle: ShallowRef<boolean>;
-  lastActive: ShallowRef<number>;
-  reset: () => void;
+  idle: ShallowRef<boolean>
+  lastActive: ShallowRef<number>
+  reset: () => void
 }
 /**
  * Tracks whether the user is being inactive.
@@ -83,6 +83,6 @@ export interface UseIdleReturn extends Stoppable {
  */
 export declare function useIdle(
   timeout?: number,
-  options?: UseIdleOptions
-): UseIdleReturn;
+  options?: UseIdleOptions,
+): UseIdleReturn
 ```

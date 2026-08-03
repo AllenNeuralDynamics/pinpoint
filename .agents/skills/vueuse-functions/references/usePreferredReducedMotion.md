@@ -9,9 +9,9 @@ Reactive [prefers-reduced-motion](https://developer.mozilla.org/en-US/docs/Web/C
 ## Usage
 
 ```ts
-import { usePreferredReducedMotion } from "@vueuse/core";
+import { usePreferredReducedMotion } from '@vueuse/core'
 
-const preferredMotion = usePreferredReducedMotion();
+const preferredMotion = usePreferredReducedMotion()
 ```
 
 ## Component Usage
@@ -27,7 +27,7 @@ const preferredMotion = usePreferredReducedMotion();
 ## Type Declarations
 
 ```ts
-export type ReducedMotionType = "reduce" | "no-preference";
+export type ReducedMotionType = "reduce" | "no-preference"
 /**
  * Reactive prefers-reduced-motion media query.
  *
@@ -37,6 +37,6 @@ export type ReducedMotionType = "reduce" | "no-preference";
  * @__NO_SIDE_EFFECTS__
  */
 export declare function usePreferredReducedMotion(
-  options?: ConfigurableWindow
-): ComputedRef<ReducedMotionType>;
+  options?: ConfigurableWindow,
+): ComputedRef<ReducedMotionType>
 ```

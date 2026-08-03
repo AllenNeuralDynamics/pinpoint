@@ -7,10 +7,10 @@ description: Configuring pnpm via pnpm-workspace.yaml (settings), the global con
 
 pnpm settings are split into **two** categories. Knowing where each goes is the single most important config concept in current pnpm:
 
-| Category                                                                                                    | Stored in                                                  | Format                   |
-| ----------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------ |
+| Category | Stored in | Format |
+|----------|-----------|--------|
 | **All pnpm/install settings** (`nodeLinker`, `hoistPattern`, `autoInstallPeers`, `overrides`, `catalog`, …) | `pnpm-workspace.yaml` (project) and `config.yaml` (global) | YAML, **camelCase** keys |
-| **Auth & registry credentials** (`_authToken`, `cert`, `key`, …)                                            | `.npmrc` (project, gitignored) and global `rc`             | INI                      |
+| **Auth & registry credentials** (`_authToken`, `cert`, `key`, …) | `.npmrc` (project, gitignored) and global `rc` | INI |
 
 > **Important changes:** pnpm no longer reads settings from the `pnpm` field of `package.json`, and `.npmrc` is now used **only** for authentication/registry credentials. Everything else belongs in `pnpm-workspace.yaml`. Keys in YAML are **camelCase** (e.g. `nodeLinker`), not the kebab-case used by old `.npmrc` files.
 
@@ -21,23 +21,23 @@ Place at the workspace/project root. Even a single-package project uses this fil
 ```yaml title="pnpm-workspace.yaml"
 # Workspace packages (omit for a single-package repo)
 packages:
-  - "packages/*"
-  - "apps/*"
-  - "!**/test/**"
+  - 'packages/*'
+  - 'apps/*'
+  - '!**/test/**'
 
 # Common install settings (camelCase)
-nodeLinker: isolated # isolated (default) | hoisted | pnp
+nodeLinker: isolated          # isolated (default) | hoisted | pnp
 autoInstallPeers: true
 strictPeerDependencies: false
-savePrefix: "^"
+savePrefix: '^'
 saveExact: false
 hoistPattern:
-  - "*eslint*"
-  - "*babel*"
+  - '*eslint*'
+  - '*babel*'
 publicHoistPattern: []
 shamefullyHoist: false
 dedupeDirectDeps: false
-resolutionMode: highest # highest | time-based | lowest-direct
+resolutionMode: highest       # highest | time-based | lowest-direct
 
 # Centralized version management
 catalog:
@@ -46,20 +46,20 @@ catalog:
 # Force dependency versions (root only)
 overrides:
   lodash: ^4.17.21
-  "foo@^1.0.0>bar": ^2.0.0
+  'foo@^1.0.0>bar': ^2.0.0
 
 # Extend/patch broken package manifests
 packageExtensions:
   react-redux:
     peerDependencies:
-      react-dom: "*"
+      react-dom: '*'
 
 # Peer dependency rules
 peerDependencyRules:
   ignoreMissing:
-    - "@babel/*"
+    - '@babel/*'
   allowedVersions:
-    react: "17 || 18"
+    react: '17 || 18'
 ```
 
 ## Global configuration (config.yaml)
@@ -83,7 +83,7 @@ packageConfigs:
   project-1:
     saveExact: true
   project-2:
-    savePrefix: "~"
+    savePrefix: '~'
   # Array form: pattern-matched rules
   # - match: ['project-1', 'project-2']
   #   modulesDir: node_modules
@@ -109,7 +109,7 @@ Configure registries themselves (non-secret) in `pnpm-workspace.yaml`:
 ```yaml title="pnpm-workspace.yaml"
 registries:
   default: https://registry.npmjs.org/
-  "@my-org": https://private.example.com/
+  '@my-org': https://private.example.com/
 # Named registry aliases usable as a prefix, e.g. `pnpm add work:@corp/lib`
 namedRegistries:
   work: https://npm.work.example.com/
@@ -143,14 +143,14 @@ pnpm_config_save_exact=true pnpm add foo
 
 ## Notable settings that changed names
 
-| Old (removed)                                                                                                   | Replacement                               | Notes                                                                    |
-| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
-| `onlyBuiltDependencies`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, `onlyBuiltDependenciesFile`      | `allowBuilds: { name: true\|false }`      | Single map controlling build-script approval. See supply-chain-security. |
-| `managePackageManagerVersions`, `packageManagerStrict`, `packageManagerStrictVersion`, `COREPACK_ENABLE_STRICT` | `pmOnFail: download\|ignore\|warn\|error` | Behavior when running pnpm version ≠ declared one.                       |
-| `useNodeVersion`                                                                                                | `devEngines.runtime` (in `package.json`)  | Runtime pinning.                                                         |
-| `auditConfig.ignoreCves`                                                                                        | `auditConfig.ignoreGhsas`                 | Use GHSA IDs.                                                            |
-| `allowNonAppliedPatches`                                                                                        | `allowUnusedPatches`                      | `ignorePatchFailures` removed (patches now always throw).                |
-| `package.json#pnpm` field                                                                                       | `pnpm-workspace.yaml`                     | No longer read at all.                                                   |
+| Old (removed) | Replacement | Notes |
+|---------------|-------------|-------|
+| `onlyBuiltDependencies`, `neverBuiltDependencies`, `ignoredBuiltDependencies`, `onlyBuiltDependenciesFile` | `allowBuilds: { name: true\|false }` | Single map controlling build-script approval. See supply-chain-security. |
+| `managePackageManagerVersions`, `packageManagerStrict`, `packageManagerStrictVersion`, `COREPACK_ENABLE_STRICT` | `pmOnFail: download\|ignore\|warn\|error` | Behavior when running pnpm version ≠ declared one. |
+| `useNodeVersion` | `devEngines.runtime` (in `package.json`) | Runtime pinning. |
+| `auditConfig.ignoreCves` | `auditConfig.ignoreGhsas` | Use GHSA IDs. |
+| `allowNonAppliedPatches` | `allowUnusedPatches` | `ignorePatchFailures` removed (patches now always throw). |
+| `package.json#pnpm` field | `pnpm-workspace.yaml` | No longer read at all. |
 
 ## Package Manager / Runtime pinning (package.json)
 
@@ -158,11 +158,7 @@ pnpm_config_save_exact=true pnpm add foo
 {
   "packageManager": "pnpm@10.0.0",
   "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": ">=11.0.0 <12.0.0",
-      "onFail": "download"
-    },
+    "packageManager": { "name": "pnpm", "version": ">=11.0.0 <12.0.0", "onFail": "download" },
     "runtime": { "name": "node", "version": "22.x", "onFail": "download" }
   }
 }

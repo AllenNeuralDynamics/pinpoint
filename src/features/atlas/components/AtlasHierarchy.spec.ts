@@ -185,4 +185,23 @@ describe("AtlasHierarchy", () => {
       wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items")
     ).toEqual([]);
   });
+
+  it("sizes the scroller from the deepest row in the list", async () => {
+    const wrapper = await mountHierarchy();
+
+    expect(
+      wrapper.findComponent({ name: "QVirtualScrollStub" }).attributes("style")
+    ).toContain("--hierarchy-content-width: 88px");
+  });
+
+  it("drops the indent from the width while searching", async () => {
+    const wrapper = await mountHierarchy();
+
+    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.findComponent({ name: "QVirtualScrollStub" }).attributes("style")
+    ).toContain("--hierarchy-content-width: 56px");
+  });
 });

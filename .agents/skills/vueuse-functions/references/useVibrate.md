@@ -22,17 +22,17 @@ number of milliseconds to vibrate, or an array of integers describing
 a pattern of vibrations and pauses.
 
 ```ts
-import { useVibrate } from "@vueuse/core";
+import { useVibrate } from '@vueuse/core'
 
 // This vibrates the device for 300 ms
 // then pauses for 100 ms before vibrating the device again for another 300 ms:
-const { vibrate, stop, isSupported } = useVibrate({ pattern: [300, 100, 300] });
+const { vibrate, stop, isSupported } = useVibrate({ pattern: [300, 100, 300] })
 
 // Start the vibration, it will automatically stop when the pattern is complete:
-vibrate();
+vibrate()
 
 // But if you want to stop it, you can:
-stop();
+stop()
 ```
 
 ## Type Declarations
@@ -53,7 +53,7 @@ export interface UseVibrateOptions
    * @default []
    *
    */
-  pattern?: MaybeRefOrGetter<Arrayable<number>>;
+  pattern?: MaybeRefOrGetter<Arrayable<number>>
   /**
    * Interval to run a persistent vibration, in ms
    *
@@ -63,13 +63,13 @@ export interface UseVibrateOptions
    * @default 0
    *
    */
-  interval: number;
+  interval: number
 }
 export interface UseVibrateReturn extends Supportable {
-  pattern: MaybeRefOrGetter<Arrayable<number>>;
-  intervalControls?: Pausable;
-  vibrate: (pattern?: Arrayable<number>) => void;
-  stop: () => void;
+  pattern: MaybeRefOrGetter<Arrayable<number>>
+  intervalControls?: Pausable
+  vibrate: (pattern?: Arrayable<number>) => void
+  stop: () => void
 }
 /**
  * Reactive vibrate
@@ -81,6 +81,6 @@ export interface UseVibrateReturn extends Supportable {
  * @__NO_SIDE_EFFECTS__
  */
 export declare function useVibrate(
-  options?: UseVibrateOptions
-): UseVibrateReturn;
+  options?: UseVibrateOptions,
+): UseVibrateReturn
 ```

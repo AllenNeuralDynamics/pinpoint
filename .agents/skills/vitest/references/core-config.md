@@ -11,13 +11,13 @@ Vitest reads configuration from `vitest.config.ts` or `vite.config.ts`. It share
 
 ```ts
 // vitest.config.ts
-import { defineConfig } from "vitest/config";
+import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
     // test options
-  }
-});
+  },
+})
 ```
 
 ## Using with Existing Vite Config
@@ -27,14 +27,14 @@ Add Vitest types reference and use the `test` property:
 ```ts
 // vite.config.ts
 /// <reference types="vitest/config" />
-import { defineConfig } from "vite";
+import { defineConfig } from 'vite'
 
 export default defineConfig({
   test: {
     globals: true,
-    environment: "jsdom"
-  }
-});
+    environment: 'jsdom',
+  },
+})
 ```
 
 ## Merging Configs
@@ -43,17 +43,14 @@ If you have separate config files, use `mergeConfig`:
 
 ```ts
 // vitest.config.ts
-import { defineConfig, mergeConfig } from "vitest/config";
-import viteConfig from "./vite.config";
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config'
 
-export default mergeConfig(
-  viteConfig,
-  defineConfig({
-    test: {
-      environment: "jsdom"
-    }
-  })
-);
+export default mergeConfig(viteConfig, defineConfig({
+  test: {
+    environment: 'jsdom',
+  },
+}))
 ```
 
 ## Common Options
@@ -63,58 +60,58 @@ defineConfig({
   test: {
     // Enable global APIs (describe, it, expect) without imports
     globals: true,
-
+    
     // Test environment: 'node', 'jsdom', 'happy-dom'
-    environment: "node",
-
+    environment: 'node',
+    
     // Setup files to run before each test file
-    setupFiles: ["./tests/setup.ts"],
-
+    setupFiles: ['./tests/setup.ts'],
+    
     // Include patterns for test files
-    include: ["**/*.{test,spec}.{js,ts,jsx,tsx}"],
-
+    include: ['**/*.{test,spec}.{js,ts,jsx,tsx}'],
+    
     // Exclude patterns
-    exclude: ["**/node_modules/**", "**/dist/**"],
-
+    exclude: ['**/node_modules/**', '**/dist/**'],
+    
     // Limit test discovery to a directory (faster than broad excludes)
-    dir: "./src",
+    dir: './src',
 
     // Test timeout in ms
     testTimeout: 5000,
-
+    
     // Hook timeout in ms
     hookTimeout: 10000,
-
+    
     // Coverage configuration (v4+: define `include`, no more `all`)
     coverage: {
-      provider: "v8", // or 'istanbul'
-      reporter: ["text", "html"],
-      include: ["src/**/*.ts"]
+      provider: 'v8', // or 'istanbul'
+      reporter: ['text', 'html'],
+      include: ['src/**/*.ts'],
     },
-
+    
     // Run each file in an isolated module graph (threads/forks pools only)
     isolate: true,
-
+    
     // Pool: 'forks' (default), 'threads', 'vmForks', 'vmThreads'
-    pool: "forks",
-
+    pool: 'forks',
+    
     // v4+: pool options are top-level (poolOptions was removed)
     maxWorkers: 4,
     fileParallelism: true,
-
+    
     // Automatically clear mocks between tests
     clearMocks: true,
-
+    
     // Restore spies created with vi.spyOn between tests
     restoreMocks: true,
-
+    
     // Retry failed tests
     retry: 0,
-
+    
     // Stop after first failure
-    bail: 0
-  }
-});
+    bail: 0,
+  },
+})
 ```
 
 ## v4/v5 Config Changes
@@ -134,11 +131,11 @@ Use `mode` or `process.env.VITEST` for test-specific config:
 
 ```ts
 export default defineConfig(({ mode }) => ({
-  plugins: mode === "test" ? [] : [myPlugin()],
+  plugins: mode === 'test' ? [] : [myPlugin()],
   test: {
     // test options
-  }
-}));
+  },
+}))
 ```
 
 ## Projects (Monorepos)
@@ -149,24 +146,24 @@ Run different configurations in the same Vitest process:
 defineConfig({
   test: {
     projects: [
-      "packages/*",
+      'packages/*',
       {
         test: {
-          name: "unit",
-          include: ["tests/unit/**/*.test.ts"],
-          environment: "node"
-        }
+          name: 'unit',
+          include: ['tests/unit/**/*.test.ts'],
+          environment: 'node',
+        },
       },
       {
         test: {
-          name: "integration",
-          include: ["tests/integration/**/*.test.ts"],
-          environment: "jsdom"
-        }
-      }
-    ]
-  }
-});
+          name: 'integration',
+          include: ['tests/integration/**/*.test.ts'],
+          environment: 'jsdom',
+        },
+      },
+    ],
+  },
+})
 ```
 
 ## Key Points
@@ -178,7 +175,7 @@ defineConfig({
 - Test config uses `test` property, rest is Vite config
 - v4 requires **Vite >= 6** and **Node >= 20**; v5 is currently in beta
 
-<!--
+<!-- 
 Source references:
 - https://vitest.dev/guide/#configuring-vitest
 - https://vitest.dev/config/

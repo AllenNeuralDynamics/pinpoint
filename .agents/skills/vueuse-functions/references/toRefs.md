@@ -9,20 +9,20 @@ Extended [`toRefs`](https://vuejs.org/api/reactivity-utilities.html#torefs) that
 ## Usage
 
 ```ts
-import { toRefs } from "@vueuse/core";
-import { reactive, ref } from "vue";
+import { toRefs } from '@vueuse/core'
+import { reactive, ref } from 'vue'
 
-const objRef = ref({ a: "a", b: 0 });
-const arrRef = ref(["a", 0]);
+const objRef = ref({ a: 'a', b: 0 })
+const arrRef = ref(['a', 0])
 
-const { a, b } = toRefs(objRef);
-const [a, b] = toRefs(arrRef);
+const { a, b } = toRefs(objRef)
+const [a, b] = toRefs(arrRef)
 
-const obj = reactive({ a: "a", b: 0 });
-const arr = reactive(["a", 0]);
+const obj = reactive({ a: 'a', b: 0 })
+const arr = reactive(['a', 0])
 
-const { a, b } = toRefs(obj);
-const [a, b] = toRefs(arr);
+const { a, b } = toRefs(obj)
+const [a, b] = toRefs(arr)
 ```
 
 ## Use-cases
@@ -31,24 +31,24 @@ const [a, b] = toRefs(arr);
 
 ```vue
 <script lang="ts">
-import { toRefs, useVModel } from "@vueuse/core";
+import { toRefs, useVModel } from '@vueuse/core'
 
 export default {
   setup(props) {
-    const refs = toRefs(useVModel(props, "data"));
+    const refs = toRefs(useVModel(props, 'data'))
 
-    console.log(refs.a.value); // props.data.a
-    refs.a.value = "a"; // emit('update:data', { ...props.data, a: 'a' })
+    console.log(refs.a.value) // props.data.a
+    refs.a.value = 'a' // emit('update:data', { ...props.data, a: 'a' })
 
-    return { ...refs };
+    return { ...refs }
   }
-};
+}
 </script>
 
 <template>
   <div>
-    <input v-model="a" type="text" />
-    <input v-model="b" type="text" />
+    <input v-model="a" type="text">
+    <input v-model="b" type="text">
   </div>
 </template>
 ```
@@ -62,7 +62,7 @@ export interface ToRefsOptions {
    *
    * @default true
    */
-  replaceRef?: MaybeRefOrGetter<boolean>;
+  replaceRef?: MaybeRefOrGetter<boolean>
 }
 /**
  * Extended `toRefs` that also accepts refs of an object.
@@ -73,6 +73,6 @@ export interface ToRefsOptions {
  */
 export declare function toRefs<T extends object>(
   objectRef: MaybeRef<T>,
-  options?: ToRefsOptions
-): ToRefs<T>;
+  options?: ToRefsOptions,
+): ToRefs<T>
 ```

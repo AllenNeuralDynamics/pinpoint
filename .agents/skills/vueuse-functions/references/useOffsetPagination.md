@@ -9,18 +9,12 @@ Reactive offset pagination.
 ## Usage
 
 ```ts
-import { useOffsetPagination } from "@vueuse/core";
+import { useOffsetPagination } from '@vueuse/core'
 
-function fetchData({
-  currentPage,
-  currentPageSize
-}: {
-  currentPage: number;
-  currentPageSize: number;
-}) {
-  fetch(currentPage, currentPageSize).then(responseData => {
-    data.value = responseData;
-  });
+function fetchData({ currentPage, currentPageSize }: { currentPage: number, currentPageSize: number }) {
+  fetch(currentPage, currentPageSize).then((responseData) => {
+    data.value = responseData
+  })
 }
 
 const {
@@ -30,14 +24,14 @@ const {
   isFirstPage,
   isLastPage,
   prev,
-  next
+  next,
 } = useOffsetPagination({
   total: database.value.length,
   page: 1,
   pageSize: 10,
   onPageChange: fetchData,
-  onPageSizeChange: fetchData
-});
+  onPageSizeChange: fetchData,
+})
 ```
 
 ## Component Usage
@@ -52,29 +46,45 @@ const {
       prev,
       pageCount,
       isFirstPage,
-      isLastPage
+      isLastPage,
     }"
     :total="database.length"
     @page-change="fetchData"
     @page-size-change="fetchData"
   >
     <div class="gap-x-4 gap-y-2 grid-cols-2 inline-grid items-center">
-      <div opacity="50"> total: </div>
+      <div opacity="50">
+        total:
+      </div>
       <div>{{ database.length }}</div>
-      <div opacity="50"> pageCount: </div>
+      <div opacity="50">
+        pageCount:
+      </div>
       <div>{{ pageCount }}</div>
-      <div opacity="50"> currentPageSize: </div>
+      <div opacity="50">
+        currentPageSize:
+      </div>
       <div>{{ currentPageSize }}</div>
-      <div opacity="50"> currentPage: </div>
+      <div opacity="50">
+        currentPage:
+      </div>
       <div>{{ currentPage }}</div>
-      <div opacity="50"> isFirstPage: </div>
+      <div opacity="50">
+        isFirstPage:
+      </div>
       <div>{{ isFirstPage }}</div>
-      <div opacity="50"> isLastPage: </div>
+      <div opacity="50">
+        isLastPage:
+      </div>
       <div>{{ isLastPage }}</div>
     </div>
     <div>
-      <button :disabled="isFirstPage" @click="prev"> prev </button>
-      <button :disabled="isLastPage" @click="next"> next </button>
+      <button :disabled="isFirstPage" @click="prev">
+        prev
+      </button>
+      <button :disabled="isLastPage" @click="next">
+        next
+      </button>
     </div>
   </UseOffsetPagination>
 </template>
@@ -94,7 +104,7 @@ event listener:
       prev,
       pageCount,
       isFirstPage,
-      isLastPage
+      isLastPage,
     }"
     :total="database.length"
     @page-change="fetchData"
@@ -118,7 +128,7 @@ or props event callback:
       prev,
       pageCount,
       isFirstPage,
-      isLastPage
+      isLastPage,
     }"
     :total="database.length"
     :on-page-change="fetchData"
@@ -137,53 +147,53 @@ export interface UseOffsetPaginationOptions {
   /**
    * Total number of items.
    */
-  total?: MaybeRefOrGetter<number>;
+  total?: MaybeRefOrGetter<number>
   /**
    * The number of items to display per page.
    * @default 10
    */
-  pageSize?: MaybeRefOrGetter<number>;
+  pageSize?: MaybeRefOrGetter<number>
   /**
    * The current page number.
    * @default 1
    */
-  page?: MaybeRef<number>;
+  page?: MaybeRef<number>
   /**
    * Callback when the `page` change.
    */
   onPageChange?: (
-    returnValue: UnwrapNestedRefs<UseOffsetPaginationReturn>
-  ) => unknown;
+    returnValue: UnwrapNestedRefs<UseOffsetPaginationReturn>,
+  ) => unknown
   /**
    * Callback when the `pageSize` change.
    */
   onPageSizeChange?: (
-    returnValue: UnwrapNestedRefs<UseOffsetPaginationReturn>
-  ) => unknown;
+    returnValue: UnwrapNestedRefs<UseOffsetPaginationReturn>,
+  ) => unknown
   /**
    * Callback when the `pageCount` change.
    */
   onPageCountChange?: (
-    returnValue: UnwrapNestedRefs<UseOffsetPaginationReturn>
-  ) => unknown;
+    returnValue: UnwrapNestedRefs<UseOffsetPaginationReturn>,
+  ) => unknown
 }
 export interface UseOffsetPaginationReturn {
-  currentPage: Ref<number>;
-  currentPageSize: Ref<number>;
-  pageCount: ComputedRef<number>;
-  isFirstPage: ComputedRef<boolean>;
-  isLastPage: ComputedRef<boolean>;
-  prev: () => void;
-  next: () => void;
+  currentPage: Ref<number>
+  currentPageSize: Ref<number>
+  pageCount: ComputedRef<number>
+  isFirstPage: ComputedRef<boolean>
+  isLastPage: ComputedRef<boolean>
+  prev: () => void
+  next: () => void
 }
 export type UseOffsetPaginationInfinityPageReturn = Omit<
   UseOffsetPaginationReturn,
   "isLastPage"
->;
+>
 export declare function useOffsetPagination(
-  options: Omit<UseOffsetPaginationOptions, "total">
-): UseOffsetPaginationInfinityPageReturn;
+  options: Omit<UseOffsetPaginationOptions, "total">,
+): UseOffsetPaginationInfinityPageReturn
 export declare function useOffsetPagination(
-  options: UseOffsetPaginationOptions
-): UseOffsetPaginationReturn;
+  options: UseOffsetPaginationOptions,
+): UseOffsetPaginationReturn
 ```

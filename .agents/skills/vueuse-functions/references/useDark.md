@@ -15,10 +15,10 @@ Reactive dark mode with auto data persistence.
 ## Basic Usage
 
 ```ts
-import { useDark, useToggle } from "@vueuse/core";
+import { useDark, useToggle } from '@vueuse/core'
 
-const isDark = useDark();
-const toggleDark = useToggle(isDark);
+const isDark = useDark()
+const toggleDark = useToggle(isDark)
 ```
 
 ## Behavior
@@ -48,14 +48,14 @@ Still, you can also customize it to make it work with most CSS frameworks.
 For example:
 
 ```ts
-import { useDark } from "@vueuse/core";
+import { useDark } from '@vueuse/core'
 // ---cut---
 const isDark = useDark({
-  selector: "body",
-  attribute: "color-scheme",
-  valueDark: "dark",
-  valueLight: "light"
-});
+  selector: 'body',
+  attribute: 'color-scheme',
+  valueDark: 'dark',
+  valueLight: 'light',
+})
 ```
 
 will work like
@@ -79,13 +79,13 @@ will work like
 If the configuration above still does not fit your needs, you can use the`onChanged` option to take full control over how you handle updates.
 
 ```ts
-import { useDark } from "@vueuse/core";
+import { useDark } from '@vueuse/core'
 // ---cut---
 const isDark = useDark({
   onChanged(dark) {
     // update the dom, call the API or something
-  }
-});
+  },
+})
 ```
 
 ## Component Usage
@@ -93,7 +93,9 @@ const isDark = useDark({
 ```vue
 <template>
   <UseDark v-slot="{ isDark, toggleDark }">
-    <button @click="toggleDark()"> Is Dark: {{ isDark }} </button>
+    <button @click="toggleDark()">
+      Is Dark: {{ isDark }}
+    </button>
   </UseDark>
 </template>
 ```
@@ -110,13 +112,13 @@ export interface UseDarkOptions extends Omit<
    *
    * @default 'dark'
    */
-  valueDark?: string;
+  valueDark?: string
   /**
    * Value applying to the target element when isDark=false
    *
    * @default ''
    */
-  valueLight?: string;
+  valueLight?: string
   /**
    * A custom handler for handle the updates.
    * When specified, the default behavior will be overridden.
@@ -126,15 +128,15 @@ export interface UseDarkOptions extends Omit<
   onChanged?: (
     isDark: boolean,
     defaultHandler: (mode: BasicColorSchema) => void,
-    mode: BasicColorSchema
-  ) => void;
+    mode: BasicColorSchema,
+  ) => void
 }
-export type UseDarkReturn = WritableComputedRef<boolean>;
+export type UseDarkReturn = WritableComputedRef<boolean>
 /**
  * Reactive dark mode with auto data persistence.
  *
  * @see https://vueuse.org/useDark
  * @param options
  */
-export declare function useDark(options?: UseDarkOptions): UseDarkReturn;
+export declare function useDark(options?: UseDarkOptions): UseDarkReturn
 ```

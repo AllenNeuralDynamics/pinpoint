@@ -11,19 +11,19 @@ Reactive [`mediaDevices.getDisplayMedia`](https://developer.mozilla.org/en-US/do
 
 ```vue
 <script setup lang="ts">
-import { useDisplayMedia } from "@vueuse/core";
-import { useTemplateRef } from "vue";
+import { useDisplayMedia } from '@vueuse/core'
+import { useTemplateRef } from 'vue'
 
-const { stream, start } = useDisplayMedia();
+const { stream, start } = useDisplayMedia()
 
 // start streaming
-start();
+start()
 
-const videoRef = useTemplateRef("video");
+const videoRef = useTemplateRef('video')
 watchEffect(() => {
   // preview on a video element
-  videoRef.value.srcObject = stream.value;
-});
+  videoRef.value.srcObject = stream.value
+})
 </script>
 
 <template>
@@ -39,21 +39,21 @@ export interface UseDisplayMediaOptions extends ConfigurableNavigator {
    * If the stream is enabled
    * @default false
    */
-  enabled?: MaybeRef<boolean>;
+  enabled?: MaybeRef<boolean>
   /**
    * If the stream video media constraints
    */
-  video?: boolean | MediaTrackConstraints | undefined;
+  video?: boolean | MediaTrackConstraints | undefined
   /**
    * If the stream audio media constraints
    */
-  audio?: boolean | MediaTrackConstraints | undefined;
+  audio?: boolean | MediaTrackConstraints | undefined
 }
 export interface UseDisplayMediaReturn extends Supportable {
-  stream: ShallowRef<MediaStream | undefined>;
-  start: () => Promise<MediaStream | undefined>;
-  stop: () => void;
-  enabled: ShallowRef<boolean>;
+  stream: ShallowRef<MediaStream | undefined>
+  start: () => Promise<MediaStream | undefined>
+  stop: () => void
+  enabled: ShallowRef<boolean>
 }
 /**
  * Reactive `mediaDevices.getDisplayMedia` streaming
@@ -62,6 +62,6 @@ export interface UseDisplayMediaReturn extends Supportable {
  * @param options
  */
 export declare function useDisplayMedia(
-  options?: UseDisplayMediaOptions
-): UseDisplayMediaReturn;
+  options?: UseDisplayMediaOptions,
+): UseDisplayMediaReturn
 ```

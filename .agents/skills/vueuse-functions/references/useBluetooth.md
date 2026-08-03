@@ -18,17 +18,27 @@ N.B. This API is not available in Web Workers (not exposed via WorkerNavigator).
 
 ```vue
 <script setup lang="ts">
-import { useBluetooth } from "@vueuse/core";
+import { useBluetooth } from '@vueuse/core'
 
-const { isSupported, isConnected, device, requestDevice, server, error } =
-  useBluetooth({
-    acceptAllDevices: true
-  });
+const {
+  isSupported,
+  isConnected,
+  device,
+  requestDevice,
+  server,
+  error,
+} = useBluetooth({
+  acceptAllDevices: true,
+})
 </script>
 
 <template>
-  <button @click="requestDevice()"> Request Bluetooth Device </button>
-  <div v-if="error"> Error: {{ error }} </div>
+  <button @click="requestDevice()">
+    Request Bluetooth Device
+  </button>
+  <div v-if="error">
+    Error: {{ error }}
+  </div>
 </template>
 ```
 
@@ -53,55 +63,61 @@ Here, we use the characteristicvaluechanged event listener to handle reading bat
 
 ```vue
 <script setup lang="ts">
-import { useBluetooth, useEventListener, watchPausable } from "@vueuse/core";
+import { useBluetooth, useEventListener, watchPausable } from '@vueuse/core'
 
-const { isSupported, isConnected, device, requestDevice, server } =
-  useBluetooth({
-    acceptAllDevices: true,
-    optionalServices: ["battery_service"]
-  });
+const {
+  isSupported,
+  isConnected,
+  device,
+  requestDevice,
+  server,
+} = useBluetooth({
+  acceptAllDevices: true,
+  optionalServices: [
+    'battery_service',
+  ],
+})
 
-const batteryPercent = ref<undefined | number>();
+const batteryPercent = ref<undefined | number>()
 
-const isGettingBatteryLevels = ref(false);
+const isGettingBatteryLevels = ref(false)
 
 async function getBatteryLevels() {
-  isGettingBatteryLevels.value = true;
+  isGettingBatteryLevels.value = true
 
   // Get the battery service:
-  const batteryService = await server.getPrimaryService("battery_service");
+  const batteryService = await server.getPrimaryService('battery_service')
 
   // Get the current battery level
-  const batteryLevelCharacteristic =
-    await batteryService.getCharacteristic("battery_level");
+  const batteryLevelCharacteristic = await batteryService.getCharacteristic(
+    'battery_level',
+  )
 
   // Listen to when characteristic value changes on `characteristicvaluechanged` event:
-  useEventListener(
-    batteryLevelCharacteristic,
-    "characteristicvaluechanged",
-    event => {
-      batteryPercent.value = event.target.value.getUint8(0);
-    },
-    { passive: true }
-  );
+  useEventListener(batteryLevelCharacteristic, 'characteristicvaluechanged', (event) => {
+    batteryPercent.value = event.target.value.getUint8(0)
+  }, { passive: true })
 
   // Convert received buffer to number:
-  const batteryLevel = await batteryLevelCharacteristic.readValue();
+  const batteryLevel = await batteryLevelCharacteristic.readValue()
 
-  batteryPercent.value = await batteryLevel.getUint8(0);
+  batteryPercent.value = await batteryLevel.getUint8(0)
 }
 
-const { stop } = watchPausable(isConnected, newIsConnected => {
-  if (!newIsConnected || !server.value || isGettingBatteryLevels.value) return;
+const { stop } = watchPausable(isConnected, (newIsConnected) => {
+  if (!newIsConnected || !server.value || isGettingBatteryLevels.value)
+    return
   // Attempt to get the battery levels of the device:
-  getBatteryLevels();
+  getBatteryLevels()
   // We only want to run this on the initial connection, as we will use an event listener to handle updates:
-  stop();
-});
+  stop()
+})
 </script>
 
 <template>
-  <button @click="requestDevice()"> Request Bluetooth Device </button>
+  <button @click="requestDevice()">
+    Request Bluetooth Device
+  </button>
 </template>
 ```
 
@@ -117,7 +133,7 @@ export interface UseBluetoothRequestDeviceOptions {
    * of BluetoothServiceUUIDs, a name parameter, and a namePrefix parameter.
    *
    */
-  filters?: BluetoothLEScanFilter[] | undefined;
+  filters?: BluetoothLEScanFilter[] | undefined
   /**
    *
    * An array of BluetoothServiceUUIDs.
@@ -125,7 +141,7 @@ export interface UseBluetoothRequestDeviceOptions {
    * @see https://developer.mozilla.org/en-US/docs/Web/API/BluetoothRemoteGATTService/uuid
    *
    */
-  optionalServices?: BluetoothServiceUUID[] | undefined;
+  optionalServices?: BluetoothServiceUUID[] | undefined
 }
 export interface UseBluetoothOptions
   extends UseBluetoothRequestDeviceOptions, ConfigurableNavigator {
@@ -143,16 +159,16 @@ export interface UseBluetoothOptions
    * @default false
    *
    */
-  acceptAllDevices?: boolean;
+  acceptAllDevices?: boolean
 }
 export declare function useBluetooth(
-  options?: UseBluetoothOptions
-): UseBluetoothReturn;
+  options?: UseBluetoothOptions,
+): UseBluetoothReturn
 export interface UseBluetoothReturn extends Supportable {
-  isConnected: Readonly<ShallowRef<boolean>>;
-  device: ShallowRef<BluetoothDevice | undefined>;
-  requestDevice: () => Promise<void>;
-  server: ShallowRef<BluetoothRemoteGATTServer | undefined>;
-  error: ShallowRef<unknown | null>;
+  isConnected: Readonly<ShallowRef<boolean>>
+  device: ShallowRef<BluetoothDevice | undefined>
+  requestDevice: () => Promise<void>
+  server: ShallowRef<BluetoothRemoteGATTServer | undefined>
+  error: ShallowRef<unknown | null>
 }
 ```

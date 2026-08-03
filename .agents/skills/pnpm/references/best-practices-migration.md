@@ -79,14 +79,12 @@ pnpm import
 pnpm is strict about dependencies. If code imports a package not in `package.json`, it will fail.
 
 **Problem:**
-
 ```js
 // Works with npm (hoisted), fails with pnpm
-import lodash from "lodash"; // Not in dependencies, installed by another package
+import lodash from 'lodash' // Not in dependencies, installed by another package
 ```
 
 **Solution:** Add missing dependencies explicitly:
-
 ```bash
 pnpm add lodash
 ```
@@ -96,19 +94,16 @@ pnpm add lodash
 pnpm reports peer dependency issues by default.
 
 **Option 1:** Let pnpm auto-install (default in v8+):
-
 ```yaml title="pnpm-workspace.yaml"
 autoInstallPeers: true
 ```
 
 **Option 2:** Install manually:
-
 ```bash
 pnpm add react react-dom
 ```
 
 **Option 3:** Suppress warnings if acceptable:
-
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   ignoreMissing:
@@ -127,8 +122,8 @@ Or hoist specific packages:
 
 ```yaml title="pnpm-workspace.yaml"
 publicHoistPattern:
-  - "*eslint*"
-  - "*babel*"
+  - '*eslint*'
+  - '*babel*'
 ```
 
 ### Native Module Rebuilds
@@ -149,14 +144,12 @@ pnpm install
 ### From npm Workspaces
 
 1. Create `pnpm-workspace.yaml`:
-
    ```yaml
    packages:
-     - "packages/*"
+     - 'packages/*'
    ```
 
 2. Update internal dependencies to use workspace protocol:
-
    ```json
    {
      "dependencies": {
@@ -174,21 +167,18 @@ pnpm install
 ### From Yarn Workspaces
 
 1. Remove Yarn-specific files:
-
    ```bash
    rm yarn.lock .yarnrc.yml
    rm -rf .yarn
    ```
 
 2. Create `pnpm-workspace.yaml` matching `workspaces` in package.json:
-
    ```yaml
    packages:
-     - "packages/*"
+     - 'packages/*'
    ```
 
 3. Update `package.json` - remove Yarn workspace config if not needed:
-
    ```json
    {
      // Remove "workspaces" field (optional, pnpm uses pnpm-workspace.yaml)
@@ -196,11 +186,10 @@ pnpm install
    ```
 
 4. Convert workspace references:
-
    ```json
    // From Yarn
    "@myorg/utils": "*"
-
+   
    // To pnpm
    "@myorg/utils": "workspace:*"
    ```
@@ -219,7 +208,7 @@ pnpm -r run build
 # Lerna: run in specific package
 lerna run build --scope=@myorg/app
 
-# pnpm equivalent
+# pnpm equivalent  
 pnpm --filter @myorg/app run build
 
 # Lerna: publish
@@ -244,7 +233,7 @@ Keep only **auth/registry** in `.npmrc`; put everything else in `pnpm-workspace.
 ```yaml title="pnpm-workspace.yaml"
 registries:
   default: https://registry.npmjs.org/
-  "@myorg": https://npm.myorg.com/
+  '@myorg': https://npm.myorg.com/
 autoInstallPeers: true
 strictPeerDependencies: false
 ```
@@ -260,8 +249,8 @@ Most scripts work unchanged. Update pnpm-specific patterns:
     "build:all": "npm run build --workspaces",
     // pnpm: use -r flag
     "build:all": "pnpm -r run build",
-
-    // npm: run in specific workspace
+    
+    // npm: run in specific workspace  
     "dev:app": "npm run dev -w packages/app",
     // pnpm: use --filter
     "dev:app": "pnpm --filter @myorg/app run dev"
@@ -279,11 +268,10 @@ Update CI configuration:
 
 # After (pnpm)
 - uses: pnpm/action-setup@v4
-- run: pnpm install --frozen-lockfile # or: pnpm ci
+- run: pnpm install --frozen-lockfile   # or: pnpm ci
 ```
 
 Add to `package.json` for Corepack:
-
 ```json
 {
   "packageManager": "pnpm@10.0.0"
@@ -323,3 +311,4 @@ Source references:
 - https://pnpm.io/cli/import
 - https://pnpm.io/configuring
 -->
+

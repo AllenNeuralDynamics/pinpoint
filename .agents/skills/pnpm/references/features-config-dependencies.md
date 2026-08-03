@@ -40,9 +40,9 @@ A config dependency named `pnpm-plugin-*`, `@*/pnpm-plugin-*`, or `@pnpm/plugin-
 Because config deps install before the pnpmfile loads, you can import from them:
 
 ```js title=".pnpmfile.mjs"
-import { readPackage } from ".pnpm-config/my-hooks";
+import { readPackage } from '.pnpm-config/my-hooks'
 
-export const hooks = { readPackage };
+export const hooks = { readPackage }
 ```
 
 ### Share settings & catalogs via updateConfig
@@ -52,11 +52,11 @@ A plugin can inject settings/catalog entries through the `updateConfig` hook:
 ```js title="@myorg/pnpm-plugin-my-catalogs/pnpmfile.mjs"
 export const hooks = {
   updateConfig(config) {
-    config.catalogs.default ??= {};
-    config.catalogs.default["is-odd"] = "1.0.0";
-    return config;
+    config.catalogs.default ??= {}
+    config.catalogs.default['is-odd'] = '1.0.0'
+    return config
   }
-};
+}
 ```
 
 After installing it as a config dependency, consumers can use the catalog:

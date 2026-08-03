@@ -38,7 +38,7 @@ pnpm add -g --allow-build=esbuild esbuild       # global (replaces approve-build
 ### Escape hatch (dangerous)
 
 ```yaml title="pnpm-workspace.yaml"
-dangerouslyAllowAllBuilds: true # runs ALL build scripts now and in the future — avoid
+dangerouslyAllowAllBuilds: true   # runs ALL build scripts now and in the future — avoid
 ```
 
 ## Minimum release age
@@ -46,11 +46,11 @@ dangerouslyAllowAllBuilds: true # runs ALL build scripts now and in the future �
 Delay installing freshly published versions so malicious releases (usually pulled within an hour) are avoided. Applies to **all** deps, including transitive.
 
 ```yaml title="pnpm-workspace.yaml"
-minimumReleaseAge: 1440 # minutes; default 1440 (1 day) since v11
-minimumReleaseAgeExclude: # always install newest of these immediately
+minimumReleaseAge: 1440          # minutes; default 1440 (1 day) since v11
+minimumReleaseAgeExclude:        # always install newest of these immediately
   - webpack
-  - "@myorg/*"
-  - nx@21.6.5 # exempt a specific version
+  - '@myorg/*'
+  - nx@21.6.5                    # exempt a specific version
 ```
 
 - `minimumReleaseAgeStrict` — when no in-range version satisfies the age, fail (default when you set `minimumReleaseAge` yourself) vs. fall back.
@@ -61,16 +61,16 @@ minimumReleaseAgeExclude: # always install newest of these immediately
 Fail if a package's trust level **decreased** vs earlier releases (e.g. was published by a trusted publisher, now only has provenance or nothing).
 
 ```yaml title="pnpm-workspace.yaml"
-trustPolicy: no-downgrade # off (default) | no-downgrade
+trustPolicy: no-downgrade        # off (default) | no-downgrade
 trustPolicyExclude:
-  - "chokidar@4.0.3"
-trustPolicyIgnoreAfter: 525600 # ignore the check for pkgs published > N minutes ago
+  - 'chokidar@4.0.3'
+trustPolicyIgnoreAfter: 525600   # ignore the check for pkgs published > N minutes ago
 ```
 
 ## Block exotic transitive sources
 
 ```yaml title="pnpm-workspace.yaml"
-blockExoticSubdeps: true # default
+blockExoticSubdeps: true   # default
 ```
 
 When `true`, only **direct** dependencies may use exotic sources (git repos, direct tarball URLs); all transitive deps must come from a trusted source (registry, local path, workspace link, or trusted GitHub repos).

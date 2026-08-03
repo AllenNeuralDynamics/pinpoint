@@ -12,24 +12,26 @@ Reactive media controls for both `audio` and `video` elements
 
 ```vue
 <script setup lang="ts">
-import { useMediaControls } from "@vueuse/core";
-import { onMounted, useTemplateRef } from "vue";
+import { useMediaControls } from '@vueuse/core'
+import { onMounted, useTemplateRef } from 'vue'
 
-const video = useTemplateRef("video");
+const video = useTemplateRef('video')
 const { playing, currentTime, duration, volume } = useMediaControls(video, {
-  src: "video.mp4"
-});
+  src: 'video.mp4',
+})
 
 // Change initial media properties
 onMounted(() => {
-  volume.value = 0.5;
-  currentTime.value = 60;
-});
+  volume.value = 0.5
+  currentTime.value = 60
+})
 </script>
 
 <template>
   <video ref="video" />
-  <button @click="playing = !playing"> Play / Pause </button>
+  <button @click="playing = !playing">
+    Play / Pause
+  </button>
   <span>{{ currentTime }} / {{ duration }}</span>
 </template>
 ```
@@ -44,22 +46,25 @@ be `-1` if there is no selected track.
 
 ```vue
 <script setup lang="ts">
-import { useMediaControls } from "@vueuse/core";
-import { useTemplateRef } from "vue";
+import { useMediaControls } from '@vueuse/core'
+import { useTemplateRef } from 'vue'
 
-const video = useTemplateRef("video");
-const { tracks, enableTrack } = useMediaControls(video, {
-  src: "video.mp4",
+const video = useTemplateRef('video')
+const {
+  tracks,
+  enableTrack
+} = useMediaControls(video, {
+  src: 'video.mp4',
   tracks: [
     {
       default: true,
-      src: "./subtitles.vtt",
-      kind: "subtitles",
-      label: "English",
-      srcLang: "en"
-    }
+      src: './subtitles.vtt',
+      kind: 'subtitles',
+      label: 'English',
+      srcLang: 'en',
+    },
   ]
-});
+})
 </script>
 
 <template>
@@ -81,116 +86,116 @@ export interface UseMediaSource {
   /**
    * The source url for the media
    */
-  src: string;
+  src: string
   /**
    * The media codec type
    */
-  type?: string;
+  type?: string
   /**
    * Specifies the media query for the resource's intended media.
    */
-  media?: string;
+  media?: string
 }
 export interface UseMediaTextTrackSource {
   /**
    * Indicates that the track should be enabled unless the user's preferences indicate
    * that another track is more appropriate
    */
-  default?: boolean;
+  default?: boolean
   /**
    * How the text track is meant to be used. If omitted the default kind is subtitles.
    */
-  kind: TextTrackKind;
+  kind: TextTrackKind
   /**
    * A user-readable title of the text track which is used by the browser
    * when listing available text tracks.
    */
-  label: string;
+  label: string
   /**
    * Address of the track (.vtt file). Must be a valid URL. This attribute
    * must be specified and its URL value must have the same origin as the document
    */
-  src: string;
+  src: string
   /**
    * Language of the track text data. It must be a valid BCP 47 language tag.
    * If the kind attribute is set to subtitles, then srclang must be defined.
    */
-  srcLang: string;
+  srcLang: string
 }
 interface UseMediaControlsOptions extends ConfigurableDocument {
   /**
    * The source for the media, may either be a string, a `UseMediaSource` object, or a list
    * of `UseMediaSource` objects.
    */
-  src?: MaybeRefOrGetter<string | UseMediaSource | UseMediaSource[]>;
+  src?: MaybeRefOrGetter<string | UseMediaSource | UseMediaSource[]>
   /**
    * A list of text tracks for the media
    */
-  tracks?: MaybeRefOrGetter<UseMediaTextTrackSource[]>;
+  tracks?: MaybeRefOrGetter<UseMediaTextTrackSource[]>
 }
 export interface UseMediaTextTrack {
   /**
    * The index of the text track
    */
-  id: number;
+  id: number
   /**
    * The text track label
    */
-  label: string;
+  label: string
   /**
    * Language of the track text data. It must be a valid BCP 47 language tag.
    * If the kind attribute is set to subtitles, then srclang must be defined.
    */
-  language: string;
+  language: string
   /**
    * Specifies the display mode of the text track, either `disabled`,
    * `hidden`, or `showing`
    */
-  mode: TextTrackMode;
+  mode: TextTrackMode
   /**
    * How the text track is meant to be used. If omitted the default kind is subtitles.
    */
-  kind: TextTrackKind;
+  kind: TextTrackKind
   /**
    * Indicates the track's in-band metadata track dispatch type.
    */
-  inBandMetadataTrackDispatchType: string;
+  inBandMetadataTrackDispatchType: string
   /**
    * A list of text track cues
    */
-  cues: TextTrackCueList | null;
+  cues: TextTrackCueList | null
   /**
    * A list of active text track cues
    */
-  activeCues: TextTrackCueList | null;
+  activeCues: TextTrackCueList | null
 }
 export interface UseMediaControlsReturn {
-  currentTime: ShallowRef<number>;
-  duration: ShallowRef<number>;
-  waiting: ShallowRef<boolean>;
-  seeking: ShallowRef<boolean>;
-  ended: ShallowRef<boolean>;
-  stalled: ShallowRef<boolean>;
-  buffered: ShallowRef<[number, number][]>;
-  playing: ShallowRef<boolean>;
-  rate: ShallowRef<number>;
-  volume: ShallowRef<number>;
-  muted: ShallowRef<boolean>;
-  tracks: ShallowRef<UseMediaTextTrack[]>;
-  selectedTrack: ShallowRef<number>;
+  currentTime: ShallowRef<number>
+  duration: ShallowRef<number>
+  waiting: ShallowRef<boolean>
+  seeking: ShallowRef<boolean>
+  ended: ShallowRef<boolean>
+  stalled: ShallowRef<boolean>
+  buffered: ShallowRef<[number, number][]>
+  playing: ShallowRef<boolean>
+  rate: ShallowRef<number>
+  volume: ShallowRef<number>
+  muted: ShallowRef<boolean>
+  tracks: ShallowRef<UseMediaTextTrack[]>
+  selectedTrack: ShallowRef<number>
   enableTrack: (
     track: number | UseMediaTextTrack,
-    disableTracks?: boolean
-  ) => void;
-  disableTrack: (track?: number | UseMediaTextTrack) => void;
-  supportsPictureInPicture: boolean;
-  togglePictureInPicture: () => Promise<PictureInPictureWindow | void>;
-  isPictureInPicture: ShallowRef<boolean>;
-  onSourceError: EventHookOn<Event>;
-  onPlaybackError: EventHookOn<Event>;
+    disableTracks?: boolean,
+  ) => void
+  disableTrack: (track?: number | UseMediaTextTrack) => void
+  supportsPictureInPicture: boolean
+  togglePictureInPicture: () => Promise<PictureInPictureWindow | void>
+  isPictureInPicture: ShallowRef<boolean>
+  onSourceError: EventHookOn<Event>
+  onPlaybackError: EventHookOn<Event>
 }
 export declare function useMediaControls(
   target: MaybeRef<HTMLMediaElement | null | undefined>,
-  options?: UseMediaControlsOptions
-): UseMediaControlsReturn;
+  options?: UseMediaControlsOptions,
+): UseMediaControlsReturn
 ```

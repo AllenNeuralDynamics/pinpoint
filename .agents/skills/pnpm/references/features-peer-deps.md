@@ -22,7 +22,7 @@ On conflicting requirements (e.g. one dep needs `react@^16`, another `react@^17`
 ## Strict Peer Dependencies
 
 ```yaml title="pnpm-workspace.yaml"
-strictPeerDependencies: true # default false
+strictPeerDependencies: true   # default false
 ```
 
 When strict, commands fail on a missing or invalid peer dependency in the tree.
@@ -30,14 +30,14 @@ When strict, commands fail on a missing or invalid peer dependency in the tree.
 ## Resolve from workspace root
 
 ```yaml title="pnpm-workspace.yaml"
-resolvePeersFromWorkspaceRoot: true # default; install shared peers once at the root
+resolvePeersFromWorkspaceRoot: true   # default; install shared peers once at the root
 ```
 
 ## Deduplicate peers
 
 ```yaml title="pnpm-workspace.yaml"
-dedupePeerDependents: true # default; share package instances across projects when peers match
-dedupePeers: false # v10.33+: version-only peer suffixes (name@version), fewer instances
+dedupePeerDependents: true   # default; share package instances across projects when peers match
+dedupePeers: false           # v10.33+: version-only peer suffixes (name@version), fewer instances
 ```
 
 ## Peer Dependency Rules
@@ -45,12 +45,12 @@ dedupePeers: false # v10.33+: version-only peer suffixes (name@version), fewer i
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   ignoreMissing:
-    - "@babel/*"
+    - '@babel/*'
     - eslint
   allowedVersions:
-    react: "17 || 18"
+    react: '17 || 18'
   allowAny:
-    - "@types/*"
+    - '@types/*'
 ```
 
 ### ignoreMissing
@@ -60,7 +60,7 @@ Suppress warnings for missing peer dependencies. Patterns: exact name (`react`),
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   ignoreMissing:
-    - "@babel/*"
+    - '@babel/*'
     - eslint
     - webpack
 ```
@@ -72,8 +72,8 @@ Allow specific versions that would otherwise warn. Target a specific parent with
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   allowedVersions:
-    react: "17"
-    "button@2>react": "17" # only when react is a peer of button@2
+    react: '17'
+    'button@2>react': '17'   # only when react is a peer of button@2
 ```
 
 ### allowAny
@@ -83,7 +83,7 @@ Resolve matching peers from any version, ignoring the declared range.
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   allowAny:
-    - "@types/*"
+    - '@types/*'
     - eslint
 ```
 
@@ -95,7 +95,7 @@ Declaratively add a missing peer dependency without JS:
 packageExtensions:
   problematic-package:
     peerDependencies:
-      react: "*"
+      react: '*'
 ```
 
 For conditional logic, use a `readPackage` hook in `.pnpmfile.mjs` instead.
@@ -113,7 +113,7 @@ Workspace packages can satisfy peer dependencies:
   }
 }
 
-// packages/components/package.json
+// packages/components/package.json  
 {
   "peerDependencies": {
     "react": "^17.0.0 || ^18.0.0"
@@ -159,7 +159,7 @@ catalog:
 peerDependencyRules:
   ignoreMissing:
     - eslint
-    - "@typescript-eslint/parser"
+    - '@typescript-eslint/parser'
 ```
 
 ### Allow Multiple Major Versions
@@ -167,8 +167,8 @@ peerDependencyRules:
 ```yaml title="pnpm-workspace.yaml"
 peerDependencyRules:
   allowedVersions:
-    webpack: "4 || 5"
-    postcss: "7 || 8"
+    webpack: '4 || 5'
+    postcss: '7 || 8'
 ```
 
 ## Debugging Peer Dependencies
@@ -198,3 +198,4 @@ Source references:
 - https://pnpm.io/settings#autoinstallpeers
 - https://pnpm.io/cli/peers
 -->
+

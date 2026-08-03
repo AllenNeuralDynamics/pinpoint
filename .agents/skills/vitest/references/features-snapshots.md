@@ -10,24 +10,24 @@ Snapshot tests capture output and compare against stored references.
 ## Basic Snapshot
 
 ```ts
-import { expect, test } from "vitest";
+import { expect, test } from 'vitest'
 
-test("snapshot", () => {
-  const result = generateOutput();
-  expect(result).toMatchSnapshot();
-});
+test('snapshot', () => {
+  const result = generateOutput()
+  expect(result).toMatchSnapshot()
+})
 ```
 
 First run creates `.snap` file:
 
 ```js
 // __snapshots__/test.spec.ts.snap
-exports["snapshot 1"] = `
+exports['snapshot 1'] = `
 {
   "id": 1,
   "name": "test"
 }
-`;
+`
 ```
 
 ## Inline Snapshots
@@ -35,23 +35,23 @@ exports["snapshot 1"] = `
 Stored directly in test file:
 
 ```ts
-test("inline snapshot", () => {
-  const data = { foo: "bar" };
-  expect(data).toMatchInlineSnapshot();
-});
+test('inline snapshot', () => {
+  const data = { foo: 'bar' }
+  expect(data).toMatchInlineSnapshot()
+})
 ```
 
 Vitest updates the test file:
 
 ```ts
-test("inline snapshot", () => {
-  const data = { foo: "bar" };
+test('inline snapshot', () => {
+  const data = { foo: 'bar' }
   expect(data).toMatchInlineSnapshot(`
     {
       "foo": "bar",
     }
-  `);
-});
+  `)
+})
 ```
 
 ## File Snapshots
@@ -59,10 +59,10 @@ test("inline snapshot", () => {
 Compare against explicit file:
 
 ```ts
-test("render html", async () => {
-  const html = renderComponent();
-  await expect(html).toMatchFileSnapshot("./expected/component.html");
-});
+test('render html', async () => {
+  const html = renderComponent()
+  await expect(html).toMatchFileSnapshot('./expected/component.html')
+})
 ```
 
 ## Snapshot Hints
@@ -70,11 +70,11 @@ test("render html", async () => {
 Add descriptive hints:
 
 ```ts
-test("multiple snapshots", () => {
-  expect(header).toMatchSnapshot("header");
-  expect(body).toMatchSnapshot("body content");
-  expect(footer).toMatchSnapshot("footer");
-});
+test('multiple snapshots', () => {
+  expect(header).toMatchSnapshot('header')
+  expect(body).toMatchSnapshot('body content')
+  expect(footer).toMatchSnapshot('footer')
+})
 ```
 
 ## Object Shape Matching
@@ -82,34 +82,34 @@ test("multiple snapshots", () => {
 Match partial structure:
 
 ```ts
-test("shape snapshot", () => {
-  const data = {
-    id: Math.random(),
+test('shape snapshot', () => {
+  const data = { 
+    id: Math.random(), 
     created: new Date(),
-    name: "test"
-  };
-
+    name: 'test' 
+  }
+  
   expect(data).toMatchSnapshot({
     id: expect.any(Number),
-    created: expect.any(Date)
-  });
-});
+    created: expect.any(Date),
+  })
+})
 ```
 
 ## Error Snapshots
 
 ```ts
-test("error message", () => {
+test('error message', () => {
   expect(() => {
-    throw new Error("Something went wrong");
-  }).toThrowErrorMatchingSnapshot();
-});
+    throw new Error('Something went wrong')
+  }).toThrowErrorMatchingSnapshot()
+})
 
-test("inline error", () => {
+test('inline error', () => {
   expect(() => {
-    throw new Error("Bad input");
-  }).toThrowErrorMatchingInlineSnapshot(`[Error: Bad input]`);
-});
+    throw new Error('Bad input')
+  }).toThrowErrorMatchingInlineSnapshot(`[Error: Bad input]`)
+})
 ```
 
 ## Updating Snapshots
@@ -127,20 +127,20 @@ In CI (`process.env.CI`), Vitest **never writes** snapshots: mismatches, missing
 ## Visual & ARIA Snapshots (Browser Mode)
 
 ```ts
-import { expect, test } from "vitest";
-import { page } from "vitest/browser"; // v4: import from 'vitest/browser'
+import { expect, test } from 'vitest'
+import { page } from 'vitest/browser' // v4: import from 'vitest/browser'
 
-test("button looks correct", async () => {
-  await expect(page.getByRole("button")).toMatchScreenshot("primary-button");
-});
+test('button looks correct', async () => {
+  await expect(page.getByRole('button')).toMatchScreenshot('primary-button')
+})
 
 // ARIA snapshot — assert the accessibility tree (4.1+, experimental)
-test("nav structure", async () => {
-  await expect.element(page.getByRole("navigation")).toMatchAriaInlineSnapshot(`
+test('nav structure', async () => {
+  await expect.element(page.getByRole('navigation')).toMatchAriaInlineSnapshot(`
     - navigation "Main":
       - link "Home"
-  `);
-});
+  `)
+})
 ```
 
 ## Custom Snapshot Matchers (4.1+)
@@ -148,22 +148,18 @@ test("nav structure", async () => {
 Build matchers on the composable `Snapshots` helpers from `vitest` (replaces importing from `jest-snapshot`):
 
 ```ts
-import { expect, Snapshots } from "vitest";
+import { expect, Snapshots } from 'vitest'
 
-const { toMatchSnapshot, toMatchInlineSnapshot } = Snapshots;
+const { toMatchSnapshot, toMatchInlineSnapshot } = Snapshots
 
 expect.extend({
   toMatchTrimmedSnapshot(received: string, length: number) {
-    return toMatchSnapshot.call(this, received.slice(0, length));
+    return toMatchSnapshot.call(this, received.slice(0, length))
   },
   toMatchTrimmedInlineSnapshot(received: string, inlineSnapshot?: string) {
-    return toMatchInlineSnapshot.call(
-      this,
-      received.slice(0, 10),
-      inlineSnapshot
-    );
-  }
-});
+    return toMatchInlineSnapshot.call(this, received.slice(0, 10), inlineSnapshot)
+  },
+})
 ```
 
 The inline snapshot string must be the **last** argument. File snapshot matchers must be `async`.
@@ -175,12 +171,12 @@ Add custom snapshot formatting:
 ```ts
 expect.addSnapshotSerializer({
   test(val) {
-    return val && typeof val.toJSON === "function";
+    return val && typeof val.toJSON === 'function'
   },
   serialize(val, config, indentation, depth, refs, printer) {
-    return printer(val.toJSON(), config, indentation, depth, refs);
-  }
-});
+    return printer(val.toJSON(), config, indentation, depth, refs)
+  },
+})
 ```
 
 Or via config:
@@ -189,9 +185,9 @@ Or via config:
 // vitest.config.ts
 defineConfig({
   test: {
-    snapshotSerializers: ["./my-serializer.ts"]
-  }
-});
+    snapshotSerializers: ['./my-serializer.ts'],
+  },
+})
 ```
 
 ## Snapshot Format Options
@@ -202,10 +198,10 @@ defineConfig({
     snapshotFormat: {
       printBasicPrototype: false, // Don't print Array/Object prototypes (Vitest default)
       escapeString: false,
-      printShadowRoot: true // v4 default: custom elements print their shadow root
-    }
-  }
-});
+      printShadowRoot: true,      // v4 default: custom elements print their shadow root
+    },
+  },
+})
 ```
 
 ## Concurrent Test Snapshots
@@ -213,13 +209,13 @@ defineConfig({
 Use context's expect:
 
 ```ts
-test.concurrent("concurrent 1", async ({ expect }) => {
-  expect(await getData()).toMatchSnapshot();
-});
+test.concurrent('concurrent 1', async ({ expect }) => {
+  expect(await getData()).toMatchSnapshot()
+})
 
-test.concurrent("concurrent 2", async ({ expect }) => {
-  expect(await getOther()).toMatchSnapshot();
-});
+test.concurrent('concurrent 2', async ({ expect }) => {
+  expect(await getOther()).toMatchSnapshot()
+})
 ```
 
 ## Snapshot File Location
@@ -232,10 +228,10 @@ Customize:
 defineConfig({
   test: {
     resolveSnapshotPath: (testPath, snapExtension) => {
-      return testPath.replace("__tests__", "__snapshots__") + snapExtension;
-    }
-  }
-});
+      return testPath.replace('__tests__', '__snapshots__') + snapExtension
+    },
+  },
+})
 ```
 
 ## Key Points
@@ -249,7 +245,7 @@ defineConfig({
 - CI fails on obsolete snapshots; clean them with `--update`
 - v4 prints custom-element shadow roots; disable via `snapshotFormat.printShadowRoot: false`
 
-<!--
+<!-- 
 Source references:
 - https://vitest.dev/guide/snapshot.html
 - https://vitest.dev/api/expect.html#tomatchsnapshot

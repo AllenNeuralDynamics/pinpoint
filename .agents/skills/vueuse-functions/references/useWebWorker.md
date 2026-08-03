@@ -10,9 +10,9 @@ Simple [Web Workers](https://developer.mozilla.org/en-US/docs/Web/API/Web_Worker
 ## Usage
 
 ```ts
-import { useWebWorker } from "@vueuse/core";
+import { useWebWorker } from '@vueuse/core'
 
-const { data, post, terminate, worker } = useWebWorker("/path/to/worker.js");
+const { data, post, terminate, worker } = useWebWorker('/path/to/worker.js')
 ```
 
 | State  | Type                              | Description                                                                                          |
@@ -28,14 +28,14 @@ const { data, post, terminate, worker } = useWebWorker("/path/to/worker.js");
 ## Type Declarations
 
 ```ts
-type PostMessage = (typeof Worker.prototype)["postMessage"];
+type PostMessage = (typeof Worker.prototype)["postMessage"]
 export interface UseWebWorkerReturn<Data = any> {
-  data: ShallowRef<Data>;
-  post: PostMessage;
-  terminate: () => void;
-  worker: ShallowRef<Worker | undefined>;
+  data: ShallowRef<Data>
+  post: PostMessage
+  terminate: () => void
+  worker: ShallowRef<Worker | undefined>
 }
-type WorkerFn = (...args: unknown[]) => Worker;
+type WorkerFn = (...args: unknown[]) => Worker
 /**
  * Simple Web Workers registration and communication.
  *
@@ -47,14 +47,14 @@ type WorkerFn = (...args: unknown[]) => Worker;
 export declare function useWebWorker<T = any>(
   url: string,
   workerOptions?: WorkerOptions,
-  options?: ConfigurableWindow
-): UseWebWorkerReturn<T>;
+  options?: ConfigurableWindow,
+): UseWebWorkerReturn<T>
 /**
  * Simple Web Workers registration and communication.
  *
  * @see https://vueuse.org/useWebWorker
  */
 export declare function useWebWorker<T = any>(
-  worker: Worker | WorkerFn
-): UseWebWorkerReturn<T>;
+  worker: Worker | WorkerFn,
+): UseWebWorkerReturn<T>
 ```

@@ -9,9 +9,9 @@ Reactive [prefers-color-scheme](https://developer.mozilla.org/en-US/docs/Web/CSS
 ## Usage
 
 ```ts
-import { usePreferredColorScheme } from "@vueuse/core";
+import { usePreferredColorScheme } from '@vueuse/core'
 
-const preferredColor = usePreferredColorScheme();
+const preferredColor = usePreferredColorScheme()
 ```
 
 ## Component Usage
@@ -27,7 +27,7 @@ const preferredColor = usePreferredColorScheme();
 ## Type Declarations
 
 ```ts
-export type ColorSchemeType = "dark" | "light" | "no-preference";
+export type ColorSchemeType = "dark" | "light" | "no-preference"
 /**
  * Reactive prefers-color-scheme media query.
  *
@@ -37,6 +37,6 @@ export type ColorSchemeType = "dark" | "light" | "no-preference";
  * @__NO_SIDE_EFFECTS__
  */
 export declare function usePreferredColorScheme(
-  options?: ConfigurableWindow
-): ComputedRef<ColorSchemeType>;
+  options?: ConfigurableWindow,
+): ComputedRef<ColorSchemeType>
 ```

@@ -10,9 +10,9 @@ Reactively track user text selection based on [`Window.getSelection`](https://de
 
 ```vue
 <script setup lang="ts">
-import { useTextSelection } from "@vueuse/core";
+import { useTextSelection } from '@vueuse/core'
 
-const state = useTextSelection();
+const state = useTextSelection()
 </script>
 
 <template>
@@ -25,10 +25,10 @@ const state = useTextSelection();
 ```ts
 export interface UseTextSelectionOptions extends ConfigurableWindow {}
 export interface UseTextSelectionReturn {
-  text: ComputedRef<string>;
-  rects: ComputedRef<DOMRect[]>;
-  ranges: ComputedRef<Range[]>;
-  selection: ShallowRef<Selection | null>;
+  text: ComputedRef<string>
+  rects: ComputedRef<DOMRect[]>
+  ranges: ComputedRef<Range[]>
+  selection: ShallowRef<Selection | null>
 }
 /**
  * Reactively track user text selection based on [`Window.getSelection`](https://developer.mozilla.org/en-US/docs/Web/API/Window/getSelection).
@@ -38,6 +38,6 @@ export interface UseTextSelectionReturn {
  * @__NO_SIDE_EFFECTS__
  */
 export declare function useTextSelection(
-  options?: UseTextSelectionOptions
-): UseTextSelectionReturn;
+  options?: UseTextSelectionOptions,
+): UseTextSelectionReturn
 ```

@@ -10,17 +10,17 @@ Reports changes to the dimensions of an Element's content or the border-box
 
 ```vue
 <script setup lang="ts">
-import { useResizeObserver } from "@vueuse/core";
-import { ref, useTemplateRef } from "vue";
+import { useResizeObserver } from '@vueuse/core'
+import { ref, useTemplateRef } from 'vue'
 
-const el = useTemplateRef("el");
-const text = ref("");
+const el = useTemplateRef('el')
+const text = ref('')
 
-useResizeObserver(el, entries => {
-  const entry = entries[0];
-  const { width, height } = entry.contentRect;
-  text.value = `width: ${width}, height: ${height}`;
-});
+useResizeObserver(el, (entries) => {
+  const entry = entries[0]
+  const { width, height } = entry.contentRect
+  text.value = `width: ${width}, height: ${height}`
+})
 </script>
 
 <template>
@@ -34,14 +34,14 @@ useResizeObserver(el, entries => {
 
 ```vue
 <script setup lang="ts">
-import { vResizeObserver } from "@vueuse/components";
+import { vResizeObserver } from '@vueuse/components'
 
-const text = ref("");
+const text = ref('')
 
 function onResizeObserver(entries) {
-  const [entry] = entries;
-  const { width, height } = entry.contentRect;
-  text.value = `width: ${width}, height: ${height}`;
+  const [entry] = entries
+  const { width, height } = entry.contentRect
+  text.value = `width: ${width}, height: ${height}`
 }
 </script>
 
@@ -62,19 +62,19 @@ function onResizeObserver(entries) {
  * Use the global {@link globalThis.ResizeObserverSize} instead.
  */
 export interface ResizeObserverSize {
-  readonly inlineSize: number;
-  readonly blockSize: number;
+  readonly inlineSize: number
+  readonly blockSize: number
 }
 /**
  * @deprecated This interface is now available in the DOM lib.
  * Use the global {@link globalThis.ResizeObserverEntry} instead.
  */
 export interface ResizeObserverEntry {
-  readonly target: Element;
-  readonly contentRect: DOMRectReadOnly;
-  readonly borderBoxSize: ReadonlyArray<ResizeObserverSize>;
-  readonly contentBoxSize: ReadonlyArray<ResizeObserverSize>;
-  readonly devicePixelContentBoxSize: ReadonlyArray<ResizeObserverSize>;
+  readonly target: Element
+  readonly contentRect: DOMRectReadOnly
+  readonly borderBoxSize: ReadonlyArray<ResizeObserverSize>
+  readonly contentBoxSize: ReadonlyArray<ResizeObserverSize>
+  readonly devicePixelContentBoxSize: ReadonlyArray<ResizeObserverSize>
 }
 /**
  * @deprecated This interface is now available in the DOM lib.
@@ -82,12 +82,12 @@ export interface ResizeObserverEntry {
  */
 export type ResizeObserverCallback = (
   entries: ReadonlyArray<ResizeObserverEntry>,
-  observer: ResizeObserver
-) => void;
+  observer: ResizeObserver,
+) => void
 export interface UseResizeObserverOptions
   extends ResizeObserverOptions, ConfigurableWindow {}
 export interface UseResizeObserverReturn extends Supportable {
-  stop: () => void;
+  stop: () => void
 }
 /**
  * Reports changes to the dimensions of an Element's content or the border-box
@@ -103,6 +103,6 @@ export declare function useResizeObserver(
     | MaybeComputedElementRef[]
     | MaybeRefOrGetter<MaybeElement[]>,
   callback: globalThis.ResizeObserverCallback,
-  options?: UseResizeObserverOptions
-): UseResizeObserverReturn;
+  options?: UseResizeObserverOptions,
+): UseResizeObserverReturn
 ```

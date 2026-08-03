@@ -10,32 +10,40 @@ Listen for a long press on an element. Returns a stop function.
 
 ```vue
 <script setup lang="ts">
-import { onLongPress } from "@vueuse/core";
-import { shallowRef, useTemplateRef } from "vue";
+import { onLongPress } from '@vueuse/core'
+import { shallowRef, useTemplateRef } from 'vue'
 
-const htmlRefHook = useTemplateRef("htmlRefHook");
-const longPressedHook = shallowRef(false);
+const htmlRefHook = useTemplateRef('htmlRefHook')
+const longPressedHook = shallowRef(false)
 
 function onLongPressCallbackHook(e: PointerEvent) {
-  longPressedHook.value = true;
+  longPressedHook.value = true
 }
 function resetHook() {
-  longPressedHook.value = false;
+  longPressedHook.value = false
 }
 
-onLongPress(htmlRefHook, onLongPressCallbackHook, {
-  modifiers: {
-    prevent: true
+onLongPress(
+  htmlRefHook,
+  onLongPressCallbackHook,
+  {
+    modifiers: {
+      prevent: true
+    }
   }
-});
+)
 </script>
 
 <template>
   <p>Long Pressed: {{ longPressedHook }}</p>
 
-  <button ref="htmlRefHook" class="ml-2 button small"> Press long </button>
+  <button ref="htmlRefHook" class="ml-2 button small">
+    Press long
+  </button>
 
-  <button class="ml-2 button small" @click="resetHook"> Reset </button>
+  <button class="ml-2 button small" @click="resetHook">
+    Reset
+  </button>
 </template>
 ```
 
@@ -44,15 +52,15 @@ onLongPress(htmlRefHook, onLongPressCallbackHook, {
 By default, the handler fires after 500ms. You can customize this with the `delay` option. It can be a number or a function that receives the `PointerEvent`.
 
 ```ts
-import { onLongPress } from "@vueuse/core";
+import { onLongPress } from '@vueuse/core'
 
 // Fixed delay
-onLongPress(target, handler, { delay: 1000 });
+onLongPress(target, handler, { delay: 1000 })
 
 // Dynamic delay based on event
 onLongPress(target, handler, {
-  delay: ev => (ev.pointerType === "touch" ? 800 : 500)
-});
+  delay: ev => ev.pointerType === 'touch' ? 800 : 500,
+})
 ```
 
 ### Distance Threshold
@@ -60,13 +68,13 @@ onLongPress(target, handler, {
 The long press will be canceled if the pointer moves more than the threshold (default: 10 pixels). Set to `false` to disable movement detection.
 
 ```ts
-import { onLongPress } from "@vueuse/core";
+import { onLongPress } from '@vueuse/core'
 
 // Custom threshold
-onLongPress(target, handler, { distanceThreshold: 20 });
+onLongPress(target, handler, { distanceThreshold: 20 })
 
 // Disable movement detection
-onLongPress(target, handler, { distanceThreshold: false });
+onLongPress(target, handler, { distanceThreshold: false })
 ```
 
 ### On Mouse Up Callback
@@ -74,15 +82,13 @@ onLongPress(target, handler, { distanceThreshold: false });
 You can provide an `onMouseUp` callback to be notified when the pointer is released.
 
 ```ts
-import { onLongPress } from "@vueuse/core";
+import { onLongPress } from '@vueuse/core'
 
 onLongPress(target, handler, {
   onMouseUp(duration, distance, isLongPress, pointerEvent) {
-    console.log(
-      `Held for ${duration}ms, moved ${distance}px, long press: ${isLongPress}, x: ${pointerEvent.clientX}`
-    );
-  }
-});
+    console.log(`Held for ${duration}ms, moved ${distance}px, long press: ${isLongPress}, x: ${pointerEvent.clientX}`)
+  },
+})
 ```
 
 ### Modifiers
@@ -101,25 +107,25 @@ The following modifiers are available:
 onLongPress(target, handler, {
   modifiers: {
     prevent: true,
-    stop: true
-  }
-});
+    stop: true,
+  },
+})
 ```
 
 ## Component Usage
 
 ```vue
 <script setup lang="ts">
-import { OnLongPress } from "@vueuse/components";
-import { shallowRef } from "vue";
+import { OnLongPress } from '@vueuse/components'
+import { shallowRef } from 'vue'
 
-const longPressedComponent = shallowRef(false);
+const longPressedComponent = shallowRef(false)
 
 function onLongPressCallbackComponent(e: PointerEvent) {
-  longPressedComponent.value = true;
+  longPressedComponent.value = true
 }
 function resetComponent() {
-  longPressedComponent.value = false;
+  longPressedComponent.value = false
 }
 </script>
 
@@ -134,7 +140,9 @@ function resetComponent() {
     Press long
   </OnLongPress>
 
-  <button class="ml-2 button small" @click="resetComponent"> Reset </button>
+  <button class="ml-2 button small" @click="resetComponent">
+    Reset
+  </button>
 </template>
 ```
 
@@ -142,16 +150,16 @@ function resetComponent() {
 
 ```vue
 <script setup lang="ts">
-import { vOnLongPress } from "@vueuse/components";
-import { shallowRef } from "vue";
+import { vOnLongPress } from '@vueuse/components'
+import { shallowRef } from 'vue'
 
-const longPressedDirective = shallowRef(false);
+const longPressedDirective = shallowRef(false)
 
 function onLongPressCallbackDirective(e: PointerEvent) {
-  longPressedDirective.value = true;
+  longPressedDirective.value = true
 }
 function resetDirective() {
-  longPressedDirective.value = false;
+  longPressedDirective.value = false
 }
 </script>
 
@@ -166,16 +174,15 @@ function resetDirective() {
   </button>
 
   <button
-    v-on-long-press="[
-      onLongPressCallbackDirective,
-      { delay: 1000, modifiers: { stop: true } }
-    ]"
+    v-on-long-press="[onLongPressCallbackDirective, { delay: 1000, modifiers: { stop: true } }]"
     class="ml-2 button small"
   >
     Press long (with options)
   </button>
 
-  <button class="ml-2 button small" @click="resetDirective"> Reset </button>
+  <button class="ml-2 button small" @click="resetDirective">
+    Reset
+  </button>
 </template>
 ```
 
@@ -188,14 +195,14 @@ export interface OnLongPressOptions {
    *
    * @default 500
    */
-  delay?: number | ((ev: PointerEvent) => number);
-  modifiers?: OnLongPressModifiers;
+  delay?: number | ((ev: PointerEvent) => number)
+  modifiers?: OnLongPressModifiers
   /**
    * Allowance of moving distance in pixels,
    * The action will get canceled When moving too far from the pointerdown position.
    * @default 10
    */
-  distanceThreshold?: number | false;
+  distanceThreshold?: number | false
   /**
    * Function called when the ref element is released.
    * @param duration how long the element was pressed in ms
@@ -207,22 +214,22 @@ export interface OnLongPressOptions {
     duration: number,
     distance: number,
     isLongPress: boolean,
-    pointerEvent: PointerEvent
-  ) => void;
+    pointerEvent: PointerEvent,
+  ) => void
 }
 export interface OnLongPressModifiers {
-  stop?: boolean;
-  once?: boolean;
-  prevent?: boolean;
-  capture?: boolean;
-  self?: boolean;
+  stop?: boolean
+  once?: boolean
+  prevent?: boolean
+  capture?: boolean
+  self?: boolean
 }
-export type OnLongPressReturn = () => void;
+export type OnLongPressReturn = () => void
 /** @deprecated use {@link OnLongPressReturn} instead */
-export type UseOnLongPressReturn = OnLongPressReturn;
+export type UseOnLongPressReturn = OnLongPressReturn
 export declare function onLongPress(
   target: MaybeElementRef,
   handler: (evt: PointerEvent) => void,
-  options?: OnLongPressOptions
-): OnLongPressReturn;
+  options?: OnLongPressOptions,
+): OnLongPressReturn
 ```

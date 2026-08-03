@@ -9,9 +9,9 @@ Reactive [prefers-reduced-transparency](https://developer.mozilla.org/en-US/docs
 ## Usage
 
 ```ts
-import { usePreferredReducedTransparency } from "@vueuse/core";
+import { usePreferredReducedTransparency } from '@vueuse/core'
 
-const preferredTransparency = usePreferredReducedTransparency();
+const preferredTransparency = usePreferredReducedTransparency()
 ```
 
 ## Component Usage
@@ -27,7 +27,7 @@ const preferredTransparency = usePreferredReducedTransparency();
 ## Type Declarations
 
 ```ts
-export type ReducedTransparencyType = "reduce" | "no-preference";
+export type ReducedTransparencyType = "reduce" | "no-preference"
 /**
  * Reactive prefers-reduced-transparency media query.
  *
@@ -37,6 +37,6 @@ export type ReducedTransparencyType = "reduce" | "no-preference";
  * @__NO_SIDE_EFFECTS__
  */
 export declare function usePreferredReducedTransparency(
-  options?: ConfigurableWindow
-): ComputedRef<ReducedTransparencyType>;
+  options?: ConfigurableWindow,
+): ComputedRef<ReducedTransparencyType>
 ```

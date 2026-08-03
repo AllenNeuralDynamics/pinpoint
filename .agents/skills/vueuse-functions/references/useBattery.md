@@ -9,10 +9,9 @@ Reactive [Battery Status API](https://developer.mozilla.org/en-US/docs/Web/API/B
 ## Usage
 
 ```ts
-import { useBattery } from "@vueuse/core";
+import { useBattery } from '@vueuse/core'
 
-const { isSupported, charging, chargingTime, dischargingTime, level } =
-  useBattery();
+const { isSupported, charging, chargingTime, dischargingTime, level } = useBattery()
 ```
 
 | State           | Type      | Description                                                       |
@@ -45,7 +44,9 @@ Our applications normally are not empathetic to battery level, we can make a few
       <p>Is Charging: {{ charging }}</p>
       <p>Battery Level: {{ (level * 100).toFixed(0) }}%</p>
     </div>
-    <div v-else> Battery API not supported </div>
+    <div v-else>
+      Battery API not supported
+    </div>
   </UseBattery>
 </template>
 ```
@@ -55,16 +56,16 @@ Our applications normally are not empathetic to battery level, we can make a few
 ```ts
 export interface UseBatteryOptions extends ConfigurableNavigator {}
 export interface UseBatteryReturn extends Supportable {
-  charging: ShallowRef<boolean>;
-  chargingTime: ShallowRef<number>;
-  dischargingTime: ShallowRef<number>;
-  level: ShallowRef<number>;
+  charging: ShallowRef<boolean>
+  chargingTime: ShallowRef<number>
+  dischargingTime: ShallowRef<number>
+  level: ShallowRef<number>
 }
 export interface BatteryManager extends EventTarget {
-  charging: boolean;
-  chargingTime: number;
-  dischargingTime: number;
-  level: number;
+  charging: boolean
+  chargingTime: number
+  dischargingTime: number
+  level: number
 }
 /**
  * Reactive Battery Status API.
@@ -74,6 +75,6 @@ export interface BatteryManager extends EventTarget {
  * @__NO_SIDE_EFFECTS__
  */
 export declare function useBattery(
-  options?: UseBatteryOptions
-): UseBatteryReturn;
+  options?: UseBatteryOptions,
+): UseBatteryReturn
 ```

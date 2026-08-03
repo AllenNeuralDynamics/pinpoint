@@ -31,9 +31,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: "pnpm"
+          cache: 'pnpm'
 
-      - run: pnpm install --frozen-lockfile # or: pnpm ci
+      - run: pnpm install --frozen-lockfile   # or: pnpm ci
       - run: pnpm test
       - run: pnpm build
 ```
@@ -65,7 +65,7 @@ For larger projects, cache the pnpm store:
 - run: pnpm install --frozen-lockfile
 ```
 
-> **Trust:** only cache/restore the pnpm store and cache dir between _trusted_ jobs. A store an untrusted job can write to must not be reused by trusted jobs — it is part of pnpm's trust domain.
+> **Trust:** only cache/restore the pnpm store and cache dir between *trusted* jobs. A store an untrusted job can write to must not be reused by trusted jobs — it is part of pnpm's trust domain.
 
 ### Matrix Testing
 
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: "pnpm"
+          cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 ```
@@ -295,3 +295,4 @@ Source references:
 - https://pnpm.io/cli/ci
 - https://github.com/pnpm/action-setup
 -->
+

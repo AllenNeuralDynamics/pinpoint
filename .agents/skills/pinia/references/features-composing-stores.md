@@ -13,54 +13,54 @@ Two stores cannot directly read each other's state during setup:
 
 ```ts
 // ❌ Infinite loop
-const useX = defineStore("x", () => {
-  const y = useY();
-  y.name; // Don't read here!
-  return { name: ref("X") };
-});
+const useX = defineStore('x', () => {
+  const y = useY()
+  y.name // Don't read here!
+  return { name: ref('X') }
+})
 
-const useY = defineStore("y", () => {
-  const x = useX();
-  x.name; // Don't read here!
-  return { name: ref("Y") };
-});
+const useY = defineStore('y', () => {
+  const x = useX()
+  x.name // Don't read here!
+  return { name: ref('Y') }
+})
 ```
 
 **Solution:** Read in getters, computed, or actions:
 
 ```ts
-const useX = defineStore("x", () => {
-  const y = useY();
+const useX = defineStore('x', () => {
+  const y = useY()
 
   // ✅ Read in computed/actions
   function doSomething() {
-    const yName = y.name;
+    const yName = y.name
   }
 
-  return { name: ref("X"), doSomething };
-});
+  return { name: ref('X'), doSomething }
+})
 ```
 
 ## Setup Stores: Use Store at Top
 
 ```ts
-import { defineStore } from "pinia";
-import { useUserStore } from "./user";
+import { defineStore } from 'pinia'
+import { useUserStore } from './user'
 
-export const useCartStore = defineStore("cart", () => {
-  const user = useUserStore();
-  const list = ref([]);
+export const useCartStore = defineStore('cart', () => {
+  const user = useUserStore()
+  const list = ref([])
 
   const summary = computed(() => {
-    return `Hi ${user.name}, you have ${list.value.length} items`;
-  });
+    return `Hi ${user.name}, you have ${list.value.length} items`
+  })
 
   function purchase() {
-    return apiPurchase(user.id, list.value);
+    return apiPurchase(user.id, list.value)
   }
 
-  return { list, summary, purchase };
-});
+  return { list, summary, purchase }
+})
 ```
 
 ## Shared Getters
@@ -68,16 +68,16 @@ export const useCartStore = defineStore("cart", () => {
 Call `useStore()` inside a getter:
 
 ```ts
-import { useUserStore } from "./user";
+import { useUserStore } from './user'
 
-export const useCartStore = defineStore("cart", {
+export const useCartStore = defineStore('cart', {
   getters: {
     summary(state) {
-      const user = useUserStore();
-      return `Hi ${user.name}, you have ${state.list.length} items`;
-    }
-  }
-});
+      const user = useUserStore()
+      return `Hi ${user.name}, you have ${state.list.length} items`
+    },
+  },
+})
 ```
 
 ## Shared Actions
@@ -85,23 +85,23 @@ export const useCartStore = defineStore("cart", {
 Call `useStore()` inside an action:
 
 ```ts
-import { useUserStore } from "./user";
-import { apiOrderCart } from "./api";
+import { useUserStore } from './user'
+import { apiOrderCart } from './api'
 
-export const useCartStore = defineStore("cart", {
+export const useCartStore = defineStore('cart', {
   actions: {
     async orderCart() {
-      const user = useUserStore();
+      const user = useUserStore()
 
       try {
-        await apiOrderCart(user.token, this.items);
-        this.emptyCart();
+        await apiOrderCart(user.token, this.items)
+        this.emptyCart()
       } catch (err) {
-        displayError(err);
+        displayError(err)
       }
-    }
-  }
-});
+    },
+  },
+})
 ```
 
 ## SSR: Call Stores Before Await

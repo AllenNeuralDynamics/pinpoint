@@ -16,16 +16,16 @@ Reactive [Clipboard API](https://developer.mozilla.org/en-US/docs/Web/API/Clipbo
 
 ```vue
 <script setup lang="ts">
-import { useClipboardItems } from "@vueuse/core";
+import { useClipboardItems } from '@vueuse/core'
 
-const mime = "text/plain";
+const mime = 'text/plain'
 const source = ref([
   new ClipboardItem({
-    [mime]: new Blob(["plain text"], { type: mime })
+    [mime]: new Blob(['plain text'], { type: mime }),
   })
-]);
+])
 
-const { content, copy, copied, isSupported } = useClipboardItems({ source });
+const { content, copy, copied, isSupported } = useClipboardItems({ source })
 </script>
 
 <template>
@@ -36,10 +36,12 @@ const { content, copy, copied, isSupported } = useClipboardItems({ source });
       <span v-else>Copied!</span>
     </button>
     <p>
-      Current copied: <code>{{ content || "none" }}</code>
+      Current copied: <code>{{ content || 'none' }}</code>
     </p>
   </div>
-  <p v-else> Your browser does not support Clipboard API </p>
+  <p v-else>
+    Your browser does not support Clipboard API
+  </p>
 </template>
 ```
 
@@ -47,32 +49,32 @@ const { content, copy, copied, isSupported } = useClipboardItems({ source });
 
 ```ts
 export interface UseClipboardItemsOptions<
-  Source
+  Source,
 > extends ConfigurableNavigator {
   /**
    * Enabled reading for clipboard
    *
    * @default false
    */
-  read?: boolean;
+  read?: boolean
   /**
    * Copy source
    */
-  source?: Source;
+  source?: Source
   /**
    * Milliseconds to reset state of `copied` ref
    *
    * @default 1500
    */
-  copiedDuring?: number;
+  copiedDuring?: number
 }
 export interface UseClipboardItemsReturn<Optional> extends Supportable {
-  content: Readonly<Ref<ClipboardItems>>;
-  copied: Readonly<ShallowRef<boolean>>;
+  content: Readonly<Ref<ClipboardItems>>
+  copied: Readonly<ShallowRef<boolean>>
   copy: Optional extends true
     ? (content?: ClipboardItems) => Promise<void>
-    : (text: ClipboardItems) => Promise<void>;
-  read: () => void;
+    : (text: ClipboardItems) => Promise<void>
+  read: () => void
 }
 /**
  * Reactive Clipboard API.
@@ -83,9 +85,9 @@ export interface UseClipboardItemsReturn<Optional> extends Supportable {
  * @__NO_SIDE_EFFECTS__
  */
 export declare function useClipboardItems(
-  options?: UseClipboardItemsOptions<undefined>
-): UseClipboardItemsReturn<false>;
+  options?: UseClipboardItemsOptions<undefined>,
+): UseClipboardItemsReturn<false>
 export declare function useClipboardItems(
-  options: UseClipboardItemsOptions<MaybeRefOrGetter<ClipboardItems>>
-): UseClipboardItemsReturn<true>;
+  options: UseClipboardItemsOptions<MaybeRefOrGetter<ClipboardItems>>,
+): UseClipboardItemsReturn<true>
 ```

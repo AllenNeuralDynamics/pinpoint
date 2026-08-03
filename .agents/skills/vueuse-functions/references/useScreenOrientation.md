@@ -9,31 +9,41 @@ Reactive [Screen Orientation API](https://developer.mozilla.org/en-US/docs/Web/A
 ## Usage
 
 ```ts
-import { useScreenOrientation } from "@vueuse/core";
+import { useScreenOrientation } from '@vueuse/core'
 
-const { isSupported, orientation, angle, lockOrientation, unlockOrientation } =
-  useScreenOrientation();
+const {
+  isSupported,
+  orientation,
+  angle,
+  lockOrientation,
+  unlockOrientation,
+} = useScreenOrientation()
 ```
 
 To lock the orientation, you can pass an [OrientationLockType](https://developer.mozilla.org/en-US/docs/Web/API/ScreenOrientation/type) to the lockOrientation function:
 
 ```ts
-import { useScreenOrientation } from "@vueuse/core";
+import { useScreenOrientation } from '@vueuse/core'
 
-const { isSupported, orientation, angle, lockOrientation, unlockOrientation } =
-  useScreenOrientation();
+const {
+  isSupported,
+  orientation,
+  angle,
+  lockOrientation,
+  unlockOrientation,
+} = useScreenOrientation()
 
-lockOrientation("portrait-primary");
+lockOrientation('portrait-primary')
 ```
 
 and then unlock again, with the following:
 
 ```ts
-import { useScreenOrientation } from "@vueuse/core";
+import { useScreenOrientation } from '@vueuse/core'
 
-const { unlockOrientation } = useScreenOrientation();
+const { unlockOrientation } = useScreenOrientation()
 // ---cut---
-unlockOrientation();
+unlockOrientation()
 ```
 
 Accepted orientation types are one of `"landscape-primary"`, `"landscape-secondary"`, `"portrait-primary"`, `"portrait-secondary"`, `"any"`, `"landscape"`, `"natural"` and `"portrait"`.
@@ -47,7 +57,7 @@ export type OrientationType =
   | "portrait-primary"
   | "portrait-secondary"
   | "landscape-primary"
-  | "landscape-secondary";
+  | "landscape-secondary"
 export type OrientationLockType =
   | "any"
   | "natural"
@@ -56,24 +66,24 @@ export type OrientationLockType =
   | "portrait-primary"
   | "portrait-secondary"
   | "landscape-primary"
-  | "landscape-secondary";
+  | "landscape-secondary"
 export interface ScreenOrientation extends EventTarget {
-  lock: (orientation: OrientationLockType) => Promise<void>;
-  unlock: () => void;
-  readonly type: OrientationType;
-  readonly angle: number;
+  lock: (orientation: OrientationLockType) => Promise<void>
+  unlock: () => void
+  readonly type: OrientationType
+  readonly angle: number
   addEventListener: (
     type: "change",
     listener: (this: this, ev: Event) => any,
-    useCapture?: boolean
-  ) => void;
+    useCapture?: boolean,
+  ) => void
 }
 export interface UseScreenOrientationOptions extends ConfigurableWindow {}
 export interface UseScreenOrientationReturn extends Supportable {
-  orientation: ShallowRef<OrientationType | undefined>;
-  angle: ShallowRef<number>;
-  lockOrientation: (type: OrientationLockType) => Promise<void>;
-  unlockOrientation: () => void;
+  orientation: ShallowRef<OrientationType | undefined>
+  angle: ShallowRef<number>
+  lockOrientation: (type: OrientationLockType) => Promise<void>
+  unlockOrientation: () => void
 }
 /**
  * Reactive screen orientation
@@ -83,6 +93,6 @@ export interface UseScreenOrientationReturn extends Supportable {
  * @__NO_SIDE_EFFECTS__
  */
 export declare function useScreenOrientation(
-  options?: UseScreenOrientationOptions
-): UseScreenOrientationReturn;
+  options?: UseScreenOrientationOptions,
+): UseScreenOrientationReturn
 ```

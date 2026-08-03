@@ -1,5 +1,5 @@
 ---
-category: "@Integrations"
+category: '@Integrations'
 ---
 
 # useJwt
@@ -15,13 +15,11 @@ npm install jwt-decode@^4
 ## Usage
 
 ```ts
-import { useJwt } from "@vueuse/integrations/useJwt";
-import { defineComponent } from "vue";
+import { useJwt } from '@vueuse/integrations/useJwt'
+import { defineComponent } from 'vue'
 
-const encodedJwt = ref(
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiaWF0IjoxNTE2MjM5MDIyfQ.L8i6g3PfcHlioHCCPURC9pmXT7gdJpx3kOoyAfNUwCc"
-);
-const { header, payload } = useJwt(encodedJwt);
+const encodedJwt = ref('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwiaWF0IjoxNTE2MjM5MDIyfQ.L8i6g3PfcHlioHCCPURC9pmXT7gdJpx3kOoyAfNUwCc')
+const { header, payload } = useJwt(encodedJwt)
 ```
 
 ## Type Declarations
@@ -33,15 +31,15 @@ export interface UseJwtOptions<Fallback> {
    *
    * @default null
    */
-  fallbackValue?: Fallback;
+  fallbackValue?: Fallback
   /**
    * Error callback for decoding
    */
-  onError?: (error: unknown) => void;
+  onError?: (error: unknown) => void
 }
 export interface UseJwtReturn<Payload, Header, Fallback> {
-  header: ComputedRef<Header | Fallback>;
-  payload: ComputedRef<Payload | Fallback>;
+  header: ComputedRef<Header | Fallback>
+  payload: ComputedRef<Payload | Fallback>
 }
 /**
  * Reactive decoded jwt token.
@@ -51,9 +49,9 @@ export interface UseJwtReturn<Payload, Header, Fallback> {
 export declare function useJwt<
   Payload extends object = JwtPayload,
   Header extends object = JwtHeader,
-  Fallback = null
+  Fallback = null,
 >(
   encodedJwt: MaybeRefOrGetter<string>,
-  options?: UseJwtOptions<Fallback>
-): UseJwtReturn<Payload, Header, Fallback>;
+  options?: UseJwtOptions<Fallback>,
+): UseJwtReturn<Payload, Header, Fallback>
 ```

@@ -23,7 +23,6 @@ tags: [vue3, teleport, modal, overlay, positioning, responsive]
 When an ancestor has `transform`, `filter`, or `perspective`, fixed-position overlays can behave like they are locally positioned. Teleport escapes that context.
 
 **BAD:**
-
 ```vue
 <template>
   <div class="animated-container">
@@ -48,7 +47,6 @@ When an ancestor has `transform`, `filter`, or `perspective`, fixed-position ove
 ```
 
 **GOOD:**
-
 ```vue
 <template>
   <div class="animated-container">
@@ -67,9 +65,9 @@ Use `:disabled` to render inline on mobile and teleport on larger screens:
 
 ```vue
 <script setup>
-import { useMediaQuery } from "@vueuse/core";
+import { useMediaQuery } from '@vueuse/core'
 
-const isMobile = useMediaQuery("(max-width: 768px)");
+const isMobile = useMediaQuery('(max-width: 768px)')
 </script>
 
 <template>

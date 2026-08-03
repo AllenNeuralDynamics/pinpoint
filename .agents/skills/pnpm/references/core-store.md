@@ -68,8 +68,8 @@ The virtual store (`.pnpm` in `node_modules`) contains hard links to the global 
 
 ```yaml title="pnpm-workspace.yaml"
 virtualStoreDir: node_modules/.pnpm
-virtualStoreDirMaxLength: 60 # lower this for long-path issues on Windows
-nodeLinker: hoisted # alternative flat layout
+virtualStoreDirMaxLength: 60   # lower this for long-path issues on Windows
+nodeLinker: hoisted            # alternative flat layout
 ```
 
 ## Disk Space Benefits
@@ -101,7 +101,7 @@ enableGlobalVirtualStore: true
 Configure how `node_modules` is structured (`nodeLinker` in `pnpm-workspace.yaml`):
 
 ```yaml title="pnpm-workspace.yaml"
-nodeLinker: isolated # default: symlinked virtual store (strict, no phantom deps)
+nodeLinker: isolated   # default: symlinked virtual store (strict, no phantom deps)
 # nodeLinker: hoisted  # flat node_modules (npm-like) for tools that dislike symlinks
 # nodeLinker: pnp      # Plug'n'Play, no node_modules (set `symlink: false` too)
 ```
@@ -124,7 +124,7 @@ Cache build outputs for native modules (enabled by default):
 
 ```yaml title="pnpm-workspace.yaml"
 sideEffectsCache: true
-sideEffectsCacheReadonly: false # only read the cache, don't create it
+sideEffectsCacheReadonly: false   # only read the cache, don't create it
 ```
 
 ## Read-only / Frozen Store
@@ -158,7 +158,6 @@ For CI/CD, you can share the store:
 ## Troubleshooting
 
 ### Store corruption
-
 ```bash
 # Verify and fix store
 pnpm store status
@@ -166,14 +165,12 @@ pnpm store prune
 ```
 
 ### Hard link issues (network drives, Docker)
-
 ```yaml title="pnpm-workspace.yaml"
 # auto (default) tries clone -> hardlink -> copy
 packageImportMethod: copy
 ```
 
 ### Permission issues
-
 ```bash
 # Fix store permissions (find the path with `pnpm store path`)
 chmod -R u+w "$(pnpm store path)"

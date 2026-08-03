@@ -9,15 +9,16 @@ Reactive utility to track or set the focus state of a DOM element. State changes
 ## Basic Usage
 
 ```ts
-import { useFocus } from "@vueuse/core";
+import { useFocus } from '@vueuse/core'
 
-const target = shallowRef();
-const { focused } = useFocus(target);
+const target = shallowRef()
+const { focused } = useFocus(target)
 
-watch(focused, focused => {
-  if (focused) console.log("input element has been focused");
-  else console.log("input element has lost focus");
-});
+watch(focused, (focused) => {
+  if (focused)
+    console.log('input element has been focused')
+  else console.log('input element has lost focus')
+})
 ```
 
 ## Setting initial focus
@@ -25,10 +26,10 @@ watch(focused, focused => {
 To focus the element on its first render one can provide the `initialValue` option as `true`. This will trigger a `focus` event on the target element.
 
 ```ts
-import { useFocus } from "@vueuse/core";
+import { useFocus } from '@vueuse/core'
 
-const target = shallowRef();
-const { focused } = useFocus(target, { initialValue: true });
+const target = shallowRef()
+const { focused } = useFocus(target, { initialValue: true })
 ```
 
 ## Change focus state
@@ -37,11 +38,11 @@ Changes of the `focused` reactive ref will automatically trigger `focus` and `bl
 
 ```vue
 <script setup lang="ts">
-import { useFocus } from "@vueuse/core";
-import { shallowRef } from "vue";
+import { useFocus } from '@vueuse/core'
+import { shallowRef } from 'vue'
 
-const input = shallowRef();
-const { focused } = useFocus(input);
+const input = shallowRef()
+const { focused } = useFocus(input)
 </script>
 
 <template>
@@ -49,7 +50,7 @@ const { focused } = useFocus(input);
     <button type="button" @click="focused = true">
       Click me to focus input below
     </button>
-    <input ref="input" type="text" />
+    <input ref="input" type="text">
   </div>
 </template>
 ```
@@ -63,26 +64,26 @@ export interface UseFocusOptions extends ConfigurableWindow {
    *
    * @default false
    */
-  initialValue?: boolean;
+  initialValue?: boolean
   /**
    * Replicate the :focus-visible behavior of CSS
    *
    * @default false
    */
-  focusVisible?: boolean;
+  focusVisible?: boolean
   /**
    * Prevent scrolling to the element when it is focused.
    *
    * @default false
    */
-  preventScroll?: boolean;
+  preventScroll?: boolean
 }
 export interface UseFocusReturn {
   /**
    * If read as true, then the element has focus. If read as false, then the element does not have focus
    * If set to true, then the element will be focused. If set to false, the element will be blurred.
    */
-  focused: WritableComputedRef<boolean>;
+  focused: WritableComputedRef<boolean>
 }
 /**
  * Track or set the focus state of a DOM element.
@@ -93,6 +94,6 @@ export interface UseFocusReturn {
  */
 export declare function useFocus(
   target: MaybeElementRef,
-  options?: UseFocusOptions
-): UseFocusReturn;
+  options?: UseFocusOptions,
+): UseFocusReturn
 ```

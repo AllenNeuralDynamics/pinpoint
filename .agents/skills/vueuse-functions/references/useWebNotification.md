@@ -15,7 +15,7 @@ Before an app can send a notification, the user must grant the application the r
 :::
 
 ```ts
-import { useWebNotification } from "@vueuse/core";
+import { useWebNotification } from '@vueuse/core'
 
 const {
   isSupported,
@@ -26,40 +26,41 @@ const {
   onClick,
   onShow,
   onError,
-  onClose
+  onClose,
 } = useWebNotification({
-  title: "Hello, VueUse world!",
-  dir: "auto",
-  lang: "en",
+  title: 'Hello, VueUse world!',
+  dir: 'auto',
+  lang: 'en',
   renotify: true,
-  tag: "test"
-});
+  tag: 'test',
+})
 
-if (isSupported.value && permissionGranted.value) show();
+if (isSupported.value && permissionGranted.value)
+  show()
 ```
 
 This composable also utilizes the createEventHook utility from '@vueuse/shared`:
 
 ```ts
-import { useWebNotification } from "@vueuse/core";
+import { useWebNotification } from '@vueuse/core'
 
-const { onClick, onShow, onError, onClose } = useWebNotification();
+const { onClick, onShow, onError, onClose, } = useWebNotification()
 // ---cut---
 onClick((evt: Event) => {
   // Do something with the notification on:click event...
-});
+})
 
 onShow((evt: Event) => {
   // Do something with the notification on:show event...
-});
+})
 
 onError((evt: Event) => {
   // Do something with the notification on:error event...
-});
+})
 
 onClose((evt: Event) => {
   // Do something with the notification on:close event...
-});
+})
 ```
 
 ## Type Declarations
@@ -72,56 +73,56 @@ export interface WebNotificationOptions {
    *
    * @default ''
    */
-  title?: string;
+  title?: string
   /**
    * The body string of the notification as specified in the constructor's
    * options parameter.
    *
    * @default ''
    */
-  body?: string;
+  body?: string
   /**
    * The text direction of the notification as specified in the constructor's
    * options parameter.
    *
    * @default ''
    */
-  dir?: "auto" | "ltr" | "rtl";
+  dir?: "auto" | "ltr" | "rtl"
   /**
    * The language code of the notification as specified in the constructor's
    * options parameter.
    *
    * @default DOMString
    */
-  lang?: string;
+  lang?: string
   /**
    * The ID of the notification(if any) as specified in the constructor's options
    * parameter.
    *
    * @default ''
    */
-  tag?: string;
+  tag?: string
   /**
    * The URL of the image used as an icon of the notification as specified
    * in the constructor's options parameter.
    *
    * @default ''
    */
-  icon?: string;
+  icon?: string
   /**
    * Specifies whether the user should be notified after a new notification
    * replaces an old one.
    *
    * @default false
    */
-  renotify?: boolean;
+  renotify?: boolean
   /**
    * A boolean value indicating that a notification should remain active until the
    * user clicks or dismisses it, rather than closing automatically.
    *
    * @default false
    */
-  requireInteraction?: boolean;
+  requireInteraction?: boolean
   /**
    * The silent read-only property of the Notification interface specifies
    * whether the notification should be silent, i.e., no sounds or vibrations
@@ -129,14 +130,14 @@ export interface WebNotificationOptions {
    *
    * @default false
    */
-  silent?: boolean;
+  silent?: boolean
   /**
    * Specifies a vibration pattern for devices with vibration hardware to emit.
    * A vibration pattern, as specified in the Vibration API spec
    *
    * @see https://w3c.github.io/vibration/
    */
-  vibrate?: number[];
+  vibrate?: number[]
 }
 export interface UseWebNotificationOptions
   extends ConfigurableWindow, WebNotificationOptions {
@@ -147,20 +148,20 @@ export interface UseWebNotificationOptions
    *
    * @default true
    */
-  requestPermissions?: boolean;
+  requestPermissions?: boolean
 }
 export interface UseWebNotificationReturn extends Supportable {
-  notification: ShallowRef<Notification | null>;
-  ensurePermissions: () => Promise<boolean | undefined>;
-  permissionGranted: ShallowRef<boolean>;
+  notification: ShallowRef<Notification | null>
+  ensurePermissions: () => Promise<boolean | undefined>
+  permissionGranted: ShallowRef<boolean>
   show: (
-    overrides?: WebNotificationOptions
-  ) => Promise<Notification | undefined>;
-  close: () => void;
-  onClick: EventHookOn<Event>;
-  onShow: EventHookOn<Event>;
-  onError: EventHookOn<Event>;
-  onClose: EventHookOn<Event>;
+    overrides?: WebNotificationOptions,
+  ) => Promise<Notification | undefined>
+  close: () => void
+  onClick: EventHookOn<Event>
+  onShow: EventHookOn<Event>
+  onError: EventHookOn<Event>
+  onClose: EventHookOn<Event>
 }
 /**
  * Reactive useWebNotification
@@ -169,6 +170,6 @@ export interface UseWebNotificationReturn extends Supportable {
  * @see https://developer.mozilla.org/en-US/docs/Web/API/notification
  */
 export declare function useWebNotification(
-  options?: UseWebNotificationOptions
-): UseWebNotificationReturn;
+  options?: UseWebNotificationOptions,
+): UseWebNotificationReturn
 ```

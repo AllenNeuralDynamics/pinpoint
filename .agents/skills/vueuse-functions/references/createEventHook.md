@@ -11,20 +11,20 @@ Utility for creating event hooks
 Creating a function that uses `createEventHook`
 
 ```ts
-import { createEventHook } from "@vueuse/core";
+import { createEventHook } from '@vueuse/core'
 
 export function useMyFetch(url) {
-  const fetchResult = createEventHook<Response>();
-  const fetchError = createEventHook<any>();
+  const fetchResult = createEventHook<Response>()
+  const fetchError = createEventHook<any>()
 
   fetch(url)
     .then(result => fetchResult.trigger(result))
-    .catch(error => fetchError.trigger(error.message));
+    .catch(error => fetchError.trigger(error.message))
 
   return {
     onResult: fetchResult.on,
-    onError: fetchError.on
-  };
+    onError: fetchError.on,
+  }
 }
 ```
 
@@ -32,17 +32,17 @@ Using a function that uses `createEventHook`
 
 ```vue
 <script setup lang="ts">
-import { useMyFetch } from "./my-fetch-function";
+import { useMyFetch } from './my-fetch-function'
 
-const { onResult, onError } = useMyFetch("my api url");
+const { onResult, onError } = useMyFetch('my api url')
 
-onResult(result => {
-  console.log(result);
-});
+onResult((result) => {
+  console.log(result)
+})
 
-onError(error => {
-  console.error(error);
-});
+onError((error) => {
+  console.error(error)
+})
 </script>
 ```
 
@@ -60,21 +60,21 @@ type Callback<T> =
       ? (...param: unknown[]) => void
       : [T] extends [any[]]
         ? (...param: T) => void
-        : (...param: [T, ...unknown[]]) => void;
+        : (...param: [T, ...unknown[]]) => void
 export type EventHookOn<T = any> = (fn: Callback<T>) => {
-  off: () => void;
-};
-export type EventHookOff<T = any> = (fn: Callback<T>) => void;
+  off: () => void
+}
+export type EventHookOff<T = any> = (fn: Callback<T>) => void
 export type EventHookTrigger<T = any> = (
   ...param: Parameters<Callback<T>>
-) => Promise<unknown[]>;
+) => Promise<unknown[]>
 export interface EventHook<T = any> {
-  on: EventHookOn<T>;
-  off: EventHookOff<T>;
-  trigger: EventHookTrigger<T>;
-  clear: () => void;
+  on: EventHookOn<T>
+  off: EventHookOff<T>
+  trigger: EventHookTrigger<T>
+  clear: () => void
 }
-export type EventHookReturn<T> = EventHook<T>;
+export type EventHookReturn<T> = EventHook<T>
 /**
  * Utility for creating event hooks
  *
@@ -82,5 +82,5 @@ export type EventHookReturn<T> = EventHook<T>;
  *
  * @__NO_SIDE_EFFECTS__
  */
-export declare function createEventHook<T = any>(): EventHookReturn<T>;
+export declare function createEventHook<T = any>(): EventHookReturn<T>
 ```

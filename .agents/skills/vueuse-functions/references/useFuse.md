@@ -1,5 +1,5 @@
 ---
-category: "@Integrations"
+category: '@Integrations'
 ---
 
 # useFuse
@@ -29,20 +29,20 @@ yarn add fuse.js
 ## Usage
 
 ```ts
-import { useFuse } from "@vueuse/integrations/useFuse";
-import { shallowRef } from "vue";
+import { useFuse } from '@vueuse/integrations/useFuse'
+import { shallowRef } from 'vue'
 
 const data = [
-  "John Smith",
-  "John Doe",
-  "Jane Doe",
-  "Phillip Green",
-  "Peter Brown"
-];
+  'John Smith',
+  'John Doe',
+  'Jane Doe',
+  'Phillip Green',
+  'Peter Brown',
+]
 
-const input = shallowRef("Jhon D");
+const input = shallowRef('Jhon D')
 
-const { results } = useFuse(input, data);
+const { results } = useFuse(input, data)
 
 /*
  * Results:
@@ -57,19 +57,19 @@ const { results } = useFuse(input, data);
 ## Type Declarations
 
 ```ts
-export type FuseOptions<T> = IFuseOptions<T>;
+export type FuseOptions<T> = IFuseOptions<T>
 export interface UseFuseOptions<T> {
-  fuseOptions?: FuseOptions<T>;
-  resultLimit?: number;
-  matchAllWhenSearchEmpty?: boolean;
+  fuseOptions?: FuseOptions<T>
+  resultLimit?: number
+  matchAllWhenSearchEmpty?: boolean
 }
 export interface UseFuseReturn<DataItem> {
-  fuse: Ref<Fuse<DataItem>>;
-  results: ComputedRef<FuseResult<DataItem>[]>;
+  fuse: Ref<Fuse<DataItem>>
+  results: ComputedRef<FuseResult<DataItem>[]>
 }
 export declare function useFuse<DataItem>(
   search: MaybeRefOrGetter<string>,
   data: MaybeRefOrGetter<DataItem[]>,
-  options?: MaybeRefOrGetter<UseFuseOptions<DataItem>>
-): UseFuseReturn<DataItem>;
+  options?: MaybeRefOrGetter<UseFuseOptions<DataItem>>,
+): UseFuseReturn<DataItem>
 ```

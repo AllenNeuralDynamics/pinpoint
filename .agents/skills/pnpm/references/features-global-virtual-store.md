@@ -47,7 +47,7 @@ git worktree add ./fix-api fix/api-error
 
 ```yaml title="pnpm-workspace.yaml"
 packages:
-  - "packages/*"
+  - 'packages/*'
 enableGlobalVirtualStore: true
 ```
 

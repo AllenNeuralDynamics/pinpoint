@@ -9,10 +9,14 @@ Reactive [DeviceMotionEvent](https://developer.mozilla.org/en-US/docs/Web/API/De
 ## Usage
 
 ```ts
-import { useDeviceMotion } from "@vueuse/core";
+import { useDeviceMotion } from '@vueuse/core'
 
-const { acceleration, accelerationIncludingGravity, rotationRate, interval } =
-  useDeviceMotion();
+const {
+  acceleration,
+  accelerationIncludingGravity,
+  rotationRate,
+  interval,
+} = useDeviceMotion()
 ```
 
 > Note: For iOS, you need to use `trigger` and bind it with user interaction.
@@ -51,18 +55,18 @@ export interface UseDeviceMotionOptions
    *
    * @default false
    */
-  requestPermissions?: boolean;
+  requestPermissions?: boolean
 }
 /** @deprecated use {@link UseDeviceMotionOptions} instead */
-export type DeviceMotionOptions = UseDeviceMotionOptions;
+export type DeviceMotionOptions = UseDeviceMotionOptions
 export interface UseDeviceMotionReturn extends Supportable {
-  acceleration: Ref<DeviceMotionEventAcceleration | null>;
-  accelerationIncludingGravity: Ref<DeviceMotionEventAcceleration | null>;
-  rotationRate: Ref<DeviceMotionEventRotationRate | null>;
-  interval: ShallowRef<number>;
-  requirePermissions: ComputedRef<boolean>;
-  ensurePermissions: () => Promise<void>;
-  permissionGranted: ShallowRef<boolean>;
+  acceleration: Ref<DeviceMotionEventAcceleration | null>
+  accelerationIncludingGravity: Ref<DeviceMotionEventAcceleration | null>
+  rotationRate: Ref<DeviceMotionEventRotationRate | null>
+  interval: ShallowRef<number>
+  requirePermissions: ComputedRef<boolean>
+  ensurePermissions: () => Promise<void>
+  permissionGranted: ShallowRef<boolean>
 }
 /**
  * Reactive DeviceMotionEvent.
@@ -71,6 +75,6 @@ export interface UseDeviceMotionReturn extends Supportable {
  * @param options
  */
 export declare function useDeviceMotion(
-  options?: UseDeviceMotionOptions
-): UseDeviceMotionReturn;
+  options?: UseDeviceMotionOptions,
+): UseDeviceMotionReturn
 ```

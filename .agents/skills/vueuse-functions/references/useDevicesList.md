@@ -9,14 +9,14 @@ Reactive [enumerateDevices](https://developer.mozilla.org/en-US/docs/Web/API/Med
 ## Usage
 
 ```ts
-import { useDevicesList } from "@vueuse/core";
+import { useDevicesList } from '@vueuse/core'
 
 const {
   devices,
   videoInputs: cameras,
   audioInputs: microphones,
-  audioOutputs: speakers
-} = useDevicesList();
+  audioOutputs: speakers,
+} = useDevicesList()
 ```
 
 ## Requesting Permissions
@@ -24,12 +24,15 @@ const {
 To request permissions, use the `ensurePermissions` method.
 
 ```ts
-import { useDevicesList } from "@vueuse/core";
+import { useDevicesList } from '@vueuse/core'
 // ---cut---
-const { ensurePermissions, permissionGranted } = useDevicesList();
+const {
+  ensurePermissions,
+  permissionGranted,
+} = useDevicesList()
 
-await ensurePermissions();
-console.log(permissionsGranted.value);
+await ensurePermissions()
+console.log(permissionsGranted.value)
 ```
 
 ## Component
@@ -37,8 +40,9 @@ console.log(permissionsGranted.value);
 ```vue
 <template>
   <UseDevicesList v-slot="{ videoInputs, audioInputs, audioOutputs }">
-    Cameras: {{ videoInputs }} Microphones: {{ audioInputs }} Speakers:
-    {{ audioOutputs }}
+    Cameras: {{ videoInputs }}
+    Microphones: {{ audioInputs }}
+    Speakers: {{ audioOutputs }}
   </UseDevicesList>
 </template>
 ```
@@ -47,31 +51,31 @@ console.log(permissionsGranted.value);
 
 ```ts
 export interface UseDevicesListOptions extends ConfigurableNavigator {
-  onUpdated?: (devices: MediaDeviceInfo[]) => void;
+  onUpdated?: (devices: MediaDeviceInfo[]) => void
   /**
    * Request for permissions immediately if it's not granted,
    * otherwise label and deviceIds could be empty
    *
    * @default false
    */
-  requestPermissions?: boolean;
+  requestPermissions?: boolean
   /**
    * Request for types of media permissions
    *
    * @default { audio: true, video: true }
    */
-  constraints?: MediaStreamConstraints;
+  constraints?: MediaStreamConstraints
 }
 export interface UseDevicesListReturn extends Supportable {
   /**
    * All devices
    */
-  devices: ShallowRef<MediaDeviceInfo[]>;
-  videoInputs: ComputedRef<MediaDeviceInfo[]>;
-  audioInputs: ComputedRef<MediaDeviceInfo[]>;
-  audioOutputs: ComputedRef<MediaDeviceInfo[]>;
-  permissionGranted: ShallowRef<boolean>;
-  ensurePermissions: () => Promise<boolean>;
+  devices: ShallowRef<MediaDeviceInfo[]>
+  videoInputs: ComputedRef<MediaDeviceInfo[]>
+  audioInputs: ComputedRef<MediaDeviceInfo[]>
+  audioOutputs: ComputedRef<MediaDeviceInfo[]>
+  permissionGranted: ShallowRef<boolean>
+  ensurePermissions: () => Promise<boolean>
 }
 /**
  * Reactive `enumerateDevices` listing available input/output devices
@@ -80,6 +84,6 @@ export interface UseDevicesListReturn extends Supportable {
  * @param options
  */
 export declare function useDevicesList(
-  options?: UseDevicesListOptions
-): UseDevicesListReturn;
+  options?: UseDevicesListOptions,
+): UseDevicesListReturn
 ```

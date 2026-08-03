@@ -14,7 +14,7 @@ Pinia works with SSR when stores are called at the top of `setup`, getters, or a
 ```vue
 <script setup>
 // ✅ Works - pinia knows the app context in setup
-const main = useMainStore();
+const main = useMainStore()
 </script>
 ```
 
@@ -23,19 +23,19 @@ const main = useMainStore();
 Pass the `pinia` instance explicitly:
 
 ```ts
-const pinia = createPinia();
-const app = createApp(App);
-app.use(router);
-app.use(pinia);
+const pinia = createPinia()
+const app = createApp(App)
+app.use(router)
+app.use(pinia)
 
-router.beforeEach(to => {
+router.beforeEach((to) => {
   // ✅ Pass pinia for correct SSR context
-  const main = useMainStore(pinia);
+  const main = useMainStore(pinia)
 
   if (to.meta.requiresAuth && !main.isLoggedIn) {
-    return "/login";
+    return '/login'
   }
-});
+})
 ```
 
 ## serverPrefetch()
@@ -45,10 +45,10 @@ Access pinia via `this.$pinia`:
 ```ts
 export default {
   serverPrefetch() {
-    const store = useStore(this.$pinia);
-    return store.fetchData();
-  }
-};
+    const store = useStore(this.$pinia)
+    return store.fetchData()
+  },
+}
 ```
 
 ## onServerPrefetch()
@@ -57,11 +57,11 @@ Works normally:
 
 ```vue
 <script setup>
-const store = useStore();
+const store = useStore()
 
 onServerPrefetch(async () => {
-  await store.fetchData();
-});
+  await store.fetchData()
+})
 </script>
 ```
 
@@ -74,16 +74,16 @@ Serialize state on server and hydrate on client.
 Use [devalue](https://github.com/Rich-Harris/devalue) for XSS-safe serialization:
 
 ```ts
-import devalue from "devalue";
-import { createPinia } from "pinia";
+import devalue from 'devalue'
+import { createPinia } from 'pinia'
 
-const pinia = createPinia();
-const app = createApp(App);
-app.use(router);
-app.use(pinia);
+const pinia = createPinia()
+const app = createApp(App)
+app.use(router)
+app.use(pinia)
 
 // After rendering, state is available
-const serializedState = devalue(pinia.state.value);
+const serializedState = devalue(pinia.state.value)
 // Inject into HTML as global variable
 ```
 
@@ -92,13 +92,13 @@ const serializedState = devalue(pinia.state.value);
 Hydrate before any `useStore()` call:
 
 ```ts
-const pinia = createPinia();
-const app = createApp(App);
-app.use(pinia);
+const pinia = createPinia()
+const app = createApp(App)
+app.use(pinia)
 
 // Hydrate from serialized state (e.g., from window.__pinia)
-if (typeof window !== "undefined") {
-  pinia.state.value = JSON.parse(window.__pinia);
+if (typeof window !== 'undefined') {
+  pinia.state.value = JSON.parse(window.__pinia)
 }
 ```
 

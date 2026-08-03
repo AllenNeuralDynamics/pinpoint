@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   atlasDisplayName,
   flattenHierarchy,
-  getDefaultStructureIdentifiers
+  getDefaultStructureIdentifiers,
+  widestHierarchyRowWidth
 } from "./hierarchy.api";
+import type { HierarchyItem } from "./hierarchy.api";
 import {
   makeAtlas,
   makeRelativePathTerminologyRows,
@@ -163,5 +165,93 @@ describe("atlasDisplayName", () => {
 
   it("returns an empty string unchanged", () => {
     expect(atlasDisplayName("")).toBe("");
+  });
+});
+
+describe("widestHierarchyRowWidth", () => {
+  function makeItem(overrides: Partial<HierarchyItem> = {}): HierarchyItem {
+    return {
+      identifier: 1,
+      abbreviation: "AB",
+      name: "Name",
+      color: "#FFFFFF",
+      guides: [],
+      ...overrides
+    };
+  }
+
+  const measure = (text: string, bold: boolean) => text.length * (bold ? 8 : 6);
+
+  it("picks the widest row, not the deepest or the last", () => {
+    const items = [
+      makeItem({
+        abbreviation: "A",
+        name: "A",
+        guides: ["line", "line", "line"]
+      }),
+      makeItem({ abbreviation: "AB", name: "A very long structure name" })
+    ];
+
+    expect(
+      widestHierarchyRowWidth(
+        items,
+        { guideWidth: 16, chromeWidth: 56 },
+        measure
+      )
+    ).toBe(258);
+  });
+
+  it("adds one guideWidth per guide", () => {
+    const items = [
+      makeItem({ abbreviation: "A", name: "A", guides: ["tee", "line"] })
+    ];
+
+    expect(
+      widestHierarchyRowWidth(
+        items,
+        { guideWidth: 16, chromeWidth: 56 },
+        measure
+      )
+    ).toBe(132);
+  });
+
+  it("excludes indent when guideWidth is 0", () => {
+    const items = [
+      makeItem({ abbreviation: "A", name: "A", guides: ["tee", "line"] })
+    ];
+
+    expect(
+      widestHierarchyRowWidth(
+        items,
+        { guideWidth: 0, chromeWidth: 56 },
+        measure
+      )
+    ).toBe(100);
+  });
+
+  it("returns 0 for an empty list", () => {
+    expect(
+      widestHierarchyRowWidth([], { guideWidth: 16, chromeWidth: 56 }, measure)
+    ).toBe(0);
+  });
+
+  it("ceils each measurement separately", () => {
+    const items = [makeItem()];
+
+    expect(
+      widestHierarchyRowWidth(
+        items,
+        { guideWidth: 0, chromeWidth: 0 },
+        () => 10.2
+      )
+    ).toBe(73);
+  });
+
+  it("appends a margin of five average character widths", () => {
+    const items = [makeItem({ abbreviation: "", name: "" })];
+
+    expect(
+      widestHierarchyRowWidth(items, { guideWidth: 0, chromeWidth: 0 }, measure)
+    ).toBe(30);
   });
 });

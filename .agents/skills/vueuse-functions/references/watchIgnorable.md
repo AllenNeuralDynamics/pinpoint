@@ -12,32 +12,33 @@ Ignorable watch
 Extended `watch` that returns extra `ignoreUpdates(updater)` and `ignorePrevAsyncUpdates()` to ignore particular updates to the source.
 
 ```ts
-import { watchIgnorable } from "@vueuse/core";
-import { nextTick, shallowRef } from "vue";
+import { watchIgnorable } from '@vueuse/core'
+import { nextTick, shallowRef } from 'vue'
 
-const source = shallowRef("foo");
+const source = shallowRef('foo')
 
-const { stop, ignoreUpdates } = watchIgnorable(source, v =>
-  console.log(`Changed to ${v}!`)
-);
+const { stop, ignoreUpdates } = watchIgnorable(
+  source,
+  v => console.log(`Changed to ${v}!`),
+)
 
-source.value = "bar";
-await nextTick(); // logs: Changed to bar!
-
-ignoreUpdates(() => {
-  source.value = "foobar";
-});
-await nextTick(); // (nothing happened)
-
-source.value = "hello";
-await nextTick(); // logs: Changed to hello!
+source.value = 'bar'
+await nextTick() // logs: Changed to bar!
 
 ignoreUpdates(() => {
-  source.value = "ignored";
-});
-source.value = "logged";
+  source.value = 'foobar'
+})
+await nextTick() // (nothing happened)
 
-await nextTick(); // logs: Changed to logged!
+source.value = 'hello'
+await nextTick() // logs: Changed to hello!
+
+ignoreUpdates(() => {
+  source.value = 'ignored'
+})
+source.value = 'logged'
+
+await nextTick() // logs: Changed to logged!
 ```
 
 ## WatchOptionFlush timing
@@ -50,29 +51,30 @@ So, by default the composable works using `flush: 'pre'`.
 This feature is only for async flush `'pre'` and `'post'`. If `flush: 'sync'` is used, `ignorePrevAsyncUpdates()` is a no-op as the watch will trigger immediately after each update to the source. It is still provided for sync flush so the code can be more generic.
 
 ```ts
-import { watchIgnorable } from "@vueuse/core";
-import { nextTick, shallowRef } from "vue";
+import { watchIgnorable } from '@vueuse/core'
+import { nextTick, shallowRef } from 'vue'
 
-const source = shallowRef("foo");
+const source = shallowRef('foo')
 
-const { ignorePrevAsyncUpdates } = watchIgnorable(source, v =>
-  console.log(`Changed to ${v}!`)
-);
+const { ignorePrevAsyncUpdates } = watchIgnorable(
+  source,
+  v => console.log(`Changed to ${v}!`),
+)
 
-source.value = "bar";
-await nextTick(); // logs: Changed to bar!
+source.value = 'bar'
+await nextTick() // logs: Changed to bar!
 
-source.value = "good";
-source.value = "by";
-ignorePrevAsyncUpdates();
+source.value = 'good'
+source.value = 'by'
+ignorePrevAsyncUpdates()
 
-await nextTick(); // (nothing happened)
+await nextTick() // (nothing happened)
 
-source.value = "prev";
-ignorePrevAsyncUpdates();
-source.value = "after";
+source.value = 'prev'
+ignorePrevAsyncUpdates()
+source.value = 'after'
 
-await nextTick(); // logs: Changed to after!
+await nextTick() // logs: Changed to after!
 ```
 
 ## Recommended Readings
@@ -82,37 +84,37 @@ await nextTick(); // logs: Changed to after!
 ## Type Declarations
 
 ```ts
-export type IgnoredUpdater = (updater: () => void) => void;
-export type IgnoredPrevAsyncUpdates = () => void;
+export type IgnoredUpdater = (updater: () => void) => void
+export type IgnoredPrevAsyncUpdates = () => void
 export interface WatchIgnorableReturn {
-  ignoreUpdates: IgnoredUpdater;
-  ignorePrevAsyncUpdates: IgnoredPrevAsyncUpdates;
-  stop: WatchStopHandle;
+  ignoreUpdates: IgnoredUpdater
+  ignorePrevAsyncUpdates: IgnoredPrevAsyncUpdates
+  stop: WatchStopHandle
 }
 export declare function watchIgnorable<
   T,
-  Immediate extends Readonly<boolean> = false
+  Immediate extends Readonly<boolean> = false,
 >(
   source: WatchSource<T>,
   cb: WatchCallback<T, Immediate extends true ? T | undefined : T>,
-  options?: WatchWithFilterOptions<Immediate>
-): WatchIgnorableReturn;
+  options?: WatchWithFilterOptions<Immediate>,
+): WatchIgnorableReturn
 export declare function watchIgnorable<
   T extends Readonly<MultiWatchSources>,
-  Immediate extends Readonly<boolean> = false
+  Immediate extends Readonly<boolean> = false,
 >(
   sources: [...T],
   cb: WatchCallback<MapSources<T>, MapOldSources<T, Immediate>>,
-  options?: WatchWithFilterOptions<Immediate>
-): WatchIgnorableReturn;
+  options?: WatchWithFilterOptions<Immediate>,
+): WatchIgnorableReturn
 export declare function watchIgnorable<
   T extends object,
-  Immediate extends Readonly<boolean> = false
+  Immediate extends Readonly<boolean> = false,
 >(
   source: T,
   cb: WatchCallback<T, Immediate extends true ? T | undefined : T>,
-  options?: WatchWithFilterOptions<Immediate>
-): WatchIgnorableReturn;
+  options?: WatchWithFilterOptions<Immediate>,
+): WatchIgnorableReturn
 /** @deprecated use `watchIgnorable` instead */
-export declare const ignorableWatch: typeof watchIgnorable;
+export declare const ignorableWatch: typeof watchIgnorable
 ```
