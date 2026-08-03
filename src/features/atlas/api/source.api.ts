@@ -196,6 +196,16 @@ function parseTerminologyRow(row: RawTerminologyRow): TerminologyRow {
 }
 
 /**
+ * Do two atlases refer to the same atlas, comparing identity fields since
+ * atlas objects are not stable references.
+ * @param first First atlas to compare.
+ * @param second Second atlas to compare.
+ */
+export function isSameAtlas(first: Atlas, second: Atlas): boolean {
+  return first.name === second.name && first.source === second.source;
+}
+
+/**
  * Fetch and aggregate the manifests of every size variant of an atlas, or
  * null if unreachable or without variants.
  * @param atlas Atlas to build the aggregated manifest for.

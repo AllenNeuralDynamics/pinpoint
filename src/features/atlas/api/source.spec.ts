@@ -9,6 +9,7 @@ import {
   getAtlasLongestDimensionMillimeters,
   getManifest,
   getTerminologyRows,
+  isSameAtlas,
   listAtlases,
   listAtlasesHTTP,
   structureEntitiesFromIdentifiers,
@@ -900,5 +901,21 @@ describe("getAtlasLongestDimensionMillimeters", () => {
     });
 
     expect(getAtlasLongestDimensionMillimeters(manifest)).toBe(0);
+  });
+});
+
+describe("isSameAtlas", () => {
+  it("returns true for distinct objects with equal name and source", () => {
+    const first = makeAtlas({ name: "allen_mouse", source: "https://a.test" });
+    const second = makeAtlas({ name: "allen_mouse", source: "https://a.test" });
+
+    expect(isSameAtlas(first, second)).toBe(true);
+  });
+
+  it("returns false when name and source both differ", () => {
+    const first = makeAtlas({ name: "allen_mouse", source: "https://a.test" });
+    const second = makeAtlas({ name: "allen_human", source: "https://b.test" });
+
+    expect(isSameAtlas(first, second)).toBe(false);
   });
 });

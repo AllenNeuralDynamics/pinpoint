@@ -9,6 +9,7 @@ import {
   isStructureVisible,
   removeInternProbeInterfaceProbe,
   removeProbe,
+  setExperimentProperties,
   setProbeInterface,
   setStructureVisibility
 } from "./experiment.api";
@@ -387,5 +388,75 @@ describe("removeProbe", () => {
     removeProbe(experiment, probe);
 
     expect(experiment.probeInterfaceProbes).toEqual({});
+  });
+});
+
+describe("setExperimentProperties", () => {
+  it("writes trimmed name, atlas, and reference coordinate onto the same experiment object", () => {
+    const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
+    const atlas = makeAtlas({ name: "allen_human" });
+
+    setExperimentProperties(experiment, {
+      name: "  New Name  ",
+      atlas,
+      referenceCoordinate: [1, 2, 3]
+    });
+
+    expect(experiment.name).toBe("New Name");
+    expect(experiment.atlas).toEqual(atlas);
+    expect(experiment.referenceCoordinate).toEqual([1, 2, 3]);
+  });
+
+  it("does not alias the caller's arrays", () => {
+    const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
+    const referenceCoordinate: [number, number, number] = [1, 2, 3];
+
+    setExperimentProperties(experiment, {
+      name: "New",
+      atlas: makeAtlas(),
+      referenceCoordinate
+    });
+    referenceCoordinate[0] = 99;
+
+    expect(experiment.referenceCoordinate).toEqual([1, 2, 3]);
+  });
+
+  it("clears visibleStructures when the atlas name differs", () => {
+    const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
+    experiment.visibleStructures = [1, 2, 3];
+
+    setExperimentProperties(experiment, {
+      name: "New",
+      atlas: makeAtlas({ name: "allen_human" }),
+      referenceCoordinate: [0, 0, 0]
+    });
+
+    expect(experiment.visibleStructures).toEqual([]);
+  });
+
+  it("clears visibleStructures when only the source differs", () => {
+    const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
+    experiment.visibleStructures = [1, 2, 3];
+
+    setExperimentProperties(experiment, {
+      name: "New",
+      atlas: makeAtlas({ source: "https://other.test" }),
+      referenceCoordinate: [0, 0, 0]
+    });
+
+    expect(experiment.visibleStructures).toEqual([]);
+  });
+
+  it("keeps visibleStructures when a structurally equal but distinct atlas object is passed", () => {
+    const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
+    experiment.visibleStructures = [1, 2, 3];
+
+    setExperimentProperties(experiment, {
+      name: "New",
+      atlas: makeAtlas(),
+      referenceCoordinate: [0, 0, 0]
+    });
+
+    expect(experiment.visibleStructures).toEqual([1, 2, 3]);
   });
 });

@@ -14,7 +14,7 @@ import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { setProbeInterface } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
-import CommittedInput from "./CommittedInput.vue";
+import CommittedInput from "@/components/CommittedInput.vue";
 
 // A library probe's identifier paired with its display label. `emit-value`
 // keeps the model the identifier, which `findProbeInterfaceProbeByIdentifier`
@@ -80,7 +80,8 @@ const nameRules: ValidationRule<string>[] = [
 
 const numberRules: ValidationRule<string>[] = [
   value =>
-    (value.trim().length > 0 && Number.isFinite(Number(value))) ||
+    value.trim().length === 0 ||
+    Number.isFinite(Number(value)) ||
     t("probeInspector.mustBeNumber")
 ];
 </script>

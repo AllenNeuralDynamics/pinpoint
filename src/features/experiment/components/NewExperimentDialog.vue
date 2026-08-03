@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { computed, ref } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
+import { type QInput, type ValidationRule } from "quasar";
 import { Atlas, AtlasPicker, getManifest } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDialogPluginComponent } from "quasar";
@@ -17,11 +18,16 @@ const currentExperimentStore = useCurrentExperimentStore();
 
 const name = ref<string | null>(null);
 const atlas = ref<Atlas | null>(null);
+const nameInput = useTemplateRef<QInput>("nameInput");
 
 /**
  * Whether the Create button should be disabled.
  */
 const isCreateDisabled = computed(() => !name.value || !atlas.value);
+
+const nameRules: ValidationRule<string | null>[] = [
+  value => (value ?? "").trim().length > 0 || t("newExperiment.nameRequired")
+];
 
 /**
  * Create a new experiment with the given name and atlas, seeding its
@@ -55,9 +61,13 @@ async function create() {
         <p class="text-h5">{{ $t("newExperiment.title") }}</p>
 
         <q-input
+          ref="nameInput"
           v-model="name"
           clearable
           :label="$t('newExperiment.experimentName')"
+          lazy-rules
+          :rules="nameRules"
+          @blur="nameInput?.validate()"
         />
 
         <AtlasPicker v-model="atlas" />

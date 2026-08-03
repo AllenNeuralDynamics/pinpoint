@@ -5,6 +5,7 @@ export {
   BRAINGLOBE_BASE_URL,
   getTerminologyRows,
   getManifest,
+  isSameAtlas,
   structureEntitiesFromIdentifiers,
   getAtlasCenter,
   getAtlasLongestDimensionMillimeters,

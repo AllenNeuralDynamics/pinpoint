@@ -3,6 +3,7 @@ import { onMounted, ref, type Ref } from "vue";
 import { SceneCanvas, SceneHierarchy } from "@/features/scene";
 import { TouchPanValue, useQuasar } from "quasar";
 import {
+  ExperimentPropertiesDialog,
   NewExperimentDialog,
   RecentExperimentsDialog,
   useExperimentFile
@@ -128,6 +129,14 @@ onMounted(() => {
               </q-item>
             </q-list>
             <q-list>
+              <q-item
+                clickable
+                @click="$q.dialog({ component: ExperimentPropertiesDialog })"
+              >
+                <q-item-section>{{
+                  $t("layout.experimentProperties")
+                }}</q-item-section>
+              </q-item>
               <q-item
                 clickable
                 @click="$q.dialog({ component: ProbeLibraryDialog })"

@@ -1,4 +1,5 @@
 import type { Atlas } from "@/features/atlas";
+import { isSameAtlas } from "@/features/atlas";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import {
@@ -27,6 +28,31 @@ export function buildExperiment(
     probeInterfaceProbes: {},
     probes: []
   };
+}
+
+/**
+ * Commit edited properties onto an experiment in place, clearing visible
+ * structures when the atlas changed since their identifiers are atlas-specific.
+ * @param experiment Experiment to update.
+ * @param properties Name, atlas, and reference coordinate to commit.
+ */
+export function setExperimentProperties(
+  experiment: Experiment,
+  properties: {
+    name: string;
+    atlas: Atlas;
+    referenceCoordinate: [number, number, number];
+  }
+) {
+  const { name, atlas, referenceCoordinate } = properties;
+
+  if (!isSameAtlas(atlas, experiment.atlas)) {
+    clearVisibleStructures(experiment);
+  }
+
+  experiment.name = name.trim();
+  experiment.atlas = { ...atlas };
+  experiment.referenceCoordinate = [...referenceCoordinate];
 }
 /**
  * Is the structure visible on the atlas in the experiment.

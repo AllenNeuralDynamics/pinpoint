@@ -10,6 +10,9 @@ import {
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { makeAtlas, makeManifest, makeProbe } from "@/test/fixtures";
+import enUS from "@/i18n/en-US";
+
+const t = enUS.newExperiment;
 
 // `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
 // `computedAsync`, refetching from the real atlas API whenever the atlas
@@ -80,6 +83,37 @@ describe("NewExperimentDialog", () => {
         .vm.$emit("update:modelValue", makeAtlas());
 
       expect(createButton(wrapper).props("disable")).toBe(false);
+    });
+  });
+
+  describe("name validation", () => {
+    it("shows a required error when the name is left blank", async () => {
+      const wrapper = await mountDialog();
+      const nameInput = wrapper.findComponent({ name: "QInput" });
+      const native = nameInput.find("input");
+      await native.trigger("focusin");
+      await native.setValue("");
+      await native.trigger("focusout");
+      await flushMicrotasks();
+
+      expect(nameInput.find("[role='alert']").text()).toBe(t.nameRequired);
+    });
+
+    it("clears the error once a name is entered", async () => {
+      const wrapper = await mountDialog();
+      const nameInput = wrapper.findComponent({ name: "QInput" });
+      const native = nameInput.find("input");
+      await native.trigger("focusin");
+      await native.setValue("");
+      await native.trigger("focusout");
+      await flushMicrotasks();
+
+      await native.trigger("focusin");
+      await native.setValue("My Experiment");
+      await native.trigger("focusout");
+      await flushMicrotasks();
+
+      expect(nameInput.find("[role='alert']").exists()).toBe(false);
     });
   });
 

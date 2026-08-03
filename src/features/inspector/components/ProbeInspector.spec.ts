@@ -200,14 +200,16 @@ describe("ProbeInspector", () => {
     expect(ap.find("[role='alert']").text()).toBe(t.mustBeNumber);
   });
 
-  it("rejects an empty numeric field", async () => {
+  it("commits zero when a numeric field is left blank", async () => {
     const { wrapper, probe } = mountInspector(
       makeProbe({ tipPosition: [5, 0, 0] })
     );
 
-    await editAndBlur(fieldByLabel(wrapper, t.ap), "");
+    const ap = fieldByLabel(wrapper, t.ap);
+    await editAndBlur(ap, "");
 
-    expect(probe.tipPosition[0]).toBe(5);
+    expect(probe.tipPosition[0]).toBe(0);
+    expect(ap.find("[role='alert']").exists()).toBe(false);
   });
 
   it("accepts zero in a numeric field", async () => {

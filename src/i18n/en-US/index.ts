@@ -26,6 +26,25 @@ export default {
     pickNameAndAtlas: "Pick an experiment name and atlas",
     failedToFetchAtlas: "Failed to fetch atlas.",
     checkAtlas:
+      "Please check your connection to the source and the atlas's existence.",
+    nameRequired: "Name is required."
+  },
+  experimentProperties: {
+    title: "Experiment Properties",
+    experimentName: "Experiment name",
+    referenceCoordinate: "Reference Coordinate",
+    ap: "AP",
+    dv: "DV",
+    ml: "ML",
+    nameRequired: "Name is required.",
+    mustBeNumber: "Must be a number.",
+    cancel: "Cancel",
+    save: "Save",
+    incomplete:
+      "Enter a name, pick an atlas, and set the reference coordinate.",
+    loadingAtlas: "Loading the selected atlas...",
+    failedToFetchAtlas: "Failed to fetch atlas.",
+    checkAtlas:
       "Please check your connection to the source and the atlas's existence."
   },
   recentExperiments: {
@@ -104,6 +123,7 @@ export default {
     download: "Download",
     edit: "Edit",
     preferences: "Preferences",
+    experimentProperties: "Experiment Properties",
     probeLibrary: "Probe Library",
     view: "View",
     splashScreen: "Splash Screen",
