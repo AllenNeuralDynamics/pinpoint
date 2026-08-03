@@ -7,6 +7,7 @@ import type { Component } from "vue";
 import { Notify, Quasar } from "quasar";
 import { createI18n } from "vue-i18n";
 import { createPinia, type Pinia, setActivePinia } from "pinia";
+import type { IMatrixLike, Matrix } from "@babylonjs/core";
 import {
   DracoDecoder,
   GizmoManager,
@@ -18,6 +19,8 @@ import {
   UtilityLayerRenderer,
   WorkerPool
 } from "@babylonjs/core";
+import type { INodeLike, ParagraphOptions } from "@babylonjs/addons";
+import { FontAsset } from "@babylonjs/addons";
 import Module from "manifold-3d";
 import messages from "@/i18n";
 
@@ -162,4 +165,77 @@ export function createWrapperRegistry<T extends { unmount(): void }>(): {
 /** Resolve after the current microtask queue drains. */
 export async function flushMicrotasks(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 0));
+}
+
+/** Paragraph recorded by `makeFakeTextRenderer`. */
+export interface RecordedParagraph {
+  text: string;
+  worldMatrix: Matrix;
+}
+
+/** Fake MSDF text renderer, recording the paragraphs added to it. */
+export interface FakeTextRenderer {
+  parent: INodeLike | null;
+  paragraphs: RecordedParagraph[];
+  addParagraph(
+    text: string,
+    options?: Partial<ParagraphOptions>,
+    worldMatrix?: IMatrixLike
+  ): void;
+  clearParagraphs(): void;
+}
+
+/** Build a `FakeTextRenderer`, recording the paragraphs added to it. */
+export function makeFakeTextRenderer(): FakeTextRenderer {
+  const paragraphs: RecordedParagraph[] = [];
+  return {
+    parent: null,
+    paragraphs,
+    addParagraph(
+      text: string,
+      _options?: Partial<ParagraphOptions>,
+      worldMatrix?: IMatrixLike
+    ) {
+      paragraphs.push({ text, worldMatrix: worldMatrix as Matrix });
+    },
+    clearParagraphs() {
+      paragraphs.length = 0;
+    }
+  };
+}
+
+/**
+ * Build a real `FontAsset` from a minimal MSDF definition: em size 100, every
+ * glyph 50 units wide with a 50-unit advance, so each three-character axis
+ * label lays out exactly 1.52 em wide.
+ * @param scene Scene hosting the font's atlas texture.
+ */
+export function makeTestFontAsset(scene: Scene): FontAsset {
+  const chars = ["+", "-", "A", "P", "D", "V", "M", "L"].map((char, index) => ({
+    id: char.charCodeAt(0),
+    index,
+    char,
+    width: 50,
+    height: 60,
+    xoffset: 0,
+    yoffset: 10,
+    xadvance: 50,
+    chnl: 15,
+    x: index * 50,
+    y: 0,
+    page: 0
+  }));
+
+  return new FontAsset(
+    JSON.stringify({
+      pages: ["fixture.png"],
+      chars,
+      info: { face: "Fixture", size: 100 },
+      common: { lineHeight: 100, base: 80, scaleW: 512, scaleH: 512, pages: 1 },
+      distanceField: { fieldType: "msdf", distanceRange: 4 },
+      kernings: []
+    }),
+    "fixture.png",
+    scene
+  );
 }

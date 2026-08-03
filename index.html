@@ -20,10 +20,13 @@
       embind bindings call `new Function(...)` once per bound class to
       build method invokers during setup(), which wasm-unsafe-eval alone
       does not cover.
+
+      img-src allows assets.babylonjs.com because the axis guides' MSDF
+      text renderer loads its font atlas texture from there.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.babylonjs.com 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://raw.githubusercontent.com; connect-src 'self' https:; worker-src 'self' blob:;"
+      content="default-src 'self'; script-src 'self' https://cdn.babylonjs.com 'wasm-unsafe-eval' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://raw.githubusercontent.com https://assets.babylonjs.com; connect-src 'self' https:; worker-src 'self' blob:;"
     />
 
     <link

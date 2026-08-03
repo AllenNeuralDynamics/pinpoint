@@ -46,9 +46,9 @@ const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
 const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
 
 /**
- * Fallback value if an atlas center coordinate can't be determined.
+ * Fallback value if an atlas volume's dimensions can't be determined.
  */
-const FALLBACK_ATLAS_CENTER: [number, number, number] = [0, 0, 0];
+const FALLBACK_ATLAS_DIMENSIONS: [number, number, number] = [0, 0, 0];
 
 /**
  * Fetch the list of atlases in the BrainGlobe atlases bucket, or null if
@@ -358,20 +358,32 @@ function resolveSourcePath(source: string, path: string): string {
 }
 
 /**
- * Computes the center of the atlas volume in mm.
- * @param manifest Atlas manifest to compute the center for.
+ * Compute the atlas volume's extent along each ASR axis, in mm, or all zeros
+ * if unknown.
+ * @param manifest Atlas manifest to compute the dimensions for.
  */
-export function getAtlasCenter(manifest: Manifest): [number, number, number] {
+export function getAtlasDimensionsMillimeters(
+  manifest: Manifest
+): [number, number, number] {
   if (!manifest.resolutions[0] || !manifest.shape[0])
-    return FALLBACK_ATLAS_CENTER;
+    return FALLBACK_ATLAS_DIMENSIONS;
 
   const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
   const [apShape, dvShape, mlShape] = manifest.shape[0];
   return [
-    (apResolution * apShape) / 2,
-    (dvResolution * dvShape) / 2,
-    (mlResolution * mlShape) / 2
+    apResolution * apShape,
+    dvResolution * dvShape,
+    mlResolution * mlShape
   ];
+}
+
+/**
+ * Computes the center of the atlas volume in mm.
+ * @param manifest Atlas manifest to compute the center for.
+ */
+export function getAtlasCenter(manifest: Manifest): [number, number, number] {
+  const [ap, dv, ml] = getAtlasDimensionsMillimeters(manifest);
+  return [ap / 2, dv / 2, ml / 2];
 }
 
 /**
@@ -382,13 +394,5 @@ export function getAtlasCenter(manifest: Manifest): [number, number, number] {
 export function getAtlasLongestDimensionMillimeters(
   manifest: Manifest
 ): number {
-  if (!manifest.resolutions[0] || !manifest.shape[0]) return 0;
-
-  const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
-  const [apShape, dvShape, mlShape] = manifest.shape[0];
-  return Math.max(
-    apResolution * apShape,
-    dvResolution * dvShape,
-    mlResolution * mlShape
-  );
+  return Math.max(...getAtlasDimensionsMillimeters(manifest));
 }

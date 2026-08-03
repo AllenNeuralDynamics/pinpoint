@@ -1,20 +1,39 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type { PickingInfo } from "@babylonjs/core";
-import { MeshBuilder, PointerEventTypes, PointerInfo } from "@babylonjs/core";
+import type { PickingInfo, Scene } from "@babylonjs/core";
+import {
+  ArcRotateCamera,
+  Matrix,
+  MeshBuilder,
+  PointerEventTypes,
+  PointerInfo,
+  Vector3
+} from "@babylonjs/core";
 import {
   addProbe,
   buildExperiment,
   internProbeInterfaceProbe
 } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
-import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeManifest,
+  makeProbe,
+  makeProbeInterfaceProbe
+} from "@/test/fixtures";
+import type { FakeTextRenderer } from "@/test/mount-helper";
 import {
   initializeTestCSG2,
+  makeFakeTextRenderer,
+  makeTestFontAsset,
+  makeTestScene,
   makeTestSceneWithGizmo
 } from "@/test/mount-helper";
 import { buildProbe } from "./probe.api";
+import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
+import { buildAxisGuides } from "./axis-guide.api";
 import {
   deselectFromPointerDown,
+  orbitCameraFromAxisGuideDoubleTap,
   selectFromSelectedInspectableState
 } from "./scene.api";
 
@@ -248,5 +267,130 @@ describe("deselectFromPointerDown", () => {
 
     expect(gizmoManager.attachedNode).toBe(node);
     expect(onDeselect).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Build a real `AxisGuides` object backed by fake renderers and a fixture
+ * font asset, for one test's scene.
+ * @param scene Scene the font asset's texture is hosted in.
+ */
+function makeTestAxisGuides(scene: Scene): AxisGuides {
+  const renderers: Record<AxisGuideAxis, FakeTextRenderer> = {
+    ap: makeFakeTextRenderer(),
+    dv: makeFakeTextRenderer(),
+    ml: makeFakeTextRenderer()
+  };
+  return {
+    renderers,
+    fontAsset: makeTestFontAsset(scene),
+    dispose: () => {}
+  };
+}
+
+/**
+ * Project a mesh's world-space centre to screen coordinates, without
+ * rendering, matching how `scene.pick` interprets screen positions.
+ * @param scene Scene the camera and mesh belong to.
+ * @param camera Camera to project through.
+ * @param meshName Name of the mesh to project.
+ */
+function projectPickMeshToScreen(
+  scene: Scene,
+  camera: ArcRotateCamera,
+  meshName: string
+): Vector3 {
+  const mesh = scene.getMeshByName(meshName)!;
+  mesh.computeWorldMatrix(true);
+
+  const transform = camera
+    .getViewMatrix()
+    .multiply(camera.getProjectionMatrix());
+  const engine = scene.getEngine();
+  const viewport = camera.viewport.toGlobal(
+    engine.getRenderWidth(),
+    engine.getRenderHeight()
+  );
+
+  return Vector3.Project(
+    mesh.absolutePosition,
+    Matrix.Identity(),
+    transform,
+    viewport
+  );
+}
+
+describe("orbitCameraFromAxisGuideDoubleTap", () => {
+  function makeOrbitScene() {
+    const scene = makeTestScene();
+    const camera = new ArcRotateCamera(
+      "c",
+      -Math.PI / 2,
+      Math.PI / 8,
+      50,
+      Vector3.Zero(),
+      scene
+    );
+    scene.activeCamera = camera;
+    buildAxisGuides(scene, makeTestAxisGuides(scene), makeManifest());
+    const interpolateTo = vi.spyOn(camera, "interpolateTo");
+    orbitCameraFromAxisGuideDoubleTap(scene, camera);
+    return { scene, camera, interpolateTo };
+  }
+
+  it("orbits to face +AP when the -AP label is double-clicked", () => {
+    const { scene, camera, interpolateTo } = makeOrbitScene();
+    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_-AP");
+    scene.pointerX = screen.x;
+    scene.pointerY = screen.y;
+
+    scene.onPointerObservable.notifyObservers(
+      new PointerInfo(
+        PointerEventTypes.POINTERDOUBLETAP,
+        {} as PointerEvent,
+        { pickedMesh: null } as PickingInfo
+      ),
+      PointerEventTypes.POINTERDOUBLETAP
+    );
+
+    expect(interpolateTo).toHaveBeenCalledTimes(1);
+    const call = interpolateTo.mock.calls[0]!;
+    expect(call[0]).toBeCloseTo(Math.PI / 2);
+    expect(call[1]).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("does nothing when double-clicking empty space", () => {
+    const { scene, interpolateTo } = makeOrbitScene();
+    scene.pointerX = 0;
+    scene.pointerY = 0;
+
+    scene.onPointerObservable.notifyObservers(
+      new PointerInfo(
+        PointerEventTypes.POINTERDOUBLETAP,
+        {} as PointerEvent,
+        { pickedMesh: null } as PickingInfo
+      ),
+      PointerEventTypes.POINTERDOUBLETAP
+    );
+
+    expect(interpolateTo).not.toHaveBeenCalled();
+  });
+
+  it("does nothing on a single tap at the -AP label's screen position", () => {
+    const { scene, camera, interpolateTo } = makeOrbitScene();
+    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_-AP");
+    scene.pointerX = screen.x;
+    scene.pointerY = screen.y;
+
+    scene.onPointerObservable.notifyObservers(
+      new PointerInfo(
+        PointerEventTypes.POINTERTAP,
+        {} as PointerEvent,
+        { pickedMesh: null } as PickingInfo
+      ),
+      PointerEventTypes.POINTERTAP
+    );
+
+    expect(interpolateTo).not.toHaveBeenCalled();
   });
 });

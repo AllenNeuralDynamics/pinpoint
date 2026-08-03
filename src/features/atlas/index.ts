@@ -8,6 +8,7 @@ export {
   isSameAtlas,
   structureEntitiesFromIdentifiers,
   getAtlasCenter,
+  getAtlasDimensionsMillimeters,
   getAtlasLongestDimensionMillimeters,
   getAnnotationVolumeUrl
 } from "./api/source.api";

@@ -16,11 +16,16 @@ import type {
   Scene,
   SelectionOutlineLayer
 } from "@babylonjs/core";
+import { PointerEventTypes } from "@babylonjs/core";
 import { shallowRef } from "vue";
 import SceneCanvas from "./SceneCanvas.vue";
+import type { FakeTextRenderer } from "@/test/mount-helper";
+import type * as MountHelper from "@/test/mount-helper";
 import {
   createWrapperRegistry,
   initializeTestCSG2,
+  makeFakeTextRenderer,
+  makeTestFontAsset,
   makeTestSceneWithGizmo,
   mountWithQuasar
 } from "@/test/mount-helper";
@@ -31,6 +36,8 @@ import {
   syncStructuresVisibility
 } from "../api/structures.api";
 import { setInitialZoom } from "../api/camera.api";
+import { createAxisGuides } from "../api/axis-guide.api";
+import type * as AxisGuideApi from "../api/axis-guide.api";
 import {
   getAtlasCenter,
   getManifest,
@@ -76,6 +83,27 @@ vi.mock("../api/camera.api", async () => {
   return { ...actual, setInitialZoom: vi.fn() };
 });
 
+vi.mock("../api/axis-guide.api", async () => {
+  const actual = await vi.importActual<typeof AxisGuideApi>(
+    "../api/axis-guide.api"
+  );
+  const { makeFakeTextRenderer: makeFake, makeTestFontAsset: makeFontAsset } =
+    await vi.importActual<typeof MountHelper>("@/test/mount-helper");
+
+  return {
+    ...actual,
+    createAxisGuides: vi.fn(async (scene: Scene) => ({
+      renderers: {
+        ap: makeFake(),
+        dv: makeFake(),
+        ml: makeFake()
+      },
+      fontAsset: makeFontAsset(scene),
+      dispose: vi.fn()
+    }))
+  };
+});
+
 // `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
 // `computedAsync`, fetching from this module whenever the store is created
 // -- both must be mocked or mounting this component triggers real network
@@ -108,7 +136,8 @@ const wrappers = createWrapperRegistry<CanvasWrapper>();
  * `SelectionOutlineLayer` (both construct fine under `NullEngine`), and a
  * bare camera object, so `SceneCanvas`'s `watchEffect`s -- including probe
  * sync, gizmo drag, and selection -- have something to react to without a
- * real rendering context.
+ * real rendering context, and exposes `replaceScene` to swap in a fresh
+ * scene, gizmo manager, and outline layer.
  */
 function makeRuntimeStub() {
   const engine = shallowRef<{ resize: () => void } | null>(null);
@@ -128,6 +157,13 @@ function makeRuntimeStub() {
     selectionOutlineLayer.value = built.selectionOutlineLayer;
   });
 
+  const replaceScene = () => {
+    const built = makeTestSceneWithGizmo();
+    scene.value = built.scene;
+    gizmoManager.value = built.gizmoManager;
+    selectionOutlineLayer.value = built.selectionOutlineLayer;
+  };
+
   return {
     engine,
     scene,
@@ -136,8 +172,12 @@ function makeRuntimeStub() {
     selectionOutlineLayer,
     init,
     dispose,
-    resize
-  } as unknown as BabylonRuntimeService & { resize: () => void };
+    resize,
+    replaceScene
+  } as unknown as BabylonRuntimeService & {
+    resize: () => void;
+    replaceScene: () => void;
+  };
 }
 
 /**
@@ -163,6 +203,29 @@ async function mountCanvas(runtime = makeRuntimeStub()) {
   return { wrapper, runtime };
 }
 
+/**
+ * Flip the axis guide visibility toggle and let the lazy renderer creation
+ * and the label rebuild settle.
+ * @param wrapper Mounted `SceneCanvas` wrapper.
+ * @param visible Visibility to set on the toggle.
+ */
+async function setAxisGuidesVisible(wrapper: CanvasWrapper, visible: boolean) {
+  await wrapper
+    .findComponent({ name: "QToggle" })
+    .vm.$emit("update:modelValue", visible);
+  await flushPromises();
+}
+
+/**
+ * Count the scene's axis guide pick meshes -- the invisible click targets
+ * that let clicking a label orbit the camera onto its axis.
+ * @param scene Scene holding the axis guide pick meshes.
+ */
+function axisGuidePickMeshCount(scene: Scene): number {
+  return scene.meshes.filter(mesh => mesh.name.startsWith("axisGuidePick_"))
+    .length;
+}
+
 describe("SceneCanvas", () => {
   beforeAll(async () => {
     await initializeTestCSG2();
@@ -181,6 +244,16 @@ describe("SceneCanvas", () => {
     vi.mocked(setAtlasCenterOffset).mockReset();
     vi.mocked(removeAllStructures).mockReset();
     vi.mocked(setInitialZoom).mockReset();
+    vi.mocked(createAxisGuides).mockReset();
+    vi.mocked(createAxisGuides).mockImplementation(async scene => ({
+      renderers: {
+        ap: makeFakeTextRenderer(),
+        dv: makeFakeTextRenderer(),
+        ml: makeFakeTextRenderer()
+      },
+      fontAsset: makeTestFontAsset(scene),
+      dispose: vi.fn()
+    }));
   });
 
   afterEach(() => {
@@ -193,6 +266,20 @@ describe("SceneCanvas", () => {
     expect(runtime.init).toHaveBeenCalledTimes(1);
     const canvasArg = vi.mocked(runtime.init).mock.calls[0]![0];
     expect(canvasArg).toBe(wrapper.find("canvas").element);
+  });
+
+  it("registers exactly one axis guide double-tap observer, and removes it on unmount", async () => {
+    const { wrapper, runtime } = await mountCanvas();
+
+    const observers = () =>
+      runtime.scene.value!.onPointerObservable.observers.filter(
+        observer => observer.mask === PointerEventTypes.POINTERDOUBLETAP
+      );
+    expect(observers()).toHaveLength(1);
+
+    wrapper.unmount();
+
+    expect(observers()).toHaveLength(0);
   });
 
   it("syncs structures built from the manifest, not the atlas", async () => {
@@ -277,6 +364,70 @@ describe("SceneCanvas", () => {
       expect.anything(),
       getAtlasCenter(makeManifest())
     );
+  });
+
+  it("loads no axis guide text renderers or pick meshes while the toggle is off", async () => {
+    const { runtime } = await mountCanvas();
+
+    expect(createAxisGuides).not.toHaveBeenCalled();
+    expect(
+      runtime.scene.value!.getTransformNodeByName("axisGuideRoot_node")
+    ).toBeNull();
+    expect(axisGuidePickMeshCount(runtime.scene.value!)).toBe(0);
+  });
+
+  it("creates the axis guide text renderers and builds six paragraphs and pick meshes under axisGuideRoot_node when the toggle is switched on", async () => {
+    const { wrapper, runtime } = await mountCanvas();
+    await setAxisGuidesVisible(wrapper, true);
+
+    expect(createAxisGuides).toHaveBeenCalledTimes(1);
+    expect(createAxisGuides).toHaveBeenCalledWith(runtime.scene.value);
+
+    const scene = runtime.scene.value!;
+    const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
+    expect(root).toBeTruthy();
+    expect(root.parent).toBeNull();
+    expect(axisGuidePickMeshCount(scene)).toBe(6);
+
+    const guides = (await vi.mocked(createAxisGuides).mock.results[0]!
+      .value) as { renderers: Record<"ap" | "dv" | "ml", FakeTextRenderer> };
+    const texts = Object.values(guides.renderers).flatMap(renderer =>
+      renderer.paragraphs.map(paragraph => paragraph.text)
+    );
+    expect(texts).toEqual(["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"]);
+  });
+
+  it("clears the labels and pick meshes when switched off and reuses the loaded renderers when switched back on", async () => {
+    const { wrapper, runtime } = await mountCanvas();
+    await setAxisGuidesVisible(wrapper, true);
+
+    const guides = (await vi.mocked(createAxisGuides).mock.results[0]!
+      .value) as AxisGuideApi.AxisGuides & {
+      renderers: Record<"ap" | "dv" | "ml", FakeTextRenderer>;
+      dispose: ReturnType<typeof vi.fn>;
+    };
+    const scene = runtime.scene.value!;
+
+    await setAxisGuidesVisible(wrapper, false);
+
+    expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeNull();
+    expect(axisGuidePickMeshCount(scene)).toBe(0);
+    for (const renderer of Object.values(guides.renderers)) {
+      expect(renderer.paragraphs).toHaveLength(0);
+      expect(renderer.parent).toBeNull();
+    }
+    expect(guides.dispose).not.toHaveBeenCalled();
+
+    await setAxisGuidesVisible(wrapper, true);
+
+    expect(createAxisGuides).toHaveBeenCalledTimes(1);
+    expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
+    expect(axisGuidePickMeshCount(scene)).toBe(6);
+    expect(
+      Object.values(guides.renderers).flatMap(renderer =>
+        renderer.paragraphs.map(paragraph => paragraph.text)
+      )
+    ).toEqual(["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"]);
   });
 
   it("re-offsets when the experiment's atlas changes", async () => {
@@ -367,6 +518,56 @@ describe("SceneCanvas", () => {
     wrapper.unmount();
 
     expect(runtime.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("disposes the axis guide text renderers on unmount", async () => {
+    const { wrapper } = await mountCanvas();
+    await setAxisGuidesVisible(wrapper, true);
+
+    const guides = (await vi.mocked(createAxisGuides).mock.results[0]!
+      .value) as { dispose: () => void };
+
+    wrapper.unmount();
+
+    expect(guides.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it("warns and draws no axis guides when the text renderers fail to load", async () => {
+    const { promise, reject } =
+      Promise.withResolvers<AxisGuideApi.AxisGuides>();
+    vi.mocked(createAxisGuides).mockReturnValue(promise);
+
+    const { wrapper, runtime } = await mountCanvas();
+    const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+    await setAxisGuidesVisible(wrapper, true);
+
+    reject(new Error("font load failed"));
+    await flushPromises();
+
+    expect(notifySpy).toHaveBeenCalledWith(
+      expect.objectContaining({ color: "warning" })
+    );
+    expect(
+      runtime.scene.value!.getTransformNodeByName("axisGuideRoot_node")
+    ).toBeNull();
+  });
+
+  it("disposes the axis guides and rebuilds them for a replaced scene", async () => {
+    const { wrapper, runtime } = await mountCanvas();
+    await setAxisGuidesVisible(wrapper, true);
+
+    const first = (await vi.mocked(createAxisGuides).mock.results[0]!
+      .value) as { dispose: ReturnType<typeof vi.fn> };
+
+    runtime.replaceScene();
+    await flushPromises();
+
+    expect(first.dispose).toHaveBeenCalledTimes(1);
+    expect(createAxisGuides).toHaveBeenCalledTimes(2);
+    expect(createAxisGuides).toHaveBeenLastCalledWith(runtime.scene.value);
+    expect(
+      runtime.scene.value!.getTransformNodeByName("axisGuideRoot_node")
+    ).toBeTruthy();
   });
 
   it(

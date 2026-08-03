@@ -1,4 +1,5 @@
 import type {
+  ArcRotateCamera,
   GizmoManager,
   Observer,
   PointerInfo,
@@ -7,6 +8,8 @@ import type {
 } from "@babylonjs/core";
 import { PointerEventTypes } from "@babylonjs/core";
 import type { Inspectable } from "../models/inspectable.model";
+import { pickAxisGuideDirection } from "./axis-guide.api";
+import { orbitCameraTowards } from "./camera.api";
 import { attachProbeSelection, getProbeTransformNode } from "../api/probe.api";
 
 /**
@@ -71,4 +74,25 @@ export function deselectFromPointerDown(
     selectionOutlineLayer.clearSelection();
     onDeselect();
   }, PointerEventTypes.POINTERTAP);
+}
+
+/**
+ * Orbit the camera onto an axis guide's axis when its label is double-clicked.
+ * @param scene Scene to observe pointer events on.
+ * @param camera Camera to orbit.
+ */
+export function orbitCameraFromAxisGuideDoubleTap(
+  scene: Scene,
+  camera: ArcRotateCamera
+): Observer<PointerInfo> {
+  return scene.onPointerObservable.add(() => {
+    const direction = pickAxisGuideDirection(
+      scene,
+      scene.pointerX,
+      scene.pointerY
+    );
+    if (!direction) return;
+
+    orbitCameraTowards(camera, direction);
+  }, PointerEventTypes.POINTERDOUBLETAP);
 }

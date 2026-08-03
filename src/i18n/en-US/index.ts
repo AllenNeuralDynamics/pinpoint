@@ -67,6 +67,10 @@ export default {
     problemLoadingAtlasMeshes:
       "There was a problem loading the meshes for this atlas.",
     atlasLikelyNotSupportedYet: "It's likely not fully supported yet.",
+    problemLoadingAxisGuides:
+      "There was a problem loading the axis guide labels.",
+    axisGuidesUnavailable: "The atlas axis labels won't be shown.",
+    showAxisGuides: "Show Axes",
     gizmoMode: "Transform mode",
     gizmoPosition: "Position",
     gizmoRotation: "Rotation",

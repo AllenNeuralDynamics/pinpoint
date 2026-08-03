@@ -6,6 +6,7 @@ import {
   BRAINGLOBE_BASE_URL,
   getAnnotationVolumeUrl,
   getAtlasCenter,
+  getAtlasDimensionsMillimeters,
   getAtlasLongestDimensionMillimeters,
   getManifest,
   getTerminologyRows,
@@ -812,6 +813,50 @@ describe("structureEntitiesFromIdentifiers", () => {
     expect(
       structureEntitiesFromIdentifiers(manifest, terminologyRows, [])
     ).toEqual([]);
+  });
+});
+
+describe("getAtlasDimensionsMillimeters", () => {
+  it("multiplies resolution by shape per axis", () => {
+    const manifest = makeManifest({
+      resolutions: [[0.02, 0.04, 0.06]],
+      shape: [[100, 200, 300]]
+    });
+
+    expect(getAtlasDimensionsMillimeters(manifest)).toEqual([2, 8, 18]);
+  });
+
+  it("uses only the finest (first) size variant when several are present", () => {
+    const manifest = makeManifest({
+      resolutions: [
+        [0.02, 0.04, 0.06],
+        [0.2, 0.4, 0.6]
+      ],
+      shape: [
+        [100, 200, 300],
+        [10, 20, 30]
+      ]
+    });
+
+    expect(getAtlasDimensionsMillimeters(manifest)).toEqual([2, 8, 18]);
+  });
+
+  it("falls back to [0, 0, 0] when the manifest has no resolutions", () => {
+    const manifest = makeManifest({
+      resolutions: [],
+      shape: [[100, 200, 300]]
+    });
+
+    expect(getAtlasDimensionsMillimeters(manifest)).toEqual([0, 0, 0]);
+  });
+
+  it("falls back to [0, 0, 0] when the manifest has no shape", () => {
+    const manifest = makeManifest({
+      resolutions: [[0.02, 0.04, 0.06]],
+      shape: []
+    });
+
+    expect(getAtlasDimensionsMillimeters(manifest)).toEqual([0, 0, 0]);
   });
 });
 

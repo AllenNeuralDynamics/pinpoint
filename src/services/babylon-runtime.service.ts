@@ -108,14 +108,14 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
    * Cleanup this runtime.
    */
   function dispose() {
-    gizmoManager.value?.dispose();
     selectionOutlineLayer.value?.dispose();
+    gizmoManager.value?.dispose();
     camera.value?.dispose();
     scene.value?.dispose();
     engine.value?.dispose();
 
-    gizmoManager.value = null;
     selectionOutlineLayer.value = null;
+    gizmoManager.value = null;
     camera.value = null;
     scene.value = null;
     engine.value = null;

@@ -31,6 +31,7 @@
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
+    "@babylonjs/addons": "^9.19.0",
     "@babylonjs/core": "^9.18.1",
     "@quasar/extras": "^2.0.0",
     "@types/papaparse": "^5.5.2",
