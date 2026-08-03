@@ -77,10 +77,11 @@ function endDrag() {
 
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card>
-      <q-card-section class="column">
-        <p class="text-h5">{{ $t("probeLibrary.title") }}</p>
-
+    <q-card class="probe-library">
+      <q-card-section>
+        <div class="text-h5">{{ $t("probeLibrary.title") }}</div>
+      </q-card-section>
+      <q-card-section class="column probe-library__content">
         <q-btn
           icon="add"
           :label="$t('probeLibrary.installProbe')"
@@ -136,6 +137,16 @@ function endDrag() {
 </template>
 
 <style lang="sass" scoped>
+.probe-library
+  display: flex
+  flex-direction: column
+  overflow: hidden
+
+.probe-library__content
+  flex: 1 1 auto
+  min-height: 0
+  overflow-y: auto
+
 .probe-row__handle
   cursor: grab
   display: flex

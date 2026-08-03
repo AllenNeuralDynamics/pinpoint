@@ -10,7 +10,9 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
   <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card class="recent-experiments">
       <q-card-section>
-        <p class="text-h5">{{ $t("recentExperiments.title") }}</p>
+        <div class="text-h5">{{ $t("recentExperiments.title") }}</div>
+      </q-card-section>
+      <q-card-section class="recent-experiments__content">
         <RecentExperimentsList @opened="onDialogOK" />
       </q-card-section>
       <q-card-actions align="right">
@@ -27,4 +29,12 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 <style lang="sass" scoped>
 .recent-experiments
   min-width: 30vw
+  display: flex
+  flex-direction: column
+  overflow: hidden
+
+.recent-experiments__content
+  flex: 1 1 auto
+  min-height: 0
+  overflow-y: auto
 </style>

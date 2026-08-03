@@ -152,10 +152,16 @@ watch(selectedManufacturerName, () => {
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
     <q-card class="install-card">
-      <div :class="{ disabled: uploading || installing }">
-        <q-card-section class="q-gutter-y-sm">
-          <p class="text-h5">{{ $t("installProbe.title") }}</p>
-
+      <q-card-section>
+        <div class="text-h5">{{ $t("installProbe.title") }}</div>
+      </q-card-section>
+      <div
+        class="install-card__body"
+        :class="{ disabled: uploading || installing }"
+      >
+        <q-card-section
+          class="q-gutter-y-sm install-card__content q-mt-none q-pt-none"
+        >
           <q-select
             v-model="selectedManufacturerName"
             :label="$t('installProbe.manufacturer')"
@@ -233,4 +239,19 @@ watch(selectedManufacturerName, () => {
 <style lang="sass" scoped>
 .install-card
   min-width: 50vw
+  display: flex
+  flex-direction: column
+  overflow: hidden
+
+.install-card__body
+  display: flex
+  flex-direction: column
+  flex: 1 1 auto
+  min-height: 0
+  overflow: hidden
+
+.install-card__content
+  flex: 1 1 auto
+  min-height: 0
+  overflow-y: auto
 </style>
