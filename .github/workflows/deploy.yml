@@ -19,6 +19,8 @@ jobs:
   build:
     name: Build
     uses: ./.github/workflows/build.yml
+    with:
+      upload-artifact: true
 
   deploy:
     name: Deploy
