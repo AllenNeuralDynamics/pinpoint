@@ -178,6 +178,8 @@ onMounted(() => {
       bordered
       show-if-above
       side="left"
+      no-swipe-close
+      no-swipe-open
     >
       <div class="column full-height">
         <q-tabs v-model="tab">
@@ -208,6 +210,8 @@ onMounted(() => {
       bordered
       show-if-above
       side="right"
+      no-swipe-close
+      no-swipe-open
     >
       <Inspector />
       <div
