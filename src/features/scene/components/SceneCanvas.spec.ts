@@ -54,6 +54,7 @@ import {
   makeTerminologyRows
 } from "@/test/fixtures";
 import { getProbeTransformNode } from "../api/probe.api";
+import { vector3ToAsr } from "../api/coordinate-transforms.api";
 
 vi.mock("../api/structures.api", async () => {
   const actual = await vi.importActual<typeof import("../api/structures.api")>(
@@ -144,12 +145,17 @@ function makeRuntimeStub() {
  * real Babylon runtime service, wait for `onMounted`'s `init` to resolve,
  * and flush the store's `manifest` -> `terminologyRows` `computedAsync`
  * chain (two microtask rounds, same hop documented in
- * `AtlasHierarchy.spec.ts`).
+ * `AtlasHierarchy.spec.ts`). `QPageSticky` requires a `QLayout` ancestor
+ * (only present in the real app's `IndexPage.vue`), so it's stubbed with a
+ * passthrough that still renders its slot for the gizmo toolbar tests.
  */
 async function mountCanvas(runtime = makeRuntimeStub()) {
   const wrapper = wrappers.track(
     mountWithQuasar(SceneCanvas, {
-      global: { provide: { [BabylonRuntimeServiceKey as symbol]: runtime } }
+      global: {
+        provide: { [BabylonRuntimeServiceKey as symbol]: runtime },
+        stubs: { QPageSticky: { template: "<div><slot /></div>" } }
+      }
     }) as CanvasWrapper
   );
   await flushPromises();
@@ -488,4 +494,75 @@ describe("SceneCanvas", () => {
       expect(store.draggedProbeId).toBe(newProbe.id);
     }
   );
+
+  it("propagates a rotation drag after switching to the rotation gizmo", async () => {
+    const { wrapper, runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    const contour = [
+      [-11, 9989],
+      [-11, -11],
+      [24, -220],
+      [59, -11],
+      [59, 9989]
+    ];
+    const probeInterfaceProbe = makeProbeInterfaceProbe({
+      probe_planar_contour: contour
+    });
+    internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+    const builtProbe = makeProbe({
+      probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe)
+    });
+    addProbe(store.experiment, builtProbe);
+    const probe = store.experiment.probes.find(p => p.id === builtProbe.id)!;
+    await flushPromises();
+
+    const modeToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "position")!;
+    await modeToggle.vm.$emit("update:modelValue", "rotation");
+    await flushPromises();
+
+    const scene = runtime.scene.value!;
+    const gizmoManager = runtime.gizmoManager.value!;
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    gizmoManager.attachToNode(node);
+    node.rotation.set(0.1, 0.2, 0.3);
+    gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
+      {} as never
+    );
+
+    expect(probe.rotation).toEqual(vector3ToAsr(node.rotation));
+    expect(store.draggedProbeId).toBe(probe.id);
+
+    gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.notifyObservers(
+      {} as never
+    );
+
+    expect(store.draggedProbeId).toBeNull();
+  });
+
+  it("keeps the position gizmo on the probe in global coordinates", async () => {
+    const { wrapper, runtime } = await mountCanvas();
+
+    const coordinateSpaceToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "local")!;
+    await coordinateSpaceToggle.vm.$emit("update:modelValue", "global");
+    await flushPromises();
+
+    const gizmoManager = runtime.gizmoManager.value!;
+
+    expect(
+      gizmoManager.gizmos.positionGizmo!.updateGizmoPositionToMatchAttachedMesh
+    ).toBe(true);
+    // `PositionGizmo`'s own `updateGizmoRotationToMatchAttachedMesh` getter
+    // does not reflect `coordinatesMode` (Babylon only keeps the per-axis
+    // `xGizmo` in sync), so assert on that instead.
+    expect(
+      gizmoManager.gizmos.positionGizmo!.xGizmo
+        .updateGizmoRotationToMatchAttachedMesh
+    ).toBe(false);
+  });
 });

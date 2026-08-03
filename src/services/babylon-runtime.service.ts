@@ -81,7 +81,10 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
     );
     c.attachControl(canvas, true);
 
-    // Setup gizmo manager.
+    // Setup gizmo manager. Babylon builds each gizmo on its first enable and
+    // leaves `gizmos.positionGizmo` / `gizmos.rotationGizmo` null until then, so
+    // enable both here: consumers register drag observers on those instances once
+    // and switch modes by toggling the enabled flags, which only detach.
     const gm = new GizmoManager(s);
     gm.positionGizmoEnabled = true;
     gm.rotationGizmoEnabled = true;

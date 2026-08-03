@@ -47,7 +47,13 @@ export default {
   sceneCanvas: {
     problemLoadingAtlasMeshes:
       "There was a problem loading the meshes for this atlas.",
-    atlasLikelyNotSupportedYet: "It's likely not fully supported yet."
+    atlasLikelyNotSupportedYet: "It's likely not fully supported yet.",
+    gizmoMode: "Transform mode",
+    gizmoPosition: "Position",
+    gizmoRotation: "Rotation",
+    gizmoCoordinateSpace: "Coordinate space",
+    gizmoLocal: "Local",
+    gizmoGlobal: "Global"
   },
   installProbe: {
     title: "Install Probe",

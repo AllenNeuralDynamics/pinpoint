@@ -797,7 +797,11 @@ describe("setProbePositionFromGizmoDrag", () => {
     node.position.set(1, 2, 3);
     const onDrag = vi.fn();
 
-    setProbePositionFromGizmoDrag(gizmoManager, experiment, onDrag);
+    setProbePositionFromGizmoDrag(
+      gizmoManager.gizmos.positionGizmo!,
+      experiment,
+      onDrag
+    );
     gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
       {} as DragEvent
     );
@@ -813,7 +817,11 @@ describe("setProbePositionFromGizmoDrag", () => {
     gizmoManager.attachToNode(unrelatedNode);
     const onDrag = vi.fn();
 
-    setProbePositionFromGizmoDrag(gizmoManager, experiment, onDrag);
+    setProbePositionFromGizmoDrag(
+      gizmoManager.gizmos.positionGizmo!,
+      experiment,
+      onDrag
+    );
     gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
       {} as DragEvent
     );
@@ -831,7 +839,11 @@ describe("setProbeRotationFromGizmoDrag", () => {
     node.rotation.set(0.1, 0.2, 0.3);
     const onDrag = vi.fn();
 
-    setProbeRotationFromGizmoDrag(gizmoManager, experiment, onDrag);
+    setProbeRotationFromGizmoDrag(
+      gizmoManager.gizmos.rotationGizmo!,
+      experiment,
+      onDrag
+    );
     gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
       {} as DragEvent
     );
@@ -854,7 +866,13 @@ describe("endProbeGizmoDrag", () => {
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
-    endProbeGizmoDrag(gizmoManager, onDragEnd);
+    endProbeGizmoDrag(
+      {
+        positionGizmo: gizmoManager.gizmos.positionGizmo!,
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+      },
+      onDragEnd
+    );
     gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.notifyObservers(
       {} as DragStartEndEvent
     );
@@ -869,7 +887,13 @@ describe("endProbeGizmoDrag", () => {
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
-    endProbeGizmoDrag(gizmoManager, onDragEnd);
+    endProbeGizmoDrag(
+      {
+        positionGizmo: gizmoManager.gizmos.positionGizmo!,
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+      },
+      onDragEnd
+    );
     gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
       {} as DragStartEndEvent
     );
@@ -884,7 +908,13 @@ describe("endProbeGizmoDrag", () => {
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
-    const observers = endProbeGizmoDrag(gizmoManager, onDragEnd);
+    const observers = endProbeGizmoDrag(
+      {
+        positionGizmo: gizmoManager.gizmos.positionGizmo!,
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+      },
+      onDragEnd
+    );
     observers.forEach(observer => observer.remove());
     gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
       {} as DragStartEndEvent
@@ -903,15 +933,29 @@ describe("endProbeGizmoDrag", () => {
     gizmoManager.attachToNode(node);
 
     let draggedProbeId: string | null = null;
-    setProbeRotationFromGizmoDrag(gizmoManager, experiment, id => {
-      draggedProbeId = id;
-    });
-    setProbePositionFromGizmoDrag(gizmoManager, experiment, id => {
-      draggedProbeId = id;
-    });
-    endProbeGizmoDrag(gizmoManager, () => {
-      draggedProbeId = null;
-    });
+    setProbeRotationFromGizmoDrag(
+      gizmoManager.gizmos.rotationGizmo!,
+      experiment,
+      id => {
+        draggedProbeId = id;
+      }
+    );
+    setProbePositionFromGizmoDrag(
+      gizmoManager.gizmos.positionGizmo!,
+      experiment,
+      id => {
+        draggedProbeId = id;
+      }
+    );
+    endProbeGizmoDrag(
+      {
+        positionGizmo: gizmoManager.gizmos.positionGizmo!,
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+      },
+      () => {
+        draggedProbeId = null;
+      }
+    );
 
     // Rotate, then release. Without watching the rotation gizmo's drag-end,
     // draggedProbeId would stay stuck on this probe forever.

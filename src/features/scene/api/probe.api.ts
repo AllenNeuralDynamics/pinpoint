@@ -3,6 +3,9 @@ import type {
   DragEvent,
   DragStartEndEvent,
   GizmoManager,
+  IGizmo,
+  IPositionGizmo,
+  IRotationGizmo,
   Nullable,
   Observer,
   Scene,
@@ -27,6 +30,7 @@ import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "../api/coordinate-transforms.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
+import type { TransformGizmos } from "../models/gizmo.model";
 
 /** Probe entity suffix start */
 const PROBE_ENTITY_SUFFIX = "_probe_";
@@ -314,17 +318,17 @@ export function selectProbeFromGizmoAttach(
 
 /**
  * Update a probe's position from a gizmo drag.
- * @param gizmoManager Gizmo manager to track dragging on.
+ * @param positionGizmo Position gizmo to track dragging on.
  * @param experiment Experiment with probes to update.
  * @param onDrag Callback invoked with probe ID the drag is happening to.
  */
 export function setProbePositionFromGizmoDrag(
-  gizmoManager: GizmoManager,
+  positionGizmo: IPositionGizmo,
   experiment: Experiment,
   onDrag: (probeId: string) => void
 ): Observer<DragEvent> {
-  return gizmoManager.gizmos.positionGizmo!.onDragObservable.add(() => {
-    const attached = attachedProbeFromGizmo(gizmoManager, experiment);
+  return positionGizmo.onDragObservable.add(() => {
+    const attached = attachedProbeFromGizmo(positionGizmo, experiment);
     if (!attached) return;
 
     attached.probe.tipPosition = vector3ToAsr(attached.node.position);
@@ -334,17 +338,17 @@ export function setProbePositionFromGizmoDrag(
 
 /**
  * Update a probe's orientation from a gizmo drag.
- * @param gizmoManager Gizmo manager to track dragging on.
+ * @param rotationGizmo Rotation gizmo to track dragging on.
  * @param experiment Experiment with probes to update.
  * @param onDrag Callback invoked with probe ID the drag is happening to.
  */
 export function setProbeRotationFromGizmoDrag(
-  gizmoManager: GizmoManager,
+  rotationGizmo: IRotationGizmo,
   experiment: Experiment,
   onDrag: (probeId: string) => void
 ): Observer<DragEvent> {
-  return gizmoManager.gizmos.rotationGizmo!.onDragObservable.add(() => {
-    const attached = attachedProbeFromGizmo(gizmoManager, experiment);
+  return rotationGizmo.onDragObservable.add(() => {
+    const attached = attachedProbeFromGizmo(rotationGizmo, experiment);
     if (!attached) return;
 
     attached.probe.rotation = vector3ToAsr(attached.node.rotation);
@@ -355,36 +359,36 @@ export function setProbeRotationFromGizmoDrag(
 /**
  * Callback filter for when dragging finishes on a probe, from either the
  * position or the rotation gizmo.
- * @param gizmoManager Gizmo manager to track dragging on.
+ * @param gizmos Position and rotation gizmos to track dragging on.
  * @param onDragEnd Callback invoked to confirm probe drag ended.
  */
 export function endProbeGizmoDrag(
-  gizmoManager: GizmoManager,
+  gizmos: TransformGizmos,
   onDragEnd: () => void
 ): Observer<DragStartEndEvent>[] {
-  const onEnd = () => {
-    if (!gizmoManager.attachedNode) return;
-    if (!isProbeEntityName(gizmoManager.attachedNode.name)) return;
+  const onEnd = (gizmo: IGizmo) => () => {
+    if (!gizmo.attachedNode) return;
+    if (!isProbeEntityName(gizmo.attachedNode.name)) return;
     onDragEnd();
   };
 
   return [
-    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.add(onEnd),
-    gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.add(onEnd)
+    gizmos.positionGizmo.onDragEndObservable.add(onEnd(gizmos.positionGizmo)),
+    gizmos.rotationGizmo.onDragEndObservable.add(onEnd(gizmos.rotationGizmo))
   ];
 }
 
 /**
  * Resolve the probe and transform node currently attached to the gizmo, or
  * null if nothing (or a non-probe entity) is attached.
- * @param gizmoManager Gizmo manager to read the attached node from.
+ * @param gizmo Gizmo to read the attached node from.
  * @param experiment Experiment to look up the attached probe in.
  */
 function attachedProbeFromGizmo(
-  gizmoManager: GizmoManager,
+  gizmo: IGizmo,
   experiment: Experiment
 ): { probe: Probe; node: TransformNode } | null {
-  const node = gizmoManager.attachedNode;
+  const node = gizmo.attachedNode;
   if (!node || !isProbeEntityName(node.name)) return null;
 
   const probeId = probeIdFromEntityName(node.name);

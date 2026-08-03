@@ -31,6 +31,8 @@ import {
   setProbeRotationFromGizmoDrag,
   syncProbes
 } from "../api/probe.api";
+import { setGizmoControls } from "../api/gizmo.api";
+import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
 import { setReferenceCoordinateNodePosition } from "../api/reference-coordinate.api";
 import {
   deselectFromPointerDown,
@@ -50,6 +52,9 @@ const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
  * loading bar overlaid on the canvas.
  */
 const isLoadingStructures = ref(false);
+
+const gizmoMode = ref<GizmoMode>("position");
+const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
 
 /**
  * Atlas structures that must always be present in the scene, faded out when
@@ -177,28 +182,35 @@ watchEffect(() => {
   }
 });
 
-// Sync state from probes, re-registering when the experiment is replaced.
+// Configure the gizmos from the control bar and keep the probe drag
+// observers on them.
 watch(
-  [runtime.scene, runtime.gizmoManager, () => currentExperiment.experiment],
-  ([scene, gizmoManager, experiment]) => {
-    if (!scene || !gizmoManager) return;
+  [
+    runtime.gizmoManager,
+    () => currentExperiment.experiment,
+    gizmoMode,
+    gizmoCoordinateSpace
+  ],
+  ([gizmoManager, experiment, mode, coordinateSpace]) => {
+    if (!gizmoManager) return;
+
+    const gizmos = setGizmoControls(gizmoManager, mode, coordinateSpace);
 
     const probePositionDraggingObserver = setProbePositionFromGizmoDrag(
-      gizmoManager,
+      gizmos.positionGizmo,
       experiment,
       probeId => {
         currentExperiment.draggedProbeId = probeId;
       }
     );
     const probeRotationDraggingObserver = setProbeRotationFromGizmoDrag(
-      gizmoManager,
+      gizmos.rotationGizmo,
       experiment,
       probeId => {
         currentExperiment.draggedProbeId = probeId;
       }
     );
-
-    const probeDragEndObservers = endProbeGizmoDrag(gizmoManager, () => {
+    const probeDragEndObservers = endProbeGizmoDrag(gizmos, () => {
       currentExperiment.draggedProbeId = null;
     });
 
@@ -288,12 +300,54 @@ onUnmounted(() => {
     />
   </div>
   <q-resize-observer @resize="onResize" />
+  <q-page-sticky :offset="[0, 18]" position="bottom">
+    <q-card>
+      <q-card-section class="row justify-center gizmo-controls">
+        <q-btn-toggle
+          v-model="gizmoMode"
+          :aria-label="$t('sceneCanvas.gizmoMode')"
+          :options="[
+            {
+              label: $t('sceneCanvas.gizmoPosition'),
+              value: 'position',
+              icon: 'sym_o_point_scan'
+            },
+            {
+              label: $t('sceneCanvas.gizmoRotation'),
+              value: 'rotation',
+              icon: 'flip_camera_android'
+            }
+          ]"
+          toggle-color="primary"
+        />
+        <q-btn-toggle
+          v-model="gizmoCoordinateSpace"
+          :aria-label="$t('sceneCanvas.gizmoCoordinateSpace')"
+          :options="[
+            {
+              label: $t('sceneCanvas.gizmoLocal'),
+              value: 'local',
+              icon: 'sym_o_nearby'
+            },
+            {
+              label: $t('sceneCanvas.gizmoGlobal'),
+              value: 'global',
+              icon: 'sym_o_globe'
+            }
+          ]"
+          toggle-color="primary"
+        />
+      </q-card-section>
+    </q-card>
+  </q-page-sticky>
 </template>
 
-<style scoped>
-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
+<style lang="sass" scoped>
+canvas
+  display: block
+  width: 100%
+  height: 100%
+
+.gizmo-controls
+  gap: 16px
 </style>
