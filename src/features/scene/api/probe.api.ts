@@ -263,17 +263,20 @@ export function syncProbes(
 }
 
 /**
- * Attach the gizmo to a probe's transform node and select its meshes.
+ * Attach the gizmo to a probe's transform node and select its meshes, leaving
+ * a locked probe outlined but without a gizmo.
  * @param gizmoManager Gizmo manager to attach to the probe's node.
  * @param selectionOutlineLayer Selection outline layer to add the probe's meshes to.
+ * @param probe Probe being selected, whose lock decides whether a gizmo attaches.
  * @param probeTransformNode Probe transform node to attach and select.
  */
 export function attachProbeSelection(
   gizmoManager: GizmoManager,
   selectionOutlineLayer: SelectionOutlineLayer,
+  probe: Probe,
   probeTransformNode: TransformNode
 ): void {
-  gizmoManager.attachToNode(probeTransformNode);
+  gizmoManager.attachToNode(probe.lock ? null : probeTransformNode);
   selectionOutlineLayer.clearSelection();
   selectionOutlineLayer.addSelection(probeTransformNode.getChildMeshes());
 }
@@ -305,14 +308,16 @@ export function selectProbeFromGizmoAttach(
     // Exit if the probe doesn't have a transform node.
     if (!probeTransformNode) return;
 
+    const probe = experiment.probes.find(probe => probe.id === probeId);
+    if (!probe) return;
+
     attachProbeSelection(
       gizmoManager,
       selectionOutlineLayer,
+      probe,
       probeTransformNode
     );
-
-    const probe = experiment.probes.find(probe => probe.id === probeId);
-    if (probe) onSelect(probe);
+    onSelect(probe);
   });
 }
 

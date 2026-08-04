@@ -159,6 +159,11 @@ export default {
     roll: "Roll",
     yaw: "Yaw",
     pitch: "Pitch",
+    home: "Reset tip position",
+    copy: "Duplicate probe",
+    surface: "Surface probe",
+    lock: "Lock probe",
+    unlock: "Unlock probe",
     nameRequired: "Name is required.",
     mustBeNumber: "Must be a number."
   },

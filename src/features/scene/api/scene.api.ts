@@ -44,6 +44,7 @@ export function selectFromSelectedInspectableState(
       attachProbeSelection(
         gizmoManager,
         selectionOutlineLayer,
+        selectedInspectable,
         probeTransformNode
       );
       break;

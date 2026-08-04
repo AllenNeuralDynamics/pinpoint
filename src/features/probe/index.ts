@@ -8,6 +8,9 @@ export {
   detachProbeInterfaceProbe,
   detachProbeInterfaceProbes,
   rotateProbeVisibility,
+  homeProbe,
+  copyProbe,
+  toggleProbeLock,
   findProbeInterfaceProbeByIdentifier,
   isProbe,
   isProbeInterfaceProbe

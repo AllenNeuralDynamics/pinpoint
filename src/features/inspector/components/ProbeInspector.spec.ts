@@ -52,6 +52,12 @@ function fieldByLabel(wrapper: VueWrapper, label: string) {
     .find(field => field.props("label") === label)!;
 }
 
+function buttonByLabel(wrapper: VueWrapper, label: string) {
+  return wrapper
+    .findAll("button")
+    .find(button => button.attributes("aria-label") === label)!;
+}
+
 /**
  * Focus, replace a field's text, and blur it -- the sequence a real user
  * produces, which `use-field`'s handlers require in this order.
@@ -364,6 +370,66 @@ describe("ProbeInspector", () => {
       expect(store.experiment.probeInterfaceProbes).toEqual({
         [getProbeInterfaceIdentifier(oldSpec)]: oldSpec
       });
+    });
+  });
+
+  describe("home / copy / lock buttons", () => {
+    it("resets the tip position on home click", async () => {
+      const { wrapper, probe } = mountInspector(
+        makeProbe({ tipPosition: [1, 2, 3] })
+      );
+
+      await buttonByLabel(wrapper, t.home).trigger("click");
+
+      expect(probe.tipPosition).toEqual([0, 0, 0]);
+    });
+
+    it("duplicates the probe on copy click", async () => {
+      const { wrapper, store } = mountInspector(makeProbe({ name: "A" }));
+
+      await buttonByLabel(wrapper, t.copy).trigger("click");
+
+      expect(store.experiment.probes).toHaveLength(2);
+      expect(store.experiment.probes[1]!.name).toBe("A - copy");
+      expect(store.experiment.probes[1]!.id).not.toBe(
+        store.experiment.probes[0]!.id
+      );
+    });
+
+    it("toggles lock on lock click, swapping the button's label", async () => {
+      const { wrapper, probe } = mountInspector();
+
+      await buttonByLabel(wrapper, t.lock).trigger("click");
+      expect(probe.lock).toBe(true);
+      expect(buttonByLabel(wrapper, t.unlock).exists()).toBe(true);
+
+      await buttonByLabel(wrapper, t.unlock).trigger("click");
+      expect(probe.lock).toBe(false);
+    });
+
+    it("disables the pose fields and the home/pin buttons while locked, leaving name and copy editable", () => {
+      const { wrapper } = mountInspector(makeProbe({ lock: true }));
+
+      for (const label of [t.ap, t.dv, t.ml, t.roll, t.yaw, t.pitch]) {
+        expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);
+      }
+      expect(fieldByLabel(wrapper, t.name).props("disable")).toBeFalsy();
+      expect(
+        buttonByLabel(wrapper, t.home).attributes("disabled")
+      ).toBeDefined();
+      expect(
+        buttonByLabel(wrapper, t.copy).attributes("disabled")
+      ).toBeUndefined();
+    });
+
+    it("does not move a locked probe when its disabled home button is clicked", async () => {
+      const { wrapper, probe } = mountInspector(
+        makeProbe({ lock: true, tipPosition: [1, 2, 3] })
+      );
+
+      await buttonByLabel(wrapper, t.home).trigger("click");
+
+      expect(probe.tipPosition).toEqual([1, 2, 3]);
     });
   });
 });

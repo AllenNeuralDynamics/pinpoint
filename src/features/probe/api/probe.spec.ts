@@ -3,6 +3,7 @@ import { isProxy, isReactive, reactive, toRaw } from "vue";
 import type { Probe } from "../models/probe.model";
 import {
   buildProbe,
+  copyProbe,
   detachProbeInterfaceProbe,
   detachProbeInterfaceProbes,
   findProbeInterfaceProbeByIdentifier,
@@ -10,11 +11,14 @@ import {
   getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier,
   getProbeModelDisplayName,
+  homeProbe,
   isProbe,
   isProbeInterfaceProbe,
-  rotateProbeVisibility
+  rotateProbeVisibility,
+  toggleProbeLock
 } from "./probe.api";
-import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import { addProbe, buildExperiment } from "@/features/experiment";
+import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 
 describe("buildProbe", () => {
   it("references the given probe identifier", () => {
@@ -30,6 +34,7 @@ describe("buildProbe", () => {
 
     expect(probe.inspectableKind).toBe("probe");
     expect(probe.visibility).toBe("visible");
+    expect(probe.lock).toBe(false);
     expect(probe.tipPosition).toEqual([0, 0, 0]);
     // A pitch of 0 would lie flat, pointing anteriorly; PI/2 is the intended
     // starting default so a new probe points inferiorly.
@@ -130,6 +135,92 @@ describe("rotateProbeVisibility", () => {
     rotateProbeVisibility(probe);
 
     expect(probe.visibility).toBe("hidden");
+  });
+});
+
+describe("homeProbe", () => {
+  it("resets the experiment entry's tip position to the atlas origin, leaving rotation untouched", () => {
+    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const probe = makeProbe({
+      tipPosition: [1, 2, 3],
+      rotation: [0.1, 0.2, 0.3]
+    });
+    addProbe(experiment, probe);
+
+    homeProbe(experiment, probe);
+
+    expect(experiment.probes[0]!.tipPosition).toEqual([0, 0, 0]);
+    expect(experiment.probes[0]!.rotation).toEqual([0.1, 0.2, 0.3]);
+  });
+
+  it("does nothing when the probe isn't in the experiment", () => {
+    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const probe = makeProbe({ tipPosition: [1, 2, 3] });
+
+    homeProbe(experiment, probe);
+
+    expect(probe.tipPosition).toEqual([1, 2, 3]);
+  });
+});
+
+describe("copyProbe", () => {
+  it("inserts a copy directly after the source, with a fresh id and a copy-suffixed name", () => {
+    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const first = makeProbe({ name: "A" });
+    const second = makeProbe({ name: "B" });
+    addProbe(experiment, first);
+    addProbe(experiment, second);
+
+    const copy = copyProbe(experiment, first);
+
+    expect(experiment.probes).toHaveLength(3);
+    expect(experiment.probes[1]).toBe(copy);
+    expect(copy!.id).not.toBe(first.id);
+    expect(copy!.name).toBe("A - copy");
+    expect(copy).toEqual({ ...first, id: copy!.id, name: copy!.name });
+  });
+
+  it("copies a locked source as locked", () => {
+    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const probe = makeProbe({ lock: true });
+    addProbe(experiment, probe);
+
+    const copy = copyProbe(experiment, probe);
+
+    expect(copy!.lock).toBe(true);
+  });
+
+  it("deep-copies mutable fields, independent of the source", () => {
+    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const probe = makeProbe({ tipPosition: [1, 2, 3] });
+    addProbe(experiment, probe);
+
+    const copy = copyProbe(experiment, probe)!;
+    copy.tipPosition[0] = 99;
+
+    expect(probe.tipPosition[0]).toBe(1);
+  });
+
+  it("returns null and leaves the experiment untouched when the probe isn't there", () => {
+    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const probe = makeProbe();
+
+    const copy = copyProbe(experiment, probe);
+
+    expect(copy).toBeNull();
+    expect(experiment.probes).toEqual([]);
+  });
+});
+
+describe("toggleProbeLock", () => {
+  it("flips lock false -> true -> false", () => {
+    const probe = makeProbe({ lock: false });
+
+    toggleProbeLock(probe);
+    expect(probe.lock).toBe(true);
+
+    toggleProbeLock(probe);
+    expect(probe.lock).toBe(false);
   });
 });
 
@@ -295,6 +386,16 @@ describe("isProbe", () => {
 
   it("rejects a probe with an unknown visibility", () => {
     expect(isProbe({ ...makeProbe(), visibility: "invisible" })).toBe(false);
+  });
+
+  it("rejects a probe with a non-boolean lock", () => {
+    expect(isProbe({ ...makeProbe(), lock: "yes" })).toBe(false);
+  });
+
+  it("rejects a probe missing lock", () => {
+    const probe = makeProbe();
+    delete (probe as Partial<Probe>).lock;
+    expect(isProbe(probe)).toBe(false);
   });
 
   it("rejects a probe with a short tipPosition", () => {

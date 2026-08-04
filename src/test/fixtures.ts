@@ -56,6 +56,7 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     name: "Probe abc123",
     color: "#ffffff",
     visibility: "visible",
+    lock: false,
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(
       makeProbeInterfaceProbe()
     ),

@@ -633,7 +633,7 @@ describe("syncProbes", () => {
     syncProbes(scene, experiment, gizmoManager, null);
     const oldNode = getProbeTransformNode(scene, probe.id)!;
     const oldShankMesh = scene.getMeshByName(probeMeshNames(probe.id).shank)!;
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, oldNode);
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, oldNode);
 
     const newProbeInterfaceProbe = makeProbeInterfaceProbe({
       probe_planar_contour: NP2020_CONTOUR,
@@ -654,7 +654,7 @@ describe("syncProbes", () => {
     // Once reattached (what SceneCanvas.vue now does on a rebuild), the
     // gizmo and outline point at the new entity, not the disposed one.
     const newNode = getProbeTransformNode(scene, probe.id)!;
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, newNode);
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, newNode);
 
     expect(gizmoManager.attachedNode).toBe(newNode);
     for (const mesh of newNode.getChildMeshes()) {
@@ -716,7 +716,7 @@ describe("attachProbeSelection", () => {
     const { experiment, probe } = makeExperimentWithProbe();
     const node = buildProbe(scene, probe, experiment, gizmoManager)!;
 
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, node);
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, node);
 
     expect(gizmoManager.attachedNode).toBe(node);
     for (const mesh of node.getChildMeshes()) {
@@ -732,8 +732,8 @@ describe("attachProbeSelection", () => {
     const nodeA = buildProbe(scene, a.probe, a.experiment, gizmoManager)!;
     const nodeB = buildProbe(scene, b.probe, b.experiment, gizmoManager)!;
 
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, nodeA);
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, nodeB);
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, a.probe, nodeA);
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, b.probe, nodeB);
 
     for (const mesh of nodeA.getChildMeshes()) {
       expect(selectionOutlineLayer.hasMesh(mesh)).toBe(false);
@@ -741,6 +741,34 @@ describe("attachProbeSelection", () => {
     for (const mesh of nodeB.getChildMeshes()) {
       expect(selectionOutlineLayer.hasMesh(mesh)).toBe(true);
     }
+  });
+
+  it("leaves the gizmo unattached for a locked probe, while still outlining its meshes", () => {
+    const { scene, gizmoManager, selectionOutlineLayer } =
+      makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe({ lock: true });
+    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, node);
+
+    expect(gizmoManager.attachedNode).toBeNull();
+    for (const mesh of node.getChildMeshes()) {
+      expect(selectionOutlineLayer.hasMesh(mesh)).toBe(true);
+    }
+  });
+
+  it("detaches a prior gizmo when attaching a locked probe after an unlocked one", () => {
+    const { scene, gizmoManager, selectionOutlineLayer } =
+      makeTestSceneWithGizmo();
+    const a = makeExperimentWithProbe();
+    const b = makeExperimentWithProbe({ lock: true });
+    const nodeA = buildProbe(scene, a.probe, a.experiment, gizmoManager)!;
+    const nodeB = buildProbe(scene, b.probe, b.experiment, gizmoManager)!;
+
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, a.probe, nodeA);
+    attachProbeSelection(gizmoManager, selectionOutlineLayer, b.probe, nodeB);
+
+    expect(gizmoManager.attachedNode).toBeNull();
   });
 });
 
@@ -763,6 +791,27 @@ describe("selectProbeFromGizmoAttach", () => {
     gizmoManager.onAttachedToMeshObservable.notifyObservers(shankMesh);
 
     expect(gizmoManager.attachedNode).toBe(node);
+    expect(onSelect).toHaveBeenCalledWith(probe);
+  });
+
+  it("leaves the gizmo unattached for a locked probe's mesh, but still notifies the callback", () => {
+    const { scene, gizmoManager, selectionOutlineLayer } =
+      makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe({ lock: true });
+    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const shankMesh = node.getChildMeshes()[0]!;
+    const onSelect = vi.fn();
+
+    selectProbeFromGizmoAttach(
+      scene,
+      gizmoManager,
+      selectionOutlineLayer,
+      experiment,
+      onSelect
+    );
+    gizmoManager.onAttachedToMeshObservable.notifyObservers(shankMesh);
+
+    expect(gizmoManager.attachedNode).toBeNull();
     expect(onSelect).toHaveBeenCalledWith(probe);
   });
 

@@ -2,6 +2,7 @@ import { markRaw, toRaw } from "vue";
 import type { Probe, ProbeChannelMapWindow } from "../models/probe.model";
 import type { ProbeVisibility } from "../models/visibility.model";
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
+import type { Experiment } from "@/features/experiment";
 import {
   KNOWN_MANUFACTURERS,
   KNOWN_PROBES
@@ -14,6 +15,9 @@ const PROBE_VISIBILITIES: ProbeVisibility[] = ["visible", "shanks", "hidden"];
 
 /** `#RRGGBB`, the only form `Color3.FromHexString` renders correctly. */
 const PROBE_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/** Appended to a copied probe's name. */
+const PROBE_COPY_NAME_SUFFIX = " - copy";
 
 /**
  * Build a probe referencing the given probe interface definition, with a
@@ -29,6 +33,7 @@ export function buildProbe(probeInterfaceProbe: ProbeInterfaceProbe): Probe {
     name: `Probe ${uniqueName}`,
     color: STANDARD_COLORS[Math.floor(Math.random() * STANDARD_COLORS.length)]!,
     visibility: "visible",
+    lock: false,
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     tipPosition: [0, 0, 0],
     rotation: [0, 0, Math.PI / 2],
@@ -85,6 +90,44 @@ export function rotateProbeVisibility(probe: Probe) {
       probe.visibility = "hidden";
       break;
   }
+}
+
+/**
+ * Reset a probe's tip position to the atlas origin, on the experiment's own entry.
+ * @param experiment Experiment holding the probe entry to reset.
+ * @param probe Probe to reset the tip position of.
+ */
+export function homeProbe(experiment: Experiment, probe: Probe) {
+  const entry = experiment.probes.find(({ id }) => id === probe.id);
+  if (!entry) return;
+
+  entry.tipPosition = [0, 0, 0];
+}
+
+/**
+ * Duplicate a probe's entry in the experiment with a fresh id and a
+ * copy-suffixed name, returning the copy or null when the probe isn't there.
+ * @param experiment Experiment holding the probe entry to duplicate.
+ * @param probe Probe to duplicate.
+ */
+export function copyProbe(experiment: Experiment, probe: Probe): Probe | null {
+  const index = experiment.probes.findIndex(({ id }) => id === probe.id);
+  if (index === -1) return null;
+
+  const copy = structuredClone(toRaw(experiment.probes[index]!));
+  copy.id = crypto.randomUUID();
+  copy.name = `${copy.name}${PROBE_COPY_NAME_SUFFIX}`;
+  experiment.probes.splice(index + 1, 0, copy);
+
+  return copy;
+}
+
+/**
+ * Toggle whether a probe is locked against pose edits.
+ * @param probe Probe to toggle the lock of.
+ */
+export function toggleProbeLock(probe: Probe) {
+  probe.lock = !probe.lock;
 }
 
 /**
@@ -195,6 +238,7 @@ export function isProbe(value: unknown): value is Probe {
     PROBE_COLOR_PATTERN.test(value.color) &&
     typeof value.visibility === "string" &&
     PROBE_VISIBILITIES.includes(value.visibility as ProbeVisibility) &&
+    typeof value.lock === "boolean" &&
     typeof value.probeInterfaceIdentifier === "string" &&
     isFiniteTriple(value.tipPosition) &&
     isFiniteTriple(value.rotation) &&

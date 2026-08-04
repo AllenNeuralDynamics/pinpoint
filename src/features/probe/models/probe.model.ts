@@ -28,6 +28,12 @@ export interface Probe {
   visibility: ProbeVisibility;
 
   /**
+   * Is the probe locked against pose edits. Locked probes get no transform
+   * gizmo and their position/rotation inputs are disabled.
+   */
+  lock: boolean;
+
+  /**
    * Key into `Experiment.probeInterfaceProbes`, as produced by
    * `getProbeInterfaceIdentifier`.
    */
