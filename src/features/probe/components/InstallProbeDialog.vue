@@ -217,6 +217,7 @@ watch(selectedManufacturerName, () => {
             :label="$t('installProbe.install')"
             :loading="installing"
             icon="add"
+            color="primary"
             @click="install"
           >
             <q-tooltip v-if="!selectedProbeName">{{
