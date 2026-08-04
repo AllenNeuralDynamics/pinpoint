@@ -26,6 +26,7 @@ import {
   getSlicePixelFromRect
 } from "../api/slice-plane.api";
 import { useAnnotationSampler } from "../composable/useAnnotationSampler";
+import { useDelayedFlag } from "../composable/useDelayedFlag";
 import { useSliceCanvasPainter } from "../composable/useSliceCanvasPainter";
 import type { ChannelMapHover } from "../models/channel-map-hover.model";
 import type { ChannelMapsZoom } from "../models/channel-maps-zoom.model";
@@ -33,6 +34,9 @@ import type { SampleResult } from "../models/sample-result.model";
 
 /** CSS pixel line box each gutter label occupies. */
 const LABEL_LINE_HEIGHT_PIXELS = 12;
+
+/** How long sampling must run before the loading bar is worth showing. */
+const LOADING_BAR_DELAY_MILLISECONDS = 500;
 
 const { probe, shanks, heightMillimeters, imageFraction, zoomSelection } =
   defineProps<{
@@ -84,7 +88,12 @@ const plane = computed(() => {
 });
 
 const { createStream, structureIndex } = useAnnotationSampler();
-const { result } = createStream(plane);
+const { result, isLoading } = createStream(plane);
+
+const isLoadingBarVisible = useDelayedFlag(
+  isLoading,
+  LOADING_BAR_DELAY_MILLISECONDS
+);
 
 /** Height the sampled window is centered on, matching `getShankSliceGeometry`. */
 const centerHeightMillimeters = computed(
@@ -239,6 +248,14 @@ onUnmounted(() => emit("hover", null));
           />
         </g>
       </svg>
+
+      <q-linear-progress
+        v-if="isLoadingBarVisible"
+        indeterminate
+        color="primary"
+        size="sm"
+        class="absolute-top"
+      />
     </div>
     <div
       v-if="showContour"

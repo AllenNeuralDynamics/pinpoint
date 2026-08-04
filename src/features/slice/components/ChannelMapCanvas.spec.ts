@@ -519,4 +519,49 @@ describe("ChannelMapCanvas", () => {
     const afterLeave = wrapper.emitted("hover")!;
     expect(afterLeave[afterLeave.length - 1]![0]).toBeNull();
   });
+
+  it("shows a progress bar only once loading has run past the debounce delay", async () => {
+    vi.useFakeTimers();
+    try {
+      const { wrapper } = mountCanvas();
+      mockIsLoading.value = true;
+      await nextTick();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+
+      vi.advanceTimersByTime(500);
+      await nextTick();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        true
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hides the progress bar immediately once loading finishes", async () => {
+    vi.useFakeTimers();
+    try {
+      const { wrapper } = mountCanvas();
+      mockIsLoading.value = true;
+      await nextTick();
+      vi.advanceTimersByTime(500);
+      await nextTick();
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        true
+      );
+
+      mockIsLoading.value = false;
+      await nextTick();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
