@@ -29,7 +29,6 @@ const filter = ref<string | null>(null);
 const root = useTemplateRef<HTMLDivElement>("root");
 const fontsReady = ref(false);
 
-// DFS-flattened hierarchy, carrying each row's indent guides.
 const items = computed(() =>
   flattenHierarchy(currentExperiment.terminologyRows)
 );
@@ -43,7 +42,6 @@ const { isSearching, filtered: displayedItems } = useFuzzyFilter(
   query => query.trim().length === 0
 );
 
-// Guides are hidden while searching, so they contribute no width then.
 const contentWidth = computed(() => {
   if (!fontsReady.value || !root.value) return 0;
   return widestHierarchyRowWidth(
@@ -73,8 +71,7 @@ function makeTextMeasurer(element: HTMLElement) {
 
 onMounted(async () => {
   // Measuring before the webfont lands yields fallback metrics that are too
-  // narrow. `document.fonts` is absent under happy-dom, where this resolves
-  // immediately and text measures 0.
+  // narrow.
   await document.fonts?.ready;
   fontsReady.value = true;
 });
@@ -137,13 +134,12 @@ onMounted(async () => {
       </template>
     </q-virtual-scroll>
 
-    <template v-if="currentExperiment.visibleStructures.length">
-      <q-btn
-        icon="clear_all"
-        :label="$t('atlasHierarchy.clear')"
-        @click="clearVisibleStructures(currentExperiment.experiment)"
-      />
-    </template>
+    <q-btn
+      v-if="currentExperiment.visibleStructures.length"
+      icon="clear_all"
+      :label="$t('atlasHierarchy.clear')"
+      @click="clearVisibleStructures(currentExperiment.experiment)"
+    />
   </div>
 </template>
 

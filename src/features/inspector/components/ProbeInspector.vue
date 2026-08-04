@@ -1,14 +1,13 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { type ValidationRule } from "quasar";
 import {
   copyProbe,
   findProbeInterfaceProbeByIdentifier,
   getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier,
   homeProbe,
-  Probe,
+  type Probe,
   toggleProbeLock
 } from "@/features/probe";
 import { STANDARD_COLORS } from "@/features/scene";
@@ -17,6 +16,7 @@ import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { setProbeInterface } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
+import { useValidationRules } from "@/composable/useValidationRules";
 import CommittedInput from "@/components/CommittedInput.vue";
 
 // A library probe's identifier paired with its display label. `emit-value`
@@ -33,6 +33,8 @@ const { probe } = defineProps<{
 
 const probeLibraryStore = useProbeLibraryStore();
 const currentExperimentStore = useCurrentExperimentStore();
+const { requiredName: nameRules, optionalNumber: numberRules } =
+  useValidationRules();
 
 const { t } = useI18n();
 
@@ -86,21 +88,10 @@ const lockColor = computed(() => (probe.lock ? "accent" : ""));
 const lockLabel = computed(() =>
   probe.lock ? t("probeInspector.unlock") : t("probeInspector.lock")
 );
-
-const nameRules: ValidationRule<string>[] = [
-  value => value.trim().length > 0 || t("probeInspector.nameRequired")
-];
-
-const numberRules: ValidationRule<string>[] = [
-  value =>
-    value.trim().length === 0 ||
-    Number.isFinite(Number(value)) ||
-    t("probeInspector.mustBeNumber")
-];
 </script>
 
 <template>
-  <div class="column q q-gutter-y-md probe-inspector">
+  <div class="column q-gutter-y-md probe-inspector">
     <SliceCanvas :probe="probe" />
 
     <q-btn-group spread>
@@ -108,12 +99,7 @@ const numberRules: ValidationRule<string>[] = [
         :aria-label="t('probeInspector.home')"
         :disable="probe.lock"
         icon="home"
-        @click="homeProbe(currentExperimentStore.experiment, probe)"
-      />
-      <q-btn
-        :aria-label="t('probeInspector.surface')"
-        :disable="probe.lock"
-        icon="pin_drop"
+        @click="homeProbe(probe)"
       />
       <q-btn
         :aria-label="t('probeInspector.copy')"
@@ -144,13 +130,11 @@ const numberRules: ValidationRule<string>[] = [
       outlined
     />
 
-    <br />
-
     <div class="row q-gutter-x-sm">
       <CommittedInput
         v-model="ap"
         :disable="probe.lock"
-        :label="t('probeInspector.ap')"
+        :label="t('axis.ap')"
         :rules="numberRules"
         class="col"
         outlined
@@ -158,7 +142,7 @@ const numberRules: ValidationRule<string>[] = [
       <CommittedInput
         v-model="dv"
         :disable="probe.lock"
-        :label="t('probeInspector.dv')"
+        :label="t('axis.dv')"
         :rules="numberRules"
         class="col"
         outlined
@@ -166,7 +150,7 @@ const numberRules: ValidationRule<string>[] = [
       <CommittedInput
         v-model="ml"
         :disable="probe.lock"
-        :label="t('probeInspector.ml')"
+        :label="t('axis.ml')"
         :rules="numberRules"
         class="col"
         outlined

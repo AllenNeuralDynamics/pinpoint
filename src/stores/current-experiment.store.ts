@@ -2,7 +2,10 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { computedAsync } from "@vueuse/core";
 import { i18n } from "@/services/i18n.service";
-import type { Experiment } from "@/features/experiment";
+import {
+  ALLEN_MOUSE_REFERENCE_COORDINATE,
+  type Experiment
+} from "@/features/experiment";
 import type { Manifest } from "@/features/atlas";
 import {
   BRAINGLOBE_BASE_URL,
@@ -30,7 +33,7 @@ export const useCurrentExperimentStore = defineStore(
         source: BRAINGLOBE_BASE_URL,
         name: "allen_mouse"
       },
-      referenceCoordinate: [5.7, 0.44, 5.4],
+      referenceCoordinate: [...ALLEN_MOUSE_REFERENCE_COORDINATE],
       visibleStructures: [],
       probeInterfaceProbes: {},
       probes: []
@@ -98,10 +101,9 @@ export const useCurrentExperimentStore = defineStore(
     /**
      * List of structure identifiers actively being shown in the atlas.
      */
-    const visibleStructures = computed({
-      get: () => experiment.value.visibleStructures,
-      set: (value: number[]) => (experiment.value.visibleStructures = value)
-    });
+    const visibleStructures = computed(
+      () => experiment.value.visibleStructures
+    );
 
     /**
      * Probe interface definitions used by this experiment's probes, keyed by
@@ -130,10 +132,8 @@ export const useCurrentExperimentStore = defineStore(
      * @param newExperiment Experiment to load.
      */
     function loadExperiment(newExperiment: Experiment) {
-      // Add current experiment to recents.
       recentExperimentsStore.add(experiment.value);
 
-      // Load in new one.
       detachProbeInterfaceProbes(newExperiment.probeInterfaceProbes);
       experiment.value = newExperiment;
       selectedInspectable.value = null;

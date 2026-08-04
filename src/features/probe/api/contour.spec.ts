@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { ProbeInterfaceProbe } from "@/features/probe";
+import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import { makeProbeInterfaceProbe } from "@/test/fixtures";
-import {
-  getProbeContacts,
-  getProbeContactOutlines,
-  getProbeContour,
-  getProbeMillimetersPerUnit
-} from "./contour.api";
+import { getProbeContactOutlines, getProbeContour } from "./contour.api";
 
 /** Single-shank contour (imec NP1000), in micrometers. */
 const NP1000_CONTOUR = [
@@ -16,34 +11,6 @@ const NP1000_CONTOUR = [
   [59, -11],
   [59, 9989]
 ];
-
-describe("getProbeMillimetersPerUnit", () => {
-  it("converts meters to millimeters", () => {
-    expect(
-      getProbeMillimetersPerUnit(makeProbeInterfaceProbe({ si_units: "m" }))
-    ).toBe(1000);
-  });
-
-  it("keeps millimeters as-is", () => {
-    expect(
-      getProbeMillimetersPerUnit(makeProbeInterfaceProbe({ si_units: "mm" }))
-    ).toBe(1);
-  });
-
-  it("converts micrometers to millimeters", () => {
-    expect(
-      getProbeMillimetersPerUnit(makeProbeInterfaceProbe({ si_units: "um" }))
-    ).toBe(1e-3);
-  });
-
-  it("falls back to micrometers for an unrecognized unit", () => {
-    expect(
-      getProbeMillimetersPerUnit(
-        makeProbeInterfaceProbe({ si_units: "furlongs" })
-      )
-    ).toBe(1e-3);
-  });
-});
 
 describe("getProbeContour", () => {
   it("returns null when there's no contour", () => {
@@ -131,114 +98,53 @@ describe("getProbeContour", () => {
     expect(result?.widthMillimeters).toBe(10);
     expect(result?.heightMillimeters).toBe(10);
   });
-});
 
-describe("getProbeContacts", () => {
-  it("returns null when there are no usable contact positions", () => {
-    const result = getProbeContacts(
-      makeProbeInterfaceProbe({ contact_positions: [] })
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it("returns null when every contact position is non-finite", () => {
-    const result = getProbeContacts(
+  it("converts si_units meters to millimeters", () => {
+    const result = getProbeContour(
       makeProbeInterfaceProbe({
-        contact_positions: [[Number.NaN, Number.NaN]]
-      })
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it("computes the bounding box center of the contacts, in the contour's frame", () => {
-    // Contour origin is x=5 (its bbox center), y=0 (its tip), so contacts at
-    // raw x=5..7 land at local x=0..2 rather than being re-centered on 0.
-    const result = getProbeContacts(
-      makeProbeInterfaceProbe({
-        si_units: "mm",
+        si_units: "m",
         probe_planar_contour: [
           [0, 0],
           [10, 0],
-          [10, 10],
-          [0, 10]
-        ],
-        contact_positions: [
-          [5, 0],
-          [7, 4]
+          [5, 10]
         ]
       })
     );
 
-    expect(result?.centerMillimeters).toEqual({ x: 1, y: 2 });
-    expect(result?.widthMillimeters).toBe(2);
-    expect(result?.heightMillimeters).toBe(4);
+    expect(result?.widthMillimeters).toBe(10000);
+    expect(result?.heightMillimeters).toBe(10000);
   });
 
-  it("expresses contacts in the contour's frame, not their own", () => {
-    // Contour is a 10mm-wide, 10mm-tall square centered at x=5, tip at y=0.
-    // A single contact at (5, 1) sits at the contour's horizontal center,
-    // 1mm above the tip - it should land at local (0, 1), not (0, 0).
-    const result = getProbeContacts(
+  it("converts si_units micrometers to millimeters", () => {
+    const result = getProbeContour(
       makeProbeInterfaceProbe({
-        si_units: "mm",
+        si_units: "um",
         probe_planar_contour: [
           [0, 0],
           [10, 0],
-          [10, 10],
-          [0, 10]
-        ],
-        contact_positions: [[5, 1]]
-      })
-    );
-
-    expect(result?.points).toEqual([{ x: 0, y: 1 }]);
-    expect(result?.centerMillimeters).toEqual({ x: 0, y: 1 });
-  });
-
-  it("falls back to the contacts' own bounding box when there's no contour", () => {
-    const result = getProbeContacts(
-      makeProbeInterfaceProbe({
-        si_units: "mm",
-        contact_positions: [
-          [10, 20],
-          [12, 24]
+          [5, 10]
         ]
       })
     );
 
-    // No contour to re-origin against, so the fallback frame centers x on
-    // the contacts' own bbox (x=11) and takes their lowest y (y=20) as its
-    // origin - the same convention getProbeContour uses.
-    expect(result?.points).toEqual([
-      { x: -1, y: 0 },
-      { x: 1, y: 4 }
-    ]);
-    expect(result?.centerMillimeters).toEqual({ x: 0, y: 2 });
+    expect(result?.widthMillimeters).toBeCloseTo(0.01, 6);
+    expect(result?.heightMillimeters).toBeCloseTo(0.01, 6);
   });
 
-  it("passes shank_ids through, index-aligned with the kept points", () => {
-    const result = getProbeContacts(
+  it("falls back to micrometers for an unrecognized si_units value", () => {
+    const result = getProbeContour(
       makeProbeInterfaceProbe({
-        si_units: "mm",
-        contact_positions: [
+        si_units: "furlongs",
+        probe_planar_contour: [
           [0, 0],
-          [Number.NaN, 0],
-          [1, 1]
-        ],
-        shank_ids: [0, 0, 1]
+          [10, 0],
+          [5, 10]
+        ]
       })
     );
 
-    expect(result?.points).toHaveLength(2);
-    expect(result?.shankIds).toEqual([0, 1]);
-  });
-
-  it("returns null shankIds when shank_ids is absent", () => {
-    const result = getProbeContacts(makeProbeInterfaceProbe());
-
-    expect(result?.shankIds).toBeNull();
+    expect(result?.widthMillimeters).toBeCloseTo(0.01, 6);
+    expect(result?.heightMillimeters).toBeCloseTo(0.01, 6);
   });
 });
 

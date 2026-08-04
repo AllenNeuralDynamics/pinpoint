@@ -21,16 +21,21 @@ export function createSampleResult(
       heightPixels,
       annotationValues: reuse.annotationValues,
       pixels: reuse.pixels,
+      packedPixels: reuse.packedPixels,
+      imageData: reuse.imageData,
       paintedChunkCount: 0,
       totalChunkCount: 0
     };
   }
 
+  const pixels = new Uint8ClampedArray(sampleCount * 4);
   return {
     widthPixels,
     heightPixels,
     annotationValues: new Uint32Array(sampleCount),
-    pixels: new Uint8ClampedArray(sampleCount * 4),
+    pixels,
+    packedPixels: new Uint32Array(pixels.buffer),
+    imageData: new ImageData(pixels, widthPixels, heightPixels),
     paintedChunkCount: 0,
     totalChunkCount: 0
   };

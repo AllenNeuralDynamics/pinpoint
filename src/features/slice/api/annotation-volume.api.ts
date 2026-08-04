@@ -23,19 +23,14 @@ interface Multiscale {
   datasets: MultiscaleDataset[];
 }
 
-/** Fallback per-axis triple when a dataset omits a transformation. */
-const ZERO_TRIPLE: [number, number, number] = [0, 0, 0];
-
 /**
  * Open an atlas's annotation volume and describe its multiscale levels,
  * sorted finest first. Null when it can't be opened or has no usable levels.
  * @param store Zarr store to read from.
- * @param url Absolute URL of the OME-Zarr annotation volume root.
  * @param signal Abort signal for the metadata requests.
  */
 export async function openAnnotationVolume(
   store: Readable,
-  url: string,
   signal?: AbortSignal
 ): Promise<AnnotationVolume | null> {
   try {
@@ -67,8 +62,10 @@ export async function openAnnotationVolume(
           array.chunks[2]!
         ],
         scaleMillimeters: scale,
-        translationMillimeters:
-          getCoordinateTransformation(dataset, "translation") ?? ZERO_TRIPLE
+        translationMillimeters: getCoordinateTransformation(
+          dataset,
+          "translation"
+        ) ?? [0, 0, 0]
       });
     }
     if (levels.length === 0) return null;
@@ -77,7 +74,7 @@ export async function openAnnotationVolume(
       (a, b) =>
         Math.min(...a.scaleMillimeters) - Math.min(...b.scaleMillimeters)
     );
-    return { url, levels };
+    return { levels };
   } catch {
     return null;
   }

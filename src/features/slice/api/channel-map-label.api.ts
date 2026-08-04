@@ -131,23 +131,28 @@ export function getChannelMapLabels(
 ): ChannelMapLabel[] {
   if (gutterHeightPixels <= 0 || lineHeightPixels <= 0) return [];
 
-  const placements = runs.flatMap(run => {
+  const placements: {
+    key: string;
+    annotationValue: number;
+    abbreviation: string;
+    areaPixels: number;
+    topPixels: number;
+  }[] = [];
+  for (const run of runs) {
     const structure = structures.get(run.annotationValue);
-    if (!structure) return [];
-    return [
-      {
-        key: `${run.annotationValue}-${run.centerFraction}`,
-        annotationValue: run.annotationValue,
-        abbreviation: structure.abbreviation,
-        areaPixels: run.areaPixels,
-        topPixels: clamp(
-          run.centerFraction * gutterHeightPixels - lineHeightPixels / 2,
-          0,
-          Math.max(0, gutterHeightPixels - lineHeightPixels)
-        )
-      }
-    ];
-  });
+    if (!structure) continue;
+    placements.push({
+      key: `${run.annotationValue}-${run.centerFraction}`,
+      annotationValue: run.annotationValue,
+      abbreviation: structure.abbreviation,
+      areaPixels: run.areaPixels,
+      topPixels: clamp(
+        run.centerFraction * gutterHeightPixels - lineHeightPixels / 2,
+        0,
+        Math.max(0, gutterHeightPixels - lineHeightPixels)
+      )
+    });
+  }
 
   // Largest area claims its neighbourhood: sweep area-descending and reject any
   // placement landing inside an already-kept label's exclusion gap.

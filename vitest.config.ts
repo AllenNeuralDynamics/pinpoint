@@ -27,7 +27,25 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "happy-dom",
-    exclude: [...configDefaults.exclude, ".direnv", ".claude"],
-    setupFiles: ["./src/test/setup.ts"]
+    exclude: [
+      ...configDefaults.exclude,
+      "**/.direnv/**",
+      "**/.claude/**",
+      "**/.agents/**"
+    ],
+    setupFiles: ["./src/test/setup.ts"],
+    coverage: {
+      provider: "v8",
+      include: ["src/**/*.{ts,vue}"],
+      exclude: [
+        "src/**/*.spec.ts",
+        "src/test/**",
+        "src/boot/**",
+        "src/i18n/**",
+        "src/router/**",
+        "src/**/*.model.ts",
+        "src/**/index.ts"
+      ]
+    }
   }
 });

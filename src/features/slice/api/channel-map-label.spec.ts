@@ -36,11 +36,18 @@ function makeSampleResult(
 ): SampleResult {
   const values = new Uint32Array(widthPixels * heightPixels);
   values.set(annotationValues);
+  const pixels = new Uint8ClampedArray(widthPixels * heightPixels * 4);
   return {
     widthPixels,
     heightPixels,
     annotationValues: values,
-    pixels: new Uint8ClampedArray(widthPixels * heightPixels * 4),
+    pixels,
+    packedPixels: new Uint32Array(pixels.buffer),
+    imageData: new ImageData(
+      pixels,
+      Math.max(widthPixels, 1),
+      Math.max(heightPixels, 1)
+    ),
     paintedChunkCount: 1,
     totalChunkCount: 1
   };

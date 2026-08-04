@@ -1,14 +1,22 @@
-import { onScopeDispose, type Ref, shallowRef, watch } from "vue";
+import {
+  computed,
+  onScopeDispose,
+  type ComputedRef,
+  type Ref,
+  shallowRef,
+  watch
+} from "vue";
 import { createSharedComposable, watchDebounced } from "@vueuse/core";
 import type { Readable } from "zarrita";
 import type { Manifest, TerminologyRow } from "@/features/atlas";
 import { getAnnotationVolumeUrl } from "@/features/atlas";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { createAnnotationMetadataStore } from "../api/annotation-store.api";
 import { openAnnotationVolume } from "../api/annotation-volume.api";
 import { getWorkerCount, groupRequestsByShard } from "../api/chunk-shard.api";
 import { createSampleResult } from "../api/sample-result.api";
 import { selectSamplePlan } from "../api/sample-plan.api";
-import { buildStructureColors } from "../api/structure-colors.api";
+import { buildStructureLookups } from "../api/structure-colors.api";
 import type { AnnotationVolume } from "../models/annotation-level.model";
 import type {
   SampleBand,
@@ -23,12 +31,7 @@ import type {
 /** Milliseconds a settled geometry change waits before replanning. */
 const REPLAN_DEBOUNCE_MILLISECONDS = 1000 / 60;
 
-/**
- * Milliseconds a continuously changing geometry may coalesce before a replan
- * is forced. A slider drag emits ~60 changes/second and each replan walks
- * every sample of the plan on the main thread, so this bounds that to one
- * walk per window instead of one per frame.
- */
+/** Milliseconds a continuously changing geometry may coalesce before a replan fires anyway. */
 const REPLAN_MAXIMUM_WAIT_MILLISECONDS = 100;
 
 /** Builds one sampler worker. Overridable in tests to avoid a real `Worker`. */
@@ -50,11 +53,7 @@ export interface AnnotationSampleStream {
   isLoading: Readonly<Ref<boolean>>;
 }
 
-/**
- * Default factory for the real annotation-sampler worker, loaded via a
- * standard `new URL(..., import.meta.url)` + module worker (works under
- * Vite without any extra type declarations).
- */
+/** Default factory for the real annotation-sampler worker. */
 function defaultWorkerFactory(): SamplerWorker {
   return new Worker(
     new URL("../workers/annotation-sampler.worker.ts", import.meta.url),
@@ -65,207 +64,215 @@ function defaultWorkerFactory(): SamplerWorker {
 }
 
 /**
- * A chunk-sharded pool of annotation-sampler workers, shared by every
- * `createStream` caller across the app via `createSharedComposable`.
+ * Create a chunk-sharded pool of annotation-sampler workers driven by the
+ * given reactive atlas inputs.
  * @param options Reactive manifest and terminology inputs.
- * @param workerFactory Builds one pool worker. Overridable in tests.
- * @param metadataStoreFactory Builds the zarr store the main thread reads
- *   volume metadata from. Overridable in tests to avoid a real fetch.
+ * @param workerFactory Builds one pool worker.
+ * @param metadataStoreFactory Builds the zarr store volume metadata is read from.
  */
-export const useAnnotationSampler = createSharedComposable(
-  function useAnnotationSampler(
-    options: {
-      manifest: Ref<Manifest | null>;
-      terminologyRows: Ref<TerminologyRow[]>;
+export function createAnnotationSampler(
+  options: {
+    manifest: Ref<Manifest | null>;
+    terminologyRows: Ref<TerminologyRow[]>;
+  },
+  workerFactory: SamplerWorkerFactory = defaultWorkerFactory,
+  metadataStoreFactory: MetadataStoreFactory = createAnnotationMetadataStore
+): {
+  createStream: (
+    geometry: Ref<SampleGeometry | null>
+  ) => AnnotationSampleStream;
+  structureIndex: ComputedRef<Map<number, TerminologyRow>>;
+} {
+  const workerCount = getWorkerCount(
+    typeof navigator === "undefined" ? 0 : navigator.hardwareConcurrency
+  );
+  const workers = Array.from({ length: workerCount }, workerFactory);
+
+  let nextStreamId = 0;
+  let volume: AnnotationVolume | null = null;
+  const streamGenerations = new Map<string, number>();
+  const streamRequestCounts = new Map<
+    string,
+    { total: number; done: number }
+  >();
+  const streamCallbacks = new Map<string, (message: SampledMessage) => void>();
+  // Re-run each stream's last plan attempt once the volume (re)opens, since
+  // a stream's geometry may already have settled before the volume's
+  // metadata resolved (both are async, independently of each other).
+  const streamReplans = new Map<string, () => void>();
+
+  for (const worker of workers) {
+    worker.onmessage = event => {
+      streamCallbacks.get(event.data.streamId)?.(event.data);
+    };
+  }
+
+  onScopeDispose(() => {
+    for (const worker of workers) worker.terminate();
+  });
+
+  function broadcast(message: InboundSamplerMessage): void {
+    for (const worker of workers) worker.postMessage(message);
+  }
+
+  watch(
+    () =>
+      options.manifest.value
+        ? getAnnotationVolumeUrl(options.manifest.value)
+        : null,
+    async url => {
+      volume = null;
+      if (!url) return;
+
+      broadcast({ type: "open", url });
+      // Metadata-only: opening a volume reads a handful of small zarr.json
+      // files, never chunk bytes. The main thread needs the real level
+      // shapes/scales to plan and shard correctly; each worker separately
+      // opens the same URL for its own chunk-decoding store.
+      volume = await openAnnotationVolume(metadataStoreFactory(url));
+      for (const replan of streamReplans.values()) replan();
     },
-    workerFactory: SamplerWorkerFactory = defaultWorkerFactory,
-    metadataStoreFactory: MetadataStoreFactory = createAnnotationMetadataStore
-  ): {
-    createStream: (
-      geometry: Ref<SampleGeometry | null>
-    ) => AnnotationSampleStream;
-  } {
-    const workerCount = getWorkerCount(
-      typeof navigator === "undefined" ? 0 : navigator.hardwareConcurrency
-    );
-    const workers = Array.from({ length: workerCount }, workerFactory);
+    { immediate: true }
+  );
 
-    let nextStreamId = 0;
-    let volume: AnnotationVolume | null = null;
-    const streamGenerations = new Map<string, number>();
-    const streamRequestCounts = new Map<
-      string,
-      { total: number; done: number }
-    >();
-    const streamCallbacks = new Map<
-      string,
-      (message: SampledMessage) => void
-    >();
-    // Re-run each stream's last plan attempt once the volume (re)opens, since
-    // a stream's geometry may already have settled before the volume's
-    // metadata resolved (both are async, independently of each other).
-    const streamReplans = new Map<string, () => void>();
+  const structureLookups = computed(() =>
+    buildStructureLookups(options.terminologyRows.value)
+  );
+  watch(
+    structureLookups,
+    ({ colors }) => broadcast({ type: "colors", colors }),
+    { immediate: true }
+  );
 
-    for (const worker of workers) {
-      worker.onmessage = event => {
-        streamCallbacks.get(event.data.streamId)?.(event.data);
-      };
-    }
+  /**
+   * Subscribe a stream: plans and samples the given geometry whenever it
+   * changes, reassembling each worker's contribution into one result.
+   * @param geometry Geometry to keep sampled. Null clears the result.
+   */
+  function createStream(
+    geometry: Ref<SampleGeometry | null>
+  ): AnnotationSampleStream {
+    const streamId = `stream-${nextStreamId++}`;
 
-    onScopeDispose(() => {
-      for (const worker of workers) worker.terminate();
+    const result = shallowRef<SampleResult | null>(null);
+    const isLoading = shallowRef(false);
+    // The last geometry/volume this stream actually dispatched a plan for,
+    // so a value-identical but freshly constructed geometry (e.g. a
+    // re-interned dependency changing the computed's object identity)
+    // doesn't pay for a redundant replan.
+    let lastPlanned: {
+      geometry: SampleGeometry;
+      volume: AnnotationVolume;
+    } | null = null;
+
+    streamCallbacks.set(streamId, message => {
+      if (streamGenerations.get(streamId) !== message.generation) return;
+      const current = result.value;
+      if (!current) return;
+
+      applySampledMessage(current, message);
+
+      const counts = streamRequestCounts.get(streamId);
+      if (counts) {
+        counts.done += 1;
+        if (counts.done >= counts.total) isLoading.value = false;
+      }
+      result.value = { ...current };
     });
 
-    function broadcast(message: InboundSamplerMessage): void {
-      for (const worker of workers) worker.postMessage(message);
-    }
+    function planAndSample(value: SampleGeometry | null): void {
+      if (!value) {
+        result.value = null;
+        isLoading.value = false;
+        lastPlanned = null;
+        return;
+      }
+      // The volume may not have opened yet (both are async, independently);
+      // `streamReplans` re-invokes this once it does, so just wait.
+      if (!volume || volume.levels.length === 0) return;
 
-    watch(
-      () =>
-        options.manifest.value
-          ? getAnnotationVolumeUrl(options.manifest.value)
-          : null,
-      async url => {
-        volume = null;
-        if (!url) return;
-
-        broadcast({ type: "open", url });
-        // Metadata-only: opening a volume reads a handful of small zarr.json
-        // files, never chunk bytes. The main thread needs the real level
-        // shapes/scales to plan and shard correctly; each worker separately
-        // opens the same URL for its own chunk-decoding store.
-        volume = await openAnnotationVolume(metadataStoreFactory(url), url);
-        for (const replan of streamReplans.values()) replan();
-      },
-      { immediate: true }
-    );
-
-    watch(
-      options.terminologyRows,
-      rows => broadcast({ type: "colors", colors: buildStructureColors(rows) }),
-      { immediate: true }
-    );
-
-    /**
-     * Subscribe a stream: plans and samples the given geometry whenever it
-     * changes, reassembling each worker's contribution into one result.
-     * @param geometry Geometry to keep sampled. Null clears the result.
-     */
-    function createStream(
-      geometry: Ref<SampleGeometry | null>
-    ): AnnotationSampleStream {
-      const streamId = `stream-${nextStreamId++}`;
-
-      const result = shallowRef<SampleResult | null>(null);
-      const isLoading = shallowRef(false);
-      // The last geometry/volume this stream actually dispatched a plan for,
-      // so a value-identical but freshly constructed geometry (e.g. a
-      // re-interned dependency changing the computed's object identity)
-      // doesn't pay for a redundant replan.
-      let lastPlanned: {
-        geometry: SampleGeometry;
-        volume: AnnotationVolume;
-      } | null = null;
-
-      streamCallbacks.set(streamId, message => {
-        if (streamGenerations.get(streamId) !== message.generation) return;
-        const current = result.value;
-        if (!current) return;
-
-        applySampledMessage(current, message);
-
-        const counts = streamRequestCounts.get(streamId);
-        if (counts) {
-          counts.done += 1;
-          if (counts.done >= counts.total) isLoading.value = false;
-        }
-        result.value = { ...current };
-      });
-
-      function planAndSample(value: SampleGeometry | null): void {
-        if (!value) {
-          result.value = null;
-          isLoading.value = false;
-          lastPlanned = null;
-          return;
-        }
-        // The volume may not have opened yet (both are async, independently);
-        // `streamReplans` re-invokes this once it does, so just wait.
-        if (!volume || volume.levels.length === 0) return;
-
-        if (
-          lastPlanned &&
-          lastPlanned.volume === volume &&
-          isSameGeometry(lastPlanned.geometry, value)
-        ) {
-          return;
-        }
-
-        const generation = (streamGenerations.get(streamId) ?? 0) + 1;
-        streamGenerations.set(streamId, generation);
-
-        const plan = selectSamplePlan(value, volume);
-        const shardGroups = groupRequestsByShard(plan, workerCount);
-        const nonEmptyGroups = shardGroups.filter(group => group.length > 0);
-
-        result.value = createSampleResult(
-          value.widthPixels,
-          value.heightPixels,
-          result.value ?? undefined
-        );
-        result.value.totalChunkCount = plan.chunkRequests.length;
-        streamRequestCounts.set(streamId, {
-          total: nonEmptyGroups.length,
-          done: 0
-        });
-        isLoading.value = nonEmptyGroups.length > 0;
-
-        shardGroups.forEach((requests, workerIndex) => {
-          if (requests.length === 0) return;
-          const transfer: Transferable[] = [];
-          for (const request of requests) {
-            transfer.push(
-              request.sampleIndices.buffer,
-              request.voxelOffsets.buffer
-            );
-          }
-          workers[workerIndex]!.postMessage(
-            {
-              type: "sample",
-              streamId,
-              generation,
-              levelIndex: plan.levelIndex,
-              requests
-            },
-            transfer
-          );
-        });
-
-        lastPlanned = { geometry: value, volume };
+      if (
+        lastPlanned &&
+        lastPlanned.volume === volume &&
+        isSameGeometry(lastPlanned.geometry, value)
+      ) {
+        return;
       }
 
-      streamReplans.set(streamId, () => planAndSample(geometry.value));
+      const generation = (streamGenerations.get(streamId) ?? 0) + 1;
+      streamGenerations.set(streamId, generation);
 
-      watchDebounced(geometry, planAndSample, {
-        debounce: REPLAN_DEBOUNCE_MILLISECONDS,
-        maxWait: REPLAN_MAXIMUM_WAIT_MILLISECONDS,
-        immediate: true
+      const plan = selectSamplePlan(value, volume);
+      const shardGroups = groupRequestsByShard(plan, workerCount);
+
+      result.value = createSampleResult(
+        value.widthPixels,
+        value.heightPixels,
+        result.value ?? undefined
+      );
+      result.value.totalChunkCount = plan.chunkRequests.length;
+
+      let dispatchedCount = 0;
+      shardGroups.forEach((requests, workerIndex) => {
+        if (requests.length === 0) return;
+        dispatchedCount++;
+        const transfer: Transferable[] = [];
+        for (const request of requests) {
+          transfer.push(
+            request.sampleIndices.buffer,
+            request.voxelOffsets.buffer
+          );
+        }
+        workers[workerIndex]!.postMessage(
+          {
+            type: "sample",
+            streamId,
+            generation,
+            levelIndex: plan.levelIndex,
+            requests
+          },
+          transfer
+        );
       });
+      streamRequestCounts.set(streamId, { total: dispatchedCount, done: 0 });
+      isLoading.value = dispatchedCount > 0;
 
-      onScopeDispose(() => {
-        broadcast({ type: "cancel", streamId });
-        streamCallbacks.delete(streamId);
-        streamGenerations.delete(streamId);
-        streamRequestCounts.delete(streamId);
-        streamReplans.delete(streamId);
-      });
-
-      return { result, isLoading };
+      lastPlanned = { geometry: value, volume };
     }
 
-    return { createStream };
+    streamReplans.set(streamId, () => planAndSample(geometry.value));
+
+    watchDebounced(geometry, planAndSample, {
+      debounce: REPLAN_DEBOUNCE_MILLISECONDS,
+      maxWait: REPLAN_MAXIMUM_WAIT_MILLISECONDS,
+      immediate: true
+    });
+
+    onScopeDispose(() => {
+      broadcast({ type: "cancel", streamId });
+      streamCallbacks.delete(streamId);
+      streamGenerations.delete(streamId);
+      streamRequestCounts.delete(streamId);
+      streamReplans.delete(streamId);
+    });
+
+    return { result, isLoading };
   }
-);
+
+  return {
+    createStream,
+    structureIndex: computed(() => structureLookups.value.index)
+  };
+}
+
+/** The app-wide annotation sampler, shared by every consumer. */
+export const useAnnotationSampler = createSharedComposable(() => {
+  const currentExperiment = useCurrentExperimentStore();
+  return createAnnotationSampler({
+    manifest: computed(() => currentExperiment.manifest),
+    terminologyRows: computed(() => currentExperiment.terminologyRows)
+  });
+});
 
 /**
  * Apply one worker's sampled flush to a result in place.
@@ -276,11 +283,10 @@ function applySampledMessage(
   result: SampleResult,
   message: SampledMessage
 ): void {
-  const packedColors = new Uint32Array(result.pixels.buffer);
   for (let index = 0; index < message.sampleIndices.length; index++) {
     const sampleIndex = message.sampleIndices[index]!;
     result.annotationValues[sampleIndex] = message.annotationValues[index]!;
-    packedColors[sampleIndex] = message.colors[index]!;
+    result.packedPixels[sampleIndex] = message.colors[index]!;
   }
   result.paintedChunkCount += message.chunkCount;
 }

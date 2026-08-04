@@ -13,7 +13,6 @@ import type { Probe, ProbeShank } from "@/features/probe";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
   getChannelMapLabels,
-  getChannelMapWidths,
   getStructureLabelRuns
 } from "../api/channel-map-label.api";
 import { getProbeFrame } from "../api/probe-frame.api";
@@ -26,7 +25,6 @@ import {
   getShankSliceGeometry,
   getSlicePixelFromRect
 } from "../api/slice-plane.api";
-import { buildStructureIndex } from "../api/structure-colors.api";
 import { useAnnotationSampler } from "../composable/useAnnotationSampler";
 import { useSliceCanvasPainter } from "../composable/useSliceCanvasPainter";
 import type { ChannelMapHover } from "../models/channel-map-hover.model";
@@ -36,14 +34,17 @@ import type { SampleResult } from "../models/sample-result.model";
 /** CSS pixel line box each gutter label occupies. */
 const LABEL_LINE_HEIGHT_PIXELS = 12;
 
-const { probe, shanks, heightMillimeters, zoomSelection } = defineProps<{
-  probe: Probe;
-  shanks: ProbeShank[];
-  /** Height of the probe's contour, spanned by every shank. */
-  heightMillimeters: number;
-  /** Zoom level controlling whether the contour and contacts overlay render. */
-  zoomSelection: ChannelMapsZoom;
-}>();
+const { probe, shanks, heightMillimeters, imageFraction, zoomSelection } =
+  defineProps<{
+    probe: Probe;
+    shanks: ProbeShank[];
+    /** Height of the probe's contour, spanned by every shank. */
+    heightMillimeters: number;
+    /** Fraction of the width the sampled shank image occupies, from `ChannelMaps`' shared widths. */
+    imageFraction: number;
+    /** Zoom level controlling whether the contour and contacts overlay render. */
+    zoomSelection: ChannelMapsZoom;
+  }>();
 
 const emit = defineEmits<{
   /** Structure under the pointer, or null when the pointer leaves it. */
@@ -82,10 +83,7 @@ const plane = computed(() => {
   return getShankSliceGeometry(frame, layout.value, channelMapWindow.value);
 });
 
-const { createStream } = useAnnotationSampler({
-  manifest: computed(() => currentExperiment.manifest),
-  terminologyRows: computed(() => currentExperiment.terminologyRows)
-});
+const { createStream, structureIndex } = useAnnotationSampler();
 const { result } = createStream(plane);
 
 /** Height the sampled window is centered on, matching `getShankSliceGeometry`. */
@@ -128,23 +126,8 @@ const showContacts = computed(() => zoomSelection === "large");
 /** Accessible label naming the probe. */
 const ariaLabel = computed(() => t("slice.channelMap", { name: probe.name }));
 
-/**
- * The label gutter and its abbreviations render at medium and large zoom,
- * deliberately the same threshold as `showContour`: at small zoom the whole
- * card is ~27 px wide, so every abbreviation would ellipsize to nothing.
- */
-const showLabels = computed(() => zoomSelection !== "small");
-
 /** Fraction of the width the sampled shank image occupies, left of the blank label gutter. */
-const imageWidthPercent = computed(() =>
-  showLabels.value
-    ? `${getChannelMapWidths(shanks).imageFraction * 100}%`
-    : "100%"
-);
-
-const structureIndex = computed(() =>
-  buildStructureIndex(currentExperiment.terminologyRows)
-);
+const imageWidthPercent = computed(() => `${imageFraction * 100}%`);
 
 /** One gutter line per structure run, with crowded runs reduced to the largest. */
 const labels = computed(() =>
@@ -199,6 +182,7 @@ function onPointerMove(event: PointerEvent): void {
   );
 }
 
+/** Clear the parent's hover when the pointer leaves the canvas. */
 function onPointerLeave(): void {
   emit("hover", null);
 }
@@ -257,7 +241,7 @@ onUnmounted(() => emit("hover", null));
       </svg>
     </div>
     <div
-      v-if="showLabels"
+      v-if="showContour"
       class="channel-map-canvas__labels"
       :style="{ left: imageWidthPercent }"
       aria-hidden="true"

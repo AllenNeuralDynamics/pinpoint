@@ -5,5 +5,4 @@ export interface TerminologyRow {
   name: string;
   abbreviation: string;
   color_hex_triplet: string;
-  root_identifier_path: number[];
 }

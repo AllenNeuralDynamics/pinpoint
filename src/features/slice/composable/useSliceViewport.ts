@@ -5,8 +5,7 @@ import {
   type WritableComputedRef
 } from "vue";
 import type { Manifest } from "@/features/atlas";
-import type { Probe } from "@/features/probe";
-import type { ProbeContour } from "@/features/probe";
+import type { Probe, ProbeContour } from "@/features/probe";
 import {
   clampSliceCenterHeight,
   clampSliceExtent,
@@ -26,8 +25,7 @@ export interface SliceViewport {
 /**
  * Track a probe's slice zoom and center height, clamping both into the
  * current atlas's zoom range and contour, and writing changes back to the
- * probe. Reads `probe` on every access rather than taking a plain value, so
- * switching to a different probe object picks up its own persisted state.
+ * probe.
  * @param probe Probe to read and write persisted viewport state on.
  * @param contour Probe's contour, or null when unavailable.
  * @param manifest Current atlas manifest, or null when unresolved.

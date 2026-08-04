@@ -126,40 +126,19 @@ describe("rotateProbeVisibility", () => {
     rotateProbeVisibility(probe);
     expect(probe.visibility).toBe("visible");
   });
-
-  it("falls back to hidden for an unrecognized visibility value", () => {
-    const probe = makeProbe({
-      visibility: "unknown" as unknown as Probe["visibility"]
-    });
-
-    rotateProbeVisibility(probe);
-
-    expect(probe.visibility).toBe("hidden");
-  });
 });
 
 describe("homeProbe", () => {
-  it("resets the experiment entry's tip position to the atlas origin, leaving rotation untouched", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  it("resets the probe's tip position to the atlas origin, leaving rotation untouched", () => {
     const probe = makeProbe({
       tipPosition: [1, 2, 3],
       rotation: [0.1, 0.2, 0.3]
     });
-    addProbe(experiment, probe);
 
-    homeProbe(experiment, probe);
+    homeProbe(probe);
 
-    expect(experiment.probes[0]!.tipPosition).toEqual([0, 0, 0]);
-    expect(experiment.probes[0]!.rotation).toEqual([0.1, 0.2, 0.3]);
-  });
-
-  it("does nothing when the probe isn't in the experiment", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
-    const probe = makeProbe({ tipPosition: [1, 2, 3] });
-
-    homeProbe(experiment, probe);
-
-    expect(probe.tipPosition).toEqual([1, 2, 3]);
+    expect(probe.tipPosition).toEqual([0, 0, 0]);
+    expect(probe.rotation).toEqual([0.1, 0.2, 0.3]);
   });
 });
 

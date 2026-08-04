@@ -14,7 +14,7 @@ describe("openAnnotationVolume", () => {
       translationMillimeters: [0.1, 0.2, 0.3]
     });
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume?.levels).toHaveLength(1);
     const level = volume!.levels[0]!;
@@ -57,13 +57,13 @@ describe("openAnnotationVolume", () => {
       )
     );
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume?.levels[0]?.translationMillimeters).toEqual([0, 0, 0]);
   });
 
   it("returns null when /zarr.json is absent", async () => {
-    const volume = await openAnnotationVolume(new Map(), "http://example.com");
+    const volume = await openAnnotationVolume(new Map());
 
     expect(volume).toBeNull();
   });
@@ -84,7 +84,7 @@ describe("openAnnotationVolume", () => {
       )
     );
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume).toBeNull();
   });
@@ -99,7 +99,7 @@ describe("openAnnotationVolume", () => {
       )
     );
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume).toBeNull();
   });
@@ -146,7 +146,7 @@ describe("openAnnotationVolume", () => {
       )
     );
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume).toBeNull();
   });
@@ -211,7 +211,7 @@ describe("openAnnotationVolume", () => {
       encoder.encode(JSON.stringify(arrayMetadata([8, 8, 8], [2, 2, 2])))
     );
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume?.levels.map(level => level.path)).toEqual(["s0", "s1"]);
   });
@@ -294,7 +294,7 @@ describe("openAnnotationVolume", () => {
       )
     );
 
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     expect(volume?.levels.map(level => level.path)).toEqual(["s0"]);
   });
@@ -307,7 +307,7 @@ describe("readAnnotationChunk", () => {
       chunkShapeVoxels: [2, 2, 2],
       chunks: { "0/0/0": Uint32Array.from([1, 2, 3, 4, 5, 6, 7, 8]) }
     });
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     const data = await readAnnotationChunk(volume!.levels[0]!, [0, 0, 0]);
 
@@ -319,7 +319,7 @@ describe("readAnnotationChunk", () => {
       shapeVoxels: [4, 4, 4],
       chunkShapeVoxels: [2, 2, 2]
     });
-    const volume = await openAnnotationVolume(store, "http://example.com");
+    const volume = await openAnnotationVolume(store);
 
     const data = await readAnnotationChunk(volume!.levels[0]!, [1, 1, 1]);
 

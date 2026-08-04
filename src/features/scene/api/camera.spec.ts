@@ -1,42 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 import { ArcRotateCamera, Vector3 } from "@babylonjs/core";
 import { orbitCameraTowards, setInitialZoom } from "./camera.api";
-import { makeManifest } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
 describe("setInitialZoom", () => {
-  it("sets the radius to 1.5x the AP length of the finest resolution", () => {
+  it("sets the radius to 1.5x the given AP length", () => {
     const camera = { radius: 0 } as ArcRotateCamera;
-    const manifest = makeManifest({
-      resolutions: [[0.025, 0.025, 0.025]],
-      shape: [[528, 320, 456]]
-    });
 
-    setInitialZoom(camera, manifest);
+    setInitialZoom(camera, 13.2);
 
-    expect(camera.radius).toBe(528 * 0.025 * 1.5);
+    expect(camera.radius).toBe(13.2 * 1.5);
   });
 
-  it("does nothing when the manifest has no resolutions", () => {
+  it("does nothing when the AP length is zero", () => {
     const camera = { radius: 0 } as ArcRotateCamera;
-    const manifest = makeManifest({
-      resolutions: [],
-      shape: [[528, 320, 456]]
-    });
 
-    setInitialZoom(camera, manifest);
+    setInitialZoom(camera, 0);
 
     expect(camera.radius).toBe(0);
   });
 
-  it("does nothing when the manifest has no shapes", () => {
+  it("does nothing when the AP length is negative", () => {
     const camera = { radius: 0 } as ArcRotateCamera;
-    const manifest = makeManifest({
-      resolutions: [[0.025, 0.025, 0.025]],
-      shape: []
-    });
 
-    setInitialZoom(camera, manifest);
+    setInitialZoom(camera, -1);
 
     expect(camera.radius).toBe(0);
   });

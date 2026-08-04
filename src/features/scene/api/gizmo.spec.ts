@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { GizmoManager } from "@babylonjs/core";
 import type { Experiment } from "@/features/experiment";
 import {
   addProbe,
@@ -10,6 +11,7 @@ import { getProbeInterfaceIdentifier } from "@/features/probe";
 import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 import {
   initializeTestCSG2,
+  makeTestScene,
   makeTestSceneWithGizmo
 } from "@/test/mount-helper";
 import { setGizmoControls } from "./gizmo.api";
@@ -65,11 +67,11 @@ describe("setGizmoControls", () => {
   it("returns the manager's own gizmo instances, unchanged across a mode switch", () => {
     const { gizmoManager } = makeTestSceneWithGizmo();
 
-    const positionMode = setGizmoControls(gizmoManager, "position", "local");
+    const positionMode = setGizmoControls(gizmoManager, "position", "local")!;
     expect(positionMode.positionGizmo).toBe(gizmoManager.gizmos.positionGizmo);
     expect(positionMode.rotationGizmo).toBe(gizmoManager.gizmos.rotationGizmo);
 
-    const rotationMode = setGizmoControls(gizmoManager, "rotation", "local");
+    const rotationMode = setGizmoControls(gizmoManager, "rotation", "local")!;
     expect(rotationMode.positionGizmo).toBe(positionMode.positionGizmo);
     expect(rotationMode.rotationGizmo).toBe(positionMode.rotationGizmo);
   });
@@ -86,7 +88,7 @@ describe("setGizmoControls", () => {
       gizmoManager,
       "rotation",
       "local"
-    );
+    )!;
 
     expect(rotationGizmo.attachedNode).toBe(node);
     expect(positionGizmo.attachedNode).toBeNull();
@@ -98,7 +100,7 @@ describe("setGizmoControls", () => {
     // `PositionGizmo`/`RotationGizmo`'s own `updateGizmoRotationToMatchAttachedMesh`
     // getter does not reflect `coordinatesMode` for every gizmo type (Babylon
     // only keeps the per-axis `xGizmo` in sync), so assert on that instead.
-    const global = setGizmoControls(gizmoManager, "position", "global");
+    const global = setGizmoControls(gizmoManager, "position", "global")!;
     expect(
       global.positionGizmo.xGizmo.updateGizmoRotationToMatchAttachedMesh
     ).toBe(false);
@@ -112,7 +114,7 @@ describe("setGizmoControls", () => {
       true
     );
 
-    const local = setGizmoControls(gizmoManager, "position", "local");
+    const local = setGizmoControls(gizmoManager, "position", "local")!;
     expect(
       local.positionGizmo.xGizmo.updateGizmoRotationToMatchAttachedMesh
     ).toBe(true);
@@ -125,5 +127,12 @@ describe("setGizmoControls", () => {
     expect(local.rotationGizmo.updateGizmoPositionToMatchAttachedMesh).toBe(
       true
     );
+  });
+
+  it("returns null when neither transform gizmo is enabled", () => {
+    const scene = makeTestScene();
+    const gizmoManager = new GizmoManager(scene);
+
+    expect(setGizmoControls(gizmoManager, "position", "local")).toBeNull();
   });
 });

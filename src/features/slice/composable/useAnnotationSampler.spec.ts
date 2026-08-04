@@ -13,7 +13,7 @@ import type {
 } from "../models/sampler-message.model";
 import { createSamplerHandler } from "../workers/sampler-handler";
 import type { SamplerWorker } from "./useAnnotationSampler";
-import { useAnnotationSampler } from "./useAnnotationSampler";
+import { createAnnotationSampler } from "./useAnnotationSampler";
 
 /**
  * A `SamplerWorker` double backed by the real message handler (not a mock of
@@ -104,7 +104,7 @@ function makePlaneAt(
   };
 }
 
-describe("useAnnotationSampler", () => {
+describe("createAnnotationSampler", () => {
   it("publishes an empty result before any chunk resolves, then a populated one", async () => {
     const store = makeAnnotationVolumeStore({
       shapeVoxels: [4, 4, 4],
@@ -118,7 +118,7 @@ describe("useAnnotationSampler", () => {
     ]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store
@@ -205,7 +205,7 @@ describe("useAnnotationSampler", () => {
     const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store
@@ -268,7 +268,7 @@ describe("useAnnotationSampler", () => {
     ]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store
@@ -332,7 +332,7 @@ describe("useAnnotationSampler", () => {
     ]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store
@@ -391,7 +391,7 @@ describe("useAnnotationSampler", () => {
     const terminologyRows = ref([]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store
@@ -422,7 +422,7 @@ describe("useAnnotationSampler", () => {
     const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store
@@ -483,7 +483,7 @@ describe("useAnnotationSampler", () => {
     const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
-      useAnnotationSampler(
+      createAnnotationSampler(
         { manifest, terminologyRows },
         workerFactory,
         () => store

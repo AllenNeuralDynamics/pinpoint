@@ -11,13 +11,24 @@ import { STANDARD_COLORS } from "@/features/scene";
 import { isFiniteTriple, isFiniteNumber, isRecord } from "@/utils/type-guards";
 
 /** Every valid probe visibility, for validating untrusted probe data. */
-const PROBE_VISIBILITIES: ProbeVisibility[] = ["visible", "shanks", "hidden"];
+const PROBE_VISIBILITIES: readonly string[] = [
+  "visible",
+  "shanks",
+  "hidden"
+] satisfies readonly ProbeVisibility[];
 
 /** `#RRGGBB`, the only form `Color3.FromHexString` renders correctly. */
 const PROBE_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /** Appended to a copied probe's name. */
 const PROBE_COPY_NAME_SUFFIX = " - copy";
+
+/** Next visibility in the visible -> shanks -> hidden -> visible cycle. */
+const NEXT_PROBE_VISIBILITY: Record<ProbeVisibility, ProbeVisibility> = {
+  visible: "shanks",
+  shanks: "hidden",
+  hidden: "visible"
+};
 
 /**
  * Build a probe referencing the given probe interface definition, with a
@@ -37,10 +48,6 @@ export function buildProbe(probeInterfaceProbe: ProbeInterfaceProbe): Probe {
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     tipPosition: [0, 0, 0],
     rotation: [0, 0, Math.PI / 2],
-    // Null rather than a fixed value - the slice view resolves this
-    // proportionally to whichever atlas is current
-    // (`getDefaultSliceExtentMillimeters`), since a single constant can't
-    // fit both a mouse and a human atlas.
     sliceExtentMillimeters: null,
     sliceCenterHeightMillimeters: 0,
     channelMapWindow: null
@@ -76,32 +83,15 @@ export function detachProbeInterfaceProbes(
  * @param probe Probe to change the visibility of.
  */
 export function rotateProbeVisibility(probe: Probe) {
-  switch (probe.visibility) {
-    case "visible":
-      probe.visibility = "shanks";
-      break;
-    case "shanks":
-      probe.visibility = "hidden";
-      break;
-    case "hidden":
-      probe.visibility = "visible";
-      break;
-    default:
-      probe.visibility = "hidden";
-      break;
-  }
+  probe.visibility = NEXT_PROBE_VISIBILITY[probe.visibility];
 }
 
 /**
- * Reset a probe's tip position to the atlas origin, on the experiment's own entry.
- * @param experiment Experiment holding the probe entry to reset.
+ * Reset a probe's tip position to the atlas origin.
  * @param probe Probe to reset the tip position of.
  */
-export function homeProbe(experiment: Experiment, probe: Probe) {
-  const entry = experiment.probes.find(({ id }) => id === probe.id);
-  if (!entry) return;
-
-  entry.tipPosition = [0, 0, 0];
+export function homeProbe(probe: Probe) {
+  probe.tipPosition = [0, 0, 0];
 }
 
 /**
@@ -237,7 +227,7 @@ export function isProbe(value: unknown): value is Probe {
     typeof value.color === "string" &&
     PROBE_COLOR_PATTERN.test(value.color) &&
     typeof value.visibility === "string" &&
-    PROBE_VISIBILITIES.includes(value.visibility as ProbeVisibility) &&
+    PROBE_VISIBILITIES.includes(value.visibility) &&
     typeof value.lock === "boolean" &&
     typeof value.probeInterfaceIdentifier === "string" &&
     isFiniteTriple(value.tipPosition) &&

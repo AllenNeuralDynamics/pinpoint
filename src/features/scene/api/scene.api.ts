@@ -10,20 +10,21 @@ import { PointerEventTypes } from "@babylonjs/core";
 import type { Inspectable } from "../models/inspectable.model";
 import { pickAxisGuideDirection } from "./axis-guide.api";
 import { orbitCameraTowards } from "./camera.api";
-import { attachProbeSelection, getProbeTransformNode } from "../api/probe.api";
+import { attachProbeSelection, getProbeTransformNode } from "./probe.api";
+import { isStructureMeshName } from "./structures.api";
 
 /**
  * Select the entity in the scene based on the selected inspectable.
- * @param selectedInspectable Inspectable to select in the scene.
  * @param scene Scene to select entities from.
  * @param gizmoManager Gizmo manager to update.
  * @param selectionOutlineLayer Selection outline layers to put the entity in.
+ * @param selectedInspectable Inspectable to select in the scene.
  */
 export function selectFromSelectedInspectableState(
-  selectedInspectable: Inspectable | null,
   scene: Scene,
   gizmoManager: GizmoManager,
-  selectionOutlineLayer: SelectionOutlineLayer
+  selectionOutlineLayer: SelectionOutlineLayer,
+  selectedInspectable: Inspectable | null
 ) {
   // Both branches result in clearing the selection outline layer at some point.
   selectionOutlineLayer.clearSelection();
@@ -34,23 +35,17 @@ export function selectFromSelectedInspectableState(
     return;
   }
 
-  switch (selectedInspectable.inspectableKind) {
-    case "probe":
-      const probeTransformNode = getProbeTransformNode(
-        scene,
-        selectedInspectable.id
-      );
-      if (!probeTransformNode) return;
-      attachProbeSelection(
-        gizmoManager,
-        selectionOutlineLayer,
-        selectedInspectable,
-        probeTransformNode
-      );
-      break;
-    default:
-      break;
-  }
+  const probeTransformNode = getProbeTransformNode(
+    scene,
+    selectedInspectable.id
+  );
+  if (!probeTransformNode) return;
+  attachProbeSelection(
+    gizmoManager,
+    selectionOutlineLayer,
+    selectedInspectable,
+    probeTransformNode
+  );
 }
 
 /**
@@ -69,7 +64,7 @@ export function deselectFromPointerDown(
 ): Observer<PointerInfo> {
   return scene.onPointerObservable.add(pointerInfo => {
     const pickedMesh = pointerInfo.pickInfo?.pickedMesh;
-    if (pickedMesh && !pickedMesh.name.includes("structure")) return;
+    if (pickedMesh && !isStructureMeshName(pickedMesh.name)) return;
 
     gizmoManager.attachToNode(null);
     selectionOutlineLayer.clearSelection();

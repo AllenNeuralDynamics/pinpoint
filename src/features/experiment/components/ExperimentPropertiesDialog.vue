@@ -1,15 +1,17 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef, watch } from "vue";
-import {
-  type QInput,
-  useDialogPluginComponent,
-  type ValidationRule
-} from "quasar";
+import { type QInput, useDialogPluginComponent } from "quasar";
 import { useI18n } from "vue-i18n";
-import { Atlas, AtlasPicker, getManifest, isSameAtlas } from "@/features/atlas";
+import {
+  type Atlas,
+  AtlasPicker,
+  getManifest,
+  isSameAtlas
+} from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useNotify } from "@/composable/useNotify";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
+import { useValidationRules } from "@/composable/useValidationRules";
 import { isFiniteTriple } from "@/utils/type-guards";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { setExperimentProperties } from "../api/experiment.api";
@@ -21,6 +23,8 @@ const { t } = useI18n();
 const { notifyError } = useNotify();
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
+const { requiredName: nameRules, optionalNumber: coordinateRules } =
+  useValidationRules();
 
 const nameInput = useTemplateRef<QInput>("nameInput");
 
@@ -54,18 +58,6 @@ const saveHint = computed(() =>
     ? t("experimentProperties.loadingAtlas")
     : t("experimentProperties.incomplete")
 );
-
-const nameRules: ValidationRule<string>[] = [
-  value => value.trim().length > 0 || t("experimentProperties.nameRequired")
-];
-
-// A blank field commits as `Number("") === 0`, matching the probe inspector.
-const coordinateRules: ValidationRule<string>[] = [
-  value =>
-    value.trim().length === 0 ||
-    Number.isFinite(Number(value)) ||
-    t("experimentProperties.mustBeNumber")
-];
 
 /**
  * Highlight the whole name so typing replaces it.
@@ -110,7 +102,7 @@ watch(atlas, async (newAtlas, oldAtlas) => {
     return;
   }
 
-  referenceCoordinate.value = [...buildInitialReferenceCoordinate(manifest)];
+  referenceCoordinate.value = buildInitialReferenceCoordinate(manifest);
 });
 </script>
 
@@ -143,19 +135,19 @@ watch(atlas, async (newAtlas, oldAtlas) => {
             <CommittedInput
               v-model="ap"
               class="col"
-              :label="$t('experimentProperties.ap')"
+              :label="$t('axis.ap')"
               :rules="coordinateRules"
             />
             <CommittedInput
               v-model="dv"
               class="col"
-              :label="$t('experimentProperties.dv')"
+              :label="$t('axis.dv')"
               :rules="coordinateRules"
             />
             <CommittedInput
               v-model="ml"
               class="col"
-              :label="$t('experimentProperties.ml')"
+              :label="$t('axis.ml')"
               :rules="coordinateRules"
             />
           </div>

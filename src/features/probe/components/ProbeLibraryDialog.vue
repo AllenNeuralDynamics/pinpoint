@@ -33,8 +33,8 @@ function installProbe() {
  */
 function startDrag(index: number, event: DragEvent) {
   draggedIndex.value = index;
-  event.dataTransfer?.setData("text/plain", String(index));
   if (event.dataTransfer) {
+    event.dataTransfer.setData("text/plain", String(index));
     event.dataTransfer.effectAllowed = "move";
   }
 }

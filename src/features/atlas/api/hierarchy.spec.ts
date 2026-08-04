@@ -6,12 +6,7 @@ import {
   widestHierarchyRowWidth
 } from "./hierarchy.api";
 import type { HierarchyItem } from "./hierarchy.api";
-import {
-  makeAtlas,
-  makeRelativePathTerminologyRows,
-  makeTerminologyRow,
-  makeTerminologyRows
-} from "@/test/fixtures";
+import { makeTerminologyRow, makeTerminologyRows } from "@/test/fixtures";
 import { KNOWN_DEFAULT_STRUCTURES } from "../models/known-default-structures.model";
 
 describe("flattenHierarchy", () => {
@@ -79,31 +74,12 @@ describe("flattenHierarchy", () => {
         .map(i => i.identifier)
     ).toEqual([567, 700]);
   });
-
-  // Regression: atlases like `african_molerat` author root_identifier_path
-  // as relative [parent, self] pairs rather than full root-anchored paths.
-  // flattenHierarchy must not depend on root_identifier_path at all, or it
-  // silently drops every row past the first level.
-  it("places every row even when root_identifier_path is relative, not root-anchored", () => {
-    const rows = makeRelativePathTerminologyRows();
-
-    const items = flattenHierarchy(rows);
-
-    const rootRow = rows.find(r => r.parent_identifier === null)!;
-    const expectedIdentifiers = rows
-      .filter(r => r.identifier !== rootRow.identifier)
-      .map(r => r.identifier);
-    const numericSort = (a: number, b: number) => a - b;
-    expect(items.map(i => i.identifier).sort(numericSort)).toEqual(
-      expectedIdentifiers.sort(numericSort)
-    );
-  });
 });
 
 describe("getDefaultStructureIdentifiers", () => {
   it("returns the known default structures for an atlas with a known list", () => {
     const result = getDefaultStructureIdentifiers(
-      makeAtlas({ name: "allen_mouse" }),
+      "allen_mouse",
       makeTerminologyRows()
     );
 
@@ -111,17 +87,14 @@ describe("getDefaultStructureIdentifiers", () => {
   });
 
   it("ignores terminologyRows for an atlas with a known list", () => {
-    const result = getDefaultStructureIdentifiers(
-      makeAtlas({ name: "allen_mouse" }),
-      []
-    );
+    const result = getDefaultStructureIdentifiers("allen_mouse", []);
 
     expect(result).toEqual(KNOWN_DEFAULT_STRUCTURES.allen_mouse);
   });
 
   it("falls back to root's direct children for an atlas with no known list", () => {
     const result = getDefaultStructureIdentifiers(
-      makeAtlas({ name: "african_molerat" }),
+      "african_molerat",
       makeTerminologyRows()
     );
 
@@ -134,18 +107,11 @@ describe("getDefaultStructureIdentifiers", () => {
       parent_identifier: row.parent_identifier ?? 1
     }));
 
-    expect(
-      getDefaultStructureIdentifiers(
-        makeAtlas({ name: "african_molerat" }),
-        rows
-      )
-    ).toEqual([]);
+    expect(getDefaultStructureIdentifiers("african_molerat", rows)).toEqual([]);
   });
 
   it("returns an empty list for an empty list", () => {
-    expect(
-      getDefaultStructureIdentifiers(makeAtlas({ name: "african_molerat" }), [])
-    ).toEqual([]);
+    expect(getDefaultStructureIdentifiers("african_molerat", [])).toEqual([]);
   });
 });
 

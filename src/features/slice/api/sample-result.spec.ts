@@ -6,11 +6,14 @@ import {
 } from "./sample-result.api";
 
 function makeResult(overrides: Partial<SampleResult> = {}): SampleResult {
+  const pixels = new Uint8ClampedArray(16);
   return {
     widthPixels: 2,
     heightPixels: 2,
     annotationValues: new Uint32Array(4),
-    pixels: new Uint8ClampedArray(16),
+    pixels,
+    packedPixels: new Uint32Array(pixels.buffer),
+    imageData: new ImageData(pixels, 2, 2),
     paintedChunkCount: 0,
     totalChunkCount: 0,
     ...overrides

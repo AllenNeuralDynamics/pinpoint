@@ -16,6 +16,8 @@ import {
 import enUS from "@/i18n/en-US";
 
 const t = enUS.probeInspector;
+const axis = enUS.axis;
+const validation = enUS.validation;
 
 // `useCurrentExperimentStore`'s `manifest`/`terminologyRows` are
 // `computedAsync` and fetch on store creation -- mock the leaf module (not
@@ -42,7 +44,8 @@ vi.mock("@/features/slice/composable/useAnnotationSampler", () => ({
     createStream: () => ({
       result: shallowRef(null),
       isLoading: shallowRef(false)
-    })
+    }),
+    structureIndex: shallowRef(new Map())
   })
 }));
 
@@ -131,7 +134,7 @@ describe("ProbeInspector", () => {
     await editAndBlur(name, "   ");
 
     expect(probe.name).toBe("A");
-    expect(name.find("[role='alert']").text()).toBe(t.nameRequired);
+    expect(name.find("[role='alert']").text()).toBe(validation.nameRequired);
   });
 
   it("accepts a name already used by another probe in the experiment", async () => {
@@ -176,9 +179,9 @@ describe("ProbeInspector", () => {
   it("commits AP/DV/ML into tipPosition as real numbers", async () => {
     const { wrapper, probe } = mountInspector();
 
-    await editAndBlur(fieldByLabel(wrapper, t.ap), "-2.5");
-    await editAndBlur(fieldByLabel(wrapper, t.dv), "1");
-    await editAndBlur(fieldByLabel(wrapper, t.ml), "0");
+    await editAndBlur(fieldByLabel(wrapper, axis.ap), "-2.5");
+    await editAndBlur(fieldByLabel(wrapper, axis.dv), "1");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "0");
 
     expect(probe.tipPosition).toEqual([-2.5, 1, 0]);
     expect(probe.tipPosition.every(value => typeof value === "number")).toBe(
@@ -199,11 +202,11 @@ describe("ProbeInspector", () => {
   it("rejects a non-numeric value in a numeric field", async () => {
     const { wrapper, probe } = mountInspector();
 
-    const ap = fieldByLabel(wrapper, t.ap);
+    const ap = fieldByLabel(wrapper, axis.ap);
     await editAndBlur(ap, "abc");
 
     expect(probe.tipPosition[0]).toBe(0);
-    expect(ap.find("[role='alert']").text()).toBe(t.mustBeNumber);
+    expect(ap.find("[role='alert']").text()).toBe(validation.mustBeNumber);
   });
 
   it("commits zero when a numeric field is left blank", async () => {
@@ -211,7 +214,7 @@ describe("ProbeInspector", () => {
       makeProbe({ tipPosition: [5, 0, 0] })
     );
 
-    const ap = fieldByLabel(wrapper, t.ap);
+    const ap = fieldByLabel(wrapper, axis.ap);
     await editAndBlur(ap, "");
 
     expect(probe.tipPosition[0]).toBe(0);
@@ -223,7 +226,7 @@ describe("ProbeInspector", () => {
       makeProbe({ tipPosition: [5, 0, 0] })
     );
 
-    await editAndBlur(fieldByLabel(wrapper, t.ap), "0");
+    await editAndBlur(fieldByLabel(wrapper, axis.ap), "0");
 
     expect(probe.tipPosition[0]).toBe(0);
   });
@@ -245,7 +248,7 @@ describe("ProbeInspector", () => {
     await wrapper.setProps({ probe: b } as Record<string, unknown>);
 
     expect(fieldByLabel(wrapper, t.name).props("modelValue")).toBe("B");
-    expect(fieldByLabel(wrapper, t.ap).props("modelValue")).toBe("4");
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("4");
   });
 
   it("keeps the renamed probe selected and in sync with the store", async () => {
@@ -410,7 +413,7 @@ describe("ProbeInspector", () => {
     it("disables the pose fields and the home/pin buttons while locked, leaving name and copy editable", () => {
       const { wrapper } = mountInspector(makeProbe({ lock: true }));
 
-      for (const label of [t.ap, t.dv, t.ml, t.roll, t.yaw, t.pitch]) {
+      for (const label of [axis.ap, axis.dv, axis.ml, t.roll, t.yaw, t.pitch]) {
         expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);
       }
       expect(fieldByLabel(wrapper, t.name).props("disable")).toBeFalsy();

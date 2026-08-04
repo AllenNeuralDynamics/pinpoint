@@ -83,14 +83,13 @@ export function makeTerminologyRow(
     name: "root",
     abbreviation: "root",
     color_hex_triplet: "#FFFFFF",
-    root_identifier_path: [997],
     ...overrides
   };
 }
 
 /**
- * Build a small terminology row tree with root-anchored `root_identifier_path`s:
- * root(997) -> grey(8) -> [CH(567) -> CTX(688), leaf(700)].
+ * Build a small terminology row tree: root(997) -> grey(8) -> [CH(567) ->
+ * CTX(688), leaf(700)].
  */
 export function makeTerminologyRows(): TerminologyRow[] {
   return [
@@ -99,8 +98,7 @@ export function makeTerminologyRows(): TerminologyRow[] {
       parent_identifier: null,
       name: "root",
       abbreviation: "root",
-      color_hex_triplet: "#FFFFFF",
-      root_identifier_path: [997]
+      color_hex_triplet: "#FFFFFF"
     }),
     makeTerminologyRow({
       identifier: 8,
@@ -108,8 +106,7 @@ export function makeTerminologyRows(): TerminologyRow[] {
       annotation_value: 8,
       name: "basic cell groups and regions",
       abbreviation: "grey",
-      color_hex_triplet: "#BFDAE3",
-      root_identifier_path: [997, 8]
+      color_hex_triplet: "#BFDAE3"
     }),
     makeTerminologyRow({
       identifier: 567,
@@ -117,8 +114,7 @@ export function makeTerminologyRows(): TerminologyRow[] {
       annotation_value: 567,
       name: "cerebrum",
       abbreviation: "CH",
-      color_hex_triplet: "#B0F0FF",
-      root_identifier_path: [997, 8, 567]
+      color_hex_triplet: "#B0F0FF"
     }),
     makeTerminologyRow({
       identifier: 688,
@@ -126,8 +122,7 @@ export function makeTerminologyRows(): TerminologyRow[] {
       annotation_value: 688,
       name: "cerebral cortex",
       abbreviation: "CTX",
-      color_hex_triplet: "#B0FFB8",
-      root_identifier_path: [997, 8, 567, 688]
+      color_hex_triplet: "#B0FFB8"
     }),
     makeTerminologyRow({
       identifier: 700,
@@ -135,25 +130,9 @@ export function makeTerminologyRows(): TerminologyRow[] {
       annotation_value: 700,
       name: "leaf",
       abbreviation: "lf",
-      color_hex_triplet: "#0000FF",
-      root_identifier_path: [997, 8, 700]
+      color_hex_triplet: "#0000FF"
     })
   ];
-}
-
-/**
- * Build the same tree as {@link makeTerminologyRows}, but with
- * `root_identifier_path`s authored as relative `[parent, self]` pairs.
- */
-export function makeRelativePathTerminologyRows(): TerminologyRow[] {
-  return makeTerminologyRows().map(row =>
-    row.parent_identifier === null
-      ? row
-      : {
-          ...row,
-          root_identifier_path: [row.parent_identifier, row.identifier]
-        }
-  );
 }
 
 /**

@@ -60,15 +60,12 @@ interface StreamState {
 }
 
 /**
- * Create a message handler for one annotation-sampler worker. Pure aside
- * from its own private state, so it's testable without a real `Worker` -
- * drive it directly with a recording `post` callback.
+ * Create a message handler for one annotation-sampler worker.
  * @param post Callback to send a message back to the main thread.
  * @param storeFactory Builds the zarr store a volume is opened from. Defaults
- *   to a `FetchStore`; pass a `Map`-backed store factory in tests.
+ *   to a `FetchStore`.
  * @param maximumCachedChunkBytes Total bytes of decoded chunks to keep
- *   cached before evicting the oldest. Defaults to 64 MiB; overridable in
- *   tests to exercise eviction without allocating real-sized chunks.
+ *   cached before evicting the oldest. Defaults to 64 MiB.
  */
 export function createSamplerHandler(
   post: SamplerPost,
@@ -77,9 +74,7 @@ export function createSamplerHandler(
 ): SamplerHandler {
   let volume: AnnotationVolume | null = null;
   // Tracks the in-flight `open`, so a `sample` that arrives before it
-  // resolves can wait on it instead of reading `volume` while it's still
-  // null - the worker's `onmessage` dispatch doesn't await `handleMessage`,
-  // so an `open` and a following `sample` can otherwise overlap.
+  // resolves waits on it instead of reading `volume` while it's still null.
   let openPromise: Promise<void> | null = null;
   let colors = new Map<number, number>();
   const chunkCache = createChunkCache(maximumCachedChunkBytes);
@@ -105,7 +100,7 @@ export function createSamplerHandler(
     chunkCache.clear();
     volume = null;
     openPromise = (async () => {
-      volume = await openAnnotationVolume(storeFactory(url), url);
+      volume = await openAnnotationVolume(storeFactory(url));
     })();
     await openPromise;
   }
@@ -120,10 +115,7 @@ export function createSamplerHandler(
 
     cancelStream(streamId);
     const controller = new AbortController();
-    // The sum of each request's sample count is an exact upper bound on
-    // this message's flushed entries (every sample either resolves as
-    // background, which contributes nothing, or is written once), so the
-    // buffer is sized once and never grows.
+    // Exact upper bound: every sample is written at most once.
     const capacity = requests.reduce(
       (total, request) => total + request.sampleIndices.length,
       0
@@ -142,17 +134,8 @@ export function createSamplerHandler(
     };
     streams.set(streamId, state);
 
-    // Registering the stream above stays synchronous with dispatch (so a
-    // "cancel"/"close" for it still lands correctly), and this only awaits
-    // when `volume` is genuinely still unresolved - `handleOpen` sets
-    // `volume = null` synchronously before its own await, so that's exactly
-    // "an open is in flight". Gating on it (rather than unconditionally
-    // awaiting `openPromise`) keeps the already-open case perfectly
-    // synchronous, matching every existing caller; without this, a `sample`
-    // dispatched right after an `open` (e.g. a freshly built worker pool, as
-    // happens when selecting a probe with none previously selected) reads
-    // `volume` as still null, reports every chunk as background, and the
-    // stream is marked complete - a blank slice that never retries.
+    // An open may still be in flight; `handleOpen` nulls `volume`
+    // synchronously first.
     if (volume === null && openPromise) await openPromise;
 
     const level = volume?.levels[levelIndex] ?? null;
@@ -207,10 +190,8 @@ export function createSamplerHandler(
     if (chunkData) {
       const { sampleIndices, voxelOffsets } = request;
       const { buffer } = state;
-      // Adjacent samples overwhelmingly share one annotation value, so a
-      // last-value cache replaces a `Map.get` per non-background sample
-      // with a compare; scoped per chunk (not per stream) because a
-      // stream's chunks are processed concurrently and would interleave.
+      // Last-value cache: adjacent samples almost always share an
+      // annotation value.
       let lastValue = 0;
       let lastColor = 0;
       for (let index = 0; index < sampleIndices.length; index++) {

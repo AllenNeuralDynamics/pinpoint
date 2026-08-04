@@ -8,6 +8,7 @@ import {
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 
 const appVersion = import.meta.env.APP_VERSION;
+const BASE_URL = import.meta.env.BASE_URL;
 
 defineEmits([...useDialogPluginComponent.emits]);
 
@@ -49,13 +50,13 @@ onOpened(onDialogOK);
               icon="file_open"
               :label="$t('splash.open')"
               size="xl"
-              @click="openExperiment"
+              @click="() => openExperiment()"
             />
           </div>
           <div class="row q-gutter-x-md justify-center">
             <q-btn
               :label="$t('splash.userGuide')"
-              href="/pinpoint-v/docs"
+              :href="`${BASE_URL}docs`"
               icon="menu_book"
             />
             <q-btn

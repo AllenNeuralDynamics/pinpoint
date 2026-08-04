@@ -12,13 +12,43 @@ import type { SampleGeometry } from "../models/sample-geometry.model";
 import type { ProbeFrame } from "./probe-frame.api";
 import { toAtlasMillimeters } from "./probe-frame.api";
 
+/** A slice zoom range, as log2 mm exponents. */
+export interface SliceZoomExponentRange {
+  minimum: number;
+  maximum: number;
+}
+
+/** One shank's placement in a packed multi-shank slice. */
+export interface ShankPlacement {
+  shank: ProbeShank;
+  /** First output column this shank fills, inclusive. */
+  columnOffset: number;
+  /** Output columns this shank fills. */
+  columnCount: number;
+  /** mm added to the shank's probe-local x to place it in packed overlay space. */
+  offsetMillimeters: number;
+}
+
+/** A packed multi-shank slice layout: one shared scale plus per-shank placements. */
+export interface ShankLayout {
+  /** Placements left to right, starting at columnOffset 0; consecutive placements may leave an unsampled gap between them. */
+  placements: ShankPlacement[];
+  /** Total output width, in pixels. */
+  widthPixels: number;
+  /** Output height, in pixels. */
+  heightPixels: number;
+  /** Output columns per packed mm along x, shared by every shank. */
+  pixelsPerMillimeter: number;
+  /** Full packed x extent, in mm - `widthPixels / pixelsPerMillimeter`. */
+  widthMillimeters: number;
+}
+
 /** Log2 octaves the zoom range spans below its atlas-derived maximum. */
 const SLICE_ZOOM_RANGE_OCTAVES = 6;
 
 /**
  * Fallback log2 upper bound when the manifest hasn't resolved, or its
- * dimensions are unknown - the Allen-mouse scale (2^4 = 16mm), which this
- * formula also reproduces once the manifest is available.
+ * dimensions are unknown.
  */
 const FALLBACK_MAXIMUM_ZOOM_EXPONENT = 4;
 
@@ -36,16 +66,8 @@ const SHANK_GAP_PIXELS = 1;
  */
 const MINIMUM_CHANNEL_MAP_WINDOW_MILLIMETERS = 0.05;
 
-/** A slice zoom range, as log2 mm exponents. */
-export interface SliceZoomExponentRange {
-  minimum: number;
-  maximum: number;
-}
-
 /**
- * Derive the slice zoom range from an atlas's longest dimension, so the
- * range scales with atlas size instead of being tuned to one species - e.g.
- * far too wide for a fly, far too narrow for a human.
+ * Derive the slice zoom range from an atlas's longest dimension.
  * @param manifest Atlas manifest to derive the range from, or null if not
  *   yet resolved.
  */
@@ -75,9 +97,7 @@ export function clampSliceExtent(
 }
 
 /**
- * Default slice extent for a probe whose zoom has never been set, in mm -
- * the middle of the atlas's own zoom range, which reproduces the historical
- * 2mm default on the Allen mouse while scaling to any other atlas.
+ * Default slice extent for a probe whose zoom has never been set, in mm.
  * @param range Zoom range to take the middle of, as log2 mm exponents.
  */
 export function getDefaultSliceExtentMillimeters(
@@ -119,31 +139,6 @@ export function getProbeSlicePlane(
       }
     ]
   };
-}
-
-/** One shank's placement in a packed multi-shank slice. */
-export interface ShankPlacement {
-  shank: ProbeShank;
-  /** First output column this shank fills, inclusive. */
-  columnOffset: number;
-  /** Output columns this shank fills. */
-  columnCount: number;
-  /** mm added to the shank's probe-local x to place it in packed overlay space. */
-  offsetMillimeters: number;
-}
-
-/** A packed multi-shank slice layout: one shared scale plus per-shank placements. */
-export interface ShankLayout {
-  /** Placements left to right, starting at columnOffset 0; consecutive placements may leave an unsampled gap between them. */
-  placements: ShankPlacement[];
-  /** Total output width, in pixels. */
-  widthPixels: number;
-  /** Output height, in pixels. */
-  heightPixels: number;
-  /** Output columns per packed mm along x, shared by every shank. */
-  pixelsPerMillimeter: number;
-  /** Full packed x extent, in mm - `widthPixels / pixelsPerMillimeter`. */
-  widthMillimeters: number;
 }
 
 /**
@@ -222,8 +217,7 @@ export function getShankLayout(
  * shank, each centered on its own x and on the channel map window's center,
  * spanning only that window vertically.
  * @param frame Probe's shank-plane frame.
- * @param layout Packed layout the bands take their x columns and scale from -
- * zooming the window does not change x resolution.
+ * @param layout Packed layout the bands take their x columns and scale from.
  * @param channelMapWindow Window along the shank the bands span vertically.
  */
 export function getShankSliceGeometry(

@@ -36,7 +36,8 @@ vi.mock("../composable/useAnnotationSampler", () => ({
     createStream: () => ({
       result: shallowRef(null),
       isLoading: shallowRef(false)
-    })
+    }),
+    structureIndex: shallowRef(new Map())
   })
 }));
 

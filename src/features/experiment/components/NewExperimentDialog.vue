@@ -1,16 +1,13 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef } from "vue";
-import {
-  type QInput,
-  useDialogPluginComponent,
-  type ValidationRule
-} from "quasar";
-import { Atlas, AtlasPicker, getManifest } from "@/features/atlas";
+import { type QInput, useDialogPluginComponent } from "quasar";
+import { type Atlas, AtlasPicker, getManifest } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
 import { useI18n } from "vue-i18n";
 import { buildExperiment } from "../api/experiment.api";
 import { useNotify } from "@/composable/useNotify";
+import { useValidationRules } from "@/composable/useValidationRules";
 
 defineEmits([...useDialogPluginComponent.emits]);
 
@@ -18,6 +15,7 @@ const { t } = useI18n();
 const { notifyError } = useNotify();
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
+const { requiredName: nameRules } = useValidationRules();
 
 const name = ref<string | null>(null);
 const atlas = ref<Atlas | null>(null);
@@ -27,10 +25,6 @@ const nameInput = useTemplateRef<QInput>("nameInput");
  * Whether the Create button should be disabled.
  */
 const isCreateDisabled = computed(() => !name.value || !atlas.value);
-
-const nameRules: ValidationRule<string | null>[] = [
-  value => (value ?? "").trim().length > 0 || t("newExperiment.nameRequired")
-];
 
 /**
  * Create a new experiment with the given name and atlas, seeding its

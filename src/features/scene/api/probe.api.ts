@@ -28,7 +28,7 @@ import type { Probe, ProbeContour } from "@/features/probe";
 import { getProbeContour, getProbeInterfaceIdentifier } from "@/features/probe";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
-import { asrToVector3, vector3ToAsr } from "../api/coordinate-transforms.api";
+import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
 import type { TransformGizmos } from "../models/gizmo.model";
 
@@ -140,7 +140,6 @@ export function buildProbe(
   rodMesh.material = buildRodMaterial(scene);
   rodMesh.parent = node;
 
-  // Enable gizmo picking.
   if (!gizmoManager.attachableMeshes) {
     gizmoManager.attachableMeshes = [];
   }
@@ -192,17 +191,19 @@ export function syncProbes(
     experiment.probes.map(probe => [probe.id, probe])
   );
 
-  // Reconcile existence and type in a single pass: keep nodes that still
-  // match a probe, dispose removed or stale-typed ones.
   const nodesById = new Map<string, TransformNode>();
   const rebuiltProbeIds: string[] = [];
   for (const node of referenceCoordinateNode.getChildren(child =>
     child.name.endsWith(PROBE_NODE_SUFFIX)
   ) as TransformNode[]) {
     const id = probeIdFromEntityName(node.name);
-    const { probeInterfaceIdentifier } = node.metadata as ProbeMetadata;
     const probe = experimentProbesById.get(id);
-    if (!probe || probe.probeInterfaceIdentifier !== probeInterfaceIdentifier) {
+    const metadata = node.metadata as ProbeMetadata | null;
+    if (
+      !metadata ||
+      !probe ||
+      probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier
+    ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);
       continue;
@@ -210,9 +211,7 @@ export function syncProbes(
     nodesById.set(id, node);
   }
 
-  // Sync experiment probes.
   for (const probe of experiment.probes) {
-    // Get or build probe.
     const node =
       nodesById.get(probe.id) ??
       buildProbe(scene, probe, experiment, gizmoManager);
@@ -227,13 +226,11 @@ export function syncProbes(
     );
     const rodMesh = meshes.find(mesh => mesh.name.endsWith(ROD_MESH_SUFFIX));
 
-    // Update material color.
     const material = shankMesh?.material;
     if (material instanceof StandardMaterial) {
       setMaterialDiffuseColor(material, Color3.FromHexString(probe.color));
     }
 
-    // Update visibility.
     switch (probe.visibility) {
       case "visible":
         shankMesh?.setEnabled(true);
@@ -253,7 +250,6 @@ export function syncProbes(
         break;
     }
 
-    // Update transform.
     if (probe.id === draggedProbeId) continue;
     node.position = asrToVector3(probe.tipPosition);
     node.rotation = asrToVector3(probe.rotation);
@@ -286,29 +282,25 @@ export function attachProbeSelection(
  * @param scene Scene with probes.
  * @param gizmoManager Gizmo manager to update.
  * @param selectionOutlineLayer Selection outline layer to add probe to selection.
- * @param experiment Experiment to look up the selected probe from.
+ * @param probes Experiment probes to resolve the attached mesh against.
  * @param onSelect Callback invoked with the probe whose mesh was attached to.
  */
 export function selectProbeFromGizmoAttach(
   scene: Scene,
   gizmoManager: GizmoManager,
   selectionOutlineLayer: SelectionOutlineLayer,
-  experiment: Experiment,
+  probes: Probe[],
   onSelect: (probe: Probe) => void
 ): Observer<Nullable<AbstractMesh>> {
   return gizmoManager.onAttachedToMeshObservable.add(mesh => {
-    // Exit if not picking a probe mesh.
     if (!mesh) return;
     if (!isProbeEntityName(mesh.name)) return;
 
-    // Get node.
     const probeId = probeIdFromEntityName(mesh.name);
     const probeTransformNode = getProbeTransformNode(scene, probeId);
-
-    // Exit if the probe doesn't have a transform node.
     if (!probeTransformNode) return;
 
-    const probe = experiment.probes.find(probe => probe.id === probeId);
+    const probe = probes.find(probe => probe.id === probeId);
     if (!probe) return;
 
     attachProbeSelection(
@@ -324,16 +316,16 @@ export function selectProbeFromGizmoAttach(
 /**
  * Update a probe's position from a gizmo drag.
  * @param positionGizmo Position gizmo to track dragging on.
- * @param experiment Experiment with probes to update.
+ * @param probes Experiment probes to resolve the attached mesh against.
  * @param onDrag Callback invoked with probe ID the drag is happening to.
  */
 export function setProbePositionFromGizmoDrag(
   positionGizmo: IPositionGizmo,
-  experiment: Experiment,
+  probes: Probe[],
   onDrag: (probeId: string) => void
 ): Observer<DragEvent> {
   return positionGizmo.onDragObservable.add(() => {
-    const attached = attachedProbeFromGizmo(positionGizmo, experiment);
+    const attached = attachedProbeFromGizmo(positionGizmo, probes);
     if (!attached) return;
 
     attached.probe.tipPosition = vector3ToAsr(attached.node.position);
@@ -344,16 +336,16 @@ export function setProbePositionFromGizmoDrag(
 /**
  * Update a probe's orientation from a gizmo drag.
  * @param rotationGizmo Rotation gizmo to track dragging on.
- * @param experiment Experiment with probes to update.
+ * @param probes Experiment probes to resolve the attached mesh against.
  * @param onDrag Callback invoked with probe ID the drag is happening to.
  */
 export function setProbeRotationFromGizmoDrag(
   rotationGizmo: IRotationGizmo,
-  experiment: Experiment,
+  probes: Probe[],
   onDrag: (probeId: string) => void
 ): Observer<DragEvent> {
   return rotationGizmo.onDragObservable.add(() => {
-    const attached = attachedProbeFromGizmo(rotationGizmo, experiment);
+    const attached = attachedProbeFromGizmo(rotationGizmo, probes);
     if (!attached) return;
 
     attached.probe.rotation = vector3ToAsr(attached.node.rotation);
@@ -387,28 +379,20 @@ export function endProbeGizmoDrag(
  * Resolve the probe and transform node currently attached to the gizmo, or
  * null if nothing (or a non-probe entity) is attached.
  * @param gizmo Gizmo to read the attached node from.
- * @param experiment Experiment to look up the attached probe in.
+ * @param probes Experiment probes to resolve the attached mesh against.
  */
 function attachedProbeFromGizmo(
   gizmo: IGizmo,
-  experiment: Experiment
+  probes: Probe[]
 ): { probe: Probe; node: TransformNode } | null {
   const node = gizmo.attachedNode;
   if (!node || !isProbeEntityName(node.name)) return null;
 
   const probeId = probeIdFromEntityName(node.name);
-  const probe = experiment.probes.find(probe => probe.id === probeId);
+  const probe = probes.find(probe => probe.id === probeId);
   if (!probe) return null;
 
   return { probe, node: node as TransformNode };
-}
-
-/**
- * Extrusion-ready shape for a probe contour, in the XoZ plane.
- * @param contour Probe contour to map.
- */
-function contourShape(contour: ProbeContour): Vector3[] {
-  return contour.points.map(({ x, y }) => new Vector3(x, 0, y));
 }
 
 /**
@@ -466,7 +450,7 @@ function buildShankMesh(
   const mesh = ExtrudePolygon(
     name,
     {
-      shape: contourShape(contour),
+      shape: contour.points.map(({ x, y }) => new Vector3(x, 0, y)),
       depth: SHANK_THICKNESS_MILLIMETERS,
       sideOrientation: Mesh.DOUBLESIDE
     },
@@ -488,7 +472,6 @@ function buildHeadStageMesh(
   contour: ProbeContour,
   name: string
 ): Mesh {
-  // noinspection JSSuspiciousNameCombination
   const baseMesh = MeshBuilder.CreateCylinder(
     `${name}_base`,
     {
@@ -519,7 +502,6 @@ function buildHeadStageMesh(
   );
   cutterMesh.parent = baseMesh;
 
-  // Subtract cutter.
   const baseCSG = CSG2.FromMesh(baseMesh);
   const cutterCSG = CSG2.FromMesh(cutterMesh);
   const resultCSG = baseCSG.subtract(cutterCSG);

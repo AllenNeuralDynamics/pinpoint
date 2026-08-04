@@ -6,12 +6,5 @@ import type { Inspectable } from "../models/inspectable.model";
  * @param b Second entity to compare.
  */
 export function isSameInspectable(a: Inspectable, b: Inspectable): boolean {
-  if (a.inspectableKind !== b.inspectableKind) return false;
-
-  switch (a.inspectableKind) {
-    case "probe":
-      return a.id === b.id;
-    default:
-      return false;
-  }
+  return a.id === b.id;
 }

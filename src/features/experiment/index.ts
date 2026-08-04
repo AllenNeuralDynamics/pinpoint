@@ -4,6 +4,7 @@ export { default as RecentExperimentsList } from "./components/RecentExperiments
 export { default as ExperimentPropertiesDialog } from "./components/ExperimentPropertiesDialog.vue";
 export { useExperimentFile } from "./composable/useExperimentFile";
 export type { Experiment } from "./models/experiment.model";
+export { ALLEN_MOUSE_REFERENCE_COORDINATE } from "./api/reference-coordinate.api";
 
 export {
   buildExperiment,

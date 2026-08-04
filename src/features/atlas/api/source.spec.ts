@@ -13,8 +13,7 @@ import {
   isSameAtlas,
   listAtlases,
   listAtlasesHTTP,
-  structureEntitiesFromIdentifiers,
-  structureEntityFromIdentifier
+  structureEntitiesFromIdentifiers
 } from "./source.api";
 import { makeAtlas, makeManifest, makeTerminologyRows } from "@/test/fixtures";
 
@@ -221,50 +220,6 @@ describe("getTerminologyRows", () => {
     );
   });
 
-  it("parses a single-element root_identifier_path into an array, not a number", async () => {
-    const promise = getTerminologyRows(makeManifest());
-    config().complete({
-      data: [
-        {
-          identifier: "997",
-          parent_identifier: "",
-          annotation_value: "997",
-          name: "root",
-          abbreviation: "root",
-          color_hex_triplet: "#FFFFFF",
-          root_identifier_path: "[997]"
-        }
-      ],
-      errors: []
-    });
-
-    const result = await promise;
-
-    expect(result[0]!.root_identifier_path).toEqual([997]);
-  });
-
-  it("parses a multi-element root_identifier_path", async () => {
-    const promise = getTerminologyRows(makeManifest());
-    config().complete({
-      data: [
-        {
-          identifier: "8",
-          parent_identifier: "997",
-          annotation_value: "8",
-          name: "grey",
-          abbreviation: "grey",
-          color_hex_triplet: "#BFDAE3",
-          root_identifier_path: "[997, 8]"
-        }
-      ],
-      errors: []
-    });
-
-    const result = await promise;
-
-    expect(result[0]!.root_identifier_path).toEqual([997, 8]);
-  });
-
   it("converts identifier/annotation_value to numbers and blank parent_identifier to null", async () => {
     const promise = getTerminologyRows(makeManifest());
     config().complete({
@@ -275,8 +230,7 @@ describe("getTerminologyRows", () => {
           annotation_value: "997",
           name: "root",
           abbreviation: "root",
-          color_hex_triplet: "#FFFFFF",
-          root_identifier_path: "[997]"
+          color_hex_triplet: "#FFFFFF"
         }
       ],
       errors: []
@@ -299,8 +253,7 @@ describe("getTerminologyRows", () => {
           annotation_value: "1",
           name: "root",
           abbreviation: "123",
-          color_hex_triplet: "456",
-          root_identifier_path: "[1]"
+          color_hex_triplet: "456"
         }
       ],
       errors: []
@@ -324,28 +277,6 @@ describe("getTerminologyRows", () => {
     config().error();
 
     expect(await promise).toEqual([]);
-  });
-
-  it("doesn't throw on a malformed root_identifier_path cell", async () => {
-    const promise = getTerminologyRows(makeManifest());
-    config().complete({
-      data: [
-        {
-          identifier: "1",
-          parent_identifier: "",
-          annotation_value: "1",
-          name: "root",
-          abbreviation: "root",
-          color_hex_triplet: "#FFFFFF",
-          root_identifier_path: "not json"
-        }
-      ],
-      errors: []
-    });
-
-    const result = await promise;
-
-    expect(result[0]!.root_identifier_path).toEqual([]);
   });
 });
 
@@ -698,71 +629,6 @@ describe("getManifest", () => {
   });
 });
 
-describe("structureEntityFromIdentifier", () => {
-  const manifest = makeManifest();
-  const terminologyRows = makeTerminologyRows();
-
-  it("returns null when no row matches the identifier", () => {
-    const result = structureEntityFromIdentifier(
-      manifest,
-      terminologyRows,
-      12345
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it("builds the mesh path from the manifest's annotation set location on an HTTP host", () => {
-    const result = structureEntityFromIdentifier(manifest, terminologyRows, 8);
-
-    expect(result?.meshPath).toBe(
-      "http://localhost:3000/brainglobe-atlasapi/annotation-sets/allen_mouse-annotation/3_0/annotations.precomputed/mesh/8"
-    );
-  });
-
-  it("builds the mesh path from the manifest's annotation set location on the BrainGlobe bucket", () => {
-    const bucketManifest = makeManifest({
-      atlas: makeAtlas({ source: BRAINGLOBE_BASE_URL })
-    });
-    const result = structureEntityFromIdentifier(
-      bucketManifest,
-      terminologyRows,
-      8
-    );
-
-    expect(result?.meshPath).toBe(
-      `${BRAINGLOBE_BASE_URL}annotation-sets/allen_mouse-annotation/3_0/annotations.precomputed/mesh/8`
-    );
-  });
-
-  it("uses the manifest's own version rather than a hardcoded one", () => {
-    const result = structureEntityFromIdentifier(
-      makeManifest({
-        annotationSetLocation:
-          "/annotation-sets/allen-adult-human-annotation/2016"
-      }),
-      terminologyRows,
-      8
-    );
-
-    expect(result?.meshPath).toBe(
-      "http://localhost:3000/brainglobe-atlasapi/annotation-sets/allen-adult-human-annotation/2016/annotations.precomputed/mesh/8"
-    );
-  });
-
-  it("carries the matched row's identifier through", () => {
-    const result = structureEntityFromIdentifier(manifest, terminologyRows, 8);
-
-    expect(result?.identifier).toBe(8);
-  });
-
-  it("parses color_hex_triplet into a Color3", () => {
-    const result = structureEntityFromIdentifier(manifest, terminologyRows, 8);
-
-    expect(result?.color).toEqual(Color3.FromHexString("#BFDAE3"));
-  });
-});
-
 describe("getAnnotationVolumeUrl", () => {
   it("builds the volume URL from the manifest's annotation set location on an HTTP host", () => {
     const result = getAnnotationVolumeUrl(makeManifest());
@@ -813,6 +679,68 @@ describe("structureEntitiesFromIdentifiers", () => {
     expect(
       structureEntitiesFromIdentifiers(manifest, terminologyRows, [])
     ).toEqual([]);
+  });
+
+  it("builds the mesh path from the manifest's annotation set location on an HTTP host", () => {
+    const result = structureEntitiesFromIdentifiers(
+      manifest,
+      terminologyRows,
+      [8]
+    );
+
+    expect(result[0]?.meshPath).toBe(
+      "http://localhost:3000/brainglobe-atlasapi/annotation-sets/allen_mouse-annotation/3_0/annotations.precomputed/mesh/8"
+    );
+  });
+
+  it("builds the mesh path from the manifest's annotation set location on the BrainGlobe bucket", () => {
+    const bucketManifest = makeManifest({
+      atlas: makeAtlas({ source: BRAINGLOBE_BASE_URL })
+    });
+    const result = structureEntitiesFromIdentifiers(
+      bucketManifest,
+      terminologyRows,
+      [8]
+    );
+
+    expect(result[0]?.meshPath).toBe(
+      `${BRAINGLOBE_BASE_URL}annotation-sets/allen_mouse-annotation/3_0/annotations.precomputed/mesh/8`
+    );
+  });
+
+  it("uses the manifest's own version rather than a hardcoded one", () => {
+    const result = structureEntitiesFromIdentifiers(
+      makeManifest({
+        annotationSetLocation:
+          "/annotation-sets/allen-adult-human-annotation/2016"
+      }),
+      terminologyRows,
+      [8]
+    );
+
+    expect(result[0]?.meshPath).toBe(
+      "http://localhost:3000/brainglobe-atlasapi/annotation-sets/allen-adult-human-annotation/2016/annotations.precomputed/mesh/8"
+    );
+  });
+
+  it("carries the matched row's identifier through", () => {
+    const result = structureEntitiesFromIdentifiers(
+      manifest,
+      terminologyRows,
+      [8]
+    );
+
+    expect(result[0]?.identifier).toBe(8);
+  });
+
+  it("parses color_hex_triplet into a Color3", () => {
+    const result = structureEntitiesFromIdentifiers(
+      manifest,
+      terminologyRows,
+      [8]
+    );
+
+    expect(result[0]?.color).toEqual(Color3.FromHexString("#BFDAE3"));
   });
 });
 

@@ -1,5 +1,4 @@
 import type { TerminologyRow } from "../models/terminology-row.model";
-import type { Atlas } from "@/features/atlas";
 import { KNOWN_DEFAULT_STRUCTURES } from "../models/known-default-structures.model";
 
 /** One tree-indent cell: `line` (│), `blank`, `tee` (├), or `elbow` (└). */
@@ -110,8 +109,7 @@ export function flattenHierarchy(
 
 /**
  * Widest rendered row width in pixels across every hierarchy item, plus a
- * {@link MARGIN_CHARACTERS}-wide margin, so a virtual scroller can be sized
- * from the whole list rather than its mounted rows.
+ * {@link MARGIN_CHARACTERS}-wide margin.
  * @param items Hierarchy items to measure.
  * @param metrics Fixed pixel widths of a row's non-text parts.
  * @param measureText Measures a string's pixel width; `bold` selects the abbreviation's weight.
@@ -135,6 +133,30 @@ export function widestHierarchyRowWidth(
     if (width > widest) widest = width;
   }
   return widest + Math.ceil(measureText("0", false) * MARGIN_CHARACTERS);
+}
+
+/**
+ * Return the identifiers of the default structure for an atlas.
+ *
+ * Defaults to direct children of root if there are no known defaults.
+ * @param atlasName Internal atlas name, e.g. `allen_mouse`.
+ * @param terminologyRows Parsed terminology rows.
+ */
+export function getDefaultStructureIdentifiers(
+  atlasName: string,
+  terminologyRows: TerminologyRow[]
+): number[] {
+  const knownDefaults = KNOWN_DEFAULT_STRUCTURES[atlasName];
+  if (!knownDefaults) {
+    const rootRow = terminologyRows.find(row => row.parent_identifier === null);
+    if (!rootRow) return [];
+
+    return terminologyRows
+      .filter(row => row.parent_identifier === rootRow.identifier)
+      .map(row => row.identifier);
+  }
+
+  return knownDefaults;
 }
 
 /**
@@ -164,28 +186,4 @@ function toTitleCase(name: string): string {
     .split(" ")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(" ");
-}
-
-/**
- * Return the identifiers of the default structure for an atlas.
- *
- * Defaults to direct children of root if there are no known defaults.
- * @param atlas Atlas to get the default structure of.
- * @param terminologyRows Parsed terminology rows.
- */
-export function getDefaultStructureIdentifiers(
-  atlas: Atlas,
-  terminologyRows: TerminologyRow[]
-): number[] {
-  const knownDefaults = KNOWN_DEFAULT_STRUCTURES[atlas.name];
-  if (!knownDefaults) {
-    const rootRow = terminologyRows.find(row => row.parent_identifier === null);
-    if (!rootRow) return [];
-
-    return terminologyRows
-      .filter(row => row.parent_identifier === rootRow.identifier)
-      .map(row => row.identifier);
-  }
-
-  return knownDefaults;
 }

@@ -5,7 +5,13 @@ import {
   Quaternion,
   TransformNode
 } from "@babylonjs/core";
-import type { Color4, IMatrixLike, Scene, Vector3 } from "@babylonjs/core";
+import type {
+  AbstractEngine,
+  Color4,
+  IMatrixLike,
+  Scene,
+  Vector3
+} from "@babylonjs/core";
 import { FontAsset, SdfTextParagraph, TextRenderer } from "@babylonjs/addons";
 import type { INodeLike, ParagraphOptions } from "@babylonjs/addons";
 import axios from "axios";
@@ -139,12 +145,14 @@ export async function createAxisGuides(scene: Scene): Promise<AxisGuides> {
     scene
   );
 
+  const engine = scene.getEngine();
+
   let renderers: Record<AxisGuideAxis, TextRenderer>;
   try {
     const [ap, dv, ml] = await Promise.all([
-      createTextRenderer(scene, fontAsset, AXIS_GUIDE_COLORS.ap),
-      createTextRenderer(scene, fontAsset, AXIS_GUIDE_COLORS.dv),
-      createTextRenderer(scene, fontAsset, AXIS_GUIDE_COLORS.ml)
+      createTextRenderer(engine, fontAsset, AXIS_GUIDE_COLORS.ap),
+      createTextRenderer(engine, fontAsset, AXIS_GUIDE_COLORS.dv),
+      createTextRenderer(engine, fontAsset, AXIS_GUIDE_COLORS.ml)
     ]);
     renderers = { ap, dv, ml };
   } catch (error) {
@@ -197,10 +205,18 @@ export function buildAxisGuides(
   const mlLength = dimensions[AXIS_GUIDE_ASR_INDEX.ml];
   if (mlLength === 0) return;
 
+  const labelSizes: Record<string, { width: number; height: number }> =
+    Object.fromEntries(
+      AXIS_GUIDE_SPECS.map(spec => [
+        spec.text,
+        labelSizeEm(spec.text, guides.fontAsset)
+      ])
+    );
+
   // `setAtlasCenterOffset` keeps the atlas center on the scene origin, so the
   // guides are placed straight in world space around that origin.
   const root = new TransformNode(AXIS_GUIDE_ROOT_NODE_NAME, scene);
-  const fontSize = axisGuideFontSize(mlLength, guides.fontAsset);
+  const fontSize = axisGuideFontSize(mlLength, labelSizes);
 
   for (const spec of AXIS_GUIDE_SPECS) {
     const renderer = guides.renderers[spec.axis];
@@ -216,7 +232,7 @@ export function buildAxisGuides(
       spec,
       dimensions,
       fontSize,
-      guides.fontAsset
+      labelSizes[spec.text]!
     );
   }
 }
@@ -237,18 +253,18 @@ export function clearAxisGuides(scene: Scene, guides: AxisGuides): void {
 
 /**
  * Create one colored MSDF text renderer.
- * @param scene Scene supplying the engine the renderer compiles against.
+ * @param engine Engine the renderer compiles against.
  * @param fontAsset Font asset the renderer draws with.
  * @param color Color the renderer draws its text in.
  */
 async function createTextRenderer(
-  scene: Scene,
+  engine: AbstractEngine,
   fontAsset: FontAsset,
   color: Color4
 ): Promise<TextRenderer> {
   const renderer = await TextRenderer.CreateTextRendererAsync(
     fontAsset,
-    scene.getEngine()
+    engine
   );
   renderer.color = color;
   return renderer;
@@ -256,6 +272,7 @@ async function createTextRenderer(
 
 /**
  * Unit world direction the given guide's label sits along.
+ * @param spec Axis guide to take the direction of.
  */
 function axisGuideDirection(spec: AxisGuideSpec): Vector3 {
   const offset: [number, number, number] = [0, 0, 0];
@@ -298,7 +315,7 @@ function axisGuideMatrix(
  * @param spec Axis guide the mesh stands in for.
  * @param dimensions Atlas dimensions in mm as [ap, dv, ml].
  * @param fontSize Label em size in mm.
- * @param fontAsset Font asset the label is measured with.
+ * @param labelSize Label's measured width and height in em.
  */
 function buildAxisGuidePickMesh(
   scene: Scene,
@@ -306,9 +323,9 @@ function buildAxisGuidePickMesh(
   spec: AxisGuideSpec,
   dimensions: [number, number, number],
   fontSize: number,
-  fontAsset: FontAsset
+  labelSize: { width: number; height: number }
 ): void {
-  const { width, height } = labelSizeEm(spec.text, fontAsset);
+  const { width, height } = labelSize;
   const direction = axisGuideDirection(spec);
   const mesh = MeshBuilder.CreatePlane(
     `${AXIS_GUIDE_PICK_MESH_NAME_PREFIX}${spec.text}`,
@@ -350,11 +367,14 @@ export function pickAxisGuideDirection(
 /**
  * Em size in mm making the widest label exactly half the atlas's ML length.
  * @param mlLength Atlas ML extent in mm.
- * @param fontAsset Font asset the labels are measured with.
+ * @param labelSizes Each label's measured size in em, keyed by text.
  */
-function axisGuideFontSize(mlLength: number, fontAsset: FontAsset): number {
+function axisGuideFontSize(
+  mlLength: number,
+  labelSizes: Record<string, { width: number; height: number }>
+): number {
   const widest = Math.max(
-    ...AXIS_GUIDE_SPECS.map(spec => labelSizeEm(spec.text, fontAsset).width)
+    ...AXIS_GUIDE_SPECS.map(spec => labelSizes[spec.text]!.width)
   );
   return (mlLength * AXIS_GUIDE_WIDTH_ML_FRACTION) / widest;
 }

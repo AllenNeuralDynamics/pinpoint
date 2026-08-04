@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import ProbeInspector from "../components/ProbeInspector.vue";
+import ProbeInspector from "./ProbeInspector.vue";
 
 const currentExperiment = useCurrentExperimentStore();
 </script>
@@ -18,5 +18,3 @@ const currentExperiment = useCurrentExperimentStore();
     </div>
   </div>
 </template>
-
-<style lang="sass" scoped></style>

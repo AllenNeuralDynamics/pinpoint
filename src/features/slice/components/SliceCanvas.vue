@@ -10,7 +10,6 @@ import {
   setStructureVisibility
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { useDelayedFlag } from "@/composable/useDelayedFlag";
 import { getProbeFrame } from "../api/probe-frame.api";
 import {
   formatSliceExtentMillimeters,
@@ -19,8 +18,8 @@ import {
   getQuantizedSizePixels,
   getSlicePixelFromRect
 } from "../api/slice-plane.api";
-import { buildStructureIndex } from "../api/structure-colors.api";
 import { useAnnotationSampler } from "../composable/useAnnotationSampler";
+import { useDelayedFlag } from "../composable/useDelayedFlag";
 import { useMotionResolutionScale } from "../composable/useMotionResolutionScale";
 import { useSliceCanvasPainter } from "../composable/useSliceCanvasPainter";
 import { useSliceViewport } from "../composable/useSliceViewport";
@@ -99,10 +98,7 @@ const plane = computed(() => {
   );
 });
 
-const { createStream } = useAnnotationSampler({
-  manifest: computed(() => currentExperiment.manifest),
-  terminologyRows: computed(() => currentExperiment.terminologyRows)
-});
+const { createStream, structureIndex } = useAnnotationSampler();
 const { result, isLoading } = createStream(plane);
 
 /**
@@ -121,10 +117,6 @@ const contourPoints = computed(() =>
   contour.value
     ? getContourPolygonPoints(contour.value, centerHeightMillimeters.value)
     : null
-);
-
-const structureIndex = computed(() =>
-  buildStructureIndex(currentExperiment.terminologyRows)
 );
 
 const hoveredStructure = computed<TerminologyRow | null>(
@@ -163,6 +155,7 @@ function onPointerMove(event: PointerEvent): void {
     : 0;
 }
 
+/** Clear the hovered structure when the pointer leaves the canvas. */
 function onPointerLeave(): void {
   hoveredAnnotationValue.value = 0;
 }
@@ -197,7 +190,9 @@ useSliceCanvasPainter(
       reverse
       :min="0"
       :max="contour.heightMillimeters"
-      :label-value="`${centerHeightMillimeters.toFixed(2)} mm`"
+      :label-value="
+        t('slice.millimeters', { value: centerHeightMillimeters.toFixed(2) })
+      "
       label
       :step="0"
       dense
@@ -255,7 +250,11 @@ useSliceCanvasPainter(
         v-model="zoomExponent"
         :min="zoomRange.minimum"
         :max="zoomRange.maximum"
-        :label-value="`${formatSliceExtentMillimeters(extentMillimeters)} mm`"
+        :label-value="
+          t('slice.millimeters', {
+            value: formatSliceExtentMillimeters(extentMillimeters)
+          })
+        "
         label
         :step="0"
         :markers="1"

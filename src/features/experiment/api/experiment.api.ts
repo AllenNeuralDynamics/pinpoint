@@ -90,7 +90,7 @@ export function setStructureVisibility(
  * @param experiment Experiment to clear visible structures in.
  */
 export function clearVisibleStructures(experiment: Experiment) {
-  experiment.visibleStructures = [];
+  experiment.visibleStructures.length = 0;
 }
 
 /**
@@ -169,7 +169,7 @@ export function getInternedProbeInterfaceProbe(
  * @param probe Probe to add.
  */
 export function addProbe(experiment: Experiment, probe: Probe) {
-  if (experiment.probes.find(existingProbe => existingProbe.id === probe.id))
+  if (experiment.probes.some(existingProbe => existingProbe.id === probe.id))
     return;
 
   experiment.probes.push(probe);

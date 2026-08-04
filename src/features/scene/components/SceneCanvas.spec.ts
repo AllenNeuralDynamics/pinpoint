@@ -40,6 +40,7 @@ import { createAxisGuides } from "../api/axis-guide.api";
 import type * as AxisGuideApi from "../api/axis-guide.api";
 import {
   getAtlasCenter,
+  getAtlasDimensionsMillimeters,
   getManifest,
   getTerminologyRows,
   structureEntitiesFromIdentifiers
@@ -478,7 +479,10 @@ describe("SceneCanvas", () => {
 
     const { runtime } = await mountCanvas();
 
-    expect(setInitialZoom).toHaveBeenCalledWith(runtime.camera.value, manifest);
+    expect(setInitialZoom).toHaveBeenCalledWith(
+      runtime.camera.value,
+      getAtlasDimensionsMillimeters(manifest)[0]
+    );
   });
 
   it("does not set the camera's initial zoom while the atlas components are evaluating", async () => {

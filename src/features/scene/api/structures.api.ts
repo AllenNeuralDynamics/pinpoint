@@ -156,8 +156,9 @@ export async function syncStructuresVisibility(
  */
 export function removeAllStructures(scene: Scene) {
   const atlasRootNode = buildAtlasRootNode(scene);
-  const children = childStructureMeshes(atlasRootNode);
-  for (const [_, mesh] of children) {
+  for (const mesh of atlasRootNode.getChildMeshes(true, node =>
+    node.name.endsWith(STRUCTURE_MESH_SUFFIX)
+  )) {
     mesh.dispose(false, true);
   }
 }
@@ -185,11 +186,11 @@ function structureMeshName(identifier: number): string {
 }
 
 /**
- * Babylon material name for a structure, derived from its identifier.
- * @param identifier Structure identifier.
+ * Is the given Babylon entity name a structure mesh.
+ * @param name Entity name to check.
  */
-function structureMaterialName(identifier: number): string {
-  return `${identifier}${STRUCTURE_MATERIAL_SUFFIX}`;
+export function isStructureMeshName(name: string): boolean {
+  return name.endsWith(STRUCTURE_MESH_SUFFIX);
 }
 
 /**
@@ -209,7 +210,7 @@ function buildStructureMesh(
   mesh.isVisible = false;
 
   const material = new StandardMaterial(
-    structureMaterialName(structure.identifier),
+    `${structure.identifier}${STRUCTURE_MATERIAL_SUFFIX}`,
     scene
   );
   material.diffuseColor = structure.color;
@@ -217,17 +218,6 @@ function buildStructureMesh(
   material.freeze();
 
   return mesh;
-}
-
-/**
- * Compute the vertex budget for a simplified mesh.
- * @param vertexCount Original vertex count.
- */
-function targetVertexCount(vertexCount: number): number {
-  return Math.min(
-    Math.round(vertexCount * MESH_VERTEX_KEEP_FRACTION),
-    MESH_MAX_VERTICES
-  );
 }
 
 /**
@@ -257,7 +247,10 @@ async function loadStructureGeometry(
       scene,
       decoded.positions,
       decoded.indices,
-      targetVertexCount(decoded.positions.length / 3)
+      Math.min(
+        Math.round((decoded.positions.length / 3) * MESH_VERTEX_KEEP_FRACTION),
+        MESH_MAX_VERTICES
+      )
     );
     if (mesh.isDisposed()) return;
 

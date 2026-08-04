@@ -17,8 +17,7 @@ import {
   getProbeModelDisplayName
 } from "../api/probe.api";
 
-// A selectable probe, pairing its identifier with a human-readable model
-// name (falling back to the identifier itself when not in KNOWN_PROBES).
+/** A selectable probe, pairing its identifier with a human-readable model name. */
 interface ProbeOption {
   probeName: string;
   label: string;
@@ -39,15 +38,13 @@ const { open: openFileDialog, onChange: onFileSelected } = useFileDialog({
 const selectedManufacturerName = ref<string | null>(null);
 const searchQuery = ref<string | null>(null);
 const selectedProbeName = ref<string | null>(null);
-const manufacturersEvaluating = ref(false);
 const probeNamesEvaluating = ref(false);
 const installing = ref(false);
 const uploading = ref(false);
 
 const manufacturers = computedAsync<string[]>(
   async () => await getManufacturers(),
-  [],
-  manufacturersEvaluating
+  []
 );
 
 const probeNames = computedAsync<string[]>(
@@ -86,13 +83,6 @@ const selectedProbeOverviewImageSrc = computed<string>(() => {
 });
 
 /**
- * Open the file dialog to let the user pick a custom probe file.
- */
-function openFilePicker() {
-  openFileDialog();
-}
-
-/**
  * Fetch the selected probe from the library and resolve the dialog with it.
  */
 async function install() {
@@ -116,32 +106,36 @@ async function install() {
   onDialogOK(probe);
 }
 
+/**
+ * Read and parse a probe interface file, or null when unreadable.
+ * @param file File to read and parse.
+ */
+async function readProbeFile(file: File) {
+  try {
+    return parseProbeInterfaceFile(await file.text());
+  } catch {
+    return null;
+  }
+}
+
 onFileSelected(async files => {
   // `reset: true` fires a null change before opening the picker.
   const file = files?.[0];
   if (!file) return;
 
   uploading.value = true;
-  try {
-    const probe = parseProbeInterfaceFile(await file.text());
+  const probe = await readProbeFile(file);
+  uploading.value = false;
 
-    if (!probe) {
-      notifyError(
-        t("installProbe.invalidProbeFile"),
-        t("installProbe.invalidProbeFileCaption")
-      );
-      return;
-    }
-
-    onDialogOK(probe);
-  } catch {
+  if (!probe) {
     notifyError(
       t("installProbe.invalidProbeFile"),
       t("installProbe.invalidProbeFileCaption")
     );
-  } finally {
-    uploading.value = false;
+    return;
   }
+
+  onDialogOK(probe);
 });
 
 watch(selectedManufacturerName, () => {
@@ -215,14 +209,13 @@ watch(selectedManufacturerName, () => {
             :label="$t('installProbe.uploadCustom')"
             :loading="uploading"
             icon="upload"
-            @click="openFilePicker"
+            @click="openFileDialog()"
           />
 
           <q-btn
             :disable="!selectedProbeName"
             :label="$t('installProbe.install')"
             :loading="installing"
-            color="primary"
             icon="add"
             @click="install"
           >

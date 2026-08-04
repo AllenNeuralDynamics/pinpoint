@@ -18,6 +18,15 @@ export default {
   currentExperiment: {
     defaultName: "My First Experiment"
   },
+  validation: {
+    nameRequired: "Name is required.",
+    mustBeNumber: "Must be a number."
+  },
+  axis: {
+    ap: "AP",
+    dv: "DV",
+    ml: "ML"
+  },
   newExperiment: {
     title: "New Experiment",
     experimentName: "Experiment name",
@@ -26,18 +35,12 @@ export default {
     pickNameAndAtlas: "Pick an experiment name and atlas",
     failedToFetchAtlas: "Failed to fetch atlas.",
     checkAtlas:
-      "Please check your connection to the source and the atlas's existence.",
-    nameRequired: "Name is required."
+      "Please check your connection to the source and the atlas's existence."
   },
   experimentProperties: {
     title: "Experiment Properties",
     experimentName: "Experiment name",
     referenceCoordinate: "Reference Coordinate",
-    ap: "AP",
-    dv: "DV",
-    ml: "ML",
-    nameRequired: "Name is required.",
-    mustBeNumber: "Must be a number.",
     cancel: "Cancel",
     save: "Save",
     incomplete:
@@ -126,7 +129,6 @@ export default {
     openRecent: "Open Recent",
     download: "Download",
     edit: "Edit",
-    preferences: "Preferences",
     experimentProperties: "Experiment Properties",
     probeLibrary: "Probe Library",
     view: "View",
@@ -153,19 +155,13 @@ export default {
   probeInspector: {
     name: "Name",
     probeType: "Probe Type",
-    ap: "AP",
-    dv: "DV",
-    ml: "ML",
     roll: "Roll",
     yaw: "Yaw",
     pitch: "Pitch",
     home: "Reset tip position",
     copy: "Duplicate probe",
-    surface: "Surface probe",
     lock: "Lock probe",
-    unlock: "Unlock probe",
-    nameRequired: "Name is required.",
-    mustBeNumber: "Must be a number."
+    unlock: "Unlock probe"
   },
   slice: {
     zoom: "Zoom",
@@ -173,7 +169,10 @@ export default {
     noContour: "This probe has no contour to slice through.",
     channelMap: "In-plane slice for {name}",
     channelMapWindow: "Channel map window for {name}",
-    millimeters: "{value} mm"
+    millimeters: "{value} mm",
+    zoomSmall: "Small",
+    zoomMedium: "Medium",
+    zoomLarge: "Large"
   },
   errorNotFound: {
     code: "404",

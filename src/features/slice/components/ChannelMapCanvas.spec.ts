@@ -38,12 +38,14 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 let capturedGeometry: SampleGeometry | null = null;
 const mockResult = shallowRef<SampleResult | null>(null);
 const mockIsLoading = shallowRef(false);
+const mockStructureIndex = shallowRef(new Map<number, TerminologyRow>());
 vi.mock("../composable/useAnnotationSampler", () => ({
   useAnnotationSampler: () => ({
     createStream: (geometry: { value: SampleGeometry | null }) => {
       capturedGeometry = geometry.value;
       return { result: mockResult, isLoading: mockIsLoading };
-    }
+    },
+    structureIndex: mockStructureIndex
   })
 }));
 
@@ -82,11 +84,14 @@ function makeSampleResult(
   widthPixels: number,
   heightPixels: number
 ): SampleResult {
+  const pixels = new Uint8ClampedArray(widthPixels * heightPixels * 4);
   return {
     widthPixels,
     heightPixels,
     annotationValues: new Uint32Array(widthPixels * heightPixels),
-    pixels: new Uint8ClampedArray(widthPixels * heightPixels * 4),
+    pixels,
+    packedPixels: new Uint32Array(pixels.buffer),
+    imageData: new ImageData(pixels, widthPixels, heightPixels),
     paintedChunkCount: 1,
     totalChunkCount: 1
   };
@@ -102,6 +107,9 @@ describe("ChannelMapCanvas", () => {
       terminologyRows.length ? makeManifest() : null
     );
     vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
+    mockStructureIndex.value = new Map(
+      terminologyRows.map(row => [row.annotation_value, row])
+    );
     capturedGeometry = null;
     mockResult.value = null;
     mockIsLoading.value = false;
@@ -128,12 +136,15 @@ describe("ChannelMapCanvas", () => {
       channelMapWindow
     });
 
+    const imageFraction =
+      zoomSelection === "small" ? 1 : getChannelMapWidths(shanks).imageFraction;
     const wrapper = mountWithQuasar(ChannelMapCanvas, {
       pinia,
       props: {
         probe,
         shanks,
         heightMillimeters: contour.heightMillimeters,
+        imageFraction,
         zoomSelection
       }
     });
@@ -243,6 +254,7 @@ describe("ChannelMapCanvas", () => {
         probe,
         shanks,
         heightMillimeters: contour.heightMillimeters,
+        imageFraction: 1,
         zoomSelection: "large"
       }
     });
@@ -281,6 +293,7 @@ describe("ChannelMapCanvas", () => {
         probe,
         shanks,
         heightMillimeters: contour.heightMillimeters,
+        imageFraction: 1,
         zoomSelection: "large"
       }
     });

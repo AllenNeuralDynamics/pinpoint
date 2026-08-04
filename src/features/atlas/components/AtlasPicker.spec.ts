@@ -76,6 +76,21 @@ describe("AtlasPicker", () => {
       expect(items[0]!.text()).toContain("Allen Mouse");
     });
 
+    it("starts the custom host field empty, so switching to it fires no request", async () => {
+      const wrapper = mountPicker();
+      await settle();
+      mockedGet.mockClear();
+
+      await wrapper
+        .findComponent({ name: "QBtnToggle" })
+        .vm.$emit("update:modelValue", CUSTOM_SOURCE);
+      await settle();
+
+      const hostInput = wrapper.findComponent({ name: "QInput" });
+      expect(hostInput.props("modelValue")).toBeNull();
+      expect(mockedGet).not.toHaveBeenCalled();
+    });
+
     it("loads atlases from the custom HTTP host once toggled and a URL is set", async () => {
       mockedGet.mockResolvedValue({
         data: {

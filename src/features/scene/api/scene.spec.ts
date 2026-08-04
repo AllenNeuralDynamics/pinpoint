@@ -83,10 +83,10 @@ describe("selectFromSelectedInspectableState", () => {
     selectionOutlineLayer.addSelection(node.getChildMeshes());
 
     selectFromSelectedInspectableState(
-      null,
       scene,
       gizmoManager,
-      selectionOutlineLayer
+      selectionOutlineLayer,
+      null
     );
 
     expect(gizmoManager.attachedNode).toBeNull();
@@ -100,10 +100,10 @@ describe("selectFromSelectedInspectableState", () => {
       makeProbeInScene();
 
     selectFromSelectedInspectableState(
-      probe,
       scene,
       gizmoManager,
-      selectionOutlineLayer
+      selectionOutlineLayer,
+      probe
     );
 
     expect(gizmoManager.attachedNode).toBe(node);
@@ -119,10 +119,10 @@ describe("selectFromSelectedInspectableState", () => {
     const missingProbe = makeProbe({ id: "missing" });
 
     selectFromSelectedInspectableState(
-      missingProbe,
       scene,
       gizmoManager,
-      selectionOutlineLayer
+      selectionOutlineLayer,
+      missingProbe
     );
 
     for (const mesh of node.getChildMeshes()) {
@@ -146,16 +146,16 @@ describe("selectFromSelectedInspectableState", () => {
     const nodeB = buildProbe(scene, probeB, experiment, gizmoManager)!;
 
     selectFromSelectedInspectableState(
-      a.probe,
       scene,
       gizmoManager,
-      selectionOutlineLayer
+      selectionOutlineLayer,
+      a.probe
     );
     selectFromSelectedInspectableState(
-      probeB,
       scene,
       gizmoManager,
-      selectionOutlineLayer
+      selectionOutlineLayer,
+      probeB
     );
 
     expect(gizmoManager.attachedNode).toBe(nodeB);

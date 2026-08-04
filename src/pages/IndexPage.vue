@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, type Ref } from "vue";
 import { SceneCanvas, SceneHierarchy } from "@/features/scene";
-import { TouchPanValue, useQuasar } from "quasar";
+import { type TouchPanValue, useQuasar } from "quasar";
 import {
   ExperimentPropertiesDialog,
   NewExperimentDialog,
@@ -18,6 +18,7 @@ import { ChannelMaps } from "@/features/slice";
 
 /** Widest a drawer can be resized to, as a fraction of the window width. */
 const MAXIMUM_DRAWER_WIDTH_RATIO = 0.4;
+const BASE_URL = import.meta.env.BASE_URL;
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
@@ -106,7 +107,7 @@ onMounted(() => {
               >
                 <q-item-section>{{ $t("layout.new") }}</q-item-section>
               </q-item>
-              <q-item clickable @click="openExperiment">
+              <q-item clickable @click="() => openExperiment()">
                 <q-item-section>{{ $t("layout.open") }}</q-item-section>
               </q-item>
               <q-item
@@ -124,11 +125,6 @@ onMounted(() => {
 
         <q-btn flat :label="$t('layout.edit')">
           <q-menu auto-close>
-            <q-list>
-              <q-item clickable>
-                <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
-              </q-item>
-            </q-list>
             <q-list>
               <q-item
                 clickable
@@ -151,21 +147,19 @@ onMounted(() => {
         <q-btn flat :label="$t('layout.view')">
           <q-menu auto-close>
             <q-list>
-              <q-item clickable>
-                <q-item-section @click="$q.dialog({ component: SplashDialog })"
-                  >{{ $t("layout.splashScreen") }}
-                </q-item-section>
+              <q-item clickable @click="$q.dialog({ component: SplashDialog })">
+                <q-item-section>{{ $t("layout.splashScreen") }}</q-item-section>
               </q-item>
-              <q-item clickable>
-                <q-item-section @click="$q.dark.toggle"
-                  >{{ $t("layout.toggleDarkMode") }}
-                </q-item-section>
+              <q-item clickable @click="$q.dark.toggle">
+                <q-item-section>{{
+                  $t("layout.toggleDarkMode")
+                }}</q-item-section>
               </q-item>
             </q-list>
           </q-menu>
         </q-btn>
 
-        <q-btn :label="$t('layout.help')" flat href="/pinpoint-v/docs" />
+        <q-btn :label="$t('layout.help')" flat :href="`${BASE_URL}docs`" />
 
         <q-space />
 

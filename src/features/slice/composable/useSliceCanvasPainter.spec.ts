@@ -7,11 +7,14 @@ function makeResult(
   sizePixels: number,
   overrides: Partial<SampleResult> = {}
 ): SampleResult {
+  const pixels = new Uint8ClampedArray(sizePixels * sizePixels * 4);
   return {
     widthPixels: sizePixels,
     heightPixels: sizePixels,
     annotationValues: new Uint32Array(sizePixels * sizePixels),
-    pixels: new Uint8ClampedArray(sizePixels * sizePixels * 4),
+    pixels,
+    packedPixels: new Uint32Array(pixels.buffer),
+    imageData: new ImageData(pixels, sizePixels, sizePixels),
     paintedChunkCount: 1,
     totalChunkCount: 1,
     ...overrides

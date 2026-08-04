@@ -14,7 +14,7 @@ const recentExperimentsStore = useRecentExperimentsStore();
 
 /**
  * Open a recent experiment.
- * @param experiment
+ * @param experiment Experiment to open.
  */
 function onOpenRecent(experiment: Experiment) {
   recentExperimentsStore.remove(experiment);

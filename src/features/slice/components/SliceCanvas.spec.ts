@@ -11,6 +11,7 @@ import {
   makeProbeInterfaceProbe,
   makeTerminologyRow
 } from "@/test/fixtures";
+import type { TerminologyRow } from "@/features/atlas";
 import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { internProbeInterfaceProbe } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
@@ -38,12 +39,14 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 let capturedGeometry: Ref<SampleGeometry | null> | null = null;
 const mockResult = shallowRef<SampleResult | null>(null);
 const mockIsLoading = shallowRef(false);
+const mockStructureIndex = shallowRef(new Map<number, TerminologyRow>());
 vi.mock("../composable/useAnnotationSampler", () => ({
   useAnnotationSampler: () => ({
     createStream: (geometry: Ref<SampleGeometry | null>) => {
       capturedGeometry = geometry;
       return { result: mockResult, isLoading: mockIsLoading };
-    }
+    },
+    structureIndex: mockStructureIndex
   })
 }));
 
@@ -71,11 +74,14 @@ function makeSampleResult(
   sizePixels: number,
   annotationValues: number[]
 ): SampleResult {
+  const pixels = new Uint8ClampedArray(sizePixels * sizePixels * 4);
   return {
     widthPixels: sizePixels,
     heightPixels: sizePixels,
     annotationValues: Uint32Array.from(annotationValues),
-    pixels: new Uint8ClampedArray(sizePixels * sizePixels * 4),
+    pixels,
+    packedPixels: new Uint32Array(pixels.buffer),
+    imageData: new ImageData(pixels, sizePixels, sizePixels),
     paintedChunkCount: 1,
     totalChunkCount: 1
   };
@@ -87,6 +93,7 @@ describe("SliceCanvas", () => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
     mockResult.value = null;
     mockIsLoading.value = false;
+    mockStructureIndex.value = new Map();
   });
 
   function mountSlice(probeOverrides: Parameters<typeof makeProbe>[0] = {}) {
@@ -220,6 +227,9 @@ describe("SliceCanvas", () => {
     mockResult.value = makeSampleResult(2, [0, 8, 0, 0]);
     const rows = [makeTerminologyRow({ annotation_value: 8, identifier: 8 })];
     vi.mocked(getTerminologyRows).mockResolvedValue(rows);
+    mockStructureIndex.value = new Map(
+      rows.map(row => [row.annotation_value, row])
+    );
     const { wrapper } = mountSlice();
     await flushPromises();
 
@@ -283,6 +293,9 @@ describe("SliceCanvas", () => {
     mockResult.value = makeSampleResult(2, [0, 8, 0, 0]);
     const rows = [makeTerminologyRow({ annotation_value: 8, identifier: 8 })];
     vi.mocked(getTerminologyRows).mockResolvedValue(rows);
+    mockStructureIndex.value = new Map(
+      rows.map(row => [row.annotation_value, row])
+    );
     const { wrapper } = mountSlice();
     await flushPromises();
 
@@ -316,6 +329,9 @@ describe("SliceCanvas", () => {
     mockResult.value = makeSampleResult(2, [0, 8, 0, 0]);
     const rows = [makeTerminologyRow({ annotation_value: 8, identifier: 8 })];
     vi.mocked(getTerminologyRows).mockResolvedValue(rows);
+    mockStructureIndex.value = new Map(
+      rows.map(row => [row.annotation_value, row])
+    );
     const { wrapper } = mountSlice();
     await flushPromises();
 
@@ -352,6 +368,9 @@ describe("SliceCanvas", () => {
     mockResult.value = makeSampleResult(2, [0, 8, 0, 0]);
     const rows = [makeTerminologyRow({ annotation_value: 8, identifier: 8 })];
     vi.mocked(getTerminologyRows).mockResolvedValue(rows);
+    mockStructureIndex.value = new Map(
+      rows.map(row => [row.annotation_value, row])
+    );
     const { wrapper, store } = mountSlice();
     await flushPromises();
 

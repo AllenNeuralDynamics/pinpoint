@@ -19,9 +19,7 @@ export function useMotionResolutionScale(
   motionKey: Ref<string>
 ): Readonly<Ref<number>> {
   const scale = ref(1);
-  // A lone change (a committed numeric input, one slider tick) must not pay for
-  // a low-resolution pass it would immediately replace, so movement is only
-  // declared once a second change lands inside the window.
+  // Movement is only declared once a second change lands inside the window.
   let isRecentChange = false;
 
   const { start: startWindow } = useTimeoutFn(

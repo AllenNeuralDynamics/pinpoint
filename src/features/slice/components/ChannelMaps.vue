@@ -35,7 +35,7 @@ interface DefinitionShanks {
   widths: ChannelMapWidths;
 }
 
-const zoomStyles: Record<ChannelMapsZoom, ZoomStyles> = {
+const ZOOM_STYLES: Record<ChannelMapsZoom, ZoomStyles> = {
   small: {
     header: "column flex-center",
     name: "text-caption",
@@ -63,7 +63,7 @@ const NO_SHANKS: DefinitionShanks = {
   widths: { shankMillimeters: 0, gutterMillimeters: 0, imageFraction: 1 }
 };
 
-const currentExperimentStore = useCurrentExperimentStore();
+const currentExperiment = useCurrentExperimentStore();
 const { t } = useI18n();
 
 const root = useTemplateRef<HTMLDivElement>("root");
@@ -83,7 +83,7 @@ const { width: tooltipWidth, height: tooltipHeight } = useElementSize(
 const zoomSelection = ref<ChannelMapsZoom>("large");
 const hover = ref<ChannelMapHover | null>(null);
 
-const styles = computed(() => zoomStyles[zoomSelection.value]);
+const styles = computed(() => ZOOM_STYLES[zoomSelection.value]);
 
 /** The label gutter renders at medium and large zoom, like the contour overlay. */
 const showLabels = computed(() => zoomSelection.value !== "small");
@@ -95,7 +95,7 @@ const showLabels = computed(() => zoomSelection.value !== "small");
 const shanksByIdentifier = computed(() => {
   const byIdentifier: Record<string, DefinitionShanks> = {};
   for (const [identifier, definition] of Object.entries(
-    currentExperimentStore.probeInterfaceProbes
+    currentExperiment.probeInterfaceProbes
   )) {
     const contour = getProbeContour(definition);
     if (
@@ -119,7 +119,7 @@ const shanksByIdentifier = computed(() => {
 
 /** Each probe paired with its packed shanks, aspect ratio and rendered window. */
 const channelMaps = computed(() =>
-  currentExperimentStore.probes.map(probe => {
+  currentExperiment.probes.map(probe => {
     const { shanks, heightMillimeters, widths } =
       shanksByIdentifier.value[probe.probeInterfaceIdentifier] ?? NO_SHANKS;
     const widthMillimeters =
@@ -133,7 +133,8 @@ const channelMaps = computed(() =>
         heightMillimeters > 0
           ? (SHANK_WIDTH_SCALE * widthMillimeters) / heightMillimeters
           : 0,
-      channelMapWindow: getProbeChannelMapWindow(probe, heightMillimeters)
+      channelMapWindow: getProbeChannelMapWindow(probe, heightMillimeters),
+      imageFraction: showLabels.value ? widths.imageFraction : 1
     };
   })
 );
@@ -161,9 +162,9 @@ const tooltipStyle = computed(() => {
       <q-btn-toggle
         v-model="zoomSelection"
         :options="[
-          { label: 'Small', value: 'small' },
-          { label: 'Medium', value: 'medium' },
-          { label: 'Large', value: 'large' }
+          { label: t('slice.zoomSmall'), value: 'small' },
+          { label: t('slice.zoomMedium'), value: 'medium' },
+          { label: t('slice.zoomLarge'), value: 'large' }
         ]"
         spread
         toggle-color="primary"
@@ -176,17 +177,18 @@ const tooltipStyle = computed(() => {
             shanks,
             heightMillimeters,
             aspectRatio,
-            channelMapWindow
+            channelMapWindow,
+            imageFraction
           } of channelMaps"
           :key="probe.id"
           :class="[
             'channel-maps__card',
             {
               'channel-maps__card--selected':
-                currentExperimentStore.isInspectableSelected(probe)
+                currentExperiment.isInspectableSelected(probe)
             }
           ]"
-          @click="currentExperimentStore.selectedInspectable = probe"
+          @click="currentExperiment.selectedInspectable = probe"
         >
           <q-card-section :class="styles.header">
             <q-icon
@@ -195,13 +197,10 @@ const tooltipStyle = computed(() => {
               size="sm"
             />
             <q-btn
-              :aria-pressed="
-                currentExperimentStore.isInspectableSelected(probe)
-              "
+              :aria-pressed="currentExperiment.isInspectableSelected(probe)"
               flat
               dense
               no-caps
-              @click="currentExperimentStore.selectedInspectable = probe"
             >
               <div :class="styles.name">{{ probe.name }}</div>
             </q-btn>
@@ -245,6 +244,7 @@ const tooltipStyle = computed(() => {
               >
                 <ChannelMapCanvas
                   :height-millimeters="heightMillimeters"
+                  :image-fraction="imageFraction"
                   :probe="probe"
                   :shanks="shanks"
                   :zoom-selection="zoomSelection"

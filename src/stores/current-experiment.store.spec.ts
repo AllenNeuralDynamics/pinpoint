@@ -60,12 +60,6 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       expect(store.visibleStructures).toEqual([]);
     });
-
-    it("set replaces the experiment's visibleStructures", () => {
-      const store = useCurrentExperimentStore();
-      store.visibleStructures = [1, 2];
-      expect(store.experiment.visibleStructures).toEqual([1, 2]);
-    });
   });
 
   describe("areAtlasComponentsEvaluating", () => {

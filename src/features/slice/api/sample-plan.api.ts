@@ -27,10 +27,6 @@ interface SampleBucket {
 
 /**
  * Bucket a geometry's samples by the annotation chunk each one reads from.
- * Walks the mm-to-voxel affine map incrementally (no per-sample division)
- * and caches the last resolved chunk's voxel-space origin so consecutive
- * samples inside the same chunk skip both the chunk divisions and a map
- * lookup.
  * @param geometry Geometry to sample.
  * @param level Multiscale level to sample from.
  * @param levelIndex Index of `level` within its volume.
@@ -210,7 +206,7 @@ export function selectSamplePlan(
       RESOLUTION_TOLERANCE * millimetersPerSample
     ) {
       startIndex = index;
-    }
+    } else break;
   }
 
   for (let index = startIndex; index < volume.levels.length - 1; index++) {
@@ -227,9 +223,7 @@ export function selectSamplePlan(
 }
 
 /**
- * Approximate number of distinct chunks a geometry would read from a level,
- * via a coarse grid rather than a full per-sample walk - cheap enough to
- * probe every candidate level's chunk budget before committing to one.
+ * Approximate number of distinct chunks a geometry would read from a level.
  * @param geometry Geometry to sample.
  * @param level Multiscale level to probe.
  */

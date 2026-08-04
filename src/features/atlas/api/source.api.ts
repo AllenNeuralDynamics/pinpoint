@@ -46,11 +46,6 @@ const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
 const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
 
 /**
- * Fallback value if an atlas volume's dimensions can't be determined.
- */
-const FALLBACK_ATLAS_DIMENSIONS: [number, number, number] = [0, 0, 0];
-
-/**
  * Fetch the list of atlases in the BrainGlobe atlases bucket, or null if
  * unreachable.
  */
@@ -176,13 +171,6 @@ export async function getTerminologyRows(
  * @param row Raw CSV row.
  */
 function parseTerminologyRow(row: RawTerminologyRow): TerminologyRow {
-  let rootIdentifierPath: number[];
-  try {
-    rootIdentifierPath = JSON.parse(row.root_identifier_path) as number[];
-  } catch {
-    rootIdentifierPath = [];
-  }
-
   return {
     identifier: Number(row.identifier),
     parent_identifier:
@@ -190,8 +178,7 @@ function parseTerminologyRow(row: RawTerminologyRow): TerminologyRow {
     annotation_value: Number(row.annotation_value),
     name: row.name,
     abbreviation: row.abbreviation,
-    color_hex_triplet: row.color_hex_triplet,
-    root_identifier_path: rootIdentifierPath
+    color_hex_triplet: row.color_hex_triplet
   };
 }
 
@@ -288,32 +275,6 @@ async function buildManifest(
 }
 
 /**
- * Build a structure entity by identifier from an atlas's manifest.
- * @param manifest Manifest of the atlas to pull mesh info from.
- * @param terminologyRows Parsed terminology rows for the atlas.
- * @param identifier Structure identifier to build for.
- */
-export function structureEntityFromIdentifier(
-  manifest: Manifest,
-  terminologyRows: TerminologyRow[],
-  identifier: number
-): StructureEntity | null {
-  const terminologyRow = terminologyRows.find(
-    row => row.identifier === identifier
-  );
-  if (!terminologyRow) return null;
-
-  return {
-    identifier: terminologyRow.identifier,
-    meshPath: resolveSourcePath(
-      manifest.atlas.source,
-      `${manifest.annotationSetLocation}/annotations.precomputed/mesh/${terminologyRow.identifier}`
-    ),
-    color: Color3.FromHexString(terminologyRow.color_hex_triplet)
-  };
-}
-
-/**
  * Resolve the structure entities for a list of identifiers, dropping any
  * that don't resolve.
  * @param manifest Manifest of the atlas to pull mesh info from.
@@ -325,14 +286,34 @@ export function structureEntitiesFromIdentifiers(
   terminologyRows: TerminologyRow[],
   identifiers: number[]
 ): StructureEntity[] {
-  return identifiers.flatMap(identifier => {
-    const structureEntity = structureEntityFromIdentifier(
-      manifest,
-      terminologyRows,
-      identifier
-    );
-    return structureEntity ? [structureEntity] : [];
-  });
+  const rowsByIdentifier = new Map(
+    terminologyRows.map(row => [row.identifier, row])
+  );
+  const entities: StructureEntity[] = [];
+  for (const identifier of identifiers) {
+    const row = rowsByIdentifier.get(identifier);
+    if (row) entities.push(structureEntityFromRow(manifest, row));
+  }
+  return entities;
+}
+
+/**
+ * Build a structure entity from a terminology row.
+ * @param manifest Manifest of the atlas to pull mesh info from.
+ * @param terminologyRow Terminology row to build the entity from.
+ */
+function structureEntityFromRow(
+  manifest: Manifest,
+  terminologyRow: TerminologyRow
+): StructureEntity {
+  return {
+    identifier: terminologyRow.identifier,
+    meshPath: resolveSourcePath(
+      manifest.atlas.source,
+      `${manifest.annotationSetLocation}/annotations.precomputed/mesh/${terminologyRow.identifier}`
+    ),
+    color: Color3.FromHexString(terminologyRow.color_hex_triplet)
+  };
 }
 
 /**
@@ -365,8 +346,7 @@ function resolveSourcePath(source: string, path: string): string {
 export function getAtlasDimensionsMillimeters(
   manifest: Manifest
 ): [number, number, number] {
-  if (!manifest.resolutions[0] || !manifest.shape[0])
-    return FALLBACK_ATLAS_DIMENSIONS;
+  if (!manifest.resolutions[0] || !manifest.shape[0]) return [0, 0, 0];
 
   const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
   const [apShape, dvShape, mlShape] = manifest.shape[0];

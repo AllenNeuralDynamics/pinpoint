@@ -10,7 +10,7 @@ import {
   watch,
   watchEffect
 } from "vue";
-import { useBabylonRuntimeService } from "@/composable/useBabylonRuntimeService";
+import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService";
 import {
   removeAllStructures,
   setAtlasCenterOffset,
@@ -26,6 +26,7 @@ import { setInitialZoom } from "../api/camera.api";
 import type { StructureEntity } from "@/features/atlas";
 import {
   getAtlasCenter,
+  getAtlasDimensionsMillimeters,
   getDefaultStructureIdentifiers,
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
@@ -55,16 +56,10 @@ const runtime = useBabylonRuntimeService();
 
 const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
 
-/**
- * Whether structures are currently being synced into the scene, driving the
- * loading bar overlaid on the canvas.
- */
+/** Whether structures are currently being synced into the scene, driving the loading bar. */
 const isLoadingStructures = ref(false);
 
-/**
- * Axis guide text renderers, created for the current scene the first time
- * the guides are shown.
- */
+/** Axis guide text renderers, created for the current scene the first time the guides are shown. */
 const axisGuides = shallowRef<AxisGuides | null>(null);
 
 const areAxisGuidesVisible = ref(false);
@@ -73,18 +68,28 @@ const gizmoMode = ref<GizmoMode>("position");
 const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
 
 /**
+ * Manifest and terminology rows for the current atlas, or null while either
+ * is still resolving.
+ */
+const atlasComponents = computed(() => {
+  const { manifest, terminologyRows, areAtlasComponentsEvaluating } =
+    currentExperiment;
+  return manifest && !areAtlasComponentsEvaluating
+    ? { manifest, terminologyRows }
+    : null;
+});
+
+/**
  * Atlas structures that must always be present in the scene, faded out when
  * not visible instead of being removed.
  */
 const alwaysPresentStructures = computed<StructureEntity[]>(() => {
-  const { manifest, terminologyRows, areAtlasComponentsEvaluating } =
-    currentExperiment;
-  if (!manifest || !terminologyRows || areAtlasComponentsEvaluating) return [];
-
+  if (!atlasComponents.value) return [];
+  const { manifest, terminologyRows } = atlasComponents.value;
   return structureEntitiesFromIdentifiers(
     manifest,
     terminologyRows,
-    getDefaultStructureIdentifiers(manifest.atlas, terminologyRows)
+    getDefaultStructureIdentifiers(manifest.atlas.name, terminologyRows)
   );
 });
 
@@ -92,10 +97,8 @@ const alwaysPresentStructures = computed<StructureEntity[]>(() => {
  * Structures the current experiment has marked visible.
  */
 const visibleStructureEntities = computed<StructureEntity[]>(() => {
-  const { manifest, terminologyRows, areAtlasComponentsEvaluating } =
-    currentExperiment;
-  if (!manifest || !terminologyRows || areAtlasComponentsEvaluating) return [];
-
+  if (!atlasComponents.value) return [];
+  const { manifest, terminologyRows } = atlasComponents.value;
   return structureEntitiesFromIdentifiers(
     manifest,
     terminologyRows,
@@ -110,8 +113,6 @@ function onResize() {
   runtime.engine.value?.resize();
 }
 
-// Keep the scene in sync with the current atlas's default structures and the
-// experiment's visible structure selection.
 watchEffect(async () => {
   const scene = runtime.scene.value;
   if (!scene) return;
@@ -133,7 +134,6 @@ watchEffect(async () => {
   }
 });
 
-// Keep the atlas root positioned so the atlas center sits at the scene origin.
 watchEffect(() => {
   const scene = runtime.scene.value;
   const { manifest } = currentExperiment;
@@ -191,16 +191,14 @@ watchEffect(() => {
   buildAxisGuides(scene, guides, manifest);
 });
 
-// Set the camera's initial zoom relative to the AP length of the atlas.
 watchEffect(() => {
   const camera = runtime.camera.value;
   const { manifest, areAtlasComponentsEvaluating } = currentExperiment;
   if (!camera || !manifest || areAtlasComponentsEvaluating) return;
 
-  setInitialZoom(camera, manifest);
+  setInitialZoom(camera, getAtlasDimensionsMillimeters(manifest)[0]);
 });
 
-// Orbit the camera onto an axis guide's axis when its label is double-clicked.
 watch([runtime.scene, runtime.camera], ([scene, camera]) => {
   if (!scene || !camera) return;
 
@@ -219,11 +217,13 @@ watch(
   }
 );
 
-// Sync the reference coordinate node position.
 watchEffect(() => {
   const scene = runtime.scene.value;
   if (!scene) return;
-  setReferenceCoordinateNodePosition(scene, currentExperiment.experiment);
+  setReferenceCoordinateNodePosition(
+    scene,
+    currentExperiment.referenceCoordinate
+  );
 });
 
 // Sync probes from state, reattaching selection to any rebuilt entity.
@@ -247,10 +247,10 @@ watchEffect(() => {
     rebuiltProbeIds.includes(selectedInspectable.id)
   ) {
     selectFromSelectedInspectableState(
-      selectedInspectable,
       scene,
       gizmoManager,
-      selectionOutlineLayer
+      selectionOutlineLayer,
+      selectedInspectable
     );
   }
 });
@@ -260,25 +260,26 @@ watchEffect(() => {
 watch(
   [
     runtime.gizmoManager,
-    () => currentExperiment.experiment,
+    () => currentExperiment.probes,
     gizmoMode,
     gizmoCoordinateSpace
   ],
-  ([gizmoManager, experiment, mode, coordinateSpace]) => {
+  ([gizmoManager, probes, mode, coordinateSpace]) => {
     if (!gizmoManager) return;
 
     const gizmos = setGizmoControls(gizmoManager, mode, coordinateSpace);
+    if (!gizmos) return;
 
     const probePositionDraggingObserver = setProbePositionFromGizmoDrag(
       gizmos.positionGizmo,
-      experiment,
+      probes,
       probeId => {
         currentExperiment.draggedProbeId = probeId;
       }
     );
     const probeRotationDraggingObserver = setProbeRotationFromGizmoDrag(
       gizmos.rotationGizmo,
-      experiment,
+      probes,
       probeId => {
         currentExperiment.draggedProbeId = probeId;
       }
@@ -302,16 +303,16 @@ watch(
     runtime.scene,
     runtime.gizmoManager,
     runtime.selectionOutlineLayer,
-    () => currentExperiment.experiment
+    () => currentExperiment.probes
   ],
-  ([scene, gizmoManager, selectionOutlineLayer, experiment]) => {
+  ([scene, gizmoManager, selectionOutlineLayer, probes]) => {
     if (!scene || !gizmoManager || !selectionOutlineLayer) return;
 
     const probeSelectionObserver = selectProbeFromGizmoAttach(
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      experiment,
+      probes,
       probe => {
         currentExperiment.selectedInspectable = probe;
       }
@@ -333,7 +334,6 @@ watch(
   }
 );
 
-// Update selection as it propagates from state.
 watchEffect(() => {
   const scene = runtime.scene.value;
   const gizmoManager = runtime.gizmoManager.value;
@@ -341,10 +341,10 @@ watchEffect(() => {
   if (!scene || !gizmoManager || !selectionOutlineLayer) return;
 
   selectFromSelectedInspectableState(
-    currentExperiment.selectedInspectable,
     scene,
     gizmoManager,
-    selectionOutlineLayer
+    selectionOutlineLayer,
+    currentExperiment.selectedInspectable
   );
 });
 

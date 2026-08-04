@@ -1,6 +1,5 @@
 import type { Scene } from "@babylonjs/core";
 import { TransformNode } from "@babylonjs/core";
-import type { Experiment } from "@/features/experiment";
 import { buildAtlasRootNode } from "./structures.api";
 import { asrToVector3 } from "./coordinate-transforms.api";
 
@@ -11,7 +10,6 @@ const REFERENCE_COORDINATE_NODE_NAME = "referenceCoordinate_node";
  * @param scene Scene to get or add the reference coordinate node.
  */
 export function buildReferenceCoordinateNode(scene: Scene): TransformNode {
-  // Get the existing node or create it and add it to the atlas root.
   const atlasRootNode = buildAtlasRootNode(scene);
   let referenceCoordinateNode = scene.getTransformNodeByName(
     REFERENCE_COORDINATE_NODE_NAME
@@ -30,14 +28,12 @@ export function buildReferenceCoordinateNode(scene: Scene): TransformNode {
 /**
  * Set the position of the reference coordinate node.
  * @param scene Scene to set the reference coordinate of.
- * @param experiment Experiment to get reference coordinate info from.
+ * @param referenceCoordinate Reference coordinate to place the node at, in atlas ASR mm.
  */
 export function setReferenceCoordinateNodePosition(
   scene: Scene,
-  experiment: Experiment
+  referenceCoordinate: [number, number, number]
 ) {
-  const referenceCoordinateNode = buildReferenceCoordinateNode(scene);
-  referenceCoordinateNode.position = asrToVector3(
-    experiment.referenceCoordinate
-  );
+  buildReferenceCoordinateNode(scene).position =
+    asrToVector3(referenceCoordinate);
 }

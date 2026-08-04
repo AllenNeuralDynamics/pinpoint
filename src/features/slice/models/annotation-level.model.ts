@@ -16,6 +16,5 @@ export interface AnnotationLevel {
 
 /** An annotation volume's multiscale levels, sorted finest first. */
 export interface AnnotationVolume {
-  url: string;
   levels: AnnotationLevel[];
 }

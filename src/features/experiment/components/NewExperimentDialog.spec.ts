@@ -12,8 +12,6 @@ import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { makeAtlas, makeManifest, makeProbe } from "@/test/fixtures";
 import enUS from "@/i18n/en-US";
 
-const t = enUS.newExperiment;
-
 // `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
 // `computedAsync`, refetching from the real atlas API whenever the atlas
 // changes -- both must be mocked or mounting this dialog (and clicking
@@ -96,7 +94,9 @@ describe("NewExperimentDialog", () => {
       await native.trigger("focusout");
       await flushMicrotasks();
 
-      expect(nameInput.find("[role='alert']").text()).toBe(t.nameRequired);
+      expect(nameInput.find("[role='alert']").text()).toBe(
+        enUS.validation.nameRequired
+      );
     });
 
     it("clears the error once a name is entered", async () => {

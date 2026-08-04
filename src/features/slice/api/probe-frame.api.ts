@@ -1,6 +1,6 @@
 import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Probe } from "@/features/probe";
-import { asrToVector3, vector3ToAsr } from "@/features/scene";
+import { vector3ToAsr } from "@/features/scene";
 
 /** A probe's shank plane in atlas ASR millimeters. */
 export interface ProbeFrame {
@@ -12,14 +12,14 @@ export interface ProbeFrame {
   upMillimeters: [number, number, number];
 }
 
+/** Probe-local +X direction, across the shanks. */
+const PROBE_LOCAL_RIGHT = new Vector3(1, 0, 0);
+
+/** Probe-local +Z direction, up from the tip. */
+const PROBE_LOCAL_UP = new Vector3(0, 0, 1);
+
 /**
  * Resolve a probe's shank-plane frame in atlas ASR millimeters.
- *
- * The probe's origin is `referenceCoordinate + tipPosition` elementwise: the
- * reference coordinate node and the probe node are both pure translations
- * using the non-negating `asrToVector3`, and the atlas root's own rotation
- * and center offset are purely presentational, so they never enter this
- * calculation.
  * @param probe Probe to resolve.
  * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
  */
@@ -27,10 +27,8 @@ export function getProbeFrame(
   probe: Probe,
   referenceCoordinate: [number, number, number]
 ): ProbeFrame {
-  const [rotationX, rotationY, rotationZ] = asrToVector3(
-    probe.rotation
-  ).asArray();
-  const basis = Matrix.RotationYawPitchRoll(rotationY, rotationX, rotationZ);
+  const [roll, yaw, pitch] = probe.rotation;
+  const basis = Matrix.RotationYawPitchRoll(yaw, pitch, roll);
 
   return {
     originMillimeters: [
@@ -39,11 +37,9 @@ export function getProbeFrame(
       referenceCoordinate[2] + probe.tipPosition[2]
     ],
     rightMillimeters: vector3ToAsr(
-      Vector3.TransformNormal(new Vector3(1, 0, 0), basis)
+      Vector3.TransformNormal(PROBE_LOCAL_RIGHT, basis)
     ),
-    upMillimeters: vector3ToAsr(
-      Vector3.TransformNormal(new Vector3(0, 0, 1), basis)
-    )
+    upMillimeters: vector3ToAsr(Vector3.TransformNormal(PROBE_LOCAL_UP, basis))
   };
 }
 

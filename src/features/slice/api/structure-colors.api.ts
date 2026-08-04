@@ -1,38 +1,24 @@
 import type { TerminologyRow } from "@/features/atlas";
 
 /**
- * Map annotation values to packed little-endian RGBA8 colors.
+ * Index terminology rows by annotation value, as both packed RGBA8 colors and
+ * the rows themselves.
  * @param terminologyRows Parsed terminology rows for the atlas.
  */
-export function buildStructureColors(
-  terminologyRows: TerminologyRow[]
-): Map<number, number> {
+export function buildStructureLookups(terminologyRows: TerminologyRow[]): {
+  colors: Map<number, number>;
+  index: Map<number, TerminologyRow>;
+} {
   const colors = new Map<number, number>();
-  for (const row of terminologyRows) {
-    if (!Number.isFinite(row.annotation_value) || row.annotation_value <= 0) {
-      continue;
-    }
-    colors.set(row.annotation_value, packColor(row.color_hex_triplet));
-  }
-  return colors;
-}
-
-/**
- * Index terminology rows by annotation value, for constant-time structure
- * lookups during hover and label resolution.
- * @param terminologyRows Parsed terminology rows for the atlas.
- */
-export function buildStructureIndex(
-  terminologyRows: TerminologyRow[]
-): Map<number, TerminologyRow> {
   const index = new Map<number, TerminologyRow>();
   for (const row of terminologyRows) {
     if (!Number.isFinite(row.annotation_value) || row.annotation_value <= 0) {
       continue;
     }
+    colors.set(row.annotation_value, packColor(row.color_hex_triplet));
     index.set(row.annotation_value, row);
   }
-  return index;
+  return { colors, index };
 }
 
 /**

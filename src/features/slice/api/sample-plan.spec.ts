@@ -315,7 +315,6 @@ describe("planSamples", () => {
 
   it("selects a level as fine as the geometry's finest band, not their average", () => {
     const volume: AnnotationVolume = {
-      url: "http://example.com",
       levels: [
         makeAnnotationLevel({
           scaleMillimeters: [0.001, 0.001, 0.001],
@@ -365,7 +364,6 @@ describe("planSamples", () => {
 describe("selectSamplePlan", () => {
   function makeVolume(levels: Partial<AnnotationLevel>[]): AnnotationVolume {
     return {
-      url: "http://example.com",
       levels: levels.map(makeAnnotationLevel)
     };
   }
@@ -417,7 +415,7 @@ describe("selectSamplePlan", () => {
   });
 
   it("returns 0 for a volume with no levels", () => {
-    const volume: AnnotationVolume = { url: "http://example.com", levels: [] };
+    const volume: AnnotationVolume = { levels: [] };
 
     expect(selectSamplePlan(makeGeometry(), volume).levelIndex).toBe(0);
   });

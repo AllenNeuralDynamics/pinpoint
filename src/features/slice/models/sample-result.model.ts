@@ -8,6 +8,10 @@ export interface SampleResult {
   annotationValues: Uint32Array;
   /** RGBA8 pixels, row 0 at the top. */
   pixels: Uint8ClampedArray<ArrayBuffer>;
+  /** Uint32 view over `pixels`' buffer, for fast packed-color writes. */
+  packedPixels: Uint32Array<ArrayBuffer>;
+  /** Canvas-ready wrapper over `pixels`, sized to the current dimensions. */
+  imageData: ImageData;
   paintedChunkCount: number;
   totalChunkCount: number;
 }

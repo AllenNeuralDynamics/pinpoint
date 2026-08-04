@@ -616,6 +616,21 @@ describe("syncProbes", () => {
     expect(getProbeTransformNode(scene, probe.id)).not.toBe(oldNode);
   });
 
+  it("disposes and rebuilds a probe node whose metadata is null", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    syncProbes(scene, experiment, gizmoManager, null);
+    const oldNode = getProbeTransformNode(scene, probe.id)!;
+    oldNode.metadata = null;
+
+    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(rebuilt).toEqual([probe.id]);
+    expect(oldNode.isDisposed()).toBe(true);
+    expect(getProbeTransformNode(scene, probe.id)).not.toBeNull();
+    expect(getProbeTransformNode(scene, probe.id)).not.toBe(oldNode);
+  });
+
   it("does not report a probe as rebuilt when nothing changed", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment } = makeExperimentWithProbe();
@@ -785,7 +800,7 @@ describe("selectProbeFromGizmoAttach", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      experiment,
+      experiment.probes,
       onSelect
     );
     gizmoManager.onAttachedToMeshObservable.notifyObservers(shankMesh);
@@ -806,7 +821,7 @@ describe("selectProbeFromGizmoAttach", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      experiment,
+      experiment.probes,
       onSelect
     );
     gizmoManager.onAttachedToMeshObservable.notifyObservers(shankMesh);
@@ -827,7 +842,7 @@ describe("selectProbeFromGizmoAttach", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      experiment,
+      experiment.probes,
       onSelect
     );
     gizmoManager.onAttachedToMeshObservable.notifyObservers(null);
@@ -848,7 +863,7 @@ describe("setProbePositionFromGizmoDrag", () => {
 
     setProbePositionFromGizmoDrag(
       gizmoManager.gizmos.positionGizmo!,
-      experiment,
+      experiment.probes,
       onDrag
     );
     gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
@@ -868,7 +883,7 @@ describe("setProbePositionFromGizmoDrag", () => {
 
     setProbePositionFromGizmoDrag(
       gizmoManager.gizmos.positionGizmo!,
-      experiment,
+      experiment.probes,
       onDrag
     );
     gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
@@ -890,7 +905,7 @@ describe("setProbeRotationFromGizmoDrag", () => {
 
     setProbeRotationFromGizmoDrag(
       gizmoManager.gizmos.rotationGizmo!,
-      experiment,
+      experiment.probes,
       onDrag
     );
     gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
@@ -984,14 +999,14 @@ describe("endProbeGizmoDrag", () => {
     let draggedProbeId: string | null = null;
     setProbeRotationFromGizmoDrag(
       gizmoManager.gizmos.rotationGizmo!,
-      experiment,
+      experiment.probes,
       id => {
         draggedProbeId = id;
       }
     );
     setProbePositionFromGizmoDrag(
       gizmoManager.gizmos.positionGizmo!,
-      experiment,
+      experiment.probes,
       id => {
         draggedProbeId = id;
       }

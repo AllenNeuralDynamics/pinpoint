@@ -5,8 +5,6 @@ import {
   setReferenceCoordinateNodePosition
 } from "./reference-coordinate.api";
 import { asrToVector3 } from "./coordinate-transforms.api";
-import { buildExperiment } from "@/features/experiment";
-import { makeAtlas } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
 describe("buildReferenceCoordinateNode", () => {
@@ -47,27 +45,19 @@ describe("buildReferenceCoordinateNode", () => {
 });
 
 describe("setReferenceCoordinateNodePosition", () => {
-  it("positions the node at the experiment's reference coordinate", () => {
+  it("positions the node at the given reference coordinate", () => {
     const scene = makeTestScene();
-    const experiment = buildExperiment(
-      "experiment",
-      makeAtlas(),
-      [5.7, 0.44, 5.4]
-    );
 
-    setReferenceCoordinateNodePosition(scene, experiment);
+    setReferenceCoordinateNodePosition(scene, [5.7, 0.44, 5.4]);
 
     const node = scene.getTransformNodeByName("referenceCoordinate_node")!;
-    expect(
-      node.position.equals(asrToVector3(experiment.referenceCoordinate))
-    ).toBe(true);
+    expect(node.position.equals(asrToVector3([5.7, 0.44, 5.4]))).toBe(true);
   });
 
   it("creates the node when the scene has none yet", () => {
     const scene = makeTestScene();
-    const experiment = buildExperiment("experiment", makeAtlas(), [1, 2, 3]);
 
-    setReferenceCoordinateNodePosition(scene, experiment);
+    setReferenceCoordinateNodePosition(scene, [1, 2, 3]);
 
     expect(
       scene.getTransformNodeByName("referenceCoordinate_node")
@@ -76,12 +66,10 @@ describe("setReferenceCoordinateNodePosition", () => {
 
   it("moves the existing node on a later call instead of creating another", () => {
     const scene = makeTestScene();
-    const experiment = buildExperiment("experiment", makeAtlas(), [1, 2, 3]);
-    setReferenceCoordinateNodePosition(scene, experiment);
+    setReferenceCoordinateNodePosition(scene, [1, 2, 3]);
     const node = scene.getTransformNodeByName("referenceCoordinate_node")!;
 
-    experiment.referenceCoordinate = [4, 5, 6];
-    setReferenceCoordinateNodePosition(scene, experiment);
+    setReferenceCoordinateNodePosition(scene, [4, 5, 6]);
 
     expect(scene.getTransformNodeByName("referenceCoordinate_node")).toBe(node);
     expect(node.position.equals(asrToVector3([4, 5, 6]))).toBe(true);

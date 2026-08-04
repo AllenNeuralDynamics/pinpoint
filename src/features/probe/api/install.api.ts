@@ -32,6 +32,9 @@ const fileApi = axios.create({
   baseURL: FILE_API_BASE_URL
 });
 
+/** Top-level GitHub folders that aren't probe manufacturers. */
+const EXCLUDED_TOP_LEVEL_DIRECTORIES = new Set(["apps", "scripts"]);
+
 /**
  * Return the top-level non-scripting folders, i.e. the probe manufacturers.
  */
@@ -39,7 +42,6 @@ export async function getManufacturers(): Promise<string[]> {
   try {
     const { data } = await githubApi.get<GitHubItemResponse>("/");
 
-    // Exit if we can't find manufacturers.
     if (!data || isGitHub404(data)) return [];
 
     return data
@@ -47,7 +49,7 @@ export async function getManufacturers(): Promise<string[]> {
         item =>
           item.type === "dir" &&
           !item.name.startsWith(".") &&
-          !["apps", "scripts"].includes(item.name)
+          !EXCLUDED_TOP_LEVEL_DIRECTORIES.has(item.name)
       )
       .map(item => item.name);
   } catch {

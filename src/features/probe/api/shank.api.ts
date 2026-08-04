@@ -37,7 +37,9 @@ export function getProbeShanks(
   contour: ProbeContour
 ): ProbeShank[] {
   const outlines = getProbeContactOutlines(probeInterfaceProbe, contour.origin);
-  const wholeContourShank = buildWholeContourShank(outlines, contour);
+  let wholeContourShank: ProbeShank | null = null;
+  const fallback = () =>
+    (wholeContourShank ??= buildWholeContourShank(outlines, contour));
 
   const outlinesByShankId = new Map<
     string | number | null,
@@ -54,7 +56,7 @@ export function getProbeShanks(
     outlines.some(outline => outline.shankId === null) ||
     outlinesByShankId.size < 2
   ) {
-    return [wholeContourShank];
+    return [fallback()];
   }
 
   const groups: ShankGroup[] = Array.from(
@@ -83,11 +85,11 @@ export function getProbeShanks(
   for (let index = 0; index < groups.length; index++) {
     const group = groups[index]!;
     const rings = ringsByGroup[index]!;
-    if (rings.length === 0) return [wholeContourShank];
+    if (rings.length === 0) return [fallback()];
 
     const { minimum, maximum } = getRangeXOfPoints(rings.flat());
     const widthMillimeters = maximum - minimum;
-    if (widthMillimeters <= 0) return [wholeContourShank];
+    if (widthMillimeters <= 0) return [fallback()];
 
     shanks.push({
       id: group.id,

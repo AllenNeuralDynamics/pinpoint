@@ -1,8 +1,8 @@
 <script lang="ts" setup>
 import { nextTick, ref, useTemplateRef, watch } from "vue";
-import { QInput, type ValidationRule } from "quasar";
+import { type QInput, type ValidationRule } from "quasar";
 
-const { rules } = defineProps<{
+defineProps<{
   rules: ValidationRule<string>[];
 }>();
 
@@ -49,5 +49,3 @@ watch(model, value => {
     @keyup.enter="commit"
   />
 </template>
-
-<style lang="sass" scoped></style>

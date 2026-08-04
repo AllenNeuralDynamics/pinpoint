@@ -16,11 +16,4 @@ describe("isSameInspectable", () => {
 
     expect(isSameInspectable(a, b)).toBe(false);
   });
-
-  it("returns false when the inspectable kinds differ", () => {
-    const a = makeProbe({ id: "A" });
-    const b = { ...makeProbe({ id: "A" }), inspectableKind: "other" };
-
-    expect(isSameInspectable(a, b as unknown as typeof a)).toBe(false);
-  });
 });
