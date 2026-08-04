@@ -37,11 +37,17 @@ export interface SamplerHandler {
   handleMessage: (message: InboundSamplerMessage) => Promise<void>;
 }
 
-/** An in-progress stream's accumulated, not-yet-flushed sample contributions. */
+/**
+ * An in-progress stream's accumulated, not-yet-flushed sample contributions,
+ * allocated once per `sample` message at an exact upper-bound capacity so no
+ * flush grows or copies from a plain array.
+ */
 interface StreamBuffer {
-  sampleIndices: number[];
-  annotationValues: number[];
-  colors: number[];
+  sampleIndices: Int32Array<ArrayBuffer>;
+  annotationValues: Uint32Array<ArrayBuffer>;
+  colors: Uint32Array<ArrayBuffer>;
+  /** Entries written into the arrays above since the last flush. */
+  count: number;
   chunkCount: number;
 }
 
@@ -114,13 +120,22 @@ export function createSamplerHandler(
 
     cancelStream(streamId);
     const controller = new AbortController();
+    // The sum of each request's sample count is an exact upper bound on
+    // this message's flushed entries (every sample either resolves as
+    // background, which contributes nothing, or is written once), so the
+    // buffer is sized once and never grows.
+    const capacity = requests.reduce(
+      (total, request) => total + request.sampleIndices.length,
+      0
+    );
     const state: StreamState = {
       generation,
       controller,
       buffer: {
-        sampleIndices: [],
-        annotationValues: [],
-        colors: [],
+        sampleIndices: new Int32Array(capacity),
+        annotationValues: new Uint32Array(capacity),
+        colors: new Uint32Array(capacity),
+        count: 0,
         chunkCount: 0
       },
       flushTimer: null
@@ -191,12 +206,24 @@ export function createSamplerHandler(
   ): void {
     if (chunkData) {
       const { sampleIndices, voxelOffsets } = request;
+      const { buffer } = state;
+      // Adjacent samples overwhelmingly share one annotation value, so a
+      // last-value cache replaces a `Map.get` per non-background sample
+      // with a compare; scoped per chunk (not per stream) because a
+      // stream's chunks are processed concurrently and would interleave.
+      let lastValue = 0;
+      let lastColor = 0;
       for (let index = 0; index < sampleIndices.length; index++) {
         const value = chunkData[voxelOffsets[index]!];
         if (!value) continue;
-        state.buffer.sampleIndices.push(sampleIndices[index]!);
-        state.buffer.annotationValues.push(value);
-        state.buffer.colors.push(colors.get(value) ?? 0);
+        if (value !== lastValue) {
+          lastValue = value;
+          lastColor = colors.get(value) ?? 0;
+        }
+        buffer.sampleIndices[buffer.count] = sampleIndices[index]!;
+        buffer.annotationValues[buffer.count] = value;
+        buffer.colors[buffer.count] = lastColor;
+        buffer.count += 1;
       }
     }
     state.buffer.chunkCount += 1;
@@ -225,18 +252,15 @@ export function createSamplerHandler(
       sampleIndices,
       annotationValues,
       colors: bufferedColors,
-      chunkCount
+      count
     } = state.buffer;
-    const sampleIndicesArray = Int32Array.from(sampleIndices);
-    const annotationValuesArray = Uint32Array.from(annotationValues);
-    const colorsArray = Uint32Array.from(bufferedColors);
+    const chunkCount = state.buffer.chunkCount;
+    const sampleIndicesArray = sampleIndices.slice(0, count);
+    const annotationValuesArray = annotationValues.slice(0, count);
+    const colorsArray = bufferedColors.slice(0, count);
 
-    state.buffer = {
-      sampleIndices: [],
-      annotationValues: [],
-      colors: [],
-      chunkCount: 0
-    };
+    state.buffer.count = 0;
+    state.buffer.chunkCount = 0;
 
     post(
       {

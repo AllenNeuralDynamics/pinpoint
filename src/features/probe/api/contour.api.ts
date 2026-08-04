@@ -26,6 +26,19 @@ export interface ProbeContacts {
   shankIds: (string | number)[] | null;
 }
 
+/** A contact's outline in probe-local mm: a closed polygon, or a circle. */
+export type ProbeContactOutline = {
+  /** `shank_ids` value for this contact, or null when the definition has none. */
+  shankId: string | number | null;
+} & (
+  | { kind: "polygon"; points: { x: number; y: number }[] }
+  | {
+      kind: "circle";
+      center: { x: number; y: number };
+      radiusMillimeters: number;
+    }
+);
+
 /** Conversion factor to millimeters, keyed by `ProbeInterfaceProbe.si_units`. */
 const SI_UNITS_TO_MILLIMETERS: Record<string, number> = {
   m: 1000,
@@ -35,6 +48,21 @@ const SI_UNITS_TO_MILLIMETERS: Record<string, number> = {
 
 /** Fallback conversion factor for an unrecognized `si_units` value. */
 const MICROMETERS_TO_MILLIMETERS = 1e-3;
+
+/** A contact's local axes: the unit vectors its width and height are measured along. */
+interface ContactPlaneAxes {
+  width: { x: number; y: number };
+  height: { x: number; y: number };
+}
+
+/** Axes assumed when a definition omits `contact_plane_axes`. */
+const IDENTITY_CONTACT_PLANE_AXES: ContactPlaneAxes = {
+  width: { x: 1, y: 0 },
+  height: { x: 0, y: 1 }
+};
+
+/** Side length used for a contact whose shape or size is unusable, in definition units. */
+const DEFAULT_CONTACT_WIDTH_UNITS = 5;
 
 /**
  * Millimeters per unit of a definition's `si_units`.
@@ -125,6 +153,163 @@ export function getProbeContacts(
     heightMillimeters: maximumY - minimumY,
     shankIds
   };
+}
+
+/**
+ * Reduce a definition's contacts to outlines in probe-local mm, re-origined
+ * on the given origin. Empty when the definition has no usable contacts.
+ * @param probeInterfaceProbe Definition to extract contact outlines from.
+ * @param origin Offset subtracted from scaled coordinates, i.e. `ProbeContour.origin`.
+ */
+export function getProbeContactOutlines(
+  probeInterfaceProbe: ProbeInterfaceProbe,
+  origin: { x: number; y: number }
+): ProbeContactOutline[] {
+  if (!Array.isArray(probeInterfaceProbe.contact_positions)) return [];
+
+  const scale = getProbeMillimetersPerUnit(probeInterfaceProbe);
+  const outlines: ProbeContactOutline[] = [];
+
+  probeInterfaceProbe.contact_positions.forEach((position, index) => {
+    const [x, y] = position;
+    if (typeof x !== "number" || typeof y !== "number") return;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+    const center = { x: x * scale - origin.x, y: y * scale - origin.y };
+    const shankId = probeInterfaceProbe.shank_ids?.[index] ?? null;
+    const axes = getContactPlaneAxes(
+      probeInterfaceProbe.contact_plane_axes?.[index]
+    );
+    const shape = probeInterfaceProbe.contact_shapes?.[index];
+    const params = probeInterfaceProbe.contact_shape_params?.[index];
+
+    if (
+      shape === "circle" &&
+      typeof params?.radius === "number" &&
+      Number.isFinite(params.radius) &&
+      params.radius > 0
+    ) {
+      outlines.push({
+        kind: "circle",
+        shankId,
+        center,
+        radiusMillimeters: params.radius * scale
+      });
+      return;
+    }
+
+    if (
+      shape === "rect" &&
+      typeof params?.width === "number" &&
+      Number.isFinite(params.width) &&
+      params.width > 0 &&
+      typeof params.height === "number" &&
+      Number.isFinite(params.height) &&
+      params.height > 0
+    ) {
+      outlines.push({
+        kind: "polygon",
+        shankId,
+        points: getRectangleVertices(
+          center,
+          axes,
+          params.width * scale,
+          params.height * scale
+        )
+      });
+      return;
+    }
+
+    const widthUnits =
+      typeof params?.width === "number" &&
+      Number.isFinite(params.width) &&
+      params.width > 0
+        ? params.width
+        : DEFAULT_CONTACT_WIDTH_UNITS;
+    const widthMillimeters = widthUnits * scale;
+    outlines.push({
+      kind: "polygon",
+      shankId,
+      points: getRectangleVertices(
+        center,
+        axes,
+        widthMillimeters,
+        widthMillimeters
+      )
+    });
+  });
+
+  return outlines;
+}
+
+/**
+ * Resolve a contact's local axes, falling back to identity when absent or
+ * malformed.
+ * @param rawAxes Raw `contact_plane_axes` entry for one contact.
+ */
+function getContactPlaneAxes(
+  rawAxes: number[][] | undefined
+): ContactPlaneAxes {
+  if (
+    !rawAxes ||
+    rawAxes.length < 2 ||
+    !Number.isFinite(rawAxes[0]?.[0]) ||
+    !Number.isFinite(rawAxes[0]?.[1]) ||
+    !Number.isFinite(rawAxes[1]?.[0]) ||
+    !Number.isFinite(rawAxes[1]?.[1])
+  ) {
+    return IDENTITY_CONTACT_PLANE_AXES;
+  }
+
+  return {
+    width: { x: rawAxes[0]![0]!, y: rawAxes[0]![1]! },
+    height: { x: rawAxes[1]![0]!, y: rawAxes[1]![1]! }
+  };
+}
+
+/**
+ * Build a rectangle's four vertices from its center, local axes, and size,
+ * in the same vertex order as probeinterface's `Probe.get_contact_vertices`.
+ * @param center Rectangle center, in probe-local mm.
+ * @param axes Local axes the width and height are measured along.
+ * @param widthMillimeters Full width, in mm.
+ * @param heightMillimeters Full height, in mm.
+ */
+function getRectangleVertices(
+  center: { x: number; y: number },
+  axes: ContactPlaneAxes,
+  widthMillimeters: number,
+  heightMillimeters: number
+): { x: number; y: number }[] {
+  const halfWidth = widthMillimeters / 2;
+  const halfHeight = heightMillimeters / 2;
+  const widthOffset = {
+    x: axes.width.x * halfWidth,
+    y: axes.width.y * halfWidth
+  };
+  const heightOffset = {
+    x: axes.height.x * halfHeight,
+    y: axes.height.y * halfHeight
+  };
+
+  return [
+    {
+      x: center.x - widthOffset.x - heightOffset.x,
+      y: center.y - widthOffset.y - heightOffset.y
+    },
+    {
+      x: center.x - widthOffset.x + heightOffset.x,
+      y: center.y - widthOffset.y + heightOffset.y
+    },
+    {
+      x: center.x + widthOffset.x + heightOffset.x,
+      y: center.y + widthOffset.y + heightOffset.y
+    },
+    {
+      x: center.x + widthOffset.x - heightOffset.x,
+      y: center.y + widthOffset.y - heightOffset.y
+    }
+  ];
 }
 
 /**

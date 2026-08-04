@@ -16,6 +16,10 @@ export interface ProbeInterfaceProbe {
   si_units: string;
   annotations?: Record<string, unknown>;
   contact_positions: number[][];
+  // Per-contact local axes, shape (2, ndim): row 0 is the axis `width` (and a
+  // circle's radius) is measured along, row 1 the axis `height` is measured
+  // along. Absent on some definitions, in which case the axes are the identity.
+  contact_plane_axes?: number[][][];
   contact_shapes?: string[]; // "circle" | "square" | "rect"
   contact_shape_params?: ContactShapeParams[];
   contact_ids?: (string | number)[];

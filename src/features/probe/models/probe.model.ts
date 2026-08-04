@@ -1,5 +1,16 @@
 import type { ProbeVisibility } from "../models/visibility.model";
 
+/**
+ * Window along a probe's shanks that the channel map renders, in probe-local
+ * mm up from the tip. Keys match Quasar's `QRange` model.
+ */
+export interface ProbeChannelMapWindow {
+  /** Bottom edge of the window, in mm up from the tip. */
+  min: number;
+  /** Top edge of the window, in mm up from the tip. */
+  max: number;
+}
+
 export interface Probe {
   inspectableKind: "probe";
 
@@ -54,4 +65,11 @@ export interface Probe {
    * in probe-local mm.
    */
   sliceCenterHeightMillimeters: number;
+
+  /**
+   * Window along the probe's shanks the channel map renders, in probe-local
+   * mm from the tip. Null until the user moves the range, so it defaults to
+   * the probe's full contour height.
+   */
+  channelMapWindow: ProbeChannelMapWindow | null;
 }

@@ -39,7 +39,6 @@ describe("groupRequestsByShard", () => {
   it("is deterministic - the same chunk maps to the same shard every time", () => {
     const plan: SamplePlan = {
       levelIndex: 0,
-      sampleCount: 0,
       chunkRequests: [makeRequest([3, 7, 12])]
     };
 
@@ -54,7 +53,6 @@ describe("groupRequestsByShard", () => {
   it("partitions every request into exactly one group, none lost or duplicated", () => {
     const plan: SamplePlan = {
       levelIndex: 0,
-      sampleCount: 0,
       chunkRequests: [
         makeRequest([0, 0, 0]),
         makeRequest([1, 0, 0]),
@@ -76,7 +74,6 @@ describe("groupRequestsByShard", () => {
   it("puts every request in shard 0 for a single worker", () => {
     const plan: SamplePlan = {
       levelIndex: 0,
-      sampleCount: 0,
       chunkRequests: [makeRequest([0, 0, 0]), makeRequest([9, 9, 9])]
     };
 
@@ -89,7 +86,6 @@ describe("groupRequestsByShard", () => {
   it("returns an empty group for a worker with no owned chunks", () => {
     const plan: SamplePlan = {
       levelIndex: 0,
-      sampleCount: 0,
       chunkRequests: []
     };
 
@@ -110,7 +106,7 @@ describe("groupRequestsByShard", () => {
         }
       }
     }
-    const plan: SamplePlan = { levelIndex: 0, sampleCount: 0, chunkRequests };
+    const plan: SamplePlan = { levelIndex: 0, chunkRequests };
 
     const groups = groupRequestsByShard(plan, workerCount);
 

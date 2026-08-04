@@ -11,7 +11,7 @@ import {
   getTerminologyRows
 } from "@/features/atlas";
 import { getInternedProbeInterfaceProbe } from "@/features/experiment";
-import { makeProbeInterfaceProbe } from "@/test/fixtures";
+import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 
 // `useCurrentExperimentStore`'s `manifest`/`terminologyRows` are
 // `computedAsync` and fetch on store creation -- mock the leaf module (not
@@ -223,5 +223,26 @@ describe("SceneHierarchy", () => {
     expect(entry?.textContent?.trim()).toBe(
       "IMEC Neuropixels 1.0 probe (NP1000)"
     );
+  });
+
+  it("tints and marks the selected probe's row", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const currentExperiment = useCurrentExperimentStore(pinia);
+    currentExperiment.experiment.probes = [
+      makeProbe({ name: "A" }),
+      makeProbe({ name: "B" })
+    ];
+    currentExperiment.selectedInspectable =
+      currentExperiment.experiment.probes[0]!;
+
+    const wrapper = await mountHierarchy(pinia);
+
+    const rows = wrapper.findAll(".q-item");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]!.classes()).toContain("probe-item--active");
+    expect(rows[0]!.attributes("aria-current")).toBe("true");
+    expect(rows[1]!.classes()).not.toContain("probe-item--active");
+    expect(rows[1]!.attributes("aria-current")).toBeUndefined();
   });
 });

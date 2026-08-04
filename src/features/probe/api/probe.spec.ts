@@ -43,6 +43,7 @@ describe("buildProbe", () => {
     // proportionally to whichever atlas is current.
     expect(probe.sliceExtentMillimeters).toBeNull();
     expect(probe.sliceCenterHeightMillimeters).toBe(0);
+    expect(probe.channelMapWindow).toBeNull();
   });
 
   it("gives each probe a unique id", () => {
@@ -322,6 +323,47 @@ describe("isProbe", () => {
 
   it("rejects a probe with a non-finite sliceCenterHeightMillimeters", () => {
     expect(isProbe({ ...makeProbe(), sliceCenterHeightMillimeters: NaN })).toBe(
+      false
+    );
+  });
+
+  it("accepts a probe with a null channelMapWindow", () => {
+    expect(isProbe(makeProbe({ channelMapWindow: null }))).toBe(true);
+  });
+
+  it("accepts a probe with a well-formed channelMapWindow", () => {
+    expect(isProbe(makeProbe({ channelMapWindow: { min: 2, max: 6 } }))).toBe(
+      true
+    );
+  });
+
+  it("rejects a probe missing channelMapWindow", () => {
+    const probe = makeProbe();
+    delete (probe as Partial<Probe>).channelMapWindow;
+    expect(isProbe(probe)).toBe(false);
+  });
+
+  it("rejects a probe with a non-numeric channelMapWindow bound", () => {
+    expect(
+      isProbe(
+        makeProbe({
+          channelMapWindow: { min: "0", max: 1 } as unknown as {
+            min: number;
+            max: number;
+          }
+        })
+      )
+    ).toBe(false);
+  });
+
+  it("rejects a probe with an inverted channelMapWindow", () => {
+    expect(isProbe(makeProbe({ channelMapWindow: { min: 5, max: 1 } }))).toBe(
+      false
+    );
+  });
+
+  it("rejects a probe with a negative channelMapWindow", () => {
+    expect(isProbe(makeProbe({ channelMapWindow: { min: -1, max: 1 } }))).toBe(
       false
     );
   });

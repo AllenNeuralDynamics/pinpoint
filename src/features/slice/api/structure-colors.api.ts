@@ -18,18 +18,21 @@ export function buildStructureColors(
 }
 
 /**
- * Terminology row for an annotation value, or null when unknown.
+ * Index terminology rows by annotation value, for constant-time structure
+ * lookups during hover and label resolution.
  * @param terminologyRows Parsed terminology rows for the atlas.
- * @param annotationValue Annotation value read from the volume.
  */
-export function findStructureByAnnotationValue(
-  terminologyRows: TerminologyRow[],
-  annotationValue: number
-): TerminologyRow | null {
-  return (
-    terminologyRows.find(row => row.annotation_value === annotationValue) ??
-    null
-  );
+export function buildStructureIndex(
+  terminologyRows: TerminologyRow[]
+): Map<number, TerminologyRow> {
+  const index = new Map<number, TerminologyRow>();
+  for (const row of terminologyRows) {
+    if (!Number.isFinite(row.annotation_value) || row.annotation_value <= 0) {
+      continue;
+    }
+    index.set(row.annotation_value, row);
+  }
+  return index;
 }
 
 /**

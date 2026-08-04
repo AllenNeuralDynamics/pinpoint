@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { makeTerminologyRow } from "@/test/fixtures";
 import {
   buildStructureColors,
-  findStructureByAnnotationValue
+  buildStructureIndex
 } from "./structure-colors.api";
 
 describe("buildStructureColors", () => {
@@ -47,22 +47,31 @@ describe("buildStructureColors", () => {
   });
 });
 
-describe("findStructureByAnnotationValue", () => {
-  it("returns the row matching the annotation value", () => {
+describe("buildStructureIndex", () => {
+  it("indexes a row by its annotation value", () => {
     const row = makeTerminologyRow({ annotation_value: 8, identifier: 8 });
 
-    const result = findStructureByAnnotationValue([row], 8);
+    const index = buildStructureIndex([row]);
 
-    expect(result).toBe(row);
+    expect(index.get(8)).toBe(row);
   });
 
-  it("returns null for an unknown value", () => {
+  it("returns undefined for a missing value", () => {
     const rows = [makeTerminologyRow({ annotation_value: 8 })];
 
-    expect(findStructureByAnnotationValue(rows, 999)).toBeNull();
+    expect(buildStructureIndex(rows).get(999)).toBeUndefined();
   });
 
-  it("returns null for an empty row list", () => {
-    expect(findStructureByAnnotationValue([], 8)).toBeNull();
+  it("omits rows with a non-positive or non-finite annotation value", () => {
+    const rows = [
+      makeTerminologyRow({ annotation_value: 0 }),
+      makeTerminologyRow({ annotation_value: Number.NaN })
+    ];
+
+    expect(buildStructureIndex(rows).size).toBe(0);
+  });
+
+  it("returns an empty map for an empty row list", () => {
+    expect(buildStructureIndex([]).size).toBe(0);
   });
 });

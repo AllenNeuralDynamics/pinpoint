@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { shallowRef } from "vue";
+import { nextTick, ref, shallowRef, type Ref } from "vue";
 import { createPinia, setActivePinia } from "pinia";
 import { flushPromises } from "@vue/test-utils";
 import SliceCanvas from "./SliceCanvas.vue";
@@ -14,6 +14,7 @@ import {
 import { getManifest, getTerminologyRows } from "@/features/atlas";
 import { internProbeInterfaceProbe } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
+import type { SampleGeometry } from "../models/sample-geometry.model";
 import type { SampleResult } from "../models/sample-result.model";
 
 // Mirrors ProbeInspector.spec.ts: manifest/terminologyRows are computedAsync
@@ -33,13 +34,30 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 // SliceCanvas owns its sampler internally rather than taking it as a prop,
 // so the composable module itself is mocked to hand the spec direct control
 // over `result`/`isLoading`, without a real worker or zarr fetch.
+/** Geometry handed to `createStream` by the most recently mounted canvas. */
+let capturedGeometry: Ref<SampleGeometry | null> | null = null;
 const mockResult = shallowRef<SampleResult | null>(null);
 const mockIsLoading = shallowRef(false);
 vi.mock("../composable/useAnnotationSampler", () => ({
   useAnnotationSampler: () => ({
-    createStream: () => ({ result: mockResult, isLoading: mockIsLoading })
+    createStream: (geometry: Ref<SampleGeometry | null>) => {
+      capturedGeometry = geometry;
+      return { result: mockResult, isLoading: mockIsLoading };
+    }
   })
 }));
+
+// `useElementSize` measures a real layout, which happy-dom never performs,
+// so it's pinned to a fixed square matching the motion-scale test's worked
+// example (2400 device px at pixelRatio 1 clamps to the 1024 maximum).
+vi.mock("@vueuse/core", async importOriginal => {
+  const actual = await importOriginal<typeof import("@vueuse/core")>();
+  return {
+    ...actual,
+    useElementSize: () => ({ width: ref(2400), height: ref(2400) }),
+    useDevicePixelRatio: () => ({ pixelRatio: ref(1) })
+  };
+});
 
 /** A 10mm-square contour with a single contact 2mm above the tip. */
 const CONTOUR = [
@@ -54,7 +72,8 @@ function makeSampleResult(
   annotationValues: number[]
 ): SampleResult {
   return {
-    sampleCount: sizePixels * sizePixels,
+    widthPixels: sizePixels,
+    heightPixels: sizePixels,
     annotationValues: Uint32Array.from(annotationValues),
     pixels: new Uint8ClampedArray(sizePixels * sizePixels * 4),
     paintedChunkCount: 1,
@@ -559,5 +578,32 @@ describe("SliceCanvas", () => {
     // This atlas's range is {2, 8}; its middle, exponent 5, is 32mm - not
     // pinned to the range's minimum, as a hardcoded 2mm default would be.
     expect(zoomSlider.props("modelValue")).toBe(5);
+  });
+
+  it("samples at a lower resolution while the probe pose keeps changing, then returns to full resolution once it settles", async () => {
+    vi.useFakeTimers();
+    try {
+      const { store } = mountSlice();
+      await flushPromises();
+
+      // 2400 device px at pixelRatio 1 clamps to the 1024 maximum.
+      expect(capturedGeometry!.value!.widthPixels).toBe(1024);
+
+      // Two quick pose changes count as continuous movement.
+      store.experiment.probes[0]!.tipPosition = [1, 0, 0];
+      await nextTick();
+      store.experiment.probes[0]!.tipPosition = [2, 0, 0];
+      await nextTick();
+
+      // floor(2400 * 0.25 / 32) * 32.
+      expect(capturedGeometry!.value!.widthPixels).toBe(576);
+
+      vi.advanceTimersByTime(200);
+      await nextTick();
+
+      expect(capturedGeometry!.value!.widthPixels).toBe(1024);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

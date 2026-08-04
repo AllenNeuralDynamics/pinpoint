@@ -6,7 +6,7 @@ import {
   makeManifest,
   makeTerminologyRow
 } from "@/test/fixtures";
-import type { PlaneGeometry } from "../models/sample-geometry.model";
+import type { SampleGeometry } from "../models/sample-geometry.model";
 import type {
   InboundSamplerMessage,
   SampledMessage
@@ -70,15 +70,37 @@ function mountWithComposable<T>(setup: () => T): {
 // The fixture volume is a 4^3 array at 0.01mm/voxel, spanning [0, 0.04)mm on
 // each axis with 2^3 chunks of 2^3 voxels. (0.01, 0.01, 0.01) sits at the
 // center of chunk (0, 0, 0).
-function makePlane(overrides: Partial<PlaneGeometry> = {}): PlaneGeometry {
+function makePlane(overrides: Partial<SampleGeometry> = {}): SampleGeometry {
   return {
-    kind: "plane",
-    centerMillimeters: [0.01, 0.01, 0.01],
     rightMillimeters: [0, 0, 1],
     upMillimeters: [0, -1, 0],
-    halfExtentMillimeters: 0.005,
-    sizePixels: 2,
+    halfHeightMillimeters: 0.005,
+    widthPixels: 2,
+    heightPixels: 2,
+    bands: [
+      {
+        centerMillimeters: [0.01, 0.01, 0.01],
+        halfWidthMillimeters: 0.005,
+        columnOffset: 0,
+        columnCount: 2
+      }
+    ],
     ...overrides
+  };
+}
+
+/**
+ * Build a one-band geometry centered on the given point, leaving every other
+ * field at `makePlane`'s defaults.
+ * @param centerMillimeters Center to place the sole band at.
+ */
+function makePlaneAt(
+  centerMillimeters: [number, number, number]
+): SampleGeometry {
+  const plane = makePlane();
+  return {
+    ...plane,
+    bands: [{ ...plane.bands[0]!, centerMillimeters }]
   };
 }
 
@@ -104,7 +126,7 @@ describe("useAnnotationSampler", () => {
     );
     await flushPromises();
 
-    const geometry = ref<PlaneGeometry | null>(makePlane());
+    const geometry = ref<SampleGeometry | null>(makePlane());
     const { result, unmount: unmountStream } = mountWithComposable(() =>
       sampler.createStream(geometry)
     );
@@ -191,8 +213,8 @@ describe("useAnnotationSampler", () => {
     );
     await flushPromises();
 
-    const geometryA = ref<PlaneGeometry | null>(makePlane());
-    const geometryB = ref<PlaneGeometry | null>(makePlane());
+    const geometryA = ref<SampleGeometry | null>(makePlane());
+    const geometryB = ref<SampleGeometry | null>(makePlane());
     const { result: streamA, unmount: unmountA } = mountWithComposable(() =>
       sampler.createStream(geometryA)
     );
@@ -256,8 +278,8 @@ describe("useAnnotationSampler", () => {
 
     // Chunk (0,0,0) covers mm [0,0.02) on every axis; chunk (0,0,1) covers
     // [0,0.02) x [0,0.02) x [0.02,0.04).
-    const geometry = ref<PlaneGeometry | null>(
-      makePlane({ centerMillimeters: [0.01, 0.01, 0.01] })
+    const geometry = ref<SampleGeometry | null>(
+      makePlaneAt([0.01, 0.01, 0.01])
     );
     const { result, unmount: unmountStream } = mountWithComposable(() =>
       sampler.createStream(geometry)
@@ -274,7 +296,7 @@ describe("useAnnotationSampler", () => {
     // A later geometry pointed at a different chunk must fully replace the
     // first plan's generation - if the superseded generation's flush were
     // applied, value 1 would leak into this result alongside value 2.
-    geometry.value = makePlane({ centerMillimeters: [0.01, 0.01, 0.03] });
+    geometry.value = makePlaneAt([0.01, 0.01, 0.03]);
 
     await vi.waitFor(
       () =>
@@ -318,8 +340,8 @@ describe("useAnnotationSampler", () => {
     );
     await flushPromises();
 
-    const geometry = ref<PlaneGeometry | null>(
-      makePlane({ centerMillimeters: [0.01, 0.01, 0.01] })
+    const geometry = ref<SampleGeometry | null>(
+      makePlaneAt([0.01, 0.01, 0.01])
     );
     const { result, unmount: unmountStream } = mountWithComposable(() =>
       sampler.createStream(geometry)
@@ -342,7 +364,7 @@ describe("useAnnotationSampler", () => {
     // geometry differs from the previously selected one.
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    geometry.value = makePlane({ centerMillimeters: [0.01, 0.01, 0.03] });
+    geometry.value = makePlaneAt([0.01, 0.01, 0.03]);
 
     await vi.waitFor(
       () =>
@@ -356,7 +378,7 @@ describe("useAnnotationSampler", () => {
     unmount();
   });
 
-  it("terminates every worker once the last stream disposes", async () => {
+  it("terminates every worker once the composable's shared scope disposes", async () => {
     const store = makeAnnotationVolumeStore();
     const terminateSpies: ReturnType<typeof vi.fn>[] = [];
     const workerFactory = () => {
@@ -377,15 +399,16 @@ describe("useAnnotationSampler", () => {
     );
     await flushPromises();
 
-    const geometry = ref<PlaneGeometry | null>(null);
+    const geometry = ref<SampleGeometry | null>(null);
     const { unmount: unmountStream } = mountWithComposable(() =>
       sampler.createStream(geometry)
     );
 
     unmountStream();
+    for (const spy of terminateSpies) expect(spy).not.toHaveBeenCalled();
 
-    for (const spy of terminateSpies) expect(spy).toHaveBeenCalledOnce();
     unmount();
+    for (const spy of terminateSpies) expect(spy).toHaveBeenCalledOnce();
   });
 
   it("clears the result and stops loading when the geometry becomes null", async () => {
@@ -407,7 +430,7 @@ describe("useAnnotationSampler", () => {
     );
     await flushPromises();
 
-    const geometry = ref<PlaneGeometry | null>(makePlane());
+    const geometry = ref<SampleGeometry | null>(makePlane());
     const { result, unmount: unmountStream } = mountWithComposable(() =>
       sampler.createStream(geometry)
     );
@@ -424,6 +447,70 @@ describe("useAnnotationSampler", () => {
     geometry.value = null;
     await vi.waitFor(() => expect(result.result.value).toBeNull());
     expect(result.isLoading.value).toBe(false);
+
+    unmountStream();
+    unmount();
+  });
+
+  it("skips a redundant replan when a value-equal but freshly constructed geometry is assigned", async () => {
+    const store = makeAnnotationVolumeStore({
+      shapeVoxels: [4, 4, 4],
+      chunkShapeVoxels: [2, 2, 2],
+      chunks: { "0/0/0": Uint32Array.from([1, 1, 1, 1, 1, 1, 1, 1]) }
+    });
+    const postCalls: { type: string }[] = [];
+    const workerFactory = () => {
+      const inner = makeFakeWorker(store);
+      return {
+        postMessage(message: InboundSamplerMessage) {
+          if (message.type === "sample") {
+            postCalls.push({ type: message.type });
+          }
+          inner.postMessage(message);
+        },
+        get onmessage() {
+          return inner.onmessage;
+        },
+        set onmessage(value) {
+          inner.onmessage = value;
+        },
+        terminate() {
+          inner.terminate();
+        }
+      };
+    };
+    const manifest = ref(makeManifest());
+    const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
+
+    const { result: sampler, unmount } = mountWithComposable(() =>
+      useAnnotationSampler(
+        { manifest, terminologyRows },
+        workerFactory,
+        () => store
+      )
+    );
+    await flushPromises();
+
+    const geometry = ref<SampleGeometry | null>(makePlane());
+    const { result, unmount: unmountStream } = mountWithComposable(() =>
+      sampler.createStream(geometry)
+    );
+
+    await vi.waitFor(() => expect(postCalls.length).toBeGreaterThan(0), {
+      timeout: 2000
+    });
+    await vi.waitFor(() => expect(result.isLoading.value).toBe(false), {
+      timeout: 2000
+    });
+
+    const sampleCallsAfterSettle = postCalls.length;
+    // A freshly constructed but value-equal geometry - not the same object
+    // as `geometry.value`, matching a re-interned dependency changing a
+    // computed's object identity without changing any of its values.
+    geometry.value = makePlane();
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    expect(postCalls.length).toBe(sampleCallsAfterSettle);
 
     unmountStream();
     unmount();

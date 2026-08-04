@@ -11,7 +11,7 @@ const currentExperiment = useCurrentExperimentStore();
       v-if="currentExperiment.selectedInspectable?.inspectableKind === 'probe'"
       :probe="currentExperiment.selectedInspectable"
     />
-    <div v-else class="col flex flex-center text-center">
+    <div v-else class="col flex flex-center">
       <p class="text-weight-light">
         <i>{{ $t("inspector.emptyHint") }}</i>
       </p>

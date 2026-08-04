@@ -65,7 +65,7 @@ function removeProbeAndDeselect(probe: Probe) {
 </script>
 
 <template>
-  <div class="column">
+  <div class="column q-gutter-y-sm">
     <q-btn-dropdown
       color="primary"
       dropdown-icon="add"
@@ -104,6 +104,12 @@ function removeProbeAndDeselect(probe: Probe) {
         :key="probe.id"
         v-ripple
         :active="currentExperimentStore.isInspectableSelected(probe)"
+        active-class="probe-item--active"
+        :aria-current="
+          currentExperimentStore.isInspectableSelected(probe)
+            ? 'true'
+            : undefined
+        "
         clickable
         @click="currentExperimentStore.selectedInspectable = probe"
       >
@@ -136,4 +142,13 @@ function removeProbeAndDeselect(probe: Probe) {
 <style lang="sass" scoped>
 .probe--visibility-button
   font-variation-settings: 'FILL' 1
+
+.probe-item--active
+  background: rgba($primary, 0.12)
+  font-weight: 500
+  box-shadow: inset 3px 0 0 $primary
+
+body.body--dark
+  .probe-item--active
+    background: rgba($primary, 0.28)
 </style>

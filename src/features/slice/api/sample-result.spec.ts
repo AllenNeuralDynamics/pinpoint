@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { SampleResult } from "../models/sample-result.model";
 import {
   createSampleResult,
-  getSampleEdgeLength,
   isSampleResultComplete
 } from "./sample-result.api";
 
 function makeResult(overrides: Partial<SampleResult> = {}): SampleResult {
   return {
-    sampleCount: 4,
+    widthPixels: 2,
+    heightPixels: 2,
     annotationValues: new Uint32Array(4),
     pixels: new Uint8ClampedArray(16),
     paintedChunkCount: 0,
@@ -18,19 +18,33 @@ function makeResult(overrides: Partial<SampleResult> = {}): SampleResult {
 }
 
 describe("createSampleResult", () => {
-  it("allocates a pixel buffer when withPixels is true", () => {
-    const result = createSampleResult(4, true);
+  it("allocates typed arrays sized to the given rectangle", () => {
+    const result = createSampleResult(4, 2);
 
-    expect(result.pixels).not.toBeNull();
-    expect(result.pixels).toHaveLength(16);
-    expect(result.annotationValues).toHaveLength(4);
+    expect(result.annotationValues.length).toBe(8);
+    expect(result.pixels.length).toBe(32);
   });
 
-  it("allocates no pixel buffer when withPixels is false", () => {
-    const result = createSampleResult(4, false);
+  it("reuses a previous result's typed arrays when the size matches", () => {
+    const previous = createSampleResult(4, 2);
+    previous.annotationValues.fill(9);
 
-    expect(result.pixels).toBeNull();
-    expect(result.annotationValues).toHaveLength(4);
+    const result = createSampleResult(4, 2, previous);
+
+    expect(result).not.toBe(previous);
+    expect(result.annotationValues).toBe(previous.annotationValues);
+    expect(result.pixels).toBe(previous.pixels);
+    expect(Array.from(result.annotationValues).every(v => v === 0)).toBe(true);
+  });
+
+  it("allocates fresh arrays when the size changes", () => {
+    const previous = createSampleResult(4, 2);
+
+    const result = createSampleResult(4, 3, previous);
+
+    expect(result.annotationValues).not.toBe(previous.annotationValues);
+    expect(result.pixels).not.toBe(previous.pixels);
+    expect(result.annotationValues.length).toBe(12);
   });
 });
 
@@ -45,15 +59,8 @@ describe("isSampleResultComplete", () => {
     expect(isSampleResultComplete(result)).toBe(false);
   });
 
-  it("is true for a plane with no chunks to paint at all", () => {
+  it("is true for a rectangle with no chunks to paint at all", () => {
     const result = makeResult({ paintedChunkCount: 0, totalChunkCount: 0 });
     expect(isSampleResultComplete(result)).toBe(true);
-  });
-});
-
-describe("getSampleEdgeLength", () => {
-  it("recovers the edge length of a square result", () => {
-    const result = makeResult({ sampleCount: 256 * 256 });
-    expect(getSampleEdgeLength(result)).toBe(256);
   });
 });

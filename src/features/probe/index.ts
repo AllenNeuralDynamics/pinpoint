@@ -1,6 +1,6 @@
 export { default as ProbeLibraryDialog } from "./components/ProbeLibraryDialog.vue";
 export type { ProbeInterfaceProbe } from "./models/probe-interface.model";
-export type { Probe } from "./models/probe.model";
+export type { Probe, ProbeChannelMapWindow } from "./models/probe.model";
 export {
   buildProbe,
   getProbeInterfaceIdentifier,
@@ -12,5 +12,7 @@ export {
   isProbe,
   isProbeInterfaceProbe
 } from "./api/probe.api";
-export type { ProbeContour } from "./api/contour.api";
-export { getProbeContour } from "./api/contour.api";
+export type { ProbeContactOutline, ProbeContour } from "./api/contour.api";
+export { getProbeContactOutlines, getProbeContour } from "./api/contour.api";
+export type { ProbeShank } from "./api/shank.api";
+export { getProbeShanks } from "./api/shank.api";

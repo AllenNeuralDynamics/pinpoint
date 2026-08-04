@@ -1,8 +1,5 @@
 import { onMounted, type Ref, watch } from "vue";
-import {
-  getSampleEdgeLength,
-  isSampleResultComplete
-} from "../api/sample-result.api";
+import { isSampleResultComplete } from "../api/sample-result.api";
 import type { SampleResult } from "../models/sample-result.model";
 
 /**
@@ -20,10 +17,13 @@ export function useSliceCanvasPainter(
 ): void {
   /** Id of the probe the canvas currently holds a painted (or in-progress) image for. */
   let paintedProbeId: string | null = null;
+  /** Whether the canvas currently holds a fully painted image. */
+  let hasCompleteImage = false;
 
   function clearCanvas(): void {
     const element = canvas.value;
     paintedProbeId = null;
+    hasCompleteImage = false;
     if (!element) return;
 
     const context = element.getContext("2d");
@@ -31,34 +31,39 @@ export function useSliceCanvasPainter(
   }
 
   /**
-   * Paint the current result, unless it's a partial update at a resolution
-   * the canvas already holds a complete image for and the same probe -
-   * preserving that image avoids a flicker to empty between geometry updates.
+   * Paint the current result, unless it's a partial update and the canvas
+   * already holds a complete image for the same probe - preserving that
+   * image avoids a flicker to empty between geometry updates.
    */
   function drawSlice(): void {
     const element = canvas.value;
     const slice = result.value;
-    if (!element || !slice?.pixels) return;
+    if (!element || !slice) return;
 
-    const size = getSampleEdgeLength(slice);
-    const isCanvasCurrent =
-      element.width === size && paintedProbeId === probeId.value;
-    if (isCanvasCurrent && !isSampleResultComplete(slice)) return;
+    const { widthPixels, heightPixels } = slice;
+    const isComplete = isSampleResultComplete(slice);
+    // A partial update is skipped whenever the canvas already holds a complete
+    // image for this probe, at any resolution - so the image held during
+    // movement stays up until its replacement finishes instead of flashing
+    // empty when the sampling resolution changes.
+    if (hasCompleteImage && paintedProbeId === probeId.value && !isComplete) {
+      return;
+    }
 
-    if (element.width !== size) {
-      element.width = size;
-      element.height = size;
+    if (element.width !== widthPixels || element.height !== heightPixels) {
+      element.width = widthPixels;
+      element.height = heightPixels;
     }
 
     const context = element.getContext("2d");
     if (!context) return;
-    // `SampleResult.pixels` is declared as a plain `Uint8ClampedArray`, which
-    // TS's newer typed-array generics widen to `ArrayBufferLike` (a superset
-    // that also covers SharedArrayBuffer); `ImageData` only accepts the
-    // narrower `ArrayBuffer`-backed variant, so this is a type-only mismatch.
-    const pixels = slice.pixels as Uint8ClampedArray<ArrayBuffer>;
-    context.putImageData(new ImageData(pixels, size, size), 0, 0);
+    context.putImageData(
+      new ImageData(slice.pixels, widthPixels, heightPixels),
+      0,
+      0
+    );
     paintedProbeId = probeId.value;
+    hasCompleteImage = isComplete;
   }
 
   // `flush: "post"` and the `onMounted` call both exist for the same reason:

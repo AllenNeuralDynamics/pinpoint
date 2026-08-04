@@ -1,8 +1,14 @@
 import type { Manifest } from "@/features/atlas";
 import { getAtlasLongestDimensionMillimeters } from "@/features/atlas";
-import type { ProbeContour } from "@/features/probe";
+import type {
+  Probe,
+  ProbeChannelMapWindow,
+  ProbeContactOutline,
+  ProbeContour,
+  ProbeShank
+} from "@/features/probe";
 import { clamp } from "@/utils/math";
-import type { PlaneGeometry } from "../models/sample-geometry.model";
+import type { SampleGeometry } from "../models/sample-geometry.model";
 import type { ProbeFrame } from "./probe-frame.api";
 import { toAtlasMillimeters } from "./probe-frame.api";
 
@@ -20,6 +26,15 @@ const FALLBACK_MAXIMUM_ZOOM_EXPONENT = 4;
 const MINIMUM_SIZE_PIXELS = 128;
 const MAXIMUM_SIZE_PIXELS = 1024;
 const SIZE_QUANTUM_PIXELS = 32;
+
+/** Blank device pixels left between adjacent shanks in a packed layout. */
+const SHANK_GAP_PIXELS = 1;
+
+/**
+ * Smallest channel map window the range may collapse to, in mm - about one
+ * atlas voxel, past which more zoom reveals no new detail.
+ */
+const MINIMUM_CHANNEL_MAP_WINDOW_MILLIMETERS = 0.05;
 
 /** A slice zoom range, as log2 mm exponents. */
 export interface SliceZoomExponentRange {
@@ -72,11 +87,11 @@ export function getDefaultSliceExtentMillimeters(
 }
 
 /**
- * Build the sampling plane through a probe's shanks, centered on a height up
- * its contour from the tip.
+ * Build the sampling rectangle through a probe's shanks, centered on a
+ * height up its contour from the tip - the square case of {@link SampleGeometry}.
  * @param frame Probe's shank-plane frame.
  * @param centerHeightMillimeters Height up the contour from the tip to center on, in probe-local mm.
- * @param extentMillimeters Edge length of the square plane, in mm.
+ * @param extentMillimeters Edge length of the square rectangle, in mm.
  * @param sizePixels Edge length of the square output, in pixels.
  */
 export function getProbeSlicePlane(
@@ -84,15 +99,217 @@ export function getProbeSlicePlane(
   centerHeightMillimeters: number,
   extentMillimeters: number,
   sizePixels: number
-): PlaneGeometry {
+): SampleGeometry {
   return {
-    kind: "plane",
-    centerMillimeters: toAtlasMillimeters(frame, 0, centerHeightMillimeters),
     rightMillimeters: frame.rightMillimeters,
     upMillimeters: frame.upMillimeters,
-    halfExtentMillimeters: extentMillimeters / 2,
-    sizePixels
+    halfHeightMillimeters: extentMillimeters / 2,
+    widthPixels: sizePixels,
+    heightPixels: sizePixels,
+    bands: [
+      {
+        centerMillimeters: toAtlasMillimeters(
+          frame,
+          0,
+          centerHeightMillimeters
+        ),
+        halfWidthMillimeters: extentMillimeters / 2,
+        columnOffset: 0,
+        columnCount: sizePixels
+      }
+    ]
   };
+}
+
+/** One shank's placement in a packed multi-shank slice. */
+export interface ShankPlacement {
+  shank: ProbeShank;
+  /** First output column this shank fills, inclusive. */
+  columnOffset: number;
+  /** Output columns this shank fills. */
+  columnCount: number;
+  /** mm added to the shank's probe-local x to place it in packed overlay space. */
+  offsetMillimeters: number;
+}
+
+/** A packed multi-shank slice layout: one shared scale plus per-shank placements. */
+export interface ShankLayout {
+  /** Placements left to right, starting at columnOffset 0; consecutive placements may leave an unsampled gap between them. */
+  placements: ShankPlacement[];
+  /** Total output width, in pixels. */
+  widthPixels: number;
+  /** Output height, in pixels. */
+  heightPixels: number;
+  /** Output columns per packed mm along x, shared by every shank. */
+  pixelsPerMillimeter: number;
+  /** Full packed x extent, in mm - `widthPixels / pixelsPerMillimeter`. */
+  widthMillimeters: number;
+}
+
+/**
+ * Pack a probe's shanks left to right into one output image, at the shanks'
+ * true aspect ratio and a height quantized like every other slice canvas,
+ * leaving a blank gap between adjacent shanks.
+ * Null while unmeasured or when there is nothing with width to draw.
+ * @param shanks Shanks to pack, left to right.
+ * @param heightMillimeters Height of the probe's contour, spanned by every shank.
+ * @param cssHeight Canvas height in CSS pixels; 0 while unmeasured.
+ * @param pixelRatio Device pixel ratio.
+ */
+export function getShankLayout(
+  shanks: ProbeShank[],
+  heightMillimeters: number,
+  cssHeight: number,
+  pixelRatio: number
+): ShankLayout | null {
+  if (cssHeight <= 0 || heightMillimeters <= 0 || shanks.length === 0) {
+    return null;
+  }
+
+  const heightPixels = clamp(
+    Math.floor((cssHeight * pixelRatio) / SIZE_QUANTUM_PIXELS) *
+      SIZE_QUANTUM_PIXELS,
+    MINIMUM_SIZE_PIXELS,
+    MAXIMUM_SIZE_PIXELS
+  );
+
+  const totalWidthMillimeters = shanks.reduce(
+    (total, shank) => total + shank.widthMillimeters,
+    0
+  );
+  if (totalWidthMillimeters <= 0) return null;
+
+  const totalGapPixels = SHANK_GAP_PIXELS * (shanks.length - 1);
+  let pixelsPerMillimeter = heightPixels / heightMillimeters;
+  if (
+    totalWidthMillimeters * pixelsPerMillimeter + totalGapPixels >
+    MAXIMUM_SIZE_PIXELS
+  ) {
+    pixelsPerMillimeter =
+      (MAXIMUM_SIZE_PIXELS - totalGapPixels) / totalWidthMillimeters;
+  }
+
+  const placements: ShankPlacement[] = [];
+  let columnOffset = 0;
+  for (const [index, shank] of shanks.entries()) {
+    const columnCount = Math.max(
+      1,
+      Math.round(shank.widthMillimeters * pixelsPerMillimeter)
+    );
+    placements.push({
+      shank,
+      columnOffset,
+      columnCount,
+      offsetMillimeters:
+        columnOffset / pixelsPerMillimeter - shank.minimumXMillimeters
+    });
+    columnOffset += columnCount;
+    if (index < shanks.length - 1) columnOffset += SHANK_GAP_PIXELS;
+  }
+
+  const widthPixels = columnOffset;
+  return {
+    placements,
+    widthPixels,
+    heightPixels,
+    pixelsPerMillimeter,
+    widthMillimeters: widthPixels / pixelsPerMillimeter
+  };
+}
+
+/**
+ * Build the sampling surface for a packed multi-shank slice: one band per
+ * shank, each centered on its own x and on the channel map window's center,
+ * spanning only that window vertically.
+ * @param frame Probe's shank-plane frame.
+ * @param layout Packed layout the bands take their x columns and scale from -
+ * zooming the window does not change x resolution.
+ * @param channelMapWindow Window along the shank the bands span vertically.
+ */
+export function getShankSliceGeometry(
+  frame: ProbeFrame,
+  layout: ShankLayout,
+  channelMapWindow: ProbeChannelMapWindow
+): SampleGeometry {
+  const centerHeightMillimeters =
+    (channelMapWindow.min + channelMapWindow.max) / 2;
+  return {
+    rightMillimeters: frame.rightMillimeters,
+    upMillimeters: frame.upMillimeters,
+    halfHeightMillimeters: (channelMapWindow.max - channelMapWindow.min) / 2,
+    widthPixels: layout.widthPixels,
+    heightPixels: layout.heightPixels,
+    bands: layout.placements.map(placement => ({
+      centerMillimeters: toAtlasMillimeters(
+        frame,
+        (placement.shank.minimumXMillimeters +
+          placement.shank.maximumXMillimeters) /
+          2,
+        centerHeightMillimeters
+      ),
+      halfWidthMillimeters:
+        placement.columnCount / (2 * layout.pixelsPerMillimeter),
+      columnOffset: placement.columnOffset,
+      columnCount: placement.columnCount
+    }))
+  };
+}
+
+/**
+ * Resolve a probe's channel map window against its contour height,
+ * defaulting an unset window to the full height and clamping a persisted one
+ * into range.
+ * @param probe Probe to read the persisted window from.
+ * @param heightMillimeters Height of the probe's contour, in mm.
+ */
+export function getProbeChannelMapWindow(
+  probe: Probe,
+  heightMillimeters: number
+): ProbeChannelMapWindow {
+  return probe.channelMapWindow === null
+    ? { min: 0, max: heightMillimeters }
+    : clampChannelMapWindow(probe.channelMapWindow, heightMillimeters);
+}
+
+/**
+ * Write a channel map window to a probe in place, clamped into its contour
+ * height and to the minimum window span.
+ * @param probe Probe to write the window to.
+ * @param channelMapWindow Window to write, in mm up from the tip.
+ * @param heightMillimeters Height of the probe's contour, in mm.
+ */
+export function setProbeChannelMapWindow(
+  probe: Probe,
+  channelMapWindow: ProbeChannelMapWindow,
+  heightMillimeters: number
+): void {
+  probe.channelMapWindow = clampChannelMapWindow(
+    channelMapWindow,
+    heightMillimeters
+  );
+}
+
+/**
+ * Clamp a channel map window inside `[0, heightMillimeters]`, holding its
+ * span at or above the minimum window.
+ * @param channelMapWindow Window to clamp, in mm up from the tip.
+ * @param heightMillimeters Height of the probe's contour, in mm.
+ */
+function clampChannelMapWindow(
+  channelMapWindow: ProbeChannelMapWindow,
+  heightMillimeters: number
+): ProbeChannelMapWindow {
+  if (heightMillimeters <= MINIMUM_CHANNEL_MAP_WINDOW_MILLIMETERS) {
+    return { min: 0, max: heightMillimeters };
+  }
+
+  const span = clamp(
+    channelMapWindow.max - channelMapWindow.min,
+    MINIMUM_CHANNEL_MAP_WINDOW_MILLIMETERS,
+    heightMillimeters
+  );
+  const min = clamp(channelMapWindow.min, 0, heightMillimeters - span);
+  return { min, max: min + span };
 }
 
 /**
@@ -140,24 +357,94 @@ export function getContourPolygonPoints(
 }
 
 /**
+ * Build the SVG path `d` for a shank's outline, re-origined on the slice
+ * center height. Multiple rings become extra closed subpaths.
+ * @param shank Shank whose outline rings to render.
+ * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
+ */
+export function getShankOutlinePath(
+  shank: ProbeShank,
+  centerHeightMillimeters: number
+): string {
+  return shank.rings
+    .map(ring => getPolygonSubpath(ring, centerHeightMillimeters))
+    .join(" ");
+}
+
+/**
+ * Build the SVG path `d` for a contact overlay, re-origined on the slice
+ * center height. Empty when there are no outlines.
+ * @param outlines Contact outlines to render, in probe-local mm.
+ * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
+ */
+export function getContactOutlinePath(
+  outlines: ProbeContactOutline[],
+  centerHeightMillimeters: number
+): string {
+  return outlines
+    .map(outline =>
+      outline.kind === "polygon"
+        ? getPolygonSubpath(outline.points, centerHeightMillimeters)
+        : getCircleSubpath(
+            outline.center,
+            outline.radiusMillimeters,
+            centerHeightMillimeters
+          )
+    )
+    .join(" ");
+}
+
+/**
+ * Build one closed polygon subpath, y-flipped about the slice center height.
+ * @param points Polygon vertices, in probe-local mm.
+ * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
+ */
+function getPolygonSubpath(
+  points: { x: number; y: number }[],
+  centerHeightMillimeters: number
+): string {
+  return `M${points.map(({ x, y }) => `${x},${centerHeightMillimeters - y}`).join("L")}Z`;
+}
+
+/**
+ * Build one closed circle subpath as two semicircular arcs, y-flipped about
+ * the slice center height.
+ * @param center Circle center, in probe-local mm.
+ * @param radiusMillimeters Circle radius, in mm.
+ * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
+ */
+function getCircleSubpath(
+  center: { x: number; y: number },
+  radiusMillimeters: number,
+  centerHeightMillimeters: number
+): string {
+  const cy = centerHeightMillimeters - center.y;
+  const left = center.x - radiusMillimeters;
+  const right = center.x + radiusMillimeters;
+  return `M${left},${cy}A${radiusMillimeters},${radiusMillimeters} 0 0,1 ${right},${cy}A${radiusMillimeters},${radiusMillimeters} 0 0,1 ${left},${cy}Z`;
+}
+
+/**
  * Map a pointer position to a device-pixel coordinate on the slice canvas,
  * or null when outside the canvas's bounds.
  * @param rect Canvas element's bounding rect.
  * @param clientX Pointer's viewport x coordinate.
  * @param clientY Pointer's viewport y coordinate.
- * @param sizePixels Edge length of the square slice, in pixels.
+ * @param widthPixels Edge length of the slice along u, in pixels.
+ * @param heightPixels Edge length of the slice along v, in pixels.
  */
 export function getSlicePixelFromRect(
   rect: DOMRect,
   clientX: number,
   clientY: number,
-  sizePixels: number
+  widthPixels: number,
+  heightPixels: number
 ): { x: number; y: number } | null {
   if (rect.width <= 0 || rect.height <= 0) return null;
 
-  const x = Math.floor(((clientX - rect.left) / rect.width) * sizePixels);
-  const y = Math.floor(((clientY - rect.top) / rect.height) * sizePixels);
-  if (x < 0 || y < 0 || x >= sizePixels || y >= sizePixels) return null;
+  const x = Math.floor(((clientX - rect.left) / rect.width) * widthPixels);
+  const y = Math.floor(((clientY - rect.top) / rect.height) * heightPixels);
+  if (x < 0 || y < 0 || x >= widthPixels || y >= heightPixels) return null;
   return { x, y };
 }
 

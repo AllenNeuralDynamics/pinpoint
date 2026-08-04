@@ -12,7 +12,6 @@ import {
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDelayedFlag } from "@/composable/useDelayedFlag";
 import { getProbeFrame } from "../api/probe-frame.api";
-import { getSampleEdgeLength } from "../api/sample-result.api";
 import {
   formatSliceExtentMillimeters,
   getContourPolygonPoints,
@@ -20,8 +19,9 @@ import {
   getQuantizedSizePixels,
   getSlicePixelFromRect
 } from "../api/slice-plane.api";
-import { findStructureByAnnotationValue } from "../api/structure-colors.api";
+import { buildStructureIndex } from "../api/structure-colors.api";
 import { useAnnotationSampler } from "../composable/useAnnotationSampler";
+import { useMotionResolutionScale } from "../composable/useMotionResolutionScale";
 import { useSliceCanvasPainter } from "../composable/useSliceCanvasPainter";
 import { useSliceViewport } from "../composable/useSliceViewport";
 
@@ -35,7 +35,9 @@ const { t } = useI18n();
 
 const square = useTemplateRef<HTMLDivElement>("square");
 const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
-const { width, height: squareHeight } = useElementSize(square);
+const { width, height: squareHeight } = useElementSize(square, undefined, {
+  box: "border-box"
+});
 const { pixelRatio } = useDevicePixelRatio();
 
 /** Annotation value currently under the pointer, or 0 for background/none. */
@@ -58,9 +60,32 @@ const { zoomRange, extentMillimeters, zoomExponent, centerHeightMillimeters } =
     computed(() => currentExperiment.manifest)
   );
 
-/** Device-pixel edge length of the square canvas, quantized to bound replans. */
-const sizePixels = computed(() =>
+/** Full-resolution device-pixel edge length, quantized to bound replans. */
+const settledSizePixels = computed(() =>
   getQuantizedSizePixels(width.value, pixelRatio.value)
+);
+
+/**
+ * Everything that would trigger a replan, excluding the resolution scale
+ * itself - feeding the scale back in would make its own change look like
+ * movement.
+ */
+const motionKey = computed(() =>
+  [
+    settledSizePixels.value,
+    ...probe.tipPosition,
+    ...probe.rotation,
+    ...currentExperiment.referenceCoordinate,
+    centerHeightMillimeters.value,
+    extentMillimeters.value
+  ].join(",")
+);
+
+const resolutionScale = useMotionResolutionScale(motionKey);
+
+/** Device-pixel edge length of the square canvas, reduced while moving. */
+const sizePixels = computed(() =>
+  getQuantizedSizePixels(width.value, pixelRatio.value * resolutionScale.value)
 );
 
 const plane = computed(() => {
@@ -98,13 +123,13 @@ const contourPoints = computed(() =>
     : null
 );
 
-const hoveredStructure = computed<TerminologyRow | null>(() => {
-  if (!hoveredAnnotationValue.value) return null;
-  return findStructureByAnnotationValue(
-    currentExperiment.terminologyRows,
-    hoveredAnnotationValue.value
-  );
-});
+const structureIndex = computed(() =>
+  buildStructureIndex(currentExperiment.terminologyRows)
+);
+
+const hoveredStructure = computed<TerminologyRow | null>(
+  () => structureIndex.value.get(hoveredAnnotationValue.value) ?? null
+);
 
 /**
  * Marker label for a zoom slider tick, converting its log2 exponent back to mm.
@@ -126,15 +151,15 @@ function onPointerMove(event: PointerEvent): void {
     return;
   }
 
-  const size = getSampleEdgeLength(slice);
   const pixel = getSlicePixelFromRect(
     element.getBoundingClientRect(),
     event.clientX,
     event.clientY,
-    size
+    slice.widthPixels,
+    slice.heightPixels
   );
   hoveredAnnotationValue.value = pixel
-    ? (slice.annotationValues[pixel.y * size + pixel.x] ?? 0)
+    ? (slice.annotationValues[pixel.y * slice.widthPixels + pixel.x] ?? 0)
     : 0;
 }
 
@@ -172,6 +197,8 @@ useSliceCanvasPainter(
       reverse
       :min="0"
       :max="contour.heightMillimeters"
+      :label-value="`${centerHeightMillimeters.toFixed(2)} mm`"
+      label
       :step="0"
       dense
       class="col-auto slice-canvas__center-slider"
@@ -180,7 +207,11 @@ useSliceCanvasPainter(
     />
 
     <div class="col column">
-      <div ref="square" class="slice-canvas__square relative-position">
+      <div
+        ref="square"
+        class="slice-canvas__square relative-position"
+        :style="{ height: `${width}px` }"
+      >
         <canvas
           ref="canvas"
           class="fit slice-canvas__canvas"
@@ -215,14 +246,6 @@ useSliceCanvasPainter(
           }}</p>
         </div>
 
-        <!--
-          QTooltip normally shows itself from its own anchor's mouseenter,
-          but that anchor only exists once this v-if mounts - entering over
-          background then moving onto a structure gets no further
-          mouseenter to trigger it. Driving it from the model instead shows
-          it the instant it mounts; no-parent-event stops QTooltip's own
-          mouseleave handling from then fighting that model.
-        -->
         <q-tooltip v-if="hoveredStructure" model-value no-parent-event>
           {{ hoveredStructure.abbreviation }} - {{ hoveredStructure.name }}
         </q-tooltip>
@@ -232,6 +255,8 @@ useSliceCanvasPainter(
         v-model="zoomExponent"
         :min="zoomRange.minimum"
         :max="zoomRange.maximum"
+        :label-value="`${formatSliceExtentMillimeters(extentMillimeters)} mm`"
+        label
         :step="0"
         :markers="1"
         :marker-labels="zoomMarkerLabel"
@@ -239,13 +264,6 @@ useSliceCanvasPainter(
         class="q-mt-md"
         :aria-label="t('slice.zoom')"
       />
-      <div class="row justify-center q-mt-xs">
-        <span class="text-caption">{{
-          t("slice.extent", {
-            extent: formatSliceExtentMillimeters(extentMillimeters)
-          })
-        }}</span>
-      </div>
     </div>
   </div>
 </template>
@@ -259,7 +277,6 @@ useSliceCanvasPainter(
 
   &__square
     position: relative
-    aspect-ratio: 1
     border: 1px solid $separator-color
     border-radius: $generic-border-radius
     overflow: hidden

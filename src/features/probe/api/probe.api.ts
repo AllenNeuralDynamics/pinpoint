@@ -1,5 +1,5 @@
 import { markRaw, toRaw } from "vue";
-import type { Probe } from "../models/probe.model";
+import type { Probe, ProbeChannelMapWindow } from "../models/probe.model";
 import type { ProbeVisibility } from "../models/visibility.model";
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import {
@@ -37,7 +37,8 @@ export function buildProbe(probeInterfaceProbe: ProbeInterfaceProbe): Probe {
     // (`getDefaultSliceExtentMillimeters`), since a single constant can't
     // fit both a mouse and a human atlas.
     sliceExtentMillimeters: null,
-    sliceCenterHeightMillimeters: 0
+    sliceCenterHeightMillimeters: 0,
+    channelMapWindow: null
   };
 }
 
@@ -199,6 +200,22 @@ export function isProbe(value: unknown): value is Probe {
     isFiniteTriple(value.rotation) &&
     (value.sliceExtentMillimeters === null ||
       isFiniteNumber(value.sliceExtentMillimeters)) &&
-    isFiniteNumber(value.sliceCenterHeightMillimeters)
+    isFiniteNumber(value.sliceCenterHeightMillimeters) &&
+    (value.channelMapWindow === null ||
+      isProbeChannelMapWindow(value.channelMapWindow))
   );
+}
+
+/**
+ * Check that a value has the shape of a `ProbeChannelMapWindow`: an ordered,
+ * non-negative mm range.
+ * @param value Value to check.
+ */
+function isProbeChannelMapWindow(
+  value: unknown
+): value is ProbeChannelMapWindow {
+  if (!isRecord(value)) return false;
+
+  const { min, max } = value;
+  return isFiniteNumber(min) && isFiniteNumber(max) && min >= 0 && min <= max;
 }

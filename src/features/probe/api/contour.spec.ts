@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { ProbeInterfaceProbe } from "@/features/probe";
 import { makeProbeInterfaceProbe } from "@/test/fixtures";
 import {
   getProbeContacts,
+  getProbeContactOutlines,
   getProbeContour,
   getProbeMillimetersPerUnit
 } from "./contour.api";
@@ -237,5 +239,248 @@ describe("getProbeContacts", () => {
     const result = getProbeContacts(makeProbeInterfaceProbe());
 
     expect(result?.shankIds).toBeNull();
+  });
+});
+
+describe("getProbeContactOutlines", () => {
+  const ORIGIN = { x: 0, y: 0 };
+
+  it("builds a square outline from contact_shapes: square", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["square"],
+        contact_shape_params: [{ width: 2 }]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: -1, y: 3 },
+          { x: -1, y: 5 },
+          { x: 1, y: 5 },
+          { x: 1, y: 3 }
+        ]
+      }
+    ]);
+  });
+
+  it("builds a rectangle outline from contact_shapes: rect", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["rect"],
+        contact_shape_params: [{ width: 2, height: 4 }]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: -1, y: 2 },
+          { x: -1, y: 6 },
+          { x: 1, y: 6 },
+          { x: 1, y: 2 }
+        ]
+      }
+    ]);
+  });
+
+  it("builds a circle outline from contact_shapes: circle", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["circle"],
+        contact_shape_params: [{ radius: 2 }]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "circle",
+        shankId: null,
+        center: { x: 0, y: 4 },
+        radiusMillimeters: 2
+      }
+    ]);
+  });
+
+  it("rotates a square's vertices by contact_plane_axes", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["square"],
+        contact_shape_params: [{ width: 2 }],
+        contact_plane_axes: [
+          [
+            [0, 1],
+            [-1, 0]
+          ]
+        ]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: 1, y: 3 },
+          { x: -1, y: 3 },
+          { x: -1, y: 5 },
+          { x: 1, y: 5 }
+        ]
+      }
+    ]);
+  });
+
+  it("falls back to a 5-unit square when contact_shapes is missing", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: -2.5, y: 1.5 },
+          { x: -2.5, y: 6.5 },
+          { x: 2.5, y: 6.5 },
+          { x: 2.5, y: 1.5 }
+        ]
+      }
+    ]);
+  });
+
+  it("falls back to a 5-unit square for an unknown shape string", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["hexagon"]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: -2.5, y: 1.5 },
+          { x: -2.5, y: 6.5 },
+          { x: 2.5, y: 6.5 },
+          { x: 2.5, y: 1.5 }
+        ]
+      }
+    ]);
+  });
+
+  it("falls back to a 5-unit square for square shape with no shape params", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["square"]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: -2.5, y: 1.5 },
+          { x: -2.5, y: 6.5 },
+          { x: 2.5, y: 6.5 },
+          { x: 2.5, y: 1.5 }
+        ]
+      }
+    ]);
+  });
+
+  it("drops non-finite contact positions", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [
+          [0, 4],
+          [Number.NaN, 1]
+        ]
+      }),
+      ORIGIN
+    );
+
+    expect(result).toHaveLength(1);
+  });
+
+  it("passes shankId through from shank_ids, index-aligned after an unusable position is dropped", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [
+          [0, 4],
+          [Number.NaN, 1],
+          [1, 4]
+        ],
+        shank_ids: [0, 1, 2]
+      }),
+      ORIGIN
+    );
+
+    expect(result.map(outline => outline.shankId)).toEqual([0, 2]);
+  });
+
+  it("returns an empty array when contact_positions is absent", () => {
+    const definition: Partial<ProbeInterfaceProbe> = makeProbeInterfaceProbe();
+    delete definition.contact_positions;
+
+    expect(
+      getProbeContactOutlines(definition as ProbeInterfaceProbe, ORIGIN)
+    ).toEqual([]);
+  });
+
+  it("subtracts the given origin from every vertex", () => {
+    const result = getProbeContactOutlines(
+      makeProbeInterfaceProbe({
+        si_units: "mm",
+        contact_positions: [[0, 4]],
+        contact_shapes: ["square"],
+        contact_shape_params: [{ width: 2 }]
+      }),
+      { x: 1, y: 2 }
+    );
+
+    expect(result).toEqual([
+      {
+        kind: "polygon",
+        shankId: null,
+        points: [
+          { x: -2, y: 1 },
+          { x: -2, y: 3 },
+          { x: 0, y: 3 },
+          { x: 0, y: 1 }
+        ]
+      }
+    ]);
   });
 });

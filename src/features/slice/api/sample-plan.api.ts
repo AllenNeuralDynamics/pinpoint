@@ -3,10 +3,7 @@ import type {
   AnnotationVolume
 } from "../models/annotation-level.model";
 import type { SampleGeometry } from "../models/sample-geometry.model";
-import type {
-  SampleChunkRequest,
-  SamplePlan
-} from "../models/sample-plan.model";
+import type { SamplePlan } from "../models/sample-plan.model";
 
 /** Preferred ceiling on chunk fetches per sample; not a guarantee. */
 const PREFERRED_MAXIMUM_CHUNK_REQUESTS = 24;
@@ -14,21 +11,26 @@ const PREFERRED_MAXIMUM_CHUNK_REQUESTS = 24;
 /** How much coarser than one sample a level's voxel may be before it's too blurry to prefer. */
 const RESOLUTION_TOLERANCE = 1.5;
 
-/** A chunk grid's dorsoventral and mediolateral chunk counts, for packing chunk coordinates into a single key. */
-interface ChunkGrid {
-  gridDv: number;
-  gridMl: number;
-}
+/** Fraction of a level's smallest chunk extent the level-selection walk steps by. */
+const COUNT_STEP_CHUNK_FRACTION = 0.5;
 
-/** A sample's resolved chunk and its offset within that chunk. */
-interface ResolvedVoxel {
+/** Starting per-chunk capacity of a bucket's sample arrays, doubled as needed. */
+const INITIAL_BUCKET_CAPACITY = 1024;
+
+/** One chunk's samples, accumulated into growable typed arrays. */
+interface SampleBucket {
   chunkCoordinates: [number, number, number];
-  chunkKey: number;
-  voxelOffset: number;
+  count: number;
+  sampleIndices: Int32Array<ArrayBuffer>;
+  voxelOffsets: Int32Array<ArrayBuffer>;
 }
 
 /**
  * Bucket a geometry's samples by the annotation chunk each one reads from.
+ * Walks the mm-to-voxel affine map incrementally (no per-sample division)
+ * and caches the last resolved chunk's voxel-space origin so consecutive
+ * samples inside the same chunk skip both the chunk divisions and a map
+ * lookup.
  * @param geometry Geometry to sample.
  * @param level Multiscale level to sample from.
  * @param levelIndex Index of `level` within its volume.
@@ -38,245 +40,286 @@ export function planSamples(
   level: AnnotationLevel,
   levelIndex: number
 ): SamplePlan {
-  const grid = getChunkGrid(level);
-  const buckets = new Map<
-    number,
-    {
-      chunkCoordinates: [number, number, number];
-      sampleIndices: number[];
-      voxelOffsets: number[];
+  const [translationA, translationS, translationR] =
+    level.translationMillimeters;
+  const [scaleA, scaleS, scaleR] = level.scaleMillimeters;
+  const [shapeA, shapeS, shapeR] = level.shapeVoxels;
+  const [chunkA, chunkS, chunkR] = level.chunkShapeVoxels;
+  const gridDv = Math.ceil(shapeS / chunkS);
+  const gridMl = Math.ceil(shapeR / chunkR);
+
+  const {
+    rightMillimeters: right,
+    upMillimeters: up,
+    halfHeightMillimeters: halfHeight,
+    widthPixels,
+    heightPixels,
+    bands
+  } = geometry;
+  const stepV = (2 * halfHeight) / heightPixels;
+  const firstV = halfHeight - 0.5 * stepV;
+  const rowA = (-up[0] * stepV) / scaleA;
+  const rowS = (-up[1] * stepV) / scaleS;
+  const rowR = (-up[2] * stepV) / scaleR;
+
+  const buckets = new Map<number, SampleBucket>();
+  let bucket: SampleBucket | null = null;
+  let originA = -1;
+  let originS = -1;
+  let originR = -1;
+
+  for (const band of bands) {
+    const {
+      centerMillimeters: center,
+      halfWidthMillimeters: halfWidth,
+      columnOffset,
+      columnCount
+    } = band;
+    const stepU = (2 * halfWidth) / columnCount;
+    const firstU = -halfWidth + 0.5 * stepU;
+
+    const baseA =
+      (center[0] + right[0] * firstU + up[0] * firstV - translationA) / scaleA;
+    const baseS =
+      (center[1] + right[1] * firstU + up[1] * firstV - translationS) / scaleS;
+    const baseR =
+      (center[2] + right[2] * firstU + up[2] * firstV - translationR) / scaleR;
+    const columnA = (right[0] * stepU) / scaleA;
+    const columnS = (right[1] * stepU) / scaleS;
+    const columnR = (right[2] * stepU) / scaleR;
+
+    for (let row = 0; row < heightPixels; row++) {
+      // Each row restarts from a multiply so accumulated float error stays
+      // bounded by one row rather than growing across the whole rectangle.
+      let coordinateA = baseA + row * rowA;
+      let coordinateS = baseS + row * rowS;
+      let coordinateR = baseR + row * rowR;
+      const rowOffset = row * widthPixels + columnOffset;
+
+      for (
+        let column = 0;
+        column < columnCount;
+        column++,
+          coordinateA += columnA,
+          coordinateS += columnS,
+          coordinateR += columnR
+      ) {
+        // Math.floor, not `| 0`: `| 0` truncates toward zero and is wrong for
+        // negative coordinates just outside the volume.
+        const voxelA = Math.floor(coordinateA);
+        const voxelS = Math.floor(coordinateS);
+        const voxelR = Math.floor(coordinateR);
+        if (
+          voxelA < 0 ||
+          voxelS < 0 ||
+          voxelR < 0 ||
+          voxelA >= shapeA ||
+          voxelS >= shapeS ||
+          voxelR >= shapeR
+        ) {
+          continue;
+        }
+
+        if (
+          bucket === null ||
+          voxelA < originA ||
+          voxelA >= originA + chunkA ||
+          voxelS < originS ||
+          voxelS >= originS + chunkS ||
+          voxelR < originR ||
+          voxelR >= originR + chunkR
+        ) {
+          const chunkCoordinateA = Math.floor(voxelA / chunkA);
+          const chunkCoordinateS = Math.floor(voxelS / chunkS);
+          const chunkCoordinateR = Math.floor(voxelR / chunkR);
+          originA = chunkCoordinateA * chunkA;
+          originS = chunkCoordinateS * chunkS;
+          originR = chunkCoordinateR * chunkR;
+
+          const chunkKey =
+            (chunkCoordinateA * gridDv + chunkCoordinateS) * gridMl +
+            chunkCoordinateR;
+          bucket = buckets.get(chunkKey) ?? null;
+          if (!bucket) {
+            bucket = {
+              chunkCoordinates: [
+                chunkCoordinateA,
+                chunkCoordinateS,
+                chunkCoordinateR
+              ],
+              count: 0,
+              sampleIndices: new Int32Array(INITIAL_BUCKET_CAPACITY),
+              voxelOffsets: new Int32Array(INITIAL_BUCKET_CAPACITY)
+            };
+            buckets.set(chunkKey, bucket);
+          }
+        }
+
+        if (bucket.count === bucket.sampleIndices.length) growBucket(bucket);
+        bucket.sampleIndices[bucket.count] = rowOffset + column;
+        bucket.voxelOffsets[bucket.count] =
+          ((voxelA - originA) * chunkS + (voxelS - originS)) * chunkR +
+          (voxelR - originR);
+        bucket.count += 1;
+      }
     }
-  >();
+  }
 
-  forEachSamplePoint(geometry, (index, a, s, r) => {
-    const voxel = resolveVoxel(level, grid, a, s, r);
-    if (!voxel) return;
-
-    let bucket = buckets.get(voxel.chunkKey);
-    if (!bucket) {
-      bucket = {
-        chunkCoordinates: voxel.chunkCoordinates,
-        sampleIndices: [],
-        voxelOffsets: []
-      };
-      buckets.set(voxel.chunkKey, bucket);
-    }
-    bucket.sampleIndices.push(index);
-    bucket.voxelOffsets.push(voxel.voxelOffset);
-  });
-
-  const chunkRequests: SampleChunkRequest[] = Array.from(
-    buckets.values(),
-    bucket => ({
+  return {
+    levelIndex,
+    chunkRequests: Array.from(buckets.values(), bucket => ({
       chunkCoordinates: bucket.chunkCoordinates,
-      sampleIndices: Int32Array.from(bucket.sampleIndices),
-      voxelOffsets: Int32Array.from(bucket.voxelOffsets)
-    })
-  );
-
-  return { levelIndex, sampleCount: getSampleCount(geometry), chunkRequests };
+      sampleIndices: bucket.sampleIndices.subarray(0, bucket.count),
+      voxelOffsets: bucket.voxelOffsets.subarray(0, bucket.count)
+    }))
+  };
 }
 
 /**
- * Number of distinct chunks a geometry would read from.
- * @param geometry Geometry to sample.
- * @param level Multiscale level to sample from.
+ * Double a bucket's sample arrays' capacity in place, preserving its content.
+ * @param bucket Bucket to grow.
  */
-export function countSampleChunks(
+function growBucket(bucket: SampleBucket): void {
+  const sampleIndices = new Int32Array(bucket.sampleIndices.length * 2);
+  sampleIndices.set(bucket.sampleIndices);
+  bucket.sampleIndices = sampleIndices;
+
+  const voxelOffsets = new Int32Array(bucket.voxelOffsets.length * 2);
+  voxelOffsets.set(bucket.voxelOffsets);
+  bucket.voxelOffsets = voxelOffsets;
+}
+
+/**
+ * Select the finest level that resolves a geometry within the preferred
+ * chunk budget and plan its samples, escalating to coarser levels and
+ * falling back to the coarsest available when every level exceeds it.
+ * @param geometry Geometry to sample.
+ * @param volume Annotation volume to choose a level from and sample.
+ */
+export function selectSamplePlan(
   geometry: SampleGeometry,
-  level: AnnotationLevel
-): number {
-  const grid = getChunkGrid(level);
-  const chunkKeys = new Set<number>();
-
-  forEachSamplePoint(geometry, (_index, a, s, r) => {
-    const voxel = resolveVoxel(level, grid, a, s, r);
-    if (voxel) chunkKeys.add(voxel.chunkKey);
-  });
-
-  return chunkKeys.size;
-}
-
-/**
- * Index of the finest level that resolves the geometry within the preferred
- * chunk budget, escalating to coarser levels and falling back to the
- * coarsest available when every level exceeds it.
- * @param volume Annotation volume to choose a level from.
- * @param geometry Geometry to sample.
- */
-export function selectAnnotationLevelIndex(
-  volume: AnnotationVolume,
-  geometry: SampleGeometry
-): number {
-  if (volume.levels.length === 0) return 0;
+  volume: AnnotationVolume
+): SamplePlan {
+  if (volume.levels.length === 0) return { levelIndex: 0, chunkRequests: [] };
 
   const millimetersPerSample = getMillimetersPerSample(geometry);
   let startIndex = 0;
   for (let index = 0; index < volume.levels.length; index++) {
-    const level = volume.levels[index]!;
     if (
-      Math.min(...level.scaleMillimeters) <=
+      Math.min(...volume.levels[index]!.scaleMillimeters) <=
       RESOLUTION_TOLERANCE * millimetersPerSample
     ) {
       startIndex = index;
     }
   }
 
-  for (let index = startIndex; index < volume.levels.length; index++) {
-    const isCoarsestLevel = index === volume.levels.length - 1;
+  for (let index = startIndex; index < volume.levels.length - 1; index++) {
     if (
-      isCoarsestLevel ||
-      countSampleChunks(geometry, volume.levels[index]!) <=
-        PREFERRED_MAXIMUM_CHUNK_REQUESTS
+      countChunksAtLevel(geometry, volume.levels[index]!) <=
+      PREFERRED_MAXIMUM_CHUNK_REQUESTS
     ) {
-      return index;
+      return planSamples(geometry, volume.levels[index]!, index);
     }
   }
 
-  return volume.levels.length - 1;
+  const coarsestIndex = volume.levels.length - 1;
+  return planSamples(geometry, volume.levels[coarsestIndex]!, coarsestIndex);
 }
 
 /**
- * Millimeters spanned by one sample of a geometry.
- * @param geometry Geometry to measure.
+ * Approximate number of distinct chunks a geometry would read from a level,
+ * via a coarse grid rather than a full per-sample walk - cheap enough to
+ * probe every candidate level's chunk budget before committing to one.
+ * @param geometry Geometry to sample.
+ * @param level Multiscale level to probe.
  */
-function getMillimetersPerSample(geometry: SampleGeometry): number {
-  return geometry.kind === "plane"
-    ? (2 * geometry.halfExtentMillimeters) / geometry.sizePixels
-    : geometry.lengthMillimeters / geometry.sampleCount;
-}
-
-/**
- * Total number of samples a geometry produces.
- * @param geometry Geometry to measure.
- */
-function getSampleCount(geometry: SampleGeometry): number {
-  return geometry.kind === "plane"
-    ? geometry.sizePixels * geometry.sizePixels
-    : geometry.sampleCount;
-}
-
-/**
- * Visit every sample point of a geometry in atlas ASR millimeters.
- *
- * For a plane, row 0 is the +up edge and samples are visited row-major - the
- * same convention the slice canvas's SVG overlay must mirror.
- * @param geometry Geometry to walk.
- * @param visit Callback invoked with each sample's output index and ASR coordinates.
- */
-function forEachSamplePoint(
+function countChunksAtLevel(
   geometry: SampleGeometry,
-  visit: (index: number, a: number, s: number, r: number) => void
-): void {
-  if (geometry.kind === "plane") {
-    const {
-      centerMillimeters,
-      rightMillimeters,
-      upMillimeters,
-      halfExtentMillimeters,
-      sizePixels
-    } = geometry;
-    const step = (2 * halfExtentMillimeters) / sizePixels;
-
-    for (let row = 0; row < sizePixels; row++) {
-      const v = halfExtentMillimeters - (row + 0.5) * step;
-      for (let column = 0; column < sizePixels; column++) {
-        const u = -halfExtentMillimeters + (column + 0.5) * step;
-        visit(
-          row * sizePixels + column,
-          centerMillimeters[0] + rightMillimeters[0] * u + upMillimeters[0] * v,
-          centerMillimeters[1] + rightMillimeters[1] * u + upMillimeters[1] * v,
-          centerMillimeters[2] + rightMillimeters[2] * u + upMillimeters[2] * v
-        );
-      }
-    }
-    return;
-  }
-
-  const {
-    originMillimeters,
-    directionMillimeters,
-    lengthMillimeters,
-    sampleCount
-  } = geometry;
-  for (let index = 0; index < sampleCount; index++) {
-    const t = ((index + 0.5) / sampleCount) * lengthMillimeters;
-    visit(
-      index,
-      originMillimeters[0] + directionMillimeters[0] * t,
-      originMillimeters[1] + directionMillimeters[1] * t,
-      originMillimeters[2] + directionMillimeters[2] * t
-    );
-  }
-}
-
-/**
- * Chunk grid dimensions of a level, for packing chunk coordinates into a
- * single lookup key.
- * @param level Level to derive the grid from.
- */
-function getChunkGrid(level: AnnotationLevel): ChunkGrid {
-  const [, dvShape, mlShape] = level.shapeVoxels;
-  const [, dvChunk, mlChunk] = level.chunkShapeVoxels;
-  return {
-    gridDv: Math.ceil(dvShape / dvChunk),
-    gridMl: Math.ceil(mlShape / mlChunk)
-  };
-}
-
-/**
- * Resolve an ASR millimeter point to its chunk and voxel offset within that
- * chunk, or null when the point falls outside the level's volume.
- * @param level Level to resolve against.
- * @param grid Level's chunk grid dimensions.
- * @param a Anterior-posterior coordinate, in mm.
- * @param s Superior-inferior coordinate, in mm.
- * @param r Right-left coordinate, in mm.
- */
-function resolveVoxel(
-  level: AnnotationLevel,
-  grid: ChunkGrid,
-  a: number,
-  s: number,
-  r: number
-): ResolvedVoxel | null {
+  level: AnnotationLevel
+): number {
   const [translationA, translationS, translationR] =
     level.translationMillimeters;
   const [scaleA, scaleS, scaleR] = level.scaleMillimeters;
   const [shapeA, shapeS, shapeR] = level.shapeVoxels;
   const [chunkA, chunkS, chunkR] = level.chunkShapeVoxels;
 
-  // Math.floor, not `| 0`: `| 0` truncates toward zero and is wrong for
-  // negative coordinates just outside the volume.
-  const voxelA = Math.floor((a - translationA) / scaleA);
-  const voxelS = Math.floor((s - translationS) / scaleS);
-  const voxelR = Math.floor((r - translationR) / scaleR);
-  if (
-    voxelA < 0 ||
-    voxelS < 0 ||
-    voxelR < 0 ||
-    voxelA >= shapeA ||
-    voxelS >= shapeS ||
-    voxelR >= shapeR
-  ) {
-    return null;
+  const {
+    rightMillimeters: right,
+    upMillimeters: up,
+    halfHeightMillimeters: halfHeight,
+    heightPixels,
+    bands
+  } = geometry;
+
+  const stepMillimeters =
+    COUNT_STEP_CHUNK_FRACTION *
+    Math.min(chunkA * scaleA, chunkS * scaleS, chunkR * scaleR);
+  const rows = Math.max(
+    2,
+    Math.min(heightPixels, Math.ceil((2 * halfHeight) / stepMillimeters) + 1)
+  );
+
+  const gridDv = Math.ceil(shapeS / chunkS);
+  const gridMl = Math.ceil(shapeR / chunkR);
+  const chunkKeys = new Set<number>();
+  for (const band of bands) {
+    const { centerMillimeters: center, halfWidthMillimeters: halfWidth } = band;
+    const columns = Math.max(
+      2,
+      Math.min(
+        band.columnCount,
+        Math.ceil((2 * halfWidth) / stepMillimeters) + 1
+      )
+    );
+
+    for (let row = 0; row < rows; row++) {
+      const v = halfHeight - (2 * halfHeight * row) / (rows - 1);
+      for (let column = 0; column < columns; column++) {
+        const u = -halfWidth + (2 * halfWidth * column) / (columns - 1);
+
+        const voxelA = Math.floor(
+          (center[0] + right[0] * u + up[0] * v - translationA) / scaleA
+        );
+        const voxelS = Math.floor(
+          (center[1] + right[1] * u + up[1] * v - translationS) / scaleS
+        );
+        const voxelR = Math.floor(
+          (center[2] + right[2] * u + up[2] * v - translationR) / scaleR
+        );
+        if (
+          voxelA < 0 ||
+          voxelS < 0 ||
+          voxelR < 0 ||
+          voxelA >= shapeA ||
+          voxelS >= shapeS ||
+          voxelR >= shapeR
+        ) {
+          continue;
+        }
+
+        const chunkCoordinateA = Math.floor(voxelA / chunkA);
+        const chunkCoordinateS = Math.floor(voxelS / chunkS);
+        const chunkCoordinateR = Math.floor(voxelR / chunkR);
+        chunkKeys.add(
+          (chunkCoordinateA * gridDv + chunkCoordinateS) * gridMl +
+            chunkCoordinateR
+        );
+      }
+    }
   }
 
-  const chunkCoordinateA = Math.floor(voxelA / chunkA);
-  const chunkCoordinateS = Math.floor(voxelS / chunkS);
-  const chunkCoordinateR = Math.floor(voxelR / chunkR);
-  const chunkKey =
-    (chunkCoordinateA * grid.gridDv + chunkCoordinateS) * grid.gridMl +
-    chunkCoordinateR;
-  const voxelOffset =
-    ((voxelA - chunkCoordinateA * chunkA) * chunkS +
-      (voxelS - chunkCoordinateS * chunkS)) *
-      chunkR +
-    (voxelR - chunkCoordinateR * chunkR);
+  return chunkKeys.size;
+}
 
-  return {
-    chunkCoordinates: [chunkCoordinateA, chunkCoordinateS, chunkCoordinateR],
-    chunkKey,
-    voxelOffset
-  };
+/**
+ * Millimeters spanned by one sample of a geometry, along its finer axis.
+ * @param geometry Geometry to measure.
+ */
+function getMillimetersPerSample(geometry: SampleGeometry): number {
+  let finest = (2 * geometry.halfHeightMillimeters) / geometry.heightPixels;
+  for (const band of geometry.bands) {
+    const stepU = (2 * band.halfWidthMillimeters) / band.columnCount;
+    if (stepU < finest) finest = stepU;
+  }
+  return finest;
 }

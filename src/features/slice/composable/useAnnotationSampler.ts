@@ -7,21 +7,29 @@ import { createAnnotationMetadataStore } from "../api/annotation-store.api";
 import { openAnnotationVolume } from "../api/annotation-volume.api";
 import { getWorkerCount, groupRequestsByShard } from "../api/chunk-shard.api";
 import { createSampleResult } from "../api/sample-result.api";
-import {
-  planSamples,
-  selectAnnotationLevelIndex
-} from "../api/sample-plan.api";
+import { selectSamplePlan } from "../api/sample-plan.api";
 import { buildStructureColors } from "../api/structure-colors.api";
 import type { AnnotationVolume } from "../models/annotation-level.model";
-import type { SampleGeometry } from "../models/sample-geometry.model";
+import type {
+  SampleBand,
+  SampleGeometry
+} from "../models/sample-geometry.model";
 import type { SampleResult } from "../models/sample-result.model";
 import type {
   InboundSamplerMessage,
   SampledMessage
 } from "../models/sampler-message.model";
 
-/** Milliseconds a geometry change is debounced before replanning, capped by an equal `maxWait`. */
-const REPLAN_INTERVAL_MILLISECONDS = 1000 / 60;
+/** Milliseconds a settled geometry change waits before replanning. */
+const REPLAN_DEBOUNCE_MILLISECONDS = 1000 / 60;
+
+/**
+ * Milliseconds a continuously changing geometry may coalesce before a replan
+ * is forced. A slider drag emits ~60 changes/second and each replan walks
+ * every sample of the plan on the main thread, so this bounds that to one
+ * walk per window instead of one per frame.
+ */
+const REPLAN_MAXIMUM_WAIT_MILLISECONDS = 100;
 
 /** Builds one sampler worker. Overridable in tests to avoid a real `Worker`. */
 export type SamplerWorkerFactory = () => SamplerWorker;
@@ -31,7 +39,7 @@ export type MetadataStoreFactory = (url: string) => Readable;
 
 /** The subset of `Worker` the composable depends on. */
 export interface SamplerWorker {
-  postMessage(message: InboundSamplerMessage): void;
+  postMessage(message: InboundSamplerMessage, transfer?: Transferable[]): void;
   onmessage: ((event: MessageEvent<SampledMessage>) => void) | null;
   terminate(): void;
 }
@@ -82,7 +90,6 @@ export const useAnnotationSampler = createSharedComposable(
     );
     const workers = Array.from({ length: workerCount }, workerFactory);
 
-    let streamCount = 0;
     let nextStreamId = 0;
     let volume: AnnotationVolume | null = null;
     const streamGenerations = new Map<string, number>();
@@ -104,6 +111,10 @@ export const useAnnotationSampler = createSharedComposable(
         streamCallbacks.get(event.data.streamId)?.(event.data);
       };
     }
+
+    onScopeDispose(() => {
+      for (const worker of workers) worker.terminate();
+    });
 
     function broadcast(message: InboundSamplerMessage): void {
       for (const worker of workers) worker.postMessage(message);
@@ -144,10 +155,17 @@ export const useAnnotationSampler = createSharedComposable(
       geometry: Ref<SampleGeometry | null>
     ): AnnotationSampleStream {
       const streamId = `stream-${nextStreamId++}`;
-      streamCount += 1;
 
       const result = shallowRef<SampleResult | null>(null);
       const isLoading = shallowRef(false);
+      // The last geometry/volume this stream actually dispatched a plan for,
+      // so a value-identical but freshly constructed geometry (e.g. a
+      // re-interned dependency changing the computed's object identity)
+      // doesn't pay for a redundant replan.
+      let lastPlanned: {
+        geometry: SampleGeometry;
+        volume: AnnotationVolume;
+      } | null = null;
 
       streamCallbacks.set(streamId, message => {
         if (streamGenerations.get(streamId) !== message.generation) return;
@@ -168,23 +186,32 @@ export const useAnnotationSampler = createSharedComposable(
         if (!value) {
           result.value = null;
           isLoading.value = false;
+          lastPlanned = null;
           return;
         }
         // The volume may not have opened yet (both are async, independently);
         // `streamReplans` re-invokes this once it does, so just wait.
         if (!volume || volume.levels.length === 0) return;
 
+        if (
+          lastPlanned &&
+          lastPlanned.volume === volume &&
+          isSameGeometry(lastPlanned.geometry, value)
+        ) {
+          return;
+        }
+
         const generation = (streamGenerations.get(streamId) ?? 0) + 1;
         streamGenerations.set(streamId, generation);
 
-        const levelIndex = selectAnnotationLevelIndex(volume, value);
-        const plan = planSamples(value, volume.levels[levelIndex]!, levelIndex);
+        const plan = selectSamplePlan(value, volume);
         const shardGroups = groupRequestsByShard(plan, workerCount);
         const nonEmptyGroups = shardGroups.filter(group => group.length > 0);
 
         result.value = createSampleResult(
-          plan.sampleCount,
-          value.kind === "plane"
+          value.widthPixels,
+          value.heightPixels,
+          result.value ?? undefined
         );
         result.value.totalChunkCount = plan.chunkRequests.length;
         streamRequestCounts.set(streamId, {
@@ -195,21 +222,33 @@ export const useAnnotationSampler = createSharedComposable(
 
         shardGroups.forEach((requests, workerIndex) => {
           if (requests.length === 0) return;
-          workers[workerIndex]!.postMessage({
-            type: "sample",
-            streamId,
-            generation,
-            levelIndex,
-            requests
-          });
+          const transfer: Transferable[] = [];
+          for (const request of requests) {
+            transfer.push(
+              request.sampleIndices.buffer,
+              request.voxelOffsets.buffer
+            );
+          }
+          workers[workerIndex]!.postMessage(
+            {
+              type: "sample",
+              streamId,
+              generation,
+              levelIndex: plan.levelIndex,
+              requests
+            },
+            transfer
+          );
         });
+
+        lastPlanned = { geometry: value, volume };
       }
 
       streamReplans.set(streamId, () => planAndSample(geometry.value));
 
       watchDebounced(geometry, planAndSample, {
-        debounce: REPLAN_INTERVAL_MILLISECONDS,
-        maxWait: REPLAN_INTERVAL_MILLISECONDS,
+        debounce: REPLAN_DEBOUNCE_MILLISECONDS,
+        maxWait: REPLAN_MAXIMUM_WAIT_MILLISECONDS,
         immediate: true
       });
 
@@ -219,10 +258,6 @@ export const useAnnotationSampler = createSharedComposable(
         streamGenerations.delete(streamId);
         streamRequestCounts.delete(streamId);
         streamReplans.delete(streamId);
-        streamCount -= 1;
-        if (streamCount === 0) {
-          for (const worker of workers) worker.terminate();
-        }
       });
 
       return { result, isLoading };
@@ -241,13 +276,55 @@ function applySampledMessage(
   result: SampleResult,
   message: SampledMessage
 ): void {
-  const packedColors = result.pixels
-    ? new Uint32Array(result.pixels.buffer)
-    : null;
+  const packedColors = new Uint32Array(result.pixels.buffer);
   for (let index = 0; index < message.sampleIndices.length; index++) {
     const sampleIndex = message.sampleIndices[index]!;
     result.annotationValues[sampleIndex] = message.annotationValues[index]!;
-    if (packedColors) packedColors[sampleIndex] = message.colors[index]!;
+    packedColors[sampleIndex] = message.colors[index]!;
   }
   result.paintedChunkCount += message.chunkCount;
+}
+
+/**
+ * Are two geometries sample-for-sample identical, comparing scalars and
+ * coordinate triples by value rather than by reference.
+ * @param a First geometry to compare.
+ * @param b Second geometry to compare.
+ */
+function isSameGeometry(a: SampleGeometry, b: SampleGeometry): boolean {
+  return (
+    a.halfHeightMillimeters === b.halfHeightMillimeters &&
+    a.widthPixels === b.widthPixels &&
+    a.heightPixels === b.heightPixels &&
+    isSameTriple(a.rightMillimeters, b.rightMillimeters) &&
+    isSameTriple(a.upMillimeters, b.upMillimeters) &&
+    a.bands.length === b.bands.length &&
+    a.bands.every((band, index) => isSameBand(band, b.bands[index]!))
+  );
+}
+
+/**
+ * Are two bands sample-for-sample identical.
+ * @param a First band to compare.
+ * @param b Second band to compare.
+ */
+function isSameBand(a: SampleBand, b: SampleBand): boolean {
+  return (
+    a.halfWidthMillimeters === b.halfWidthMillimeters &&
+    a.columnOffset === b.columnOffset &&
+    a.columnCount === b.columnCount &&
+    isSameTriple(a.centerMillimeters, b.centerMillimeters)
+  );
+}
+
+/**
+ * Are two 3-element coordinate triples element-wise equal.
+ * @param a First triple to compare.
+ * @param b Second triple to compare.
+ */
+function isSameTriple(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number]
+): boolean {
+  return a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 }

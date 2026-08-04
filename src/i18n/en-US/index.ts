@@ -165,8 +165,10 @@ export default {
   slice: {
     zoom: "Zoom",
     center: "Center along probe",
-    extent: "{extent} mm",
-    noContour: "This probe has no contour to slice through."
+    noContour: "This probe has no contour to slice through.",
+    channelMap: "In-plane slice for {name}",
+    channelMapWindow: "Channel map window for {name}",
+    millimeters: "{value} mm"
   },
   errorNotFound: {
     code: "404",
