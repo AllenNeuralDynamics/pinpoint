@@ -22,7 +22,13 @@ import {
   clearAxisGuides,
   createAxisGuides
 } from "../api/axis-guide.api";
-import { setInitialZoom } from "../api/camera.api";
+import { applyCameraProjection, setInitialZoom } from "../api/camera.api";
+import type { SurfaceMaterialSettings } from "../api/material.api";
+import {
+  applySurfaceMaterialSettingsToNewMaterials,
+  syncSceneMaterials
+} from "../api/material.api";
+import type { ProbeGeometry } from "../models/probe-geometry.model";
 import type { StructureEntity } from "@/features/atlas";
 import {
   getAtlasCenter,
@@ -31,6 +37,7 @@ import {
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { useI18n } from "vue-i18n";
 import {
   endProbeGizmoDrag,
@@ -54,13 +61,16 @@ import {
 import {
   deselectFromPointerDown,
   orbitCameraFromAxisGuideDoubleTap,
-  selectFromSelectedInspectableState
+  selectFromSelectedInspectableState,
+  setHemisphericLightIntensity,
+  setSceneBackgroundColor
 } from "../api/scene.api";
 import { useNotify } from "@/composable/useNotify";
 
 const { t } = useI18n();
 const { notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
+const preferences = usePreferencesStore();
 const runtime = useBabylonRuntimeService();
 
 const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
@@ -111,11 +121,29 @@ const visibleStructureEntities = computed<StructureEntity[]>(() =>
   )
 );
 
+const surfaceMaterialSettings = computed<SurfaceMaterialSettings>(() => ({
+  specularIntensity: preferences.materialSpecularIntensity,
+  specularPower: preferences.materialSpecularPower
+}));
+
+const probeGeometry = computed<ProbeGeometry>(() => ({
+  shankThicknessMillimeters: preferences.probeShankThicknessMillimeters,
+  headStageLengthMillimeters: preferences.probeHeadStageLengthMillimeters,
+  headStageCutDepthMillimeters: preferences.probeHeadStageCutDepthMillimeters,
+  rodDiameterMillimeters: preferences.probeRodDiameterMillimeters,
+  rodLengthMillimeters: preferences.probeRodLengthMillimeters
+}));
+
 /**
  * Trigger engine resizing on page area resize.
  */
 function onResize() {
   runtime.engine.value?.resize();
+
+  const camera = runtime.camera.value;
+  if (!camera) return;
+
+  applyCameraProjection(camera, preferences.cameraProjection);
 }
 
 watchEffect(async () => {
@@ -210,6 +238,65 @@ watch([runtime.scene, runtime.camera], ([scene, camera]) => {
   onWatcherCleanup(() => observer.remove());
 });
 
+watchEffect(() => {
+  const camera = runtime.camera.value;
+  if (!camera) return;
+
+  camera.inertia = preferences.cameraInertia;
+});
+
+watchEffect(() => {
+  const camera = runtime.camera.value;
+  if (!camera) return;
+
+  applyCameraProjection(camera, preferences.cameraProjection);
+});
+
+// The orthographic frustum is sized from the camera's radius, so zooming or
+// orbiting has to re-derive it. Cheap in perspective mode, where the call
+// just re-clears the four ortho bounds.
+watch(runtime.camera, camera => {
+  if (!camera) return;
+
+  const observer = camera.onViewMatrixChangedObservable.add(() => {
+    applyCameraProjection(camera, preferences.cameraProjection);
+  });
+  onWatcherCleanup(() => observer.remove());
+});
+
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+
+  setSceneBackgroundColor(scene, preferences.worldBackgroundColor);
+});
+
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+
+  setHemisphericLightIntensity(scene, preferences.worldLightIntensity);
+});
+
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+
+  syncSceneMaterials(scene, surfaceMaterialSettings.value);
+});
+
+// Materials built after the sync above (a new probe, a newly visible
+// structure) still need the current specular settings.
+watch(runtime.scene, scene => {
+  if (!scene) return;
+
+  const observer = applySurfaceMaterialSettingsToNewMaterials(
+    scene,
+    () => surfaceMaterialSettings.value
+  );
+  onWatcherCleanup(() => observer.remove());
+});
+
 // Clear the scene whenever the atlas changes, but not on the scene's own
 // first availability.
 watch(
@@ -241,7 +328,8 @@ watchEffect(() => {
     scene,
     currentExperiment.experiment,
     gizmoManager,
-    currentExperiment.draggedProbeId
+    currentExperiment.draggedProbeId,
+    probeGeometry.value
   );
 
   const selectedInspectable = currentExperiment.selectedInspectable;

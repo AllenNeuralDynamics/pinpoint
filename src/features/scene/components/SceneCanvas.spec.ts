@@ -19,6 +19,7 @@ import type {
 import {
   ArcRotateCamera,
   Matrix,
+  Observable,
   PointerEventTypes,
   PointerInfo,
   Vector3
@@ -36,13 +37,14 @@ import {
   mountWithQuasar
 } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import {
   buildAtlasRootNode,
   removeAllStructures,
   setAtlasCenterOffset,
   syncStructuresVisibility
 } from "../api/structures.api";
-import { setInitialZoom } from "../api/camera.api";
+import { applyCameraProjection, setInitialZoom } from "../api/camera.api";
 import { createAxisGuides } from "../api/axis-guide.api";
 import type * as AxisGuideApi from "../api/axis-guide.api";
 import {
@@ -92,7 +94,7 @@ vi.mock("../api/camera.api", async () => {
     await vi.importActual<typeof import("../api/camera.api")>(
       "../api/camera.api"
     );
-  return { ...actual, setInitialZoom: vi.fn() };
+  return { ...actual, applyCameraProjection: vi.fn(), setInitialZoom: vi.fn() };
 });
 
 vi.mock("../api/axis-guide.api", async () => {
@@ -174,7 +176,11 @@ function makeRuntimeStub() {
     const built = makeTestSceneWithGizmo();
     engine.value = { resize };
     scene.value = built.scene;
-    camera.value = { radius: 0 } as ArcRotateCamera;
+    camera.value = {
+      radius: 0,
+      inertia: 0.9,
+      onViewMatrixChangedObservable: new Observable()
+    } as unknown as ArcRotateCamera;
     gizmoManager.value = built.gizmoManager;
     selectionOutlineLayer.value = built.selectionOutlineLayer;
   });
@@ -263,6 +269,7 @@ describe("SceneCanvas", () => {
     vi.mocked(syncStructuresVisibility).mockResolvedValue(undefined);
     vi.mocked(setAtlasCenterOffset).mockReset();
     vi.mocked(removeAllStructures).mockReset();
+    vi.mocked(applyCameraProjection).mockReset();
     vi.mocked(setInitialZoom).mockReset();
     vi.mocked(createAxisGuides).mockReset();
     vi.mocked(createAxisGuides).mockImplementation(async scene => ({
@@ -500,6 +507,48 @@ describe("SceneCanvas", () => {
     expect(setInitialZoom).toHaveBeenCalledWith(
       runtime.camera.value,
       getAtlasDimensionsMillimeters(DEFAULT_ATLAS)[0]
+    );
+  });
+
+  it("applies the camera's inertia from the preferences store", async () => {
+    const { runtime } = await mountCanvas();
+
+    expect(runtime.camera.value?.inertia).toBe(0.9);
+
+    usePreferencesStore().cameraInertia = 0.2;
+    await flushPromises();
+
+    expect(runtime.camera.value?.inertia).toBe(0.2);
+  });
+
+  it("applies the camera's projection from the preferences store", async () => {
+    const { runtime } = await mountCanvas();
+
+    expect(applyCameraProjection).toHaveBeenCalledWith(
+      runtime.camera.value,
+      "perspective"
+    );
+
+    usePreferencesStore().cameraProjection = "orthographic";
+    await flushPromises();
+
+    expect(applyCameraProjection).toHaveBeenCalledWith(
+      runtime.camera.value,
+      "orthographic"
+    );
+  });
+
+  it("re-derives the projection when the camera's view matrix changes", async () => {
+    const { runtime } = await mountCanvas();
+    vi.mocked(applyCameraProjection).mockClear();
+
+    (
+      runtime.camera.value!.onViewMatrixChangedObservable as Observable<unknown>
+    ).notifyObservers(undefined);
+
+    expect(applyCameraProjection).toHaveBeenCalledWith(
+      runtime.camera.value,
+      "perspective"
     );
   });
 

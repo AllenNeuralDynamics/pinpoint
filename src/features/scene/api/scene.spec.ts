@@ -14,7 +14,12 @@ import {
   internProbeInterfaceProbe
 } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
-import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeProbe,
+  makeProbeGeometry,
+  makeProbeInterfaceProbe
+} from "@/test/fixtures";
 import type { FakeTextRenderer } from "@/test/mount-helper";
 import {
   initializeTestCSG2,
@@ -58,7 +63,13 @@ function makeProbeInScene() {
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe)
   });
   addProbe(experiment, probe);
-  const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+  const node = buildProbe(
+    scene,
+    probe,
+    experiment,
+    gizmoManager,
+    makeProbeGeometry()
+  )!;
 
   return {
     scene,
@@ -138,7 +149,13 @@ describe("selectFromSelectedInspectableState", () => {
       probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe)
     });
     addProbe(experiment, probeB);
-    const nodeB = buildProbe(scene, probeB, experiment, gizmoManager)!;
+    const nodeB = buildProbe(
+      scene,
+      probeB,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
 
     selectFromSelectedInspectableState(
       scene,

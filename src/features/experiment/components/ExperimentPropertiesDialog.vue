@@ -3,9 +3,15 @@ import { computed, ref, useTemplateRef, watch } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
 import { type Atlas, AtlasPicker, isSameAtlas } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
+import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import { isFiniteTriple } from "@/utils/type-guards";
+import {
+  millimetersToPositionUnit,
+  positionUnitToMillimeters
+} from "@/utils/math";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { setExperimentProperties } from "../api/experiment.api";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
@@ -14,6 +20,8 @@ defineEmits([...useDialogPluginComponent.emits]);
 
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
+const preferences = usePreferencesStore();
+const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: coordinateRules } =
   useValidationRules();
 
@@ -25,9 +33,34 @@ const referenceCoordinate = ref<[number, number, number]>([
   ...currentExperimentStore.referenceCoordinate
 ]);
 
-const ap = useNumericTupleModel(() => referenceCoordinate.value, 0);
-const dv = useNumericTupleModel(() => referenceCoordinate.value, 1);
-const ml = useNumericTupleModel(() => referenceCoordinate.value, 2);
+const positionSuffix = computed(() =>
+  unitLabels.position(preferences.positionUnit)
+);
+
+const ap = useNumericTupleModel(
+  () => referenceCoordinate.value,
+  0,
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
+const dv = useNumericTupleModel(
+  () => referenceCoordinate.value,
+  1,
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
+const ml = useNumericTupleModel(
+  () => referenceCoordinate.value,
+  2,
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
 
 /**
  * Whether the Save button should be disabled.
@@ -101,18 +134,21 @@ watch(atlas, (newAtlas, oldAtlas) => {
               class="col"
               :label="$t('axis.ap')"
               :rules="coordinateRules"
+              :suffix="positionSuffix"
             />
             <CommittedInput
               v-model="dv"
               class="col"
               :label="$t('axis.dv')"
               :rules="coordinateRules"
+              :suffix="positionSuffix"
             />
             <CommittedInput
               v-model="ml"
               class="col"
               :label="$t('axis.ml')"
               :rules="coordinateRules"
+              :suffix="positionSuffix"
             />
           </div>
         </div>

@@ -6,6 +6,7 @@ import { createPinia, setActivePinia } from "pinia";
 import ProbeInspector from "./ProbeInspector.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 import { getTerminologyRows } from "@/features/atlas";
@@ -196,14 +197,16 @@ describe("ProbeInspector", () => {
     );
   });
 
-  it("commits Roll/Yaw/Pitch into orientation as real numbers", async () => {
+  it("commits Roll/Yaw/Pitch in degrees, converting to radians in orientation", async () => {
     const { wrapper, probe } = mountInspector();
 
-    await editAndBlur(fieldByLabel(wrapper, t.roll), "0.1");
-    await editAndBlur(fieldByLabel(wrapper, t.yaw), "0.2");
-    await editAndBlur(fieldByLabel(wrapper, t.pitch), "0.3");
+    await editAndBlur(fieldByLabel(wrapper, t.roll), "90");
+    await editAndBlur(fieldByLabel(wrapper, t.yaw), "180");
+    await editAndBlur(fieldByLabel(wrapper, t.pitch), "-45");
 
-    expect(probe.rotation).toEqual([0.1, 0.2, 0.3]);
+    expect(probe.rotation[0]).toBeCloseTo(Math.PI / 2);
+    expect(probe.rotation[1]).toBeCloseTo(Math.PI);
+    expect(probe.rotation[2]).toBeCloseTo(-Math.PI / 4);
   });
 
   it("rejects a non-numeric value in a numeric field", async () => {
@@ -214,6 +217,33 @@ describe("ProbeInspector", () => {
 
     expect(probe.tipPosition[0]).toBe(0);
     expect(ap.find("[role='alert']").text()).toBe(validation.mustBeNumber);
+  });
+
+  it("rounds the display to the preferences store's decimal precision", async () => {
+    const { wrapper } = mountInspector(
+      makeProbe({ tipPosition: [1.2345, 0, 0] })
+    );
+    usePreferencesStore().decimalPrecision = 1;
+    await wrapper.vm.$nextTick();
+
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("1.2");
+  });
+
+  it("displays positions and rotations in the preferences store's units", async () => {
+    const { wrapper } = mountInspector(
+      makeProbe({ tipPosition: [1, 0, 0], rotation: [0, 0, Math.PI / 2] })
+    );
+    const preferences = usePreferencesStore();
+    preferences.positionUnit = "micrometer";
+    preferences.rotationUnit = "radian";
+    await wrapper.vm.$nextTick();
+
+    const ap = fieldByLabel(wrapper, axis.ap);
+    expect(ap.props("modelValue")).toBe("1000.000");
+    expect(ap.props("suffix")).toBe("µm");
+    const pitch = fieldByLabel(wrapper, t.pitch);
+    expect(pitch.props("modelValue")).toBe("1.571");
+    expect(pitch.props("suffix")).toBe("rad");
   });
 
   it("commits zero when a numeric field is left blank", async () => {
@@ -255,7 +285,7 @@ describe("ProbeInspector", () => {
     await wrapper.setProps({ probe: b } as Record<string, unknown>);
 
     expect(fieldByLabel(wrapper, t.name).props("modelValue")).toBe("B");
-    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("4");
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("4.000");
   });
 
   it("keeps the renamed probe selected and in sync with the store", async () => {

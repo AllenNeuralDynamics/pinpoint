@@ -119,9 +119,9 @@ describe("ExperimentPropertiesDialog", () => {
     expect(atlasPicker(wrapper).props("modelValue")).toEqual(makeAtlas());
 
     const coordinates = coordinateInputs(wrapper);
-    expect(coordinates[0]!.find("input").element.value).toBe("1");
-    expect(coordinates[1]!.find("input").element.value).toBe("2");
-    expect(coordinates[2]!.find("input").element.value).toBe("3");
+    expect(coordinates[0]!.find("input").element.value).toBe("1.000");
+    expect(coordinates[1]!.find("input").element.value).toBe("2.000");
+    expect(coordinates[2]!.find("input").element.value).toBe("3.000");
   });
 
   it("commits name, atlas, and coordinates to the store and emits ok on Save", async () => {
@@ -163,7 +163,7 @@ describe("ExperimentPropertiesDialog", () => {
 
     await editAndBlur(ap, "");
 
-    expect(ap.find("input").element.value).toBe("0");
+    expect(ap.find("input").element.value).toBe("0.000");
   });
 
   it("rejects non-numeric coordinate text, leaving the stored value untouched", async () => {
@@ -194,9 +194,9 @@ describe("ExperimentPropertiesDialog", () => {
     await flushMicrotasks();
 
     const coordinates = coordinateInputs(wrapper);
-    expect(coordinates[0]!.find("input").element.value).toBe("1");
-    expect(coordinates[1]!.find("input").element.value).toBe("1");
-    expect(coordinates[2]!.find("input").element.value).toBe("1");
+    expect(coordinates[0]!.find("input").element.value).toBe("1.000");
+    expect(coordinates[1]!.find("input").element.value).toBe("1.000");
+    expect(coordinates[2]!.find("input").element.value).toBe("1.000");
   });
 
   it("does not re-seed when re-picking an equal but distinct atlas object", async () => {
@@ -208,7 +208,7 @@ describe("ExperimentPropertiesDialog", () => {
     await flushMicrotasks();
 
     expect(coordinateInputs(wrapper)[0]!.find("input").element.value).toBe(
-      "42"
+      "42.000"
     );
   });
 });

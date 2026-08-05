@@ -39,6 +39,7 @@ import {
   stopNodePoseInterpolation
 } from "./pose-interpolation.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
+import type { ProbeGeometry } from "../models/probe-geometry.model";
 import type { TransformGizmos } from "../models/gizmo.model";
 
 /** Probe entity suffix start */
@@ -62,21 +63,6 @@ const ROD_MESH_SUFFIX = `${PROBE_ENTITY_SUFFIX}rod_mesh`;
 /** Name of the shared gray material used by every probe's rod mesh. */
 const ROD_MATERIAL_NAME = "probe_rod_material";
 
-/** Thickness of the extruded shank mesh, in mm. */
-const SHANK_THICKNESS_MILLIMETERS = 0.05;
-
-/** Height of the head stage cone, in mm. */
-const HEAD_STAGE_HEIGHT_MILLIMETERS = 20;
-
-/** Top radius of the head stage cone, in mm. */
-const HEAD_STAGE_TOP_DIAMETER_MILLIMETERS = 8;
-
-/** Length of the rod, in mm. */
-const ROD_LENGTH_MILLIMETERS = 200;
-
-/** Radius of the rod, in mm. */
-const ROD_DIAMETER_MILLIMETERS = 8;
-
 /**
  * Get a probe's transform node by ID.
  * @param scene Scene to search for probe.
@@ -93,17 +79,19 @@ export function getProbeTransformNode(
 
 /**
  * Build a probe's shank, head stage, and rod meshes, or return its existing
- * entity if already built.
- * @param scene Scene to add the probe to.
+ * transform node if already built.
+ * @param scene Scene to build the probe in.
  * @param probe Probe to build.
  * @param experiment Experiment this probe belongs to (to extract probe interface definition).
  * @param gizmoManager Gizmo manager to add probe meshes to.
+ * @param geometry Probe body geometry to build the meshes with.
  */
 export function buildProbe(
   scene: Scene,
   probe: Probe,
   experiment: Experiment,
-  gizmoManager: GizmoManager
+  gizmoManager: GizmoManager,
+  geometry: ProbeGeometry
 ): TransformNode | null {
   const existing = getProbeTransformNode(scene, probe.id);
   if (existing) return existing;
@@ -121,7 +109,8 @@ export function buildProbe(
 
   const probeMetadata: ProbeMetadata = {
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
-    shankAlignmentIndex: probe.shankAlignmentIndex
+    shankAlignmentIndex: probe.shankAlignmentIndex,
+    geometry
   };
 
   const node = new TransformNode(
@@ -135,12 +124,14 @@ export function buildProbe(
   const shankMesh = buildShankMesh(
     scene,
     contour,
-    probeEntityName(probe.id, SHANK_MESH_SUFFIX)
+    probeEntityName(probe.id, SHANK_MESH_SUFFIX),
+    geometry
   );
   const headStageMesh = buildHeadStageMesh(
     scene,
     contour,
-    probeEntityName(probe.id, HEAD_STAGE_MESH_SUFFIX)
+    probeEntityName(probe.id, HEAD_STAGE_MESH_SUFFIX),
+    geometry
   );
   for (const mesh of [shankMesh, headStageMesh]) {
     mesh.material = material;
@@ -150,7 +141,8 @@ export function buildProbe(
   const rodMesh = buildRodMesh(
     scene,
     contour,
-    probeEntityName(probe.id, ROD_MESH_SUFFIX)
+    probeEntityName(probe.id, ROD_MESH_SUFFIX),
+    geometry
   );
   rodMesh.material = buildRodMaterial(scene);
   rodMesh.parent = node;
@@ -200,12 +192,14 @@ export function disposeProbe(
  * @param experiment Experiment to pull probe data to sync from.
  * @param gizmoManager Gizmo manager for controlling probes.
  * @param draggedProbeId ID of the probe being dragged (if any). Ignore transform updates for this probe.
+ * @param geometry Probe body geometry to build meshes with.
  */
 export function syncProbes(
   scene: Scene,
   experiment: Experiment,
   gizmoManager: GizmoManager,
-  draggedProbeId: string | null
+  draggedProbeId: string | null,
+  geometry: ProbeGeometry
 ): string[] {
   const referenceCoordinateNode = buildReferenceCoordinateNode(scene);
   const experimentProbesById = new Map(
@@ -224,7 +218,8 @@ export function syncProbes(
       !metadata ||
       !probe ||
       probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier ||
-      probe.shankAlignmentIndex !== metadata.shankAlignmentIndex
+      probe.shankAlignmentIndex !== metadata.shankAlignmentIndex ||
+      !isSameProbeGeometry(metadata.geometry, geometry)
     ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);
@@ -236,7 +231,8 @@ export function syncProbes(
   for (const probe of experiment.probes) {
     const existingNode = nodesById.get(probe.id);
     const node =
-      existingNode ?? buildProbe(scene, probe, experiment, gizmoManager);
+      existingNode ??
+      buildProbe(scene, probe, experiment, gizmoManager, geometry);
     if (!node) continue;
 
     const meshes = node.getChildMeshes(false);
@@ -484,23 +480,25 @@ function buildProbeMaterial(scene: Scene, probe: Probe): StandardMaterial {
  * @param scene Scene to build the mesh in.
  * @param contour Probe contour to extrude.
  * @param name Name for the mesh.
+ * @param geometry Probe body geometry to build the mesh with.
  */
 function buildShankMesh(
   scene: Scene,
   contour: ProbeContour,
-  name: string
+  name: string,
+  geometry: ProbeGeometry
 ): Mesh {
   const mesh = ExtrudePolygon(
     name,
     {
       shape: contour.points.map(({ x, y }) => new Vector3(x, 0, y)),
-      depth: SHANK_THICKNESS_MILLIMETERS,
+      depth: geometry.shankThicknessMillimeters,
       sideOrientation: Mesh.DOUBLESIDE
     },
     scene,
     earcut
   );
-  mesh.position = new Vector3(0, SHANK_THICKNESS_MILLIMETERS / 2, 0);
+  mesh.position = new Vector3(0, geometry.shankThicknessMillimeters / 2, 0);
   return mesh;
 }
 
@@ -509,18 +507,20 @@ function buildShankMesh(
  * @param scene Scene to build the mesh in.
  * @param contour Probe contour the head stage sits on top of.
  * @param name Name for the mesh.
+ * @param geometry Probe body geometry to build the mesh with.
  */
 function buildHeadStageMesh(
   scene: Scene,
   contour: ProbeContour,
-  name: string
+  name: string,
+  geometry: ProbeGeometry
 ): Mesh {
   const baseMesh = MeshBuilder.CreateCylinder(
     `${name}_base`,
     {
-      height: HEAD_STAGE_HEIGHT_MILLIMETERS,
+      height: geometry.headStageLengthMillimeters,
       diameterBottom: contour.widthMillimeters,
-      diameterTop: HEAD_STAGE_TOP_DIAMETER_MILLIMETERS
+      diameterTop: geometry.rodDiameterMillimeters
     },
     scene
   );
@@ -528,20 +528,20 @@ function buildHeadStageMesh(
   baseMesh.position = new Vector3(
     0,
     0,
-    contour.heightMillimeters + HEAD_STAGE_HEIGHT_MILLIMETERS / 2
+    contour.heightMillimeters + geometry.headStageLengthMillimeters / 2
   );
   const cutterMesh = MeshBuilder.CreateBox(
     `${name}_cutter`,
     {
-      size: HEAD_STAGE_TOP_DIAMETER_MILLIMETERS,
-      height: HEAD_STAGE_HEIGHT_MILLIMETERS
+      size: geometry.rodDiameterMillimeters,
+      height: geometry.headStageLengthMillimeters
     },
     scene
   );
   cutterMesh.position = new Vector3(
     0,
-    -HEAD_STAGE_HEIGHT_MILLIMETERS / 8,
-    HEAD_STAGE_TOP_DIAMETER_MILLIMETERS / 2 + SHANK_THICKNESS_MILLIMETERS / 2
+    geometry.headStageCutDepthMillimeters - geometry.headStageLengthMillimeters,
+    geometry.rodDiameterMillimeters / 2 + geometry.shankThicknessMillimeters / 2
   );
   cutterMesh.parent = baseMesh;
 
@@ -552,7 +552,7 @@ function buildHeadStageMesh(
   mesh.position = new Vector3(
     0,
     0,
-    contour.heightMillimeters + HEAD_STAGE_HEIGHT_MILLIMETERS / 2
+    contour.heightMillimeters + geometry.headStageLengthMillimeters / 2
   );
 
   // Cleanup base mesh and CSG manifolds (not GC'd; wrap native WASM memory).
@@ -569,13 +569,19 @@ function buildHeadStageMesh(
  * @param scene Scene to build the mesh in.
  * @param contour Probe contour the head stage (and rod) sit on top of.
  * @param name Name for the mesh.
+ * @param geometry Probe body geometry to build the mesh with.
  */
-function buildRodMesh(scene: Scene, contour: ProbeContour, name: string): Mesh {
+function buildRodMesh(
+  scene: Scene,
+  contour: ProbeContour,
+  name: string,
+  geometry: ProbeGeometry
+): Mesh {
   const mesh = MeshBuilder.CreateCylinder(
     name,
     {
-      height: ROD_LENGTH_MILLIMETERS,
-      diameter: ROD_DIAMETER_MILLIMETERS
+      height: geometry.rodLengthMillimeters,
+      diameter: geometry.rodDiameterMillimeters
     },
     scene
   );
@@ -584,8 +590,8 @@ function buildRodMesh(scene: Scene, contour: ProbeContour, name: string): Mesh {
     0,
     0,
     contour.heightMillimeters +
-      HEAD_STAGE_HEIGHT_MILLIMETERS +
-      ROD_LENGTH_MILLIMETERS / 2
+      geometry.headStageLengthMillimeters +
+      geometry.rodLengthMillimeters / 2
   );
   return mesh;
 }
@@ -602,4 +608,19 @@ function buildRodMaterial(scene: Scene): StandardMaterial {
   material.diffuseColor = Color3.Gray();
   material.freeze();
   return material;
+}
+
+/**
+ * Do two probe body geometries match on every dimension.
+ * @param a First geometry to compare.
+ * @param b Second geometry to compare.
+ */
+function isSameProbeGeometry(a: ProbeGeometry, b: ProbeGeometry): boolean {
+  return (
+    a.shankThicknessMillimeters === b.shankThicknessMillimeters &&
+    a.headStageLengthMillimeters === b.headStageLengthMillimeters &&
+    a.headStageCutDepthMillimeters === b.headStageCutDepthMillimeters &&
+    a.rodDiameterMillimeters === b.rodDiameterMillimeters &&
+    a.rodLengthMillimeters === b.rodLengthMillimeters
+  );
 }

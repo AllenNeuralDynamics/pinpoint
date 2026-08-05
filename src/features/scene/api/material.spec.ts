@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { Color3, StandardMaterial } from "@babylonjs/core";
-import { setMaterialAlpha, setMaterialDiffuseColor } from "./material.api";
+import {
+  applySurfaceMaterialSettings,
+  setMaterialAlpha,
+  setMaterialDiffuseColor,
+  syncSceneMaterials
+} from "./material.api";
 import { makeTestScene } from "@/test/mount-helper";
 
 describe("setMaterialAlpha", () => {
@@ -77,5 +82,54 @@ describe("setMaterialDiffuseColor", () => {
 
     expect(material.diffuseColor.equals(Color3.FromInts(0, 255, 0))).toBe(true);
     expect(material.isFrozen).toBe(true);
+  });
+});
+
+describe("applySurfaceMaterialSettings", () => {
+  it("sets specular color/power on a frozen material and marks it dirty", () => {
+    const material = new StandardMaterial("material", makeTestScene());
+    material.freeze();
+    const markDirtySpy = vi.spyOn(material, "markDirty");
+
+    applySurfaceMaterialSettings(material, {
+      specularIntensity: 0.5,
+      specularPower: 32
+    });
+
+    expect(material.specularColor.equals(new Color3(0.5, 0.5, 0.5))).toBe(true);
+    expect(material.specularPower).toBe(32);
+    expect(markDirtySpy).toHaveBeenCalledWith(true);
+    expect(material.isFrozen).toBe(true);
+  });
+
+  it("does nothing when the settings are unchanged", () => {
+    const material = new StandardMaterial("material", makeTestScene());
+    material.specularColor = new Color3(0.5, 0.5, 0.5);
+    material.specularPower = 32;
+    const markDirtySpy = vi.spyOn(material, "markDirty");
+
+    applySurfaceMaterialSettings(material, {
+      specularIntensity: 0.5,
+      specularPower: 32
+    });
+
+    expect(markDirtySpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncSceneMaterials", () => {
+  it("applies the settings to every standard material in the scene", () => {
+    const scene = makeTestScene();
+    const a = new StandardMaterial("a", scene);
+    const b = new StandardMaterial("b", scene);
+
+    syncSceneMaterials(scene, { specularIntensity: 0.25, specularPower: 16 });
+
+    for (const material of [a, b]) {
+      expect(material.specularColor.equals(new Color3(0.25, 0.25, 0.25))).toBe(
+        true
+      );
+      expect(material.specularPower).toBe(16);
+    }
   });
 });

@@ -10,3 +10,5 @@ export type {
   GizmoMode,
   TransformGizmos
 } from "./models/gizmo.model";
+export type { CameraProjection } from "./models/camera.model";
+export type { ProbeGeometry } from "./models/probe-geometry.model";

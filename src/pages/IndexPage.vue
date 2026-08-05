@@ -11,6 +11,7 @@ import {
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { AtlasHierarchy } from "@/features/atlas";
 import { ProbeLibraryDialog } from "@/features/probe";
+import { PreferencesDialog } from "@/features/preferences";
 import { Inspector } from "@/features/inspector";
 import { SplashDialog } from "@/features/splash";
 import { clamp } from "@/utils/math";
@@ -139,6 +140,12 @@ onMounted(() => {
                 @click="$q.dialog({ component: ProbeLibraryDialog })"
               >
                 <q-item-section>{{ $t("layout.probeLibrary") }}</q-item-section>
+              </q-item>
+              <q-item
+                clickable
+                @click="$q.dialog({ component: PreferencesDialog })"
+              >
+                <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
               </q-item>
             </q-list>
           </q-menu>

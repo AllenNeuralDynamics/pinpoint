@@ -121,6 +121,7 @@ export default {
     edit: "Edit",
     experimentProperties: "Experiment Properties",
     probeLibrary: "Probe Library",
+    preferences: "Preferences",
     view: "View",
     splashScreen: "Splash Screen",
     toggleDarkMode: "Toggle Dark Mode",
@@ -180,5 +181,63 @@ export default {
     code: "404",
     message: "Oops. Nothing here...",
     goHome: "Go Home"
+  },
+  units: {
+    inch: "in",
+    centimeter: "cm",
+    millimeter: "mm",
+    micrometer: "µm",
+    degree: "°",
+    radian: "rad"
+  },
+  preferences: {
+    title: "Preferences",
+    scene: "Scene",
+    probe: "Probe",
+    reset: "Reset",
+    close: "Close",
+
+    camera: "Camera",
+    projection: "Projection",
+    perspective: "Perspective",
+    orthographic: "Orthographic",
+    inertia: "Inertia",
+    inertiaSnappy: "Snappy",
+    inertiaSmooth: "Smooth",
+
+    world: "World",
+    backgroundColor: "Background Color",
+    lightPower: "Light Power",
+    specularIntensity: "Specular Intensity",
+    specularPower: "Glossiness",
+
+    unitsTitle: "Units",
+    positionUnit: "Position",
+    rotationUnit: "Rotation",
+    decimalPrecision: "Decimal Places",
+
+    probeShape: "Probe Shape",
+    shankThickness: "Shank Thickness",
+    headStageLength: "Headstage Length",
+    headStageCutDepth: "Headstage Cut Depth",
+    rodDiameter: "Rod Diameter",
+    rodLength: "Rod Length",
+
+    resetHint:
+      "Clearing a store deletes its saved data from this browser and reloads Pinpoint.",
+    clear: "Clear saved data",
+    resetAll: "Reset Everything",
+    confirmClearTitle: "Clear saved data?",
+    confirmClear:
+      'This deletes the saved "{name}" data from this browser and then reloads Pinpoint so the store starts from its defaults. The deletion is permanent - the data cannot be recovered.',
+    confirmResetAllTitle: "Reset everything?",
+    confirmResetAll:
+      "This deletes all saved Pinpoint data from this browser - experiments, recents, probe library, favorite atlases, and preferences - and then reloads Pinpoint so every store starts from its defaults. The deletion is permanent - the data cannot be recovered.",
+    confirmOk: "Clear",
+    storeCurrentExperiment: "Current Experiment",
+    storeRecentExperiments: "Recent Experiments",
+    storeProbeLibrary: "Probe Library",
+    storeFavoriteAtlases: "Favorite Atlases",
+    storePreferences: "Preferences"
   }
 };

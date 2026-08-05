@@ -1,3 +1,4 @@
+import { Color3, HemisphericLight, PointerEventTypes } from "@babylonjs/core";
 import type {
   ArcRotateCamera,
   GizmoManager,
@@ -6,7 +7,6 @@ import type {
   Scene,
   SelectionOutlineLayer
 } from "@babylonjs/core";
-import { PointerEventTypes } from "@babylonjs/core";
 import type { Inspectable } from "../models/inspectable.model";
 import { pickAxisGuideDirection } from "./axis-guide.api";
 import { orbitCameraTowards } from "./camera.api";
@@ -91,4 +91,27 @@ export function orbitCameraFromAxisGuideDoubleTap(
 
     orbitCameraTowards(camera, direction);
   }, PointerEventTypes.POINTERDOUBLETAP);
+}
+
+/**
+ * Set the scene's background clear color from a `#rrggbb` string.
+ * @param scene Scene to set the background of.
+ * @param hexColor Background color as `#rrggbb`.
+ */
+export function setSceneBackgroundColor(scene: Scene, hexColor: string): void {
+  scene.clearColor = Color3.FromHexString(hexColor).toColor4(1);
+}
+
+/**
+ * Set the intensity of every hemispheric light in the scene.
+ * @param scene Scene whose lights to set.
+ * @param intensity Light intensity to apply.
+ */
+export function setHemisphericLightIntensity(
+  scene: Scene,
+  intensity: number
+): void {
+  for (const light of scene.lights) {
+    if (light instanceof HemisphericLight) light.intensity = intensity;
+  }
 }

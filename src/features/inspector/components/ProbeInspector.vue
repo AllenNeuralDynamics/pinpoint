@@ -18,10 +18,18 @@ import { SliceCanvas, useProbeSurface } from "@/features/slice";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { setProbeInterface } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
+import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import { useNotify } from "@/composable/useNotify";
 import CommittedInput from "@/components/CommittedInput.vue";
+import {
+  millimetersToPositionUnit,
+  positionUnitToMillimeters,
+  radiansToRotationUnit,
+  rotationUnitToRadians
+} from "@/utils/math";
 
 // A library probe's identifier paired with its display label. `emit-value`
 // keeps the model the identifier, which `findProbeInterfaceProbeByIdentifier`
@@ -45,6 +53,8 @@ const { probe } = defineProps<{
 
 const probeLibraryStore = useProbeLibraryStore();
 const currentExperimentStore = useCurrentExperimentStore();
+const preferences = usePreferencesStore();
+const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: numberRules } =
   useValidationRules();
 
@@ -116,18 +126,64 @@ const shankAlignmentOptions = computed<ShankAlignmentOption[]>(() => {
   return options;
 });
 
+const positionSuffix = computed(() =>
+  unitLabels.position(preferences.positionUnit)
+);
+
+const rotationSuffix = computed(() =>
+  unitLabels.rotation(preferences.rotationUnit)
+);
 const name = computed({
   get: () => probe.name,
   set: (value: string) => (probe.name = value.trim())
 });
 
-const ap = useNumericTupleModel(() => probe.tipPosition, 0);
-const dv = useNumericTupleModel(() => probe.tipPosition, 1);
-const ml = useNumericTupleModel(() => probe.tipPosition, 2);
+const ap = useNumericTupleModel(
+  () => probe.tipPosition,
+  0,
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
+const dv = useNumericTupleModel(
+  () => probe.tipPosition,
+  1,
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
+const ml = useNumericTupleModel(
+  () => probe.tipPosition,
+  2,
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
 
-const roll = useNumericTupleModel(() => probe.rotation, 0);
-const yaw = useNumericTupleModel(() => probe.rotation, 1);
-const pitch = useNumericTupleModel(() => probe.rotation, 2);
+const roll = useNumericTupleModel(
+  () => probe.rotation,
+  0,
+  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
+  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  () => preferences.decimalPrecision
+);
+const yaw = useNumericTupleModel(
+  () => probe.rotation,
+  1,
+  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
+  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  () => preferences.decimalPrecision
+);
+const pitch = useNumericTupleModel(
+  () => probe.rotation,
+  2,
+  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
+  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  () => preferences.decimalPrecision
+);
 
 const lockIcon = computed(() =>
   probe.lock ? "lock" : "sym_o_lock_open_right"
@@ -334,6 +390,7 @@ onUnmounted(cancelMoveToSurface);
         :disable="probe.lock"
         :label="t('axis.ap')"
         :rules="numberRules"
+        :suffix="positionSuffix"
         class="col"
         outlined
       />
@@ -342,6 +399,7 @@ onUnmounted(cancelMoveToSurface);
         :disable="probe.lock"
         :label="t('axis.dv')"
         :rules="numberRules"
+        :suffix="positionSuffix"
         class="col"
         outlined
       />
@@ -350,6 +408,7 @@ onUnmounted(cancelMoveToSurface);
         :disable="probe.lock"
         :label="t('axis.ml')"
         :rules="numberRules"
+        :suffix="positionSuffix"
         class="col"
         outlined
       />
@@ -361,6 +420,7 @@ onUnmounted(cancelMoveToSurface);
         :disable="probe.lock"
         :label="t('probeInspector.roll')"
         :rules="numberRules"
+        :suffix="rotationSuffix"
         class="col"
         outlined
       />
@@ -369,6 +429,7 @@ onUnmounted(cancelMoveToSurface);
         :disable="probe.lock"
         :label="t('probeInspector.yaw')"
         :rules="numberRules"
+        :suffix="rotationSuffix"
         class="col"
         outlined
       />
@@ -377,6 +438,7 @@ onUnmounted(cancelMoveToSurface);
         :disable="probe.lock"
         :label="t('probeInspector.pitch')"
         :rules="numberRules"
+        :suffix="rotationSuffix"
         class="col"
         outlined
       />

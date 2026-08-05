@@ -4,6 +4,7 @@ import type {
   Manifest,
   TerminologyRow
 } from "@/features/atlas";
+import type { ProbeGeometry } from "@/features/scene";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 
@@ -245,4 +246,15 @@ export function makeAnnotationVolumeStore(options?: {
   }
 
   return store;
+}
+
+/** Probe body geometry matching the app's default preferences. */
+export function makeProbeGeometry(): ProbeGeometry {
+  return {
+    shankThicknessMillimeters: 0.05,
+    headStageLengthMillimeters: 20,
+    headStageCutDepthMillimeters: 17.5,
+    rodDiameterMillimeters: 8,
+    rodLengthMillimeters: 200
+  };
 }

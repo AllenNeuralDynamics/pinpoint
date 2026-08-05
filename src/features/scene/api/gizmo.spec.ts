@@ -8,7 +8,12 @@ import {
 } from "@/features/experiment";
 import type { Probe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
-import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeProbe,
+  makeProbeGeometry,
+  makeProbeInterfaceProbe
+} from "@/test/fixtures";
 import {
   initializeTestCSG2,
   makeTestScene,
@@ -79,7 +84,13 @@ describe("setGizmoControls", () => {
   it("keeps the newly enabled gizmo attached to the selected node", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
 
     setGizmoControls(gizmoManager, "position", "local");
     gizmoManager.attachToNode(node);

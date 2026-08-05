@@ -14,7 +14,12 @@ import {
 } from "@/features/experiment";
 import type { Probe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
-import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeProbe,
+  makeProbeGeometry,
+  makeProbeInterfaceProbe
+} from "@/test/fixtures";
 import {
   initializeTestCSG2,
   makeTestSceneWithGizmo,
@@ -168,7 +173,13 @@ describe("getProbeTransformNode", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(getProbeTransformNode(scene, probe.id)).toBe(node);
   });
@@ -179,7 +190,13 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(node).not.toBeNull();
     expect(node!.name).toBe(`${probe.id}_probe_node`);
@@ -196,7 +213,13 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(node!.parent!.name).toBe("referenceCoordinate_node");
     expect(node!.parent!.parent!.name).toBe("atlasRoot_node");
@@ -206,7 +229,7 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const names = probeMeshNames(probe.id);
     const attachableNames = gizmoManager.attachableMeshes!.map(
@@ -221,7 +244,7 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const bounds = roundedBounds(scene, probeMeshNames(probe.id).shank);
     expect(bounds.min).toEqual([-0.035, -0.025, -10.209]);
@@ -232,7 +255,7 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const bounds = roundedBounds(scene, probeMeshNames(probe.id).headStage);
     expect(bounds.min).toEqual([-4, -4, -30.209]);
@@ -243,7 +266,7 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const bounds = roundedBounds(scene, probeMeshNames(probe.id).rod);
     expect(bounds.min).toEqual([-4, -4, -230.209]);
@@ -257,7 +280,7 @@ describe("buildProbe", () => {
       { probe_planar_contour: NP2020_CONTOUR }
     );
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const bounds = roundedBounds(scene, probeMeshNames(probe.id).shank);
     expect(bounds.min[0]).toBeCloseTo(-0.41, 6);
@@ -286,8 +309,20 @@ describe("buildProbe", () => {
       probeInterfaceOverrides
     );
 
-    buildProbe(scene, unaligned.probe, unaligned.experiment, gizmoManager);
-    buildProbe(scene, aligned.probe, aligned.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      unaligned.probe,
+      unaligned.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
+    buildProbe(
+      scene,
+      aligned.probe,
+      aligned.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     const unalignedBounds = roundedBounds(
       scene,
@@ -305,7 +340,13 @@ describe("buildProbe", () => {
   it("triangulates the shank's cap to match the contour's true area, including a multi-shank comb", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const single = makeExperimentWithProbe();
-    buildProbe(scene, single.probe, single.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      single.probe,
+      single.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     const singleArea = capTriangleArea(
       scene,
@@ -317,7 +358,13 @@ describe("buildProbe", () => {
       {},
       { probe_planar_contour: NP2020_CONTOUR }
     );
-    buildProbe(scene, multi.probe, multi.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      multi.probe,
+      multi.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     const multiArea = capTriangleArea(
       scene,
       probeMeshNames(multi.probe.id).shank
@@ -329,7 +376,7 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe({ color: "#336699" });
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const names = probeMeshNames(probe.id);
     const shankMaterial = scene.getMeshByName(names.shank)!.material;
@@ -349,8 +396,8 @@ describe("buildProbe", () => {
     const a = makeExperimentWithProbe();
     const b = makeExperimentWithProbe();
 
-    buildProbe(scene, a.probe, a.experiment, gizmoManager);
-    buildProbe(scene, b.probe, b.experiment, gizmoManager);
+    buildProbe(scene, a.probe, a.experiment, gizmoManager, makeProbeGeometry());
+    buildProbe(scene, b.probe, b.experiment, gizmoManager, makeProbeGeometry());
 
     const rodMaterialA = scene.getMeshByName(
       probeMeshNames(a.probe.id).rod
@@ -370,8 +417,8 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    buildProbe(scene, probe, experiment, gizmoManager);
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     expect(
       scene.transformNodes.filter(
@@ -390,11 +437,23 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe({ color: "#ff0000" });
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     const shankMesh = scene.getMeshByName(probeMeshNames(probe.id).shank);
 
     probe.color = "#00ff00";
-    const rebuiltNode = buildProbe(scene, probe, experiment, gizmoManager);
+    const rebuiltNode = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(rebuiltNode).toBe(node);
     expect(scene.getMeshByName(probeMeshNames(probe.id).shank)).toBe(shankMesh);
@@ -408,10 +467,10 @@ describe("buildProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe({ color: "#ff0000" });
 
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
     probe.color = "#00ff00";
     disposeProbe(scene, probe.id, gizmoManager);
-    buildProbe(scene, probe, experiment, gizmoManager);
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
 
     const material = scene.getMeshByName(probeMeshNames(probe.id).shank)!
       .material as StandardMaterial;
@@ -425,10 +484,10 @@ describe("buildProbe", () => {
     const a = makeExperimentWithProbe();
     const b = makeExperimentWithProbe();
 
-    buildProbe(scene, a.probe, a.experiment, gizmoManager);
-    buildProbe(scene, b.probe, b.experiment, gizmoManager);
+    buildProbe(scene, a.probe, a.experiment, gizmoManager, makeProbeGeometry());
+    buildProbe(scene, b.probe, b.experiment, gizmoManager, makeProbeGeometry());
     disposeProbe(scene, a.probe.id, gizmoManager);
-    buildProbe(scene, a.probe, a.experiment, gizmoManager);
+    buildProbe(scene, a.probe, a.experiment, gizmoManager, makeProbeGeometry());
 
     const rodMaterialB = scene.getMeshByName(
       probeMeshNames(b.probe.id).rod
@@ -446,7 +505,13 @@ describe("buildProbe", () => {
       probeInterfaceIdentifier: "missing manufacturer"
     });
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(node).toBeNull();
     expect(scene.meshes).toHaveLength(0);
@@ -464,7 +529,13 @@ describe("buildProbe", () => {
     });
     addProbe(experiment, probe);
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(node).toBeNull();
     expect(scene.meshes).toHaveLength(0);
@@ -482,7 +553,13 @@ describe("buildProbe", () => {
       }
     );
 
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
 
     expect(node).toBeNull();
   });
@@ -490,14 +567,26 @@ describe("buildProbe", () => {
   it("scales millimeter contours 1000x smaller than the equivalent micrometer contour", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const micrometers = makeExperimentWithProbe();
-    buildProbe(scene, micrometers.probe, micrometers.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      micrometers.probe,
+      micrometers.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     const micrometerBounds = roundedBounds(
       scene,
       probeMeshNames(micrometers.probe.id).shank
     );
 
     const millimeters = makeExperimentWithProbe({}, { si_units: "mm" });
-    buildProbe(scene, millimeters.probe, millimeters.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      millimeters.probe,
+      millimeters.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     const millimeterBounds = roundedBounds(
       scene,
       probeMeshNames(millimeters.probe.id).shank
@@ -516,14 +605,26 @@ describe("buildProbe", () => {
   it("falls back to micrometers for an unrecognized si_units value", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const known = makeExperimentWithProbe();
-    buildProbe(scene, known.probe, known.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      known.probe,
+      known.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     const knownBounds = roundedBounds(
       scene,
       probeMeshNames(known.probe.id).shank
     );
 
     const unknown = makeExperimentWithProbe({}, { si_units: "nonsense" });
-    buildProbe(scene, unknown.probe, unknown.experiment, gizmoManager);
+    buildProbe(
+      scene,
+      unknown.probe,
+      unknown.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     const unknownBounds = roundedBounds(
       scene,
       probeMeshNames(unknown.probe.id).shank
@@ -537,7 +638,13 @@ describe("disposeProbe", () => {
   it("detaches the gizmo when it was attached to the disposed probe's node", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager);
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     gizmoManager.attachToNode(node);
 
     disposeProbe(scene, probe.id, gizmoManager);
@@ -549,8 +656,14 @@ describe("disposeProbe", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const a = makeExperimentWithProbe();
     const b = makeExperimentWithProbe();
-    buildProbe(scene, a.probe, a.experiment, gizmoManager);
-    const nodeB = buildProbe(scene, b.probe, b.experiment, gizmoManager);
+    buildProbe(scene, a.probe, a.experiment, gizmoManager, makeProbeGeometry());
+    const nodeB = buildProbe(
+      scene,
+      b.probe,
+      b.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
     gizmoManager.attachToNode(nodeB);
 
     disposeProbe(scene, a.probe.id, gizmoManager);
@@ -569,7 +682,7 @@ describe("syncProbes", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(
       scene.getMaterialByName(`${probe.id}_probe_material`)!.isFrozen
@@ -582,10 +695,10 @@ describe("syncProbes", () => {
     const { experiment, probe } = makeExperimentWithProbe({
       color: "#ff0000"
     });
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     probe.color = "#00ff00";
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     const material = scene.getMaterialByName(
       `${probe.id}_probe_material`
@@ -601,13 +714,13 @@ describe("syncProbes", () => {
     const { experiment, probe } = makeExperimentWithProbe({
       color: "#ff0000"
     });
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     const material = scene.getMaterialByName(`${probe.id}_probe_material`)!;
     const markDirtySpy = vi.spyOn(material, "markDirty");
 
     probe.color = "#00ff00";
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(markDirtySpy).toHaveBeenCalledWith(true);
   });
@@ -615,12 +728,12 @@ describe("syncProbes", () => {
   it("leaves a frozen probe material untouched when nothing changed", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     const material = scene.getMaterialByName(`${probe.id}_probe_material`)!;
     const markDirtySpy = vi.spyOn(material, "markDirty");
 
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(markDirtySpy).not.toHaveBeenCalled();
   });
@@ -628,7 +741,7 @@ describe("syncProbes", () => {
   it("keeps the shared rod material frozen without re-freezing it when another probe is added", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment } = makeExperimentWithProbe();
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     const rodMaterial = scene.getMaterialByName("probe_rod_material")!;
     const markDirtySpy = vi.spyOn(rodMaterial, "markDirty");
@@ -637,7 +750,7 @@ describe("syncProbes", () => {
       probeInterfaceIdentifier: experiment.probes[0]!.probeInterfaceIdentifier
     });
     addProbe(experiment, other);
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(rodMaterial.isFrozen).toBe(true);
     expect(markDirtySpy).not.toHaveBeenCalled();
@@ -646,7 +759,7 @@ describe("syncProbes", () => {
   it("returns the ids of probes it disposed and rebuilt due to a type change", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const oldNode = getProbeTransformNode(scene, probe.id)!;
 
     const newProbeInterfaceProbe = makeProbeInterfaceProbe({
@@ -658,7 +771,13 @@ describe("syncProbes", () => {
       newProbeInterfaceProbe
     );
 
-    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+    const rebuilt = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
 
     expect(rebuilt).toEqual([probe.id]);
     expect(oldNode.isDisposed()).toBe(true);
@@ -672,12 +791,18 @@ describe("syncProbes", () => {
       {},
       { probe_planar_contour: NP2020_CONTOUR }
     );
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const oldNode = getProbeTransformNode(scene, probe.id)!;
 
     probe.shankAlignmentIndex = 0;
 
-    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+    const rebuilt = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
 
     expect(rebuilt).toEqual([probe.id]);
     expect(oldNode.isDisposed()).toBe(true);
@@ -688,11 +813,17 @@ describe("syncProbes", () => {
   it("disposes and rebuilds a probe node whose metadata is null", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const oldNode = getProbeTransformNode(scene, probe.id)!;
     oldNode.metadata = null;
 
-    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+    const rebuilt = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
 
     expect(rebuilt).toEqual([probe.id]);
     expect(oldNode.isDisposed()).toBe(true);
@@ -703,9 +834,48 @@ describe("syncProbes", () => {
   it("does not report a probe as rebuilt when nothing changed", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment } = makeExperimentWithProbe();
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
-    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+    const rebuilt = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
+
+    expect(rebuilt).toEqual([]);
+  });
+
+  it("returns the ids of probes it disposed and rebuilt due to a geometry change", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+    const oldNode = getProbeTransformNode(scene, probe.id)!;
+
+    const rebuilt = syncProbes(scene, experiment, gizmoManager, null, {
+      ...makeProbeGeometry(),
+      rodLengthMillimeters: 50
+    });
+
+    expect(rebuilt).toEqual([probe.id]);
+    expect(oldNode.isDisposed()).toBe(true);
+    const rodBounds = roundedBounds(scene, probeMeshNames(probe.id).rod);
+    expect(rodBounds.max[2]! - rodBounds.min[2]!).toBeCloseTo(50);
+  });
+
+  it("does not rebuild for an equal-but-distinct geometry object", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment } = makeExperimentWithProbe();
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+
+    const rebuilt = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
 
     expect(rebuilt).toEqual([]);
   });
@@ -714,7 +884,7 @@ describe("syncProbes", () => {
     const { scene, gizmoManager, selectionOutlineLayer } =
       makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const oldNode = getProbeTransformNode(scene, probe.id)!;
     const oldShankMesh = scene.getMeshByName(probeMeshNames(probe.id).shank)!;
     attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, oldNode);
@@ -727,7 +897,13 @@ describe("syncProbes", () => {
     probe.probeInterfaceIdentifier = getProbeInterfaceIdentifier(
       newProbeInterfaceProbe
     );
-    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+    const rebuilt = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
 
     // Left dangling right after the type-changing sync: this is the bug the
     // caller (SceneCanvas.vue) must react to.
@@ -753,14 +929,14 @@ describe("syncProbes", () => {
     probe.rotation = [0, 0, Math.PI / 2];
     probe.tipPosition = [5, 0, 0];
 
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
     const firstPass = node.position.clone();
 
     // The old `setPositionWithLocalVector` write drifted on a second pass at
     // a non-zero rotation (e.g. (0,-5,0) -> (0,0,-5)); a plain assignment is
     // idempotent regardless of rotation.
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(node.position.asArray()).toEqual(firstPass.asArray());
     expect(node.position.asArray()).toEqual(
@@ -778,12 +954,12 @@ describe("syncProbes", () => {
       probe.rotation = rotation;
       probe.tipPosition = [1, 2, 3];
 
-      syncProbes(scene, experiment, gizmoManager, null);
+      syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
       const node = getProbeTransformNode(scene, probe.id)!;
 
       // Exactly what setProbePositionFromGizmoDrag's readback does.
       probe.tipPosition = vector3ToAsr(node.position);
-      syncProbes(scene, experiment, gizmoManager, null);
+      syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
       expect(probe.tipPosition).toEqual([1, 2, 3]);
       expect(node.position.asArray()).toEqual(
@@ -796,11 +972,11 @@ describe("syncProbes", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     probe.tipPosition = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
     probe.tipPosition = [0.1, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(node.position.asArray()).not.toEqual(
       asrToVector3([0.1, 0, 0]).asArray()
@@ -818,11 +994,11 @@ describe("syncProbes", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     probe.rotation = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
     probe.rotation = [0, 0, Math.PI / 2];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(node.rotation.asArray()).not.toEqual(
       asrToVector3([0, 0, Math.PI / 2]).asArray()
@@ -840,12 +1016,12 @@ describe("syncProbes", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     probe.tipPosition = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
     probe.tipPosition = [5, 0, 0];
     probe.rotation = [0, 0, Math.PI / 2];
-    syncProbes(scene, experiment, gizmoManager, probe.id);
+    syncProbes(scene, experiment, gizmoManager, probe.id, makeProbeGeometry());
     tickScene(scene, 100);
     tickScene(scene, 100);
 
@@ -858,7 +1034,7 @@ describe("syncProbes", () => {
     const { experiment, probe } = makeExperimentWithProbe();
     probe.tipPosition = [5, 0, 0];
 
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
     expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
@@ -868,15 +1044,15 @@ describe("syncProbes", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     probe.tipPosition = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
     probe.tipPosition = [5, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     tickScene(scene, 100);
 
     probe.color = "#123456";
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(node.position.asArray()).not.toEqual(
       asrToVector3([5, 0, 0]).asArray()
@@ -892,11 +1068,11 @@ describe("syncProbes", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     probe.tipPosition = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
     probe.tipPosition = [5, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     tickScene(scene, 100);
     const midway = node.position.clone();
 
@@ -920,7 +1096,13 @@ describe("attachProbeSelection", () => {
     const { scene, gizmoManager, selectionOutlineLayer } =
       makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
 
     attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, node);
 
@@ -935,8 +1117,20 @@ describe("attachProbeSelection", () => {
       makeTestSceneWithGizmo();
     const a = makeExperimentWithProbe();
     const b = makeExperimentWithProbe();
-    const nodeA = buildProbe(scene, a.probe, a.experiment, gizmoManager)!;
-    const nodeB = buildProbe(scene, b.probe, b.experiment, gizmoManager)!;
+    const nodeA = buildProbe(
+      scene,
+      a.probe,
+      a.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
+    const nodeB = buildProbe(
+      scene,
+      b.probe,
+      b.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
 
     attachProbeSelection(gizmoManager, selectionOutlineLayer, a.probe, nodeA);
     attachProbeSelection(gizmoManager, selectionOutlineLayer, b.probe, nodeB);
@@ -953,7 +1147,13 @@ describe("attachProbeSelection", () => {
     const { scene, gizmoManager, selectionOutlineLayer } =
       makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe({ lock: true });
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
 
     attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, node);
 
@@ -968,8 +1168,20 @@ describe("attachProbeSelection", () => {
       makeTestSceneWithGizmo();
     const a = makeExperimentWithProbe();
     const b = makeExperimentWithProbe({ lock: true });
-    const nodeA = buildProbe(scene, a.probe, a.experiment, gizmoManager)!;
-    const nodeB = buildProbe(scene, b.probe, b.experiment, gizmoManager)!;
+    const nodeA = buildProbe(
+      scene,
+      a.probe,
+      a.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
+    const nodeB = buildProbe(
+      scene,
+      b.probe,
+      b.experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
 
     attachProbeSelection(gizmoManager, selectionOutlineLayer, a.probe, nodeA);
     attachProbeSelection(gizmoManager, selectionOutlineLayer, b.probe, nodeB);
@@ -983,7 +1195,13 @@ describe("selectProbeFromGizmoAttach", () => {
     const { scene, gizmoManager, selectionOutlineLayer } =
       makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     const shankMesh = node.getChildMeshes()[0]!;
     const onSelect = vi.fn();
 
@@ -1004,7 +1222,13 @@ describe("selectProbeFromGizmoAttach", () => {
     const { scene, gizmoManager, selectionOutlineLayer } =
       makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe({ lock: true });
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     const shankMesh = node.getChildMeshes()[0]!;
     const onSelect = vi.fn();
 
@@ -1047,7 +1271,13 @@ describe("setProbePositionFromGizmoDrag", () => {
   it("writes the attached probe's tip position and notifies onDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     gizmoManager.attachToNode(node);
     node.position.set(1, 2, 3);
     const onDrag = vi.fn();
@@ -1089,7 +1319,13 @@ describe("setProbeRotationFromGizmoDrag", () => {
   it("writes the attached probe's rotation and notifies onDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     gizmoManager.attachToNode(node);
     node.rotation.set(0.1, 0.2, 0.3);
     const onDrag = vi.fn();
@@ -1117,7 +1353,13 @@ describe("endProbeGizmoDrag", () => {
   it("fires the callback when a rotation gizmo drag ends, not just a position one", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
@@ -1138,7 +1380,13 @@ describe("endProbeGizmoDrag", () => {
   it("fires the callback when a position gizmo drag ends", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
@@ -1159,7 +1407,13 @@ describe("endProbeGizmoDrag", () => {
   it("removing every returned observer stops both gizmos from notifying", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
@@ -1184,7 +1438,13 @@ describe("endProbeGizmoDrag", () => {
   it("reproduces the user's sequence: rotate, then drag position, without a snap on release", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
-    const node = buildProbe(scene, probe, experiment, gizmoManager)!;
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
     gizmoManager.attachToNode(node);
 
     let draggedProbeId: string | null = null;
@@ -1234,7 +1494,13 @@ describe("endProbeGizmoDrag", () => {
     expect(draggedProbeId).toBeNull();
 
     const beforeSync = node.position.clone();
-    syncProbes(scene, experiment, gizmoManager, draggedProbeId);
+    syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      draggedProbeId,
+      makeProbeGeometry()
+    );
     expect(node.position.asArray()).toEqual(beforeSync.asArray());
   });
 });
