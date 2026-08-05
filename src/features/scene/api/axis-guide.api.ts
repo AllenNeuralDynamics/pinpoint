@@ -15,8 +15,7 @@ import type {
 import { FontAsset, SdfTextParagraph, TextRenderer } from "@babylonjs/addons";
 import type { INodeLike, ParagraphOptions } from "@babylonjs/addons";
 import axios from "axios";
-import type { Manifest } from "@/features/atlas";
-import { getAtlasDimensionsMillimeters } from "@/features/atlas";
+import { type Atlas, getAtlasDimensionsMillimeters } from "@/features/atlas";
 import { asrToBabylon } from "./coordinate-transforms.api";
 
 /** Atlas axis an axis guide marks. */
@@ -192,16 +191,16 @@ export async function createAxisGuides(scene: Scene): Promise<AxisGuides> {
  * any existing ones.
  * @param scene Scene holding the axis guide root node.
  * @param guides Text renderers and font asset to draw the labels with.
- * @param manifest Manifest supplying the atlas's dimensions.
+ * @param atlas Atlas supplying the atlas's dimensions.
  */
 export function buildAxisGuides(
   scene: Scene,
   guides: AxisGuides,
-  manifest: Manifest
+  atlas: Atlas
 ): void {
   clearAxisGuides(scene, guides);
 
-  const dimensions = getAtlasDimensionsMillimeters(manifest);
+  const dimensions = getAtlasDimensionsMillimeters(atlas);
   const mlLength = dimensions[AXIS_GUIDE_ASR_INDEX.ml];
   if (mlLength === 0) return;
 

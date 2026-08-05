@@ -1,5 +1,6 @@
 import parse from "semver/functions/parse";
 import type { Experiment } from "../models/experiment.model";
+import { isAtlas } from "@/features/atlas";
 import {
   getProbeInterfaceIdentifier,
   isProbe,
@@ -109,13 +110,7 @@ function isExperiment(value: unknown): value is Experiment {
   if (typeof id !== "string") return false;
   if (typeof version !== "string") return false;
   if (typeof name !== "string") return false;
-  if (
-    !isRecord(atlas) ||
-    typeof atlas.name !== "string" ||
-    typeof atlas.source !== "string"
-  ) {
-    return false;
-  }
+  if (!isAtlas(atlas)) return false;
   if (!isFiniteTriple(referenceCoordinate)) return false;
   if (
     !Array.isArray(visibleStructures) ||

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { Atlas } from "@/features/atlas";
+import type { AtlasIdentity } from "@/features/atlas";
 
 export const useFavoriteAtlasesStore = defineStore(
   "favorite-atlases",
@@ -12,9 +12,9 @@ export const useFavoriteAtlasesStore = defineStore(
 
     /**
      * Add an atlas to its source's favorites list.
-     * @param atlas Atlas to add.
+     * @param atlas Atlas identity to add.
      */
-    function add(atlas: Atlas) {
+    function add(atlas: AtlasIdentity) {
       const list = (favorites.value[atlas.source] ??= []);
       if (!list.includes(atlas.name)) {
         list.push(atlas.name);
@@ -23,9 +23,9 @@ export const useFavoriteAtlasesStore = defineStore(
 
     /**
      * Remove an atlas from its source's favorites list, if present.
-     * @param atlas Atlas to remove.
+     * @param atlas Atlas identity to remove.
      */
-    function remove(atlas: Atlas) {
+    function remove(atlas: AtlasIdentity) {
       const sourceList = favorites.value[atlas.source];
       if (!sourceList) return;
 

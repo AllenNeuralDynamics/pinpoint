@@ -4,7 +4,7 @@ import {
   type Ref,
   type WritableComputedRef
 } from "vue";
-import type { Manifest } from "@/features/atlas";
+import type { Atlas } from "@/features/atlas";
 import type { Probe, ProbeContour } from "@/features/probe";
 import {
   clampSliceCenterHeight,
@@ -28,14 +28,14 @@ export interface SliceViewport {
  * probe.
  * @param probe Probe to read and write persisted viewport state on.
  * @param contour Probe's contour, or null when unavailable.
- * @param manifest Current atlas manifest, or null when unresolved.
+ * @param atlas Current atlas.
  */
 export function useSliceViewport(
   probe: Ref<Probe>,
   contour: Ref<ProbeContour | null>,
-  manifest: Ref<Manifest | null>
+  atlas: Ref<Atlas>
 ): SliceViewport {
-  const zoomRange = computed(() => getSliceZoomExponentRange(manifest.value));
+  const zoomRange = computed(() => getSliceZoomExponentRange(atlas.value));
 
   const extentMillimeters = computed(() =>
     probe.value.sliceExtentMillimeters === null

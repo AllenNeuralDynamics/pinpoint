@@ -14,12 +14,7 @@ import {
   internProbeInterfaceProbe
 } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
-import {
-  makeAtlas,
-  makeManifest,
-  makeProbe,
-  makeProbeInterfaceProbe
-} from "@/test/fixtures";
+import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 import type { FakeTextRenderer } from "@/test/mount-helper";
 import {
   initializeTestCSG2,
@@ -332,7 +327,7 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
       scene
     );
     scene.activeCamera = camera;
-    buildAxisGuides(scene, makeTestAxisGuides(scene), makeManifest());
+    buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas());
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
     orbitCameraFromAxisGuideDoubleTap(scene, camera);
     return { scene, camera, interpolateTo };

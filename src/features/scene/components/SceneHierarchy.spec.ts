@@ -5,11 +5,7 @@ import SceneHierarchy from "./SceneHierarchy.vue";
 import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import {
-  getAtlasCenter,
-  getManifest,
-  getTerminologyRows
-} from "@/features/atlas";
+import { getAtlasCenter, getTerminologyRows } from "@/features/atlas";
 import { getInternedProbeInterfaceProbe } from "@/features/experiment";
 import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 
@@ -23,7 +19,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn(),
     getAtlasCenter: vi.fn()
   };
@@ -59,7 +54,6 @@ async function pickFirstLibraryProbe() {
 
 describe("SceneHierarchy", () => {
   beforeEach(() => {
-    vi.mocked(getManifest).mockResolvedValue(null);
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
     vi.mocked(getAtlasCenter).mockReturnValue([0, 0, 0]);
   });

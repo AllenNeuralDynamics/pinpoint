@@ -8,8 +8,8 @@ import {
 } from "vue";
 import { createSharedComposable, watchDebounced } from "@vueuse/core";
 import type { Readable } from "zarrita";
-import type { Manifest, TerminologyRow } from "@/features/atlas";
-import { getAnnotationVolumeUrl } from "@/features/atlas";
+import type { TerminologyRow } from "@/features/atlas";
+import { type Atlas, getAnnotationVolumeUrl } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { createAnnotationMetadataStore } from "../api/annotation-store.api";
 import { openAnnotationVolume } from "../api/annotation-volume.api";
@@ -66,13 +66,13 @@ function defaultWorkerFactory(): SamplerWorker {
 /**
  * Create a chunk-sharded pool of annotation-sampler workers driven by the
  * given reactive atlas inputs.
- * @param options Reactive manifest and terminology inputs.
+ * @param options Reactive atlas and terminology inputs.
  * @param workerFactory Builds one pool worker.
  * @param metadataStoreFactory Builds the zarr store volume metadata is read from.
  */
 export function createAnnotationSampler(
   options: {
-    manifest: Ref<Manifest | null>;
+    atlas: Ref<Atlas>;
     terminologyRows: Ref<TerminologyRow[]>;
   },
   workerFactory: SamplerWorkerFactory = defaultWorkerFactory,
@@ -116,14 +116,9 @@ export function createAnnotationSampler(
   }
 
   watch(
-    () =>
-      options.manifest.value
-        ? getAnnotationVolumeUrl(options.manifest.value)
-        : null,
+    () => getAnnotationVolumeUrl(options.atlas.value),
     async url => {
       volume = null;
-      if (!url) return;
-
       broadcast({ type: "open", url });
       // Metadata-only: opening a volume reads a handful of small zarr.json
       // files, never chunk bytes. The main thread needs the real level
@@ -269,7 +264,7 @@ export function createAnnotationSampler(
 export const useAnnotationSampler = createSharedComposable(() => {
   const currentExperiment = useCurrentExperimentStore();
   return createAnnotationSampler({
-    manifest: computed(() => currentExperiment.manifest),
+    atlas: computed(() => currentExperiment.atlas),
     terminologyRows: computed(() => currentExperiment.terminologyRows)
   });
 });

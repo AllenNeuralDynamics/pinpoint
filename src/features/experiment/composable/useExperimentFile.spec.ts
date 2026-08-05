@@ -4,13 +4,12 @@ import { defineComponent } from "vue";
 import type { VueWrapper } from "@vue/test-utils";
 import { useExperimentFile } from "./useExperimentFile";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { getManifest } from "@/features/atlas";
 import {
   createWrapperRegistry,
   flushMicrotasks,
   mountWithQuasar
 } from "@/test/mount-helper";
-import { makeAtlas, makeManifest } from "@/test/fixtures";
+import { makeAtlas } from "@/test/fixtures";
 import { serializeExperiment } from "../api/experiment-file.api";
 import { buildExperiment } from "../api/experiment.api";
 import enUS from "@/i18n/en-US";
@@ -23,7 +22,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -63,8 +61,6 @@ function makeFileList(file: File): FileList {
   return { 0: file, length: 1, item: () => file } as unknown as FileList;
 }
 
-const mockedGetManifest = vi.mocked(getManifest);
-
 const Harness = defineComponent({
   setup() {
     return useExperimentFile();
@@ -101,7 +97,6 @@ describe("useExperimentFile", () => {
   beforeEach(() => {
     openFileDialogSpy.mockReset();
     capturedOnChange = null;
-    mockedGetManifest.mockReset().mockResolvedValue(makeManifest());
   });
 
   afterEach(() => {
@@ -200,26 +195,6 @@ describe("useExperimentFile", () => {
 
       expect(notifySpy).not.toHaveBeenCalled();
       expect(store.name).toBe(originalName);
-    });
-
-    it("notifies a warning when the loaded experiment's atlas can't be fetched", async () => {
-      mockedGetManifest.mockResolvedValue(null);
-      const wrapper = mountHarness();
-      const store = useCurrentExperimentStore();
-      const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
-      const file = new File([serializeExperiment(experiment)], "e.json", {
-        type: "application/json"
-      });
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
-
-      await capturedOnChange!(makeFileList(file));
-      await flushMicrotasks();
-
-      expect(store.name).toBe("Loaded");
-      expect(notifySpy).toHaveBeenCalledTimes(1);
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "warning" })
-      );
     });
 
     it("notifies an error when the file can't be read as text", async () => {

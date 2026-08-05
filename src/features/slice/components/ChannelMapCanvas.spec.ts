@@ -6,13 +6,12 @@ import ChannelMapCanvas from "./ChannelMapCanvas.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
-  makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
   makeTerminologyRow
 } from "@/test/fixtures";
 import type { TerminologyRow } from "@/features/atlas";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import { getTerminologyRows } from "@/features/atlas";
 import type { ProbeChannelMapWindow } from "@/features/probe";
 import { getProbeContour, getProbeShanks } from "@/features/probe";
 import { getChannelMapWidths } from "../api/channel-map-label.api";
@@ -29,7 +28,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -103,9 +101,6 @@ describe("ChannelMapCanvas", () => {
     zoomSelection: "small" | "medium" | "large" = "large",
     terminologyRows: TerminologyRow[] = []
   ) {
-    vi.mocked(getManifest).mockResolvedValue(
-      terminologyRows.length ? makeManifest() : null
-    );
     vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
     mockStructureIndex.value = new Map(
       terminologyRows.map(row => [row.annotation_value, row])
@@ -233,7 +228,6 @@ describe("ChannelMapCanvas", () => {
   });
 
   it("renders the outline with no contact path for a contour-only shank", () => {
-    vi.mocked(getManifest).mockResolvedValue(null);
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
 
     const pinia = createPinia();
@@ -264,7 +258,6 @@ describe("ChannelMapCanvas", () => {
   });
 
   it("packs a two-shank probe into one canvas with two bands and two overlay groups", () => {
-    vi.mocked(getManifest).mockResolvedValue(null);
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
     capturedGeometry = null;
 

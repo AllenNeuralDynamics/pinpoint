@@ -97,6 +97,13 @@ describe("parseExperimentFile", () => {
     expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
   });
 
+  it("returns null when atlas.manifest is missing", () => {
+    const experiment = makeFullExperiment();
+    const { manifest: _manifest, ...atlasWithoutManifest } = experiment.atlas;
+    experiment.atlas = atlasWithoutManifest as Experiment["atlas"];
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
   it("returns null when referenceCoordinate has the wrong length", () => {
     const experiment = {
       ...makeFullExperiment(),

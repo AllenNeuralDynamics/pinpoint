@@ -56,7 +56,7 @@ const { zoomRange, extentMillimeters, zoomExponent, centerHeightMillimeters } =
   useSliceViewport(
     toRef(() => probe),
     contour,
-    computed(() => currentExperiment.manifest)
+    computed(() => currentExperiment.atlas)
   );
 
 /** Full-resolution device-pixel edge length, quantized to bound replans. */

@@ -1,18 +1,14 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
-import { type Atlas, AtlasPicker, getManifest } from "@/features/atlas";
+import { type Atlas, AtlasPicker } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
-import { useI18n } from "vue-i18n";
 import { buildExperiment } from "../api/experiment.api";
-import { useNotify } from "@/composable/useNotify";
 import { useValidationRules } from "@/composable/useValidationRules";
 
 defineEmits([...useDialogPluginComponent.emits]);
 
-const { t } = useI18n();
-const { notifyError } = useNotify();
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
 const { requiredName: nameRules } = useValidationRules();
@@ -30,19 +26,10 @@ const isCreateDisabled = computed(() => !name.value || !atlas.value);
  * Create a new experiment with the given name and atlas, seeding its
  * reference coordinate from the atlas's default reference coordinate.
  */
-async function create() {
+function create() {
   if (!name.value || !atlas.value) return;
 
-  const manifest = await getManifest(atlas.value);
-  if (!manifest) {
-    notifyError(
-      t("newExperiment.failedToFetchAtlas"),
-      t("newExperiment.checkAtlas")
-    );
-    return;
-  }
-
-  const referenceCoordinate = buildInitialReferenceCoordinate(manifest);
+  const referenceCoordinate = buildInitialReferenceCoordinate(atlas.value);
   currentExperimentStore.loadExperiment(
     buildExperiment(name.value, atlas.value, referenceCoordinate)
   );

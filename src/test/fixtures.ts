@@ -1,4 +1,9 @@
-import type { Atlas, Manifest, TerminologyRow } from "@/features/atlas";
+import type {
+  Atlas,
+  AtlasListing,
+  Manifest,
+  TerminologyRow
+} from "@/features/atlas";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 
@@ -10,6 +15,7 @@ export function makeAtlas(overrides: Partial<Atlas> = {}): Atlas {
   return {
     name: "allen_mouse",
     source: "http://localhost:3000",
+    manifest: makeManifest(),
     ...overrides
   };
 }
@@ -20,11 +26,26 @@ export function makeAtlas(overrides: Partial<Atlas> = {}): Atlas {
  */
 export function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
   return {
-    atlas: makeAtlas(),
     terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
     annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
+    atlasLink: "http://www.brain-map.org",
     resolutions: [[0.025, 0.025, 0.025]],
     shape: [[528, 320, 456]],
+    ...overrides
+  };
+}
+
+/**
+ * Build a fixture atlas listing.
+ * @param overrides Fields to override on the default listing.
+ */
+export function makeAtlasListing(
+  overrides: Partial<AtlasListing> = {}
+): AtlasListing {
+  return {
+    name: "allen_mouse",
+    source: "http://localhost:3000",
+    variantDirectories: ["allen_mouse_25um"],
     ...overrides
   };
 }

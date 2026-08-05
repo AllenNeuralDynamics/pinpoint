@@ -1,29 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
-import NewExperimentDialog from "./NewExperimentDialog.vue";
 import {
   createWrapperRegistry,
   flushMicrotasks,
   mountDialogWithQuasar
 } from "@/test/mount-helper";
+import NewExperimentDialog from "./NewExperimentDialog.vue";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import { getTerminologyRows } from "@/features/atlas";
 import { makeAtlas, makeManifest, makeProbe } from "@/test/fixtures";
 import enUS from "@/i18n/en-US";
 
-// `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
-// `computedAsync`, refetching from the real atlas API whenever the atlas
-// changes -- both must be mocked or mounting this dialog (and clicking
-// Create) triggers real network requests. Mocking the leaf module (rather
-// than the `@/features/atlas` barrel it's re-exported through) is required:
-// mocking the barrel by the same specifier it re-exports from doesn't
-// consistently intercept the store's own import of it.
+// `useCurrentExperimentStore`'s `terminologyRows` is `computedAsync`,
+// refetching from the real atlas API whenever the atlas changes -- it must
+// be mocked or mounting this dialog (and clicking Create) triggers real
+// network requests. Mocking the leaf module (rather than the
+// `@/features/atlas` barrel it's re-exported through) is required: mocking
+// the barrel by the same specifier it re-exports from doesn't consistently
+// intercept the store's own import of it.
 vi.mock("@/features/atlas/api/source.api", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/atlas/api/source.api")
   >("@/features/atlas/api/source.api");
-  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
+  return { ...actual, getTerminologyRows: vi.fn() };
 });
 
 type DialogWrapper = VueWrapper<
@@ -51,7 +51,6 @@ function createButton(wrapper: DialogWrapper) {
 describe("NewExperimentDialog", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked(getManifest).mockReset();
     vi.mocked(getTerminologyRows).mockReset();
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
@@ -118,14 +117,14 @@ describe("NewExperimentDialog", () => {
   });
 
   describe("create", () => {
-    it("seeds the reference coordinate from the atlas's manifest when available", async () => {
-      const atlas = makeAtlas();
-      const manifest = makeManifest({
-        atlas: makeAtlas({ name: "allen_human" }),
-        resolutions: [[0.02, 0.02, 0.02]],
-        shape: [[100, 100, 100]]
+    it("seeds the reference coordinate from the atlas's manifest", async () => {
+      const atlas = makeAtlas({
+        name: "allen_human",
+        manifest: makeManifest({
+          resolutions: [[0.02, 0.02, 0.02]],
+          shape: [[100, 100, 100]]
+        })
       });
-      vi.mocked(getManifest).mockResolvedValue(manifest);
 
       const wrapper = await mountDialog();
       await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
@@ -134,7 +133,6 @@ describe("NewExperimentDialog", () => {
         .vm.$emit("update:modelValue", atlas);
 
       await createButton(wrapper).trigger("click");
-      await flushMicrotasks();
 
       const store = useCurrentExperimentStore();
       expect(store.name).toBe("My Experiment");
@@ -147,7 +145,6 @@ describe("NewExperimentDialog", () => {
 
     it("clears the selected and dragged probe from the discarded experiment", async () => {
       const atlas = makeAtlas();
-      vi.mocked(getManifest).mockResolvedValue(makeManifest());
 
       const wrapper = await mountDialog();
       const store = useCurrentExperimentStore();
@@ -160,33 +157,9 @@ describe("NewExperimentDialog", () => {
         .findComponent({ name: "AtlasPicker" })
         .vm.$emit("update:modelValue", atlas);
       await createButton(wrapper).trigger("click");
-      await flushMicrotasks();
 
       expect(store.selectedInspectable).toBeNull();
       expect(store.draggedProbeId).toBeNull();
-    });
-
-    it("notifies and doesn't create the experiment when the manifest can't be fetched", async () => {
-      const atlas = makeAtlas();
-      vi.mocked(getManifest).mockResolvedValue(null);
-
-      const wrapper = await mountDialog();
-      const store = useCurrentExperimentStore();
-      const experimentBeforeClick = store.experiment;
-      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
-      await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
-      await wrapper
-        .findComponent({ name: "AtlasPicker" })
-        .vm.$emit("update:modelValue", atlas);
-
-      await createButton(wrapper).trigger("click");
-      await flushMicrotasks();
-
-      expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
-      );
-      expect(store.experiment).toBe(experimentBeforeClick);
-      expect(wrapper.emitted("ok")).toBeFalsy();
     });
 
     it("does nothing when name or atlas is missing", async () => {

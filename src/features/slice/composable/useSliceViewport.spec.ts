@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ref } from "vue";
 import { getProbeContour } from "@/features/probe";
-import {
-  makeManifest,
-  makeProbe,
-  makeProbeInterfaceProbe
-} from "@/test/fixtures";
+import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 import { useSliceViewport } from "./useSliceViewport";
 
 const CONTOUR = [
@@ -27,7 +23,7 @@ describe("useSliceViewport", () => {
     const { extentMillimeters } = useSliceViewport(
       probe,
       ref(null),
-      ref(makeManifest())
+      ref(makeAtlas())
     );
 
     expect(extentMillimeters.value).toBe(2);
@@ -38,7 +34,7 @@ describe("useSliceViewport", () => {
     const { extentMillimeters } = useSliceViewport(
       probe,
       ref(null),
-      ref(makeManifest())
+      ref(makeAtlas())
     );
 
     expect(extentMillimeters.value).toBe(2 ** 4);
@@ -49,7 +45,7 @@ describe("useSliceViewport", () => {
     const { zoomExponent } = useSliceViewport(
       probe,
       ref(null),
-      ref(makeManifest())
+      ref(makeAtlas())
     );
 
     zoomExponent.value = 3;
@@ -62,7 +58,7 @@ describe("useSliceViewport", () => {
     const { centerHeightMillimeters } = useSliceViewport(
       probe,
       ref(makeContour()),
-      ref(makeManifest())
+      ref(makeAtlas())
     );
 
     expect(centerHeightMillimeters.value).toBe(10);
@@ -73,7 +69,7 @@ describe("useSliceViewport", () => {
     const { centerHeightMillimeters } = useSliceViewport(
       probe,
       ref(makeContour()),
-      ref(makeManifest())
+      ref(makeAtlas())
     );
 
     centerHeightMillimeters.value = 6;
@@ -88,7 +84,7 @@ describe("useSliceViewport", () => {
     const { extentMillimeters, centerHeightMillimeters } = useSliceViewport(
       probe,
       ref(null),
-      ref(makeManifest())
+      ref(makeAtlas())
     );
 
     probe.value = makeProbe({

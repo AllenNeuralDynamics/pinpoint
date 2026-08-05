@@ -8,14 +8,14 @@ import {
 } from "@/test/mount-helper";
 
 // RecentExperimentsList creates the current-experiment store, whose
-// `manifest`/`terminologyRows` are `computedAsync` and fetch on store
-// creation, so mounting would trigger real network calls otherwise. Mock the
-// leaf module, not the `@/features/atlas` barrel.
+// `terminologyRows` is `computedAsync` and fetches on store creation, so
+// mounting would trigger real network calls otherwise. Mock the leaf
+// module, not the `@/features/atlas` barrel.
 vi.mock("@/features/atlas/api/source.api", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/atlas/api/source.api")
   >("@/features/atlas/api/source.api");
-  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
+  return { ...actual, getTerminologyRows: vi.fn() };
 });
 
 type DialogWrapper = VueWrapper<

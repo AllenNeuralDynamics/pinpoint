@@ -9,7 +9,8 @@ export default {
     noAtlases: "No atlases found.",
     noAtlasesCaption: "Check your connection to the source.",
     addFavorite: "Add to favorites",
-    removeFavorite: "Remove from favorites"
+    removeFavorite: "Remove from favorites",
+    openSource: "Open the atlas's source"
   },
   atlasHierarchy: {
     search: "Search",
@@ -32,10 +33,7 @@ export default {
     experimentName: "Experiment name",
     cancel: "Cancel",
     create: "Create",
-    pickNameAndAtlas: "Pick an experiment name and atlas",
-    failedToFetchAtlas: "Failed to fetch atlas.",
-    checkAtlas:
-      "Please check your connection to the source and the atlas's existence."
+    pickNameAndAtlas: "Pick an experiment name and atlas"
   },
   experimentProperties: {
     title: "Experiment Properties",
@@ -43,12 +41,7 @@ export default {
     referenceCoordinate: "Reference Coordinate",
     cancel: "Cancel",
     save: "Save",
-    incomplete:
-      "Enter a name, pick an atlas, and set the reference coordinate.",
-    loadingAtlas: "Loading the selected atlas...",
-    failedToFetchAtlas: "Failed to fetch atlas.",
-    checkAtlas:
-      "Please check your connection to the source and the atlas's existence."
+    incomplete: "Enter a name, pick an atlas, and set the reference coordinate."
   },
   recentExperiments: {
     title: "Recent Experiments",
@@ -102,9 +95,6 @@ export default {
     downloadFailed: "Unable to download experiment.",
     downloadFailedCaption:
       "Check your browser's download settings and try again.",
-    atlasUnavailable: "Loaded the experiment, but its atlas is unavailable.",
-    atlasUnavailableCaption:
-      "Check your connection to the atlas source. Probes are shown without the brain.",
     versionMajorBehind: "This experiment is a major version behind Pinpoint.",
     versionMajorBehindCaption:
       "Saved by Pinpoint {fileVersion}; this is {appVersion}. It may not work at all. You can upgrade the version in the experiment settings dialog.",

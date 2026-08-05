@@ -28,7 +28,7 @@ const OriginalXMLHttpRequest = globalThis.XMLHttpRequest;
 
 // Violations are recorded here rather than only thrown at the call site,
 // because code under test may itself catch the network error (e.g.
-// `getManifest`'s `try { ... } catch { return null; }`) -- swallowing our
+// `getAtlas`'s `try { ... } catch { return null; }`) -- swallowing our
 // thrown error along with the "real" one it's standing in for. Re-asserting
 // this list in `afterEach` means a leak still fails the test even then.
 let violations: string[] = [];

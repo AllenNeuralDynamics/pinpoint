@@ -7,7 +7,7 @@ import {
   makeTestFontAsset,
   makeTestScene
 } from "@/test/mount-helper";
-import { makeManifest } from "@/test/fixtures";
+import { makeAtlas, makeManifest } from "@/test/fixtures";
 import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
 import {
   buildAxisGuides,
@@ -60,7 +60,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     expect(root).toBeTruthy();
@@ -75,7 +75,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     expect(renderers.ap.paragraphs.map(p => p.text)).toEqual(["+AP", "-AP"]);
     expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+DV", "-DV"]);
@@ -97,7 +97,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
@@ -134,7 +134,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     for (const mesh of scene.meshes) {
       const extendSize = mesh.getBoundingInfo().boundingBox.extendSize;
@@ -146,7 +146,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     expectVectorCloseTo(
       renderers.ap.paragraphs[0]!.worldMatrix.getTranslation(),
@@ -178,7 +178,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
@@ -213,7 +213,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     const topEdge = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 1, 0), matrix).normalize();
@@ -248,7 +248,7 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
@@ -262,7 +262,9 @@ describe("buildAxisGuides", () => {
     buildAxisGuides(
       scene,
       guides,
-      makeManifest({ resolutions: [[0.05, 0.05, 0.05]] })
+      makeAtlas({
+        manifest: makeManifest({ resolutions: [[0.05, 0.05, 0.05]] })
+      })
     );
     expect(scale(renderers.ml.paragraphs[0]!.worldMatrix)).toBeCloseTo(7.5, 4);
   });
@@ -271,8 +273,8 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeManifest());
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
+    buildAxisGuides(scene, guides, makeAtlas());
 
     expect(
       scene.transformNodes.filter(node => node.name === "axisGuideRoot_node")
@@ -282,13 +284,17 @@ describe("buildAxisGuides", () => {
     }
   });
 
-  it("builds nothing and clears any existing guides for an unknown manifest", () => {
+  it("builds nothing and clears any existing guides for an atlas with unknown dimensions", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
 
-    buildAxisGuides(scene, guides, makeManifest({ resolutions: [] }));
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas({ manifest: makeManifest({ resolutions: [] }) })
+    );
 
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeNull();
     expect(scene.meshes).toHaveLength(0);
@@ -303,7 +309,7 @@ describe("clearAxisGuides", () => {
   it("removes the root node, every label, and every pick mesh, leaving the renderers reusable", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
     expect(scene.meshes).toHaveLength(6);
 
     clearAxisGuides(scene, guides);
@@ -315,7 +321,7 @@ describe("clearAxisGuides", () => {
       expect(renderer.parent).toBeNull();
     }
 
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
     expect(scene.meshes).toHaveLength(6);
     for (const renderer of Object.values(renderers)) {
@@ -368,7 +374,7 @@ describe("pickAxisGuideDirection", () => {
   it("returns the direction of the axis guide label under a screen position", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
     const camera = new ArcRotateCamera(
       "c",
       -Math.PI / 2,
@@ -399,7 +405,7 @@ describe("pickAxisGuideDirection", () => {
   it("returns null when no axis guide label is under the screen position", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeManifest());
+    buildAxisGuides(scene, guides, makeAtlas());
     const camera = new ArcRotateCamera(
       "c",
       -Math.PI / 2,

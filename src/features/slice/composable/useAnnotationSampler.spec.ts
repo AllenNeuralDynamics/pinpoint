@@ -3,7 +3,7 @@ import { createApp, ref, watch } from "vue";
 import { flushPromises } from "@vue/test-utils";
 import {
   makeAnnotationVolumeStore,
-  makeManifest,
+  makeAtlas,
   makeTerminologyRow
 } from "@/test/fixtures";
 import type { SampleGeometry } from "../models/sample-geometry.model";
@@ -112,14 +112,14 @@ describe("createAnnotationSampler", () => {
       chunks: { "0/0/0": Uint32Array.from([1, 1, 1, 1, 1, 1, 1, 1]) }
     });
     const workerFactory = () => makeFakeWorker(store);
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([
       makeTerminologyRow({ annotation_value: 1, color_hex_triplet: "#ff0000" })
     ]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )
@@ -201,12 +201,12 @@ describe("createAnnotationSampler", () => {
         };
       };
     })();
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )
@@ -261,7 +261,7 @@ describe("createAnnotationSampler", () => {
       }
     });
     const workerFactory = () => makeFakeWorker(store);
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([
       makeTerminologyRow({ annotation_value: 1 }),
       makeTerminologyRow({ annotation_value: 2 })
@@ -269,7 +269,7 @@ describe("createAnnotationSampler", () => {
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )
@@ -325,7 +325,7 @@ describe("createAnnotationSampler", () => {
       }
     });
     const workerFactory = () => makeFakeWorker(store);
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([
       makeTerminologyRow({ annotation_value: 1 }),
       makeTerminologyRow({ annotation_value: 2 })
@@ -333,7 +333,7 @@ describe("createAnnotationSampler", () => {
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )
@@ -387,12 +387,12 @@ describe("createAnnotationSampler", () => {
       terminateSpies.push(spy);
       return { ...inner, terminate: spy };
     };
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )
@@ -418,12 +418,12 @@ describe("createAnnotationSampler", () => {
       chunks: { "0/0/0": Uint32Array.from([1, 1, 1, 1, 1, 1, 1, 1]) }
     });
     const workerFactory = () => makeFakeWorker(store);
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )
@@ -479,12 +479,12 @@ describe("createAnnotationSampler", () => {
         }
       };
     };
-    const manifest = ref(makeManifest());
+    const atlas = ref(makeAtlas());
     const terminologyRows = ref([makeTerminologyRow({ annotation_value: 1 })]);
 
     const { result: sampler, unmount } = mountWithComposable(() =>
       createAnnotationSampler(
-        { manifest, terminologyRows },
+        { atlas, terminologyRows },
         workerFactory,
         () => store
       )

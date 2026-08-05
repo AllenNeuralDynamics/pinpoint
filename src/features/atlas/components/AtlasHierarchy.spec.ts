@@ -6,8 +6,8 @@ import AtlasHierarchy from "./AtlasHierarchy.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { setStructureVisibility } from "@/features/experiment";
-import { getManifest, getTerminologyRows } from "../api/source.api";
-import { makeManifest, makeTerminologyRows } from "@/test/fixtures";
+import { getTerminologyRows } from "../api/source.api";
+import { makeTerminologyRows } from "@/test/fixtures";
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -30,15 +30,12 @@ const QVirtualScrollStub = defineComponent({
   }
 });
 
-// `useCurrentExperimentStore`'s `manifest` is also a `computedAsync` that
-// fetches from this module whenever the store is created, so `getManifest`
-// must be mocked too or mounting this component triggers a real request.
 vi.mock("../api/source.api", async () => {
   const actual =
     await vi.importActual<typeof import("../api/source.api")>(
       "../api/source.api"
     );
-  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
+  return { ...actual, getTerminologyRows: vi.fn() };
 });
 
 async function mountHierarchy() {
@@ -58,8 +55,6 @@ async function mountHierarchy() {
 
 describe("AtlasHierarchy", () => {
   beforeEach(() => {
-    vi.mocked(getManifest).mockReset();
-    vi.mocked(getManifest).mockResolvedValue(makeManifest());
     vi.mocked(getTerminologyRows).mockReset();
     vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
   });

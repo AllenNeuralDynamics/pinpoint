@@ -6,13 +6,14 @@ import SliceCanvas from "./SliceCanvas.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
+  makeAtlas,
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
   makeTerminologyRow
 } from "@/test/fixtures";
-import type { TerminologyRow } from "@/features/atlas";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import type { Atlas, TerminologyRow } from "@/features/atlas";
+import { getTerminologyRows } from "@/features/atlas";
 import { internProbeInterfaceProbe } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 import type { SampleGeometry } from "../models/sample-geometry.model";
@@ -27,7 +28,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -89,17 +89,20 @@ function makeSampleResult(
 
 describe("SliceCanvas", () => {
   beforeEach(() => {
-    vi.mocked(getManifest).mockResolvedValue(makeManifest());
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
     mockResult.value = null;
     mockIsLoading.value = false;
     mockStructureIndex.value = new Map();
   });
 
-  function mountSlice(probeOverrides: Parameters<typeof makeProbe>[0] = {}) {
+  function mountSlice(
+    probeOverrides: Parameters<typeof makeProbe>[0] = {},
+    atlasOverride?: Atlas
+  ) {
     const pinia = createPinia();
     setActivePinia(pinia);
     const store = useCurrentExperimentStore(pinia);
+    if (atlasOverride) store.experiment.atlas = atlasOverride;
 
     const probeInterfaceProbe = makeProbeInterfaceProbe({
       si_units: "mm",
@@ -539,13 +542,15 @@ describe("SliceCanvas", () => {
   });
 
   it("scales the zoom slider's range to the current atlas's longest dimension", async () => {
-    vi.mocked(getManifest).mockResolvedValue(
-      makeManifest({
-        resolutions: [[0.5, 0.5, 0.5]],
-        shape: [[394, 394, 394]]
+    const { wrapper } = mountSlice(
+      {},
+      makeAtlas({
+        manifest: makeManifest({
+          resolutions: [[0.5, 0.5, 0.5]],
+          shape: [[394, 394, 394]]
+        })
       })
     );
-    const { wrapper } = mountSlice();
     await flushPromises();
 
     const sliders = wrapper.findAllComponents({ name: "QSlider" });
@@ -556,13 +561,15 @@ describe("SliceCanvas", () => {
   });
 
   it("clamps a persisted extent outside the current atlas's zoom range into range", async () => {
-    vi.mocked(getManifest).mockResolvedValue(
-      makeManifest({
-        resolutions: [[0.5, 0.5, 0.5]],
-        shape: [[394, 394, 394]]
+    const { wrapper } = mountSlice(
+      { sliceExtentMillimeters: 2 },
+      makeAtlas({
+        manifest: makeManifest({
+          resolutions: [[0.5, 0.5, 0.5]],
+          shape: [[394, 394, 394]]
+        })
       })
     );
-    const { wrapper } = mountSlice({ sliceExtentMillimeters: 2 });
     await flushPromises();
 
     const sliders = wrapper.findAllComponents({ name: "QSlider" });
@@ -583,13 +590,15 @@ describe("SliceCanvas", () => {
   });
 
   it("defaults a probe whose zoom has never been set to the middle of a human-scale range", async () => {
-    vi.mocked(getManifest).mockResolvedValue(
-      makeManifest({
-        resolutions: [[0.5, 0.5, 0.5]],
-        shape: [[394, 394, 394]]
+    const { wrapper } = mountSlice(
+      { sliceExtentMillimeters: null },
+      makeAtlas({
+        manifest: makeManifest({
+          resolutions: [[0.5, 0.5, 0.5]],
+          shape: [[394, 394, 394]]
+        })
       })
     );
-    const { wrapper } = mountSlice({ sliceExtentMillimeters: null });
     await flushPromises();
 
     const sliders = wrapper.findAllComponents({ name: "QSlider" });

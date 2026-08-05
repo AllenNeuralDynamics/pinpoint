@@ -1,5 +1,7 @@
-import type { Manifest } from "@/features/atlas";
-import { getAtlasLongestDimensionMillimeters } from "@/features/atlas";
+import {
+  type Atlas,
+  getAtlasLongestDimensionMillimeters
+} from "@/features/atlas";
 import type {
   Probe,
   ProbeChannelMapWindow,
@@ -47,8 +49,7 @@ export interface ShankLayout {
 const SLICE_ZOOM_RANGE_OCTAVES = 6;
 
 /**
- * Fallback log2 upper bound when the manifest hasn't resolved, or its
- * dimensions are unknown.
+ * Fallback log2 upper bound when the atlas's dimensions are unknown.
  */
 const FALLBACK_MAXIMUM_ZOOM_EXPONENT = 4;
 
@@ -68,15 +69,13 @@ const MINIMUM_CHANNEL_MAP_WINDOW_MILLIMETERS = 0.05;
 
 /**
  * Derive the slice zoom range from an atlas's longest dimension.
- * @param manifest Atlas manifest to derive the range from, or null if not
- *   yet resolved.
+ * @param atlas Atlas to derive the range from.
  */
 export function getSliceZoomExponentRange(
-  manifest: Manifest | null
+  atlas: Atlas
 ): SliceZoomExponentRange {
-  const longestDimensionMillimeters = manifest
-    ? getAtlasLongestDimensionMillimeters(manifest)
-    : 0;
+  const longestDimensionMillimeters =
+    getAtlasLongestDimensionMillimeters(atlas);
   const maximum =
     longestDimensionMillimeters > 0
       ? Math.ceil(Math.log2(longestDimensionMillimeters))

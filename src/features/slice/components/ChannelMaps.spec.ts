@@ -10,7 +10,7 @@ import {
   makeProbeInterfaceProbe,
   makeTerminologyRow
 } from "@/test/fixtures";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import { getTerminologyRows } from "@/features/atlas";
 import { internProbeInterfaceProbe } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 
@@ -23,7 +23,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -94,7 +93,6 @@ describe("ChannelMaps", () => {
   beforeEach(() => {
     vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
     observerTriggers = [];
-    vi.mocked(getManifest).mockResolvedValue(null);
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 

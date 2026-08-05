@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProbeShank } from "@/features/probe";
 import { getProbeContour, getProbeShanks } from "@/features/probe";
 import {
+  makeAtlas,
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe
@@ -363,17 +364,22 @@ describe("clampSliceCenterHeight", () => {
 
 describe("getSliceZoomExponentRange", () => {
   it("reproduces the Allen-mouse-tuned range for the mouse-scale fixture manifest", () => {
-    // makeManifest() defaults to Allen-mouse resolutions/shape (0.025mm/voxel,
+    // makeAtlas() defaults to Allen-mouse resolutions/shape (0.025mm/voxel,
     // 528 voxels AP -> a 13.2mm longest dimension), which this formula must
     // continue to map to the range the zoom slider originally shipped with.
-    const range = getSliceZoomExponentRange(makeManifest());
+    const range = getSliceZoomExponentRange(makeAtlas());
 
     expect(range).toEqual({ minimum: -2, maximum: 4 });
   });
 
   it("widens for an atlas with a larger longest dimension, e.g. human-scale", () => {
     const range = getSliceZoomExponentRange(
-      makeManifest({ resolutions: [[0.5, 0.5, 0.5]], shape: [[394, 394, 394]] })
+      makeAtlas({
+        manifest: makeManifest({
+          resolutions: [[0.5, 0.5, 0.5]],
+          shape: [[394, 394, 394]]
+        })
+      })
     );
 
     // Longest dimension is 197mm; ceil(log2(197)) = 8.
@@ -382,9 +388,11 @@ describe("getSliceZoomExponentRange", () => {
 
   it("narrows for an atlas with a smaller longest dimension, e.g. fly-scale", () => {
     const range = getSliceZoomExponentRange(
-      makeManifest({
-        resolutions: [[0.001, 0.001, 0.001]],
-        shape: [[500, 200, 200]]
+      makeAtlas({
+        manifest: makeManifest({
+          resolutions: [[0.001, 0.001, 0.001]],
+          shape: [[500, 200, 200]]
+        })
       })
     );
 
@@ -392,16 +400,9 @@ describe("getSliceZoomExponentRange", () => {
     expect(range).toEqual({ minimum: -7, maximum: -1 });
   });
 
-  it("falls back to the Allen-mouse-scale range when the manifest is null", () => {
-    expect(getSliceZoomExponentRange(null)).toEqual({
-      minimum: -2,
-      maximum: 4
-    });
-  });
-
-  it("falls back when the manifest's dimensions are unknown", () => {
+  it("falls back when the atlas's dimensions are unknown", () => {
     const range = getSliceZoomExponentRange(
-      makeManifest({ resolutions: [], shape: [] })
+      makeAtlas({ manifest: makeManifest({ resolutions: [], shape: [] }) })
     );
 
     expect(range).toEqual({ minimum: -2, maximum: 4 });

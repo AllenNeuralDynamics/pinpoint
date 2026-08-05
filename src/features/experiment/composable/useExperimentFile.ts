@@ -9,7 +9,6 @@ import {
   serializeExperiment
 } from "../api/experiment-file.api";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { getManifest } from "@/features/atlas";
 import { useNotify } from "@/composable/useNotify";
 
 const VERSION_MISMATCH_NOTICES: Record<
@@ -127,13 +126,6 @@ export function useExperimentFile() {
         experiment.version
       );
       currentExperimentStore.loadExperiment(experiment);
-      if (!(await getManifest(experiment.atlas))) {
-        notifyWarning(
-          t("experimentFile.atlasUnavailable"),
-          t("experimentFile.atlasUnavailableCaption")
-        );
-      }
-
       await openedHook.trigger();
     } catch {
       notifyInvalidExperimentFile();

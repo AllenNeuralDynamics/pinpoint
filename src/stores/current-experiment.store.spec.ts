@@ -4,7 +4,8 @@ import { createPinia, setActivePinia } from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { flushPromises } from "@vue/test-utils";
 import { useCurrentExperimentStore } from "./current-experiment.store";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import { DEFAULT_ATLAS, getTerminologyRows } from "@/features/atlas";
+import type { TerminologyRow } from "@/features/atlas";
 import {
   addProbe,
   buildExperiment,
@@ -13,7 +14,6 @@ import {
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
 import {
   makeAtlas,
-  makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
   makeTerminologyRows
@@ -35,15 +35,14 @@ function usePersistedPinia() {
 }
 
 // Mock the leaf module (not the `@/features/atlas` barrel) -- the store's
-// `manifest`/`terminologyRows` are `computedAsync` and fetch on store
-// creation, so mounting would trigger real network calls otherwise.
+// `terminologyRows` is a `computedAsync` and fetches on store creation, so
+// mounting would trigger real network calls otherwise.
 vi.mock("@/features/atlas/api/source.api", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/atlas/api/source.api")
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -51,7 +50,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 describe("useCurrentExperimentStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked(getManifest).mockReset();
     vi.mocked(getTerminologyRows).mockReset();
   });
 
@@ -62,72 +60,62 @@ describe("useCurrentExperimentStore", () => {
     });
   });
 
-  describe("areAtlasComponentsEvaluating", () => {
-    it("is true while getManifest is still pending", async () => {
-      vi.mocked(getManifest).mockReturnValue(new Promise(() => {}));
+  describe("atlas", () => {
+    it("defaults to DEFAULT_ATLAS", () => {
+      const store = useCurrentExperimentStore();
+      expect(store.atlas).toEqual(DEFAULT_ATLAS);
+    });
+
+    it("does not mutate the exported DEFAULT_ATLAS when the store's atlas is mutated", () => {
+      const store = useCurrentExperimentStore();
+
+      store.experiment.atlas.name = "mutated";
+
+      expect(DEFAULT_ATLAS.name).not.toBe("mutated");
+    });
+  });
+
+  describe("isTerminologyRowsEvaluating", () => {
+    it("is true while getTerminologyRows is still pending", async () => {
+      const { promise } = Promise.withResolvers<TerminologyRow[]>();
+      vi.mocked(getTerminologyRows).mockReturnValue(promise);
 
       const store = useCurrentExperimentStore();
       // `computedAsync`'s `evaluating` flag flips on a microtask after the
       // callback starts, not synchronously with store creation.
       await flushPromises();
 
-      expect(store.areAtlasComponentsEvaluating).toBe(true);
+      expect(store.isTerminologyRowsEvaluating).toBe(true);
     });
 
-    it("is true while getTerminologyRows is still pending, once the manifest has resolved", async () => {
-      vi.mocked(getManifest).mockResolvedValue(makeManifest());
-      vi.mocked(getTerminologyRows).mockReturnValue(new Promise(() => {}));
-
-      const store = useCurrentExperimentStore();
-      // Let the manifest's own computedAsync resolve before checking that
-      // terminologyRows's own evaluating flag has taken over.
-      await flushPromises();
-
-      expect(store.manifest).not.toBeNull();
-      expect(store.areAtlasComponentsEvaluating).toBe(true);
-    });
-
-    it("is false once both the manifest and terminologyRows have resolved", async () => {
-      vi.mocked(getManifest).mockResolvedValue(makeManifest());
+    it("is false once getTerminologyRows has resolved", async () => {
       vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
 
       const store = useCurrentExperimentStore();
       await flushPromises();
       await flushPromises();
 
-      expect(store.areAtlasComponentsEvaluating).toBe(false);
+      expect(store.isTerminologyRowsEvaluating).toBe(false);
     });
   });
 
   describe("terminologyRows", () => {
-    it("is [] when getManifest resolves null, without calling getTerminologyRows", async () => {
-      vi.mocked(getManifest).mockResolvedValue(null);
+    it("calls getTerminologyRows with the current atlas", async () => {
+      const terminologyRows = makeTerminologyRows();
+      vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
 
       const store = useCurrentExperimentStore();
       await flushPromises();
       await flushPromises();
 
-      expect(store.terminologyRows).toEqual([]);
-      expect(getTerminologyRows).not.toHaveBeenCalled();
-    });
-
-    it("calls getTerminologyRows with the resolved manifest", async () => {
-      const manifest = makeManifest();
-      vi.mocked(getManifest).mockResolvedValue(manifest);
-      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
-
-      useCurrentExperimentStore();
-      await flushPromises();
-      await flushPromises();
-
-      expect(getTerminologyRows).toHaveBeenCalledWith(manifest);
+      expect(getTerminologyRows).toHaveBeenCalledWith(store.atlas);
+      expect(store.terminologyRows).toEqual(terminologyRows);
     });
   });
 
   describe("persistence", () => {
     it("only writes experiment to storage, not the computedAsync-derived state", async () => {
       const terminologyRows = makeTerminologyRows();
-      vi.mocked(getManifest).mockResolvedValue(makeManifest());
       vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
       localStorage.removeItem("current-experiment");
 
@@ -142,7 +130,6 @@ describe("useCurrentExperimentStore", () => {
       setActivePinia(pinia);
 
       const store = useCurrentExperimentStore();
-      // terminologyRows depends on manifest resolving first.
       await flushPromises();
       await flushPromises();
 

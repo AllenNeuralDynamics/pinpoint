@@ -68,43 +68,39 @@ const gizmoMode = ref<GizmoMode>("position");
 const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
 
 /**
- * Manifest and terminology rows for the current atlas, or null while either
- * is still resolving.
+ * Terminology rows for the current atlas, empty while they resolve.
  */
-const atlasComponents = computed(() => {
-  const { manifest, terminologyRows, areAtlasComponentsEvaluating } =
-    currentExperiment;
-  return manifest && !areAtlasComponentsEvaluating
-    ? { manifest, terminologyRows }
-    : null;
-});
+const terminologyRows = computed(() =>
+  currentExperiment.isTerminologyRowsEvaluating
+    ? []
+    : currentExperiment.terminologyRows
+);
 
 /**
  * Atlas structures that must always be present in the scene, faded out when
  * not visible instead of being removed.
  */
-const alwaysPresentStructures = computed<StructureEntity[]>(() => {
-  if (!atlasComponents.value) return [];
-  const { manifest, terminologyRows } = atlasComponents.value;
-  return structureEntitiesFromIdentifiers(
-    manifest,
-    terminologyRows,
-    getDefaultStructureIdentifiers(manifest.atlas.name, terminologyRows)
-  );
-});
+const alwaysPresentStructures = computed<StructureEntity[]>(() =>
+  structureEntitiesFromIdentifiers(
+    currentExperiment.atlas,
+    terminologyRows.value,
+    getDefaultStructureIdentifiers(
+      currentExperiment.atlas.name,
+      terminologyRows.value
+    )
+  )
+);
 
 /**
  * Structures the current experiment has marked visible.
  */
-const visibleStructureEntities = computed<StructureEntity[]>(() => {
-  if (!atlasComponents.value) return [];
-  const { manifest, terminologyRows } = atlasComponents.value;
-  return structureEntitiesFromIdentifiers(
-    manifest,
-    terminologyRows,
+const visibleStructureEntities = computed<StructureEntity[]>(() =>
+  structureEntitiesFromIdentifiers(
+    currentExperiment.atlas,
+    terminologyRows.value,
     currentExperiment.visibleStructures
-  );
-});
+  )
+);
 
 /**
  * Trigger engine resizing on page area resize.
@@ -136,10 +132,9 @@ watchEffect(async () => {
 
 watchEffect(() => {
   const scene = runtime.scene.value;
-  const { manifest } = currentExperiment;
-  if (!scene || !manifest || currentExperiment.isManifestEvaluating) return;
+  if (!scene) return;
 
-  setAtlasCenterOffset(scene, getAtlasCenter(manifest));
+  setAtlasCenterOffset(scene, getAtlasCenter(currentExperiment.atlas));
 });
 
 // Axis guide renderers belong to the scene that created them.
@@ -179,24 +174,24 @@ watch(
 watchEffect(() => {
   const scene = runtime.scene.value;
   const guides = axisGuides.value;
-  const { manifest } = currentExperiment;
   if (!scene || !guides) return;
 
   if (!areAxisGuidesVisible.value) {
     clearAxisGuides(scene, guides);
     return;
   }
-  if (!manifest || currentExperiment.isManifestEvaluating) return;
 
-  buildAxisGuides(scene, guides, manifest);
+  buildAxisGuides(scene, guides, currentExperiment.atlas);
 });
 
 watchEffect(() => {
   const camera = runtime.camera.value;
-  const { manifest, areAtlasComponentsEvaluating } = currentExperiment;
-  if (!camera || !manifest || areAtlasComponentsEvaluating) return;
+  if (!camera) return;
 
-  setInitialZoom(camera, getAtlasDimensionsMillimeters(manifest)[0]);
+  setInitialZoom(
+    camera,
+    getAtlasDimensionsMillimeters(currentExperiment.atlas)[0]
+  );
 });
 
 watch([runtime.scene, runtime.camera], ([scene, camera]) => {

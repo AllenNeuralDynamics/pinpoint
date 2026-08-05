@@ -39,9 +39,9 @@ import { setInitialZoom } from "../api/camera.api";
 import { createAxisGuides } from "../api/axis-guide.api";
 import type * as AxisGuideApi from "../api/axis-guide.api";
 import {
+  DEFAULT_ATLAS,
   getAtlasCenter,
   getAtlasDimensionsMillimeters,
-  getManifest,
   getTerminologyRows,
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
@@ -105,20 +105,19 @@ vi.mock("../api/axis-guide.api", async () => {
   };
 });
 
-// `useCurrentExperimentStore`'s `manifest` and `terminologyRows` are
-// `computedAsync`, fetching from this module whenever the store is created
-// -- both must be mocked or mounting this component triggers real network
-// requests. Mocking the leaf module (rather than the `@/features/atlas`
-// barrel it's re-exported through) is required: mocking the barrel by the
-// same specifier it re-exports from doesn't consistently intercept the
-// store's own import of it.
+// `useCurrentExperimentStore`'s `terminologyRows` is `computedAsync`,
+// fetching from this module whenever the store is created -- it must be
+// mocked or mounting this component triggers a real network request.
+// Mocking the leaf module (rather than the `@/features/atlas` barrel it's
+// re-exported through) is required: mocking the barrel by the same
+// specifier it re-exports from doesn't consistently intercept the store's
+// own import of it.
 vi.mock("@/features/atlas/api/source.api", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/atlas/api/source.api")
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn(),
     structureEntitiesFromIdentifiers: vi.fn()
   };
@@ -184,11 +183,11 @@ function makeRuntimeStub() {
 /**
  * Mount `SceneCanvas` with a fresh runtime stub injected in place of the
  * real Babylon runtime service, wait for `onMounted`'s `init` to resolve,
- * and flush the store's `manifest` -> `terminologyRows` `computedAsync`
- * chain (two microtask rounds, same hop documented in
- * `AtlasHierarchy.spec.ts`). `QPageSticky` requires a `QLayout` ancestor
- * (only present in the real app's `IndexPage.vue`), so it's stubbed with a
- * passthrough that still renders its slot for the gizmo toolbar tests.
+ * and flush the store's `terminologyRows` `computedAsync` (two microtask
+ * rounds, same hop documented in `AtlasHierarchy.spec.ts`). `QPageSticky`
+ * requires a `QLayout` ancestor (only present in the real app's
+ * `IndexPage.vue`), so it's stubbed with a passthrough that still renders
+ * its slot for the gizmo toolbar tests.
  */
 async function mountCanvas(runtime = makeRuntimeStub()) {
   const wrapper = wrappers.track(
@@ -234,8 +233,6 @@ describe("SceneCanvas", () => {
 
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked(getManifest).mockReset();
-    vi.mocked(getManifest).mockResolvedValue(makeManifest());
     vi.mocked(getTerminologyRows).mockReset();
     vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
     vi.mocked(structureEntitiesFromIdentifiers).mockReset();
@@ -283,26 +280,23 @@ describe("SceneCanvas", () => {
     expect(observers()).toHaveLength(0);
   });
 
-  it("syncs structures built from the manifest, not the atlas", async () => {
-    const manifest = makeManifest();
-    vi.mocked(getManifest).mockResolvedValue(manifest);
+  it("syncs structures built from the current atlas and terminology rows", async () => {
     const terminologyRows = makeTerminologyRows();
     vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
 
     await mountCanvas();
 
     expect(structureEntitiesFromIdentifiers).toHaveBeenCalledWith(
-      manifest,
+      DEFAULT_ATLAS,
       terminologyRows,
       expect.anything()
     );
     expect(syncStructuresVisibility).toHaveBeenCalled();
   });
 
-  it("syncs empty structure lists while the atlas components are still evaluating", async () => {
-    // Never resolves, so `isManifestEvaluating` (and therefore
-    // `areAtlasComponentsEvaluating`) stays true throughout.
-    vi.mocked(getManifest).mockReturnValue(new Promise(() => {}));
+  it("syncs empty structure lists while terminology rows are still evaluating", async () => {
+    // Never resolves, so `isTerminologyRowsEvaluating` stays true throughout.
+    vi.mocked(getTerminologyRows).mockReturnValue(new Promise(() => {}));
 
     await mountCanvas();
 
@@ -311,7 +305,11 @@ describe("SceneCanvas", () => {
       [],
       []
     );
-    expect(structureEntitiesFromIdentifiers).not.toHaveBeenCalled();
+    expect(structureEntitiesFromIdentifiers).toHaveBeenCalledWith(
+      expect.anything(),
+      [],
+      expect.anything()
+    );
   });
 
   it("shows the loading bar while a sync is in flight and hides it after", async () => {
@@ -358,12 +356,12 @@ describe("SceneCanvas", () => {
     );
   });
 
-  it("offsets the atlas root by the atlas center once the manifest resolves", async () => {
+  it("offsets the atlas root by the current atlas center", async () => {
     await mountCanvas();
 
     expect(setAtlasCenterOffset).toHaveBeenCalledWith(
       expect.anything(),
-      getAtlasCenter(makeManifest())
+      getAtlasCenter(DEFAULT_ATLAS)
     );
   });
 
@@ -435,16 +433,16 @@ describe("SceneCanvas", () => {
     await mountCanvas();
     vi.mocked(setAtlasCenterOffset).mockClear();
 
-    const manifest = makeManifest({
-      resolutions: [[0.02, 0.02, 0.02]],
-      shape: [[100, 100, 100]]
-    });
-    vi.mocked(getManifest).mockResolvedValue(manifest);
-
     const store = useCurrentExperimentStore();
     store.experiment = buildExperiment(
       "New Experiment",
-      makeAtlas({ name: "allen_human" }),
+      makeAtlas({
+        name: "allen_human",
+        manifest: makeManifest({
+          resolutions: [[0.02, 0.02, 0.02]],
+          shape: [[100, 100, 100]]
+        })
+      }),
       [0, 0, 0]
     );
     await flushPromises();
@@ -456,16 +454,17 @@ describe("SceneCanvas", () => {
     );
   });
 
-  it("offsets by the resolved atlas center even while terminology rows are still loading", async () => {
-    vi.mocked(getManifest).mockResolvedValue(
-      makeManifest({
-        resolutions: [[0.02, 0.02, 0.02]],
-        shape: [[100, 100, 100]]
-      })
-    );
+  it("offsets by the current atlas center even while terminology rows are still loading", async () => {
     vi.mocked(getTerminologyRows).mockReturnValue(new Promise(() => {}));
 
     await mountCanvas();
+    useCurrentExperimentStore().experiment.atlas = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [[0.02, 0.02, 0.02]],
+        shape: [[100, 100, 100]]
+      })
+    });
+    await flushPromises();
 
     expect(setAtlasCenterOffset).toHaveBeenCalledWith(
       expect.anything(),
@@ -473,24 +472,13 @@ describe("SceneCanvas", () => {
     );
   });
 
-  it("sets the camera's initial zoom from the manifest once it resolves", async () => {
-    const manifest = makeManifest();
-    vi.mocked(getManifest).mockResolvedValue(manifest);
-
+  it("sets the camera's initial zoom from the current atlas", async () => {
     const { runtime } = await mountCanvas();
 
     expect(setInitialZoom).toHaveBeenCalledWith(
       runtime.camera.value,
-      getAtlasDimensionsMillimeters(manifest)[0]
+      getAtlasDimensionsMillimeters(DEFAULT_ATLAS)[0]
     );
-  });
-
-  it("does not set the camera's initial zoom while the atlas components are evaluating", async () => {
-    vi.mocked(getManifest).mockReturnValue(new Promise(() => {}));
-
-    await mountCanvas();
-
-    expect(setInitialZoom).not.toHaveBeenCalled();
   });
 
   it("clears the scene when the experiment's atlas changes", async () => {

@@ -1,7 +1,8 @@
 import axios from "axios";
 import Papa from "papaparse";
 import { Color3 } from "@babylonjs/core";
-import type { Atlas } from "../models/atlas.model";
+import { isFiniteTriple, isRecord } from "@/utils/type-guards";
+import type { Atlas, AtlasIdentity, AtlasListing } from "../models/atlas.model";
 import type { Manifest } from "../models/manifest.model";
 import type { TerminologyRow } from "../models/terminology-row.model";
 import type { StructureEntity } from "../models/structure-entity.model";
@@ -31,6 +32,7 @@ interface RawManifest {
   shape: [number, number, number];
   terminology: { location: string };
   annotation_set: { location: string };
+  atlas_link?: string;
 }
 
 /** Raw terminology row as parsed from CSV, before numeric/array fields are converted. */
@@ -46,17 +48,40 @@ const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
 const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
 
 /**
+ * Allen Mouse atlas as bundled, so a new experiment has a usable atlas
+ * before any network request completes.
+ */
+export const DEFAULT_ATLAS: Atlas = {
+  name: "allen_mouse",
+  source: BRAINGLOBE_BASE_URL,
+  manifest: {
+    terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
+    annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
+    atlasLink: "http://www.brain-map.org",
+    resolutions: [
+      [0.01, 0.01, 0.01],
+      [0.025, 0.025, 0.025],
+      [0.05, 0.05, 0.05],
+      [0.1, 0.1, 0.1]
+    ],
+    shape: [
+      [1320, 800, 1140],
+      [528, 320, 456],
+      [264, 160, 228],
+      [132, 80, 114]
+    ]
+  }
+};
+
+/**
  * Fetch the list of atlases in the BrainGlobe atlases bucket, or null if
  * unreachable.
  */
-export async function listAtlases(): Promise<Atlas[] | null> {
+export async function listAtlases(): Promise<AtlasListing[] | null> {
   try {
     const directoryNames =
       await listBucketAtlasDirectories(BRAINGLOBE_BASE_URL);
-    return atlasNamesFromDirectories(directoryNames).map(name => ({
-      name,
-      source: BRAINGLOBE_BASE_URL
-    }));
+    return atlasListingsFromDirectories(directoryNames, BRAINGLOBE_BASE_URL);
   } catch {
     return null;
   }
@@ -86,19 +111,24 @@ async function listBucketAtlasDirectories(source: string): Promise<string[]> {
 }
 
 /**
- * Derive unique atlas names from `atlases/` directory names by stripping
- * their resolution suffix, e.g. `allen_mouse_25um` -> `allen_mouse`.
+ * Group `atlases/` directory names into one listing per atlas, stripping the
+ * resolution suffix, e.g. `allen_mouse_25um` -> `allen_mouse`.
  * @param directoryNames Directory names listed under `atlases/`.
+ * @param source Root URL of the atlas source.
  */
-function atlasNamesFromDirectories(directoryNames: string[]): string[] {
-  return [
-    ...new Set(
-      directoryNames.filter(Boolean).map(name => {
-        const index = name.lastIndexOf("_");
-        return index === -1 ? name : name.slice(0, index);
-      })
-    )
-  ];
+function atlasListingsFromDirectories(
+  directoryNames: string[],
+  source: string
+): AtlasListing[] {
+  const listings = new Map<string, AtlasListing>();
+  for (const directory of directoryNames.filter(Boolean)) {
+    const index = directory.lastIndexOf("_");
+    const name = index === -1 ? directory : directory.slice(0, index);
+    const listing = listings.get(name);
+    if (listing) listing.variantDirectories.push(directory);
+    else listings.set(name, { name, source, variantDirectories: [directory] });
+  }
+  return [...listings.values()];
 }
 
 /**
@@ -106,15 +136,12 @@ function atlasNamesFromDirectories(directoryNames: string[]): string[] {
  * or null if unreachable.
  * @param source Root URL of the BrainGlobe HTTP server.
  */
-export async function listAtlasesHTTP(source: string): Promise<Atlas[] | null> {
+export async function listAtlasesHTTP(
+  source: string
+): Promise<AtlasListing[] | null> {
   try {
-    const directoryNames = await listServerAtlasDirectories(
-      `${source}/${HTTP_SOURCE_PREFIX}/${ATLASES_DIRECTORY}`
-    );
-    return atlasNamesFromDirectories(directoryNames).map(name => ({
-      name,
-      source
-    }));
+    const directoryNames = await listServerAtlasDirectories(atlasesUrl(source));
+    return atlasListingsFromDirectories(directoryNames, source);
   } catch {
     return null;
   }
@@ -135,17 +162,27 @@ async function listServerAtlasDirectories(
 }
 
 /**
+ * URL of a source's `atlases/` directory.
+ * @param source Root URL of the atlas source.
+ */
+function atlasesUrl(source: string): string {
+  return source === BRAINGLOBE_BASE_URL
+    ? new URL(ATLASES_DIRECTORY, source).toString()
+    : `${source}/${HTTP_SOURCE_PREFIX}/${ATLASES_DIRECTORY}`;
+}
+
+/**
  * Fetch and parse an atlas's terminology list, or `[]` if unfetchable.
- * @param manifest Manifest of the atlas to get the terminology list for.
+ * @param atlas Atlas to get the terminology list for.
  */
 export async function getTerminologyRows(
-  manifest: Manifest
+  atlas: Atlas
 ): Promise<TerminologyRow[]> {
   return new Promise(resolve => {
     Papa.parse<RawTerminologyRow>(
       resolveSourcePath(
-        manifest.atlas.source,
-        `${manifest.terminologyLocation}/terminology.csv`
+        atlas.source,
+        `${atlas.manifest.terminologyLocation}/terminology.csv`
       ),
       {
         download: true,
@@ -183,70 +220,46 @@ function parseTerminologyRow(row: RawTerminologyRow): TerminologyRow {
 }
 
 /**
- * Do two atlases refer to the same atlas, comparing identity fields since
- * atlas objects are not stable references.
- * @param first First atlas to compare.
- * @param second Second atlas to compare.
+ * Do two atlas identities refer to the same atlas, comparing identity fields
+ * since atlas objects are not stable references.
+ * @param first First atlas identity to compare.
+ * @param second Second atlas identity to compare.
  */
-export function isSameAtlas(first: Atlas, second: Atlas): boolean {
+export function isSameAtlas(
+  first: AtlasIdentity,
+  second: AtlasIdentity
+): boolean {
   return first.name === second.name && first.source === second.source;
 }
 
 /**
- * Fetch and aggregate the manifests of every size variant of an atlas, or
- * null if unreachable or without variants.
- * @param atlas Atlas to build the aggregated manifest for.
+ * Fetch and aggregate the manifests of an atlas's size variants, or null if
+ * unreachable or without a usable finest variant.
+ * @param listing Listing of the atlas to resolve.
  */
-export async function getManifest(atlas: Atlas): Promise<Manifest | null> {
+export async function getAtlas(listing: AtlasListing): Promise<Atlas | null> {
   try {
-    const isBrainGlobe = atlas.source === BRAINGLOBE_BASE_URL;
-
-    const atlasesUrl = isBrainGlobe
-      ? new URL(ATLASES_DIRECTORY, atlas.source).toString()
-      : `${atlas.source}/${HTTP_SOURCE_PREFIX}/${ATLASES_DIRECTORY}`;
-
-    const directoryNames = isBrainGlobe
-      ? await listBucketAtlasDirectories(atlas.source)
-      : await listServerAtlasDirectories(atlasesUrl);
-
-    return await buildManifest(
-      atlas,
-      sizeVariantDirectories(directoryNames, atlas).map(
+    const root = atlasesUrl(listing.source);
+    const manifest = await buildManifest(
+      listing.variantDirectories.map(
         directory =>
-          `${atlasesUrl}/${directory}/${ATLAS_VERSION_STRING}/${MANIFEST_FILE}`
+          `${root}/${directory}/${ATLAS_VERSION_STRING}/${MANIFEST_FILE}`
       )
     );
+    return manifest
+      ? { name: listing.name, source: listing.source, manifest }
+      : null;
   } catch {
     return null;
   }
 }
 
 /**
- * Keep only the directory names under `atlases/` that are size variants of
- * the given atlas, i.e. `<atlas name>_<size>um`.
- * @param directoryNames Directory names listed under `atlases/`.
- * @param atlas Atlas whose size variants to keep.
- */
-function sizeVariantDirectories(
-  directoryNames: string[],
-  atlas: Atlas
-): string[] {
-  const prefix = `${atlas.name}_`;
-  return directoryNames.filter(
-    name => name.startsWith(prefix) && !name.slice(prefix.length).includes("_")
-  );
-}
-
-/**
  * Fetch every size variant's manifest file and aggregate them into a single
  * {@link Manifest}, ordered finest resolution first.
- * @param atlas Atlas the size variants belong to.
  * @param manifestUrls Manifest URLs, one per size variant directory.
  */
-async function buildManifest(
-  atlas: Atlas,
-  manifestUrls: string[]
-): Promise<Manifest | null> {
+async function buildManifest(manifestUrls: string[]): Promise<Manifest | null> {
   if (manifestUrls.length === 0) return null;
 
   const responses = await Promise.all(
@@ -263,9 +276,9 @@ async function buildManifest(
   }
 
   return {
-    atlas,
     terminologyLocation: finest.terminology.location,
     annotationSetLocation: finest.annotation_set.location,
+    atlasLink: finest.atlas_link || null,
     resolutions: variants.map(variant => {
       const [ap, dv, ml] = variant.resolution;
       return [ap / 1000, dv / 1000, ml / 1000];
@@ -275,14 +288,37 @@ async function buildManifest(
 }
 
 /**
+ * Check that a value has the shape of an `Atlas`, manifest included.
+ * @param value Value to check.
+ */
+export function isAtlas(value: unknown): value is Atlas {
+  if (!isRecord(value)) return false;
+  if (typeof value.name !== "string" || typeof value.source !== "string") {
+    return false;
+  }
+
+  const { manifest } = value;
+  return (
+    isRecord(manifest) &&
+    typeof manifest.terminologyLocation === "string" &&
+    typeof manifest.annotationSetLocation === "string" &&
+    (manifest.atlasLink === null || typeof manifest.atlasLink === "string") &&
+    Array.isArray(manifest.resolutions) &&
+    manifest.resolutions.every(isFiniteTriple) &&
+    Array.isArray(manifest.shape) &&
+    manifest.shape.every(isFiniteTriple)
+  );
+}
+
+/**
  * Resolve the structure entities for a list of identifiers, dropping any
  * that don't resolve.
- * @param manifest Manifest of the atlas to pull mesh info from.
+ * @param atlas Atlas to pull mesh info from.
  * @param terminologyRows Parsed terminology rows for the atlas.
  * @param identifiers Structure identifiers to build for.
  */
 export function structureEntitiesFromIdentifiers(
-  manifest: Manifest,
+  atlas: Atlas,
   terminologyRows: TerminologyRow[],
   identifiers: number[]
 ): StructureEntity[] {
@@ -292,25 +328,25 @@ export function structureEntitiesFromIdentifiers(
   const entities: StructureEntity[] = [];
   for (const identifier of identifiers) {
     const row = rowsByIdentifier.get(identifier);
-    if (row) entities.push(structureEntityFromRow(manifest, row));
+    if (row) entities.push(structureEntityFromRow(atlas, row));
   }
   return entities;
 }
 
 /**
  * Build a structure entity from a terminology row.
- * @param manifest Manifest of the atlas to pull mesh info from.
+ * @param atlas Atlas to pull mesh info from.
  * @param terminologyRow Terminology row to build the entity from.
  */
 function structureEntityFromRow(
-  manifest: Manifest,
+  atlas: Atlas,
   terminologyRow: TerminologyRow
 ): StructureEntity {
   return {
     identifier: terminologyRow.identifier,
     meshPath: resolveSourcePath(
-      manifest.atlas.source,
-      `${manifest.annotationSetLocation}/annotations.precomputed/mesh/${terminologyRow.identifier}`
+      atlas.source,
+      `${atlas.manifest.annotationSetLocation}/annotations.precomputed/mesh/${terminologyRow.identifier}`
     ),
     color: Color3.FromHexString(terminologyRow.color_hex_triplet)
   };
@@ -318,12 +354,12 @@ function structureEntityFromRow(
 
 /**
  * Absolute URL of an atlas's uint32 annotation volume (OME-Zarr root).
- * @param manifest Manifest of the atlas to locate the volume for.
+ * @param atlas Atlas to locate the volume for.
  */
-export function getAnnotationVolumeUrl(manifest: Manifest): string {
+export function getAnnotationVolumeUrl(atlas: Atlas): string {
   return resolveSourcePath(
-    manifest.atlas.source,
-    `${manifest.annotationSetLocation}/${ANNOTATION_VOLUME_DIRECTORY}`
+    atlas.source,
+    `${atlas.manifest.annotationSetLocation}/${ANNOTATION_VOLUME_DIRECTORY}`
   );
 }
 
@@ -341,15 +377,18 @@ function resolveSourcePath(source: string, path: string): string {
 /**
  * Compute the atlas volume's extent along each ASR axis, in mm, or all zeros
  * if unknown.
- * @param manifest Atlas manifest to compute the dimensions for.
+ * @param atlas Atlas to compute the dimensions for.
  */
 export function getAtlasDimensionsMillimeters(
-  manifest: Manifest
+  atlas: Atlas
 ): [number, number, number] {
-  if (!manifest.resolutions[0] || !manifest.shape[0]) return [0, 0, 0];
+  if (!atlas.manifest.resolutions[0] || !atlas.manifest.shape[0]) {
+    return [0, 0, 0];
+  }
 
-  const [apResolution, dvResolution, mlResolution] = manifest.resolutions[0];
-  const [apShape, dvShape, mlShape] = manifest.shape[0];
+  const [apResolution, dvResolution, mlResolution] =
+    atlas.manifest.resolutions[0];
+  const [apShape, dvShape, mlShape] = atlas.manifest.shape[0];
   return [
     apResolution * apShape,
     dvResolution * dvShape,
@@ -359,20 +398,18 @@ export function getAtlasDimensionsMillimeters(
 
 /**
  * Computes the center of the atlas volume in mm.
- * @param manifest Atlas manifest to compute the center for.
+ * @param atlas Atlas to compute the center for.
  */
-export function getAtlasCenter(manifest: Manifest): [number, number, number] {
-  const [ap, dv, ml] = getAtlasDimensionsMillimeters(manifest);
+export function getAtlasCenter(atlas: Atlas): [number, number, number] {
+  const [ap, dv, ml] = getAtlasDimensionsMillimeters(atlas);
   return [ap / 2, dv / 2, ml / 2];
 }
 
 /**
  * Compute the longest edge of the atlas volume's bounding box, in mm, or 0
  * if unknown.
- * @param manifest Atlas manifest to compute the longest dimension for.
+ * @param atlas Atlas to compute the longest dimension for.
  */
-export function getAtlasLongestDimensionMillimeters(
-  manifest: Manifest
-): number {
-  return Math.max(...getAtlasDimensionsMillimeters(manifest));
+export function getAtlasLongestDimensionMillimeters(atlas: Atlas): number {
+  return Math.max(...getAtlasDimensionsMillimeters(atlas));
 }

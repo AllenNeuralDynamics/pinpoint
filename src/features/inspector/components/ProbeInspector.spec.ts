@@ -7,7 +7,7 @@ import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import { getTerminologyRows } from "@/features/atlas";
 import { internProbeInterfaceProbe } from "@/features/experiment";
 import {
   getProbeInterfaceDisplayName,
@@ -29,7 +29,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -82,7 +81,6 @@ async function editAndEnter(field: VueWrapper, value: string) {
 
 describe("ProbeInspector", () => {
   beforeEach(() => {
-    vi.mocked(getManifest).mockResolvedValue(null);
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 

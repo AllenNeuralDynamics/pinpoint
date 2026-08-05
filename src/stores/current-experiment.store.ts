@@ -6,12 +6,7 @@ import {
   ALLEN_MOUSE_REFERENCE_COORDINATE,
   type Experiment
 } from "@/features/experiment";
-import type { Manifest } from "@/features/atlas";
-import {
-  BRAINGLOBE_BASE_URL,
-  getManifest,
-  getTerminologyRows
-} from "@/features/atlas";
+import { DEFAULT_ATLAS, getTerminologyRows } from "@/features/atlas";
 import { detachProbeInterfaceProbes } from "@/features/probe";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
@@ -29,10 +24,7 @@ export const useCurrentExperimentStore = defineStore(
       id: crypto.randomUUID(),
       version: import.meta.env.APP_VERSION,
       name: i18n.global.t("currentExperiment.defaultName"),
-      atlas: {
-        source: BRAINGLOBE_BASE_URL,
-        name: "allen_mouse"
-      },
+      atlas: structuredClone(DEFAULT_ATLAS),
       referenceCoordinate: [...ALLEN_MOUSE_REFERENCE_COORDINATE],
       visibleStructures: [],
       probeInterfaceProbes: {},
@@ -44,11 +36,6 @@ export const useCurrentExperimentStore = defineStore(
 
     /** ID of the probe currently being dragged, or null. */
     const draggedProbeId = ref<string | null>(null);
-
-    /**
-     * Flag for when the manifest is being updated to match the new atlas.
-     */
-    const isManifestEvaluating = ref(false);
 
     /**
      * Flag for when the terminology rows are being updated to match the new atlas.
@@ -66,29 +53,12 @@ export const useCurrentExperimentStore = defineStore(
     const atlas = computed(() => experiment.value.atlas);
 
     /**
-     * Manifest of the current atlas.
-     */
-    const manifest = computedAsync<Manifest | null>(
-      async () => await getManifest(atlas.value),
-      null,
-      isManifestEvaluating
-    );
-
-    /**
      * Terminology rows of the current atlas.
      */
     const terminologyRows = computedAsync(
-      async () =>
-        manifest.value ? await getTerminologyRows(manifest.value) : [],
+      async () => await getTerminologyRows(atlas.value),
       [],
       isTerminologyRowsEvaluating
-    );
-
-    /**
-     * Are the getters into the current atlas still evaluating.
-     */
-    const areAtlasComponentsEvaluating = computed(
-      () => isManifestEvaluating.value || isTerminologyRowsEvaluating.value
     );
 
     /**
@@ -144,14 +114,12 @@ export const useCurrentExperimentStore = defineStore(
       experiment,
       selectedInspectable,
       draggedProbeId,
-      isManifestEvaluating
+      isTerminologyRowsEvaluating
     };
     const getters = {
       name,
       atlas,
-      manifest,
       terminologyRows,
-      areAtlasComponentsEvaluating,
       referenceCoordinate,
       visibleStructures,
       probeInterfaceProbes,

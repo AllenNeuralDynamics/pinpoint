@@ -1,15 +1,8 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
-import { useI18n } from "vue-i18n";
-import {
-  type Atlas,
-  AtlasPicker,
-  getManifest,
-  isSameAtlas
-} from "@/features/atlas";
+import { type Atlas, AtlasPicker, isSameAtlas } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { useNotify } from "@/composable/useNotify";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useValidationRules } from "@/composable/useValidationRules";
 import { isFiniteTriple } from "@/utils/type-guards";
@@ -19,8 +12,6 @@ import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api
 
 defineEmits([...useDialogPluginComponent.emits]);
 
-const { t } = useI18n();
-const { notifyError } = useNotify();
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
 const { requiredName: nameRules, optionalNumber: coordinateRules } =
@@ -33,7 +24,6 @@ const atlas = ref<Atlas | null>({ ...currentExperimentStore.atlas });
 const referenceCoordinate = ref<[number, number, number]>([
   ...currentExperimentStore.referenceCoordinate
 ]);
-const isReseeding = ref(false);
 
 const ap = useNumericTupleModel(() => referenceCoordinate.value, 0);
 const dv = useNumericTupleModel(() => referenceCoordinate.value, 1);
@@ -46,17 +36,7 @@ const isSaveDisabled = computed(
   () =>
     name.value.trim().length === 0 ||
     !atlas.value ||
-    !isFiniteTriple(referenceCoordinate.value) ||
-    isReseeding.value
-);
-
-/**
- * Hint explaining why Save is unavailable.
- */
-const saveHint = computed(() =>
-  isReseeding.value
-    ? t("experimentProperties.loadingAtlas")
-    : t("experimentProperties.incomplete")
+    !isFiniteTriple(referenceCoordinate.value)
 );
 
 /**
@@ -83,26 +63,10 @@ function save() {
 
 // Re-seed the reference coordinate whenever a different atlas is picked: the
 // old value is a landmark in the old atlas's space.
-watch(atlas, async (newAtlas, oldAtlas) => {
+watch(atlas, (newAtlas, oldAtlas) => {
   if (!newAtlas || (oldAtlas && isSameAtlas(newAtlas, oldAtlas))) return;
 
-  isReseeding.value = true;
-  const manifest = await getManifest(newAtlas);
-
-  // A newer pick superseded this fetch; that run owns the flag and the value.
-  if (!atlas.value || !isSameAtlas(atlas.value, newAtlas)) return;
-
-  isReseeding.value = false;
-
-  if (!manifest) {
-    notifyError(
-      t("experimentProperties.failedToFetchAtlas"),
-      t("experimentProperties.checkAtlas")
-    );
-    return;
-  }
-
-  referenceCoordinate.value = buildInitialReferenceCoordinate(manifest);
+  referenceCoordinate.value = buildInitialReferenceCoordinate(newAtlas);
 });
 </script>
 
@@ -162,7 +126,9 @@ watch(atlas, async (newAtlas, oldAtlas) => {
           :disable="isSaveDisabled"
           @click="save"
         >
-          <q-tooltip v-if="isSaveDisabled">{{ saveHint }}</q-tooltip>
+          <q-tooltip v-if="isSaveDisabled">
+            {{ $t("experimentProperties.incomplete") }}
+          </q-tooltip>
         </q-btn>
       </q-card-actions>
     </q-card>

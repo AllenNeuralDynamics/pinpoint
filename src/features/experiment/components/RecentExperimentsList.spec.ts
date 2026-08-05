@@ -9,15 +9,14 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { buildExperiment } from "../api/experiment.api";
 import { makeAtlas } from "@/test/fixtures";
 
-// The current-experiment store's `manifest`/`terminologyRows` are
-// `computedAsync` and fetch on store creation, so mounting would trigger real
-// network calls otherwise. Mock the leaf module, not the `@/features/atlas`
-// barrel.
+// The current-experiment store's `terminologyRows` is `computedAsync` and
+// fetches on store creation, so mounting would trigger real network calls
+// otherwise. Mock the leaf module, not the `@/features/atlas` barrel.
 vi.mock("@/features/atlas/api/source.api", async () => {
   const actual = await vi.importActual<
     typeof import("@/features/atlas/api/source.api")
   >("@/features/atlas/api/source.api");
-  return { ...actual, getManifest: vi.fn(), getTerminologyRows: vi.fn() };
+  return { ...actual, getTerminologyRows: vi.fn() };
 });
 
 /**

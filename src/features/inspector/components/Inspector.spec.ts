@@ -4,7 +4,7 @@ import Inspector from "./Inspector.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { makeProbe } from "@/test/fixtures";
-import { getManifest, getTerminologyRows } from "@/features/atlas";
+import { getTerminologyRows } from "@/features/atlas";
 import enUS from "@/i18n/en-US";
 
 const t = enUS.inspector;
@@ -19,7 +19,6 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   >("@/features/atlas/api/source.api");
   return {
     ...actual,
-    getManifest: vi.fn(),
     getTerminologyRows: vi.fn()
   };
 });
@@ -38,7 +37,6 @@ function mountInspector() {
 
 describe("Inspector", () => {
   beforeEach(() => {
-    vi.mocked(getManifest).mockResolvedValue(null);
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 
