@@ -85,6 +85,17 @@ export function makeTestSceneWithGizmo(): {
 }
 
 /**
+ * Drive one frame of a test scene's `onBeforeRenderObservable` at a fixed
+ * delta, for animations reading the engine's delta time.
+ * @param scene Scene to tick.
+ * @param deltaMilliseconds Frame delta the engine reports for this tick.
+ */
+export function tickScene(scene: Scene, deltaMilliseconds: number): void {
+  scene.getEngine().getDeltaTime = () => deltaMilliseconds;
+  scene.onBeforeRenderObservable.notifyObservers(scene);
+}
+
+/**
  * Short-circuit `DracoDecoder`'s lazy worker pool construction with an
  * empty pool, so it never fetches the real wasm from a CDN.
  */

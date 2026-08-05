@@ -17,7 +17,8 @@ import { getProbeInterfaceIdentifier } from "@/features/probe";
 import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 import {
   initializeTestCSG2,
-  makeTestSceneWithGizmo
+  makeTestSceneWithGizmo,
+  tickScene
 } from "@/test/mount-helper";
 import {
   attachProbeSelection,
@@ -790,6 +791,116 @@ describe("syncProbes", () => {
       );
     }
   );
+
+  it("animates a move past 1% of the diagonal", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [5, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(node.position.asArray()).not.toEqual(
+      asrToVector3([5, 0, 0]).asArray()
+    );
+
+    tickScene(scene, 100);
+    tickScene(scene, 100);
+
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+  });
+
+  it("snaps a move under 1% of the diagonal", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [0.1, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(node.position.asArray()).toEqual(
+      asrToVector3([0.1, 0, 0]).asArray()
+    );
+  });
+
+  it("snaps a freshly built probe rather than flying it from the origin", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [5, 0, 0];
+
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+  });
+
+  it("does not let an unrelated sync cut a glide short", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [5, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    tickScene(scene, 100);
+
+    probe.color = "#123456";
+    syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(node.position.asArray()).not.toEqual(
+      asrToVector3([5, 0, 0]).asArray()
+    );
+
+    tickScene(scene, 100);
+    tickScene(scene, 100);
+
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+  });
+
+  it("stops the glide on a gizmo drag", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [5, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    tickScene(scene, 100);
+    const midway = node.position.clone();
+
+    setProbePositionFromGizmoDrag(
+      gizmoManager.gizmos.positionGizmo!,
+      experiment.probes,
+      () => {}
+    );
+    gizmoManager.attachToNode(node);
+    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
+      {} as DragEvent
+    );
+    tickScene(scene, 100);
+
+    expect(node.position.asArray()).toEqual(midway.asArray());
+  });
+
+  it("snaps when the atlas has no known dimensions", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    experiment.atlas.manifest.resolutions = [];
+    probe.tipPosition = [5, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+  });
 });
 
 describe("attachProbeSelection", () => {

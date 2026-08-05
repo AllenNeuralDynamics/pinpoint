@@ -31,9 +31,15 @@ import {
   getProbeInterfaceIdentifier,
   getProbeShanks
 } from "@/features/probe";
+import { getAtlasDiagonalMillimeters } from "@/features/atlas";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
+import {
+  interpolateNodePose,
+  isNodePoseInterpolating,
+  stopNodePoseInterpolation
+} from "./pose-interpolation.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
 import type { TransformGizmos } from "../models/gizmo.model";
 
@@ -72,6 +78,12 @@ const ROD_LENGTH_MILLIMETERS = 200;
 
 /** Radius of the rod, in mm. */
 const ROD_DIAMETER_MILLIMETERS = 8;
+
+/**
+ * Fraction of the atlas volume's diagonal a probe must move by, in one state
+ * change, to be animated there instead of snapped.
+ */
+const MOVE_ANIMATION_DIAGONAL_FRACTION = 0.01;
 
 /**
  * Get a probe's transform node by ID.
@@ -180,6 +192,7 @@ export function disposeProbe(
     gizmoManager.attachToNode(null);
   }
 
+  if (probeTransformNode) stopNodePoseInterpolation(probeTransformNode);
   probeTransformNode?.dispose(false, false);
   scene
     .getMaterialByName(probeEntityName(probeId, PROBE_MATERIAL_SUFFIX))
@@ -228,10 +241,13 @@ export function syncProbes(
     nodesById.set(id, node);
   }
 
+  const animationThresholdMillimeters =
+    getAtlasDiagonalMillimeters(experiment.atlas) *
+    MOVE_ANIMATION_DIAGONAL_FRACTION;
   for (const probe of experiment.probes) {
+    const existingNode = nodesById.get(probe.id);
     const node =
-      nodesById.get(probe.id) ??
-      buildProbe(scene, probe, experiment, gizmoManager);
+      existingNode ?? buildProbe(scene, probe, experiment, gizmoManager);
     if (!node) continue;
 
     const meshes = node.getChildMeshes(false);
@@ -268,8 +284,27 @@ export function syncProbes(
     }
 
     if (probe.id === draggedProbeId) continue;
-    node.position = asrToVector3(probe.tipPosition);
-    node.rotation = asrToVector3(probe.rotation);
+
+    const goalPosition = asrToVector3(probe.tipPosition);
+    const goalRotation = asrToVector3(probe.rotation);
+    // Glide a probe that jumped a visible distance, and keep an in-flight
+    // glide running so an unrelated sync cannot cut its tail off.
+    if (
+      existingNode &&
+      (isNodePoseInterpolating(node) ||
+        (animationThresholdMillimeters > 0 &&
+          Vector3.Distance(node.position, goalPosition) >
+            animationThresholdMillimeters))
+    ) {
+      interpolateNodePose(scene, node, {
+        position: goalPosition,
+        rotation: goalRotation
+      });
+      continue;
+    }
+
+    node.position = goalPosition;
+    node.rotation = goalRotation;
   }
 
   return rebuiltProbeIds;
@@ -344,7 +379,7 @@ export function setProbePositionFromGizmoDrag(
   return positionGizmo.onDragObservable.add(() => {
     const attached = attachedProbeFromGizmo(positionGizmo, probes);
     if (!attached) return;
-
+    stopNodePoseInterpolation(attached.node);
     attached.probe.tipPosition = vector3ToAsr(attached.node.position);
     onDrag(attached.probe.id);
   });
@@ -365,6 +400,7 @@ export function setProbeRotationFromGizmoDrag(
     const attached = attachedProbeFromGizmo(rotationGizmo, probes);
     if (!attached) return;
 
+    stopNodePoseInterpolation(attached.node);
     attached.probe.rotation = vector3ToAsr(attached.node.rotation);
     onDrag(attached.probe.id);
   });
