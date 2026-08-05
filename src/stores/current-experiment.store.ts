@@ -7,7 +7,10 @@ import {
   type Experiment
 } from "@/features/experiment";
 import { DEFAULT_ATLAS, getTerminologyRows } from "@/features/atlas";
-import { detachProbeInterfaceProbes } from "@/features/probe";
+import {
+  detachProbeInterfaceProbes,
+  type ProbeSurfaceChoice
+} from "@/features/probe";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
@@ -36,6 +39,9 @@ export const useCurrentExperimentStore = defineStore(
 
     /** ID of the probe currently being dragged, or null. */
     const draggedProbeId = ref<string | null>(null);
+
+    /** Pending surface-move choice awaiting the user's pick, or null. */
+    const probeSurfaceChoice = ref<ProbeSurfaceChoice | null>(null);
 
     /**
      * Flag for when the terminology rows are being updated to match the new atlas.
@@ -114,6 +120,7 @@ export const useCurrentExperimentStore = defineStore(
       experiment,
       selectedInspectable,
       draggedProbeId,
+      probeSurfaceChoice,
       isTerminologyRowsEvaluating
     };
     const getters = {

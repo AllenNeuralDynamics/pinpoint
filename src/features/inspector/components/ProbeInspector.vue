@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed } from "vue";
+import { computed, onUnmounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   copyProbe,
@@ -8,15 +8,17 @@ import {
   getProbeInterfaceIdentifier,
   homeProbe,
   type Probe,
+  setProbeTipMillimeters,
   toggleProbeLock
 } from "@/features/probe";
 import { STANDARD_COLORS } from "@/features/scene";
-import { SliceCanvas } from "@/features/slice";
+import { SliceCanvas, useProbeSurface } from "@/features/slice";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { setProbeInterface } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useValidationRules } from "@/composable/useValidationRules";
+import { useNotify } from "@/composable/useNotify";
 import CommittedInput from "@/components/CommittedInput.vue";
 
 // A library probe's identifier paired with its display label. `emit-value`
@@ -37,6 +39,17 @@ const { requiredName: nameRules, optionalNumber: numberRules } =
   useValidationRules();
 
 const { t } = useI18n();
+const { notifyWarning } = useNotify();
+const { findTargets } = useProbeSurface();
+
+/** Is the surface sampling pass currently running. */
+const isFindingSurface = ref(false);
+
+/**
+ * Aborts the in-flight surface sampling. Deliberately a plain `let`, not a ref:
+ * nothing renders it and replacing it must not retrigger effects.
+ */
+let surfaceAbortController: AbortController | null = null;
 
 /**
  * Link to the probe identifier that also repoints its interned interface
@@ -83,36 +96,169 @@ const lockIcon = computed(() =>
   probe.lock ? "lock" : "sym_o_lock_open_right"
 );
 
-const lockColor = computed(() => (probe.lock ? "accent" : ""));
+const lockColor = computed(() => (probe.lock ? "accent" : undefined));
 
 const lockLabel = computed(() =>
   probe.lock ? t("probeInspector.unlock") : t("probeInspector.lock")
 );
+
+/**
+ * Is a surface move in progress - sampling, or awaiting the user's path pick. A move
+ * is incomplete until the tip lands, so this covers both phases.
+ */
+const isMovingToSurface = computed(
+  () =>
+    isFindingSurface.value ||
+    currentExperimentStore.probeSurfaceChoice?.probeId === probe.id
+);
+
+const surfaceIcon = computed(() =>
+  isMovingToSurface.value ? "cancel" : "sym_o_place_item"
+);
+
+const surfaceLabel = computed(() =>
+  isMovingToSurface.value
+    ? t("probeInspector.cancelSurface")
+    : t("probeInspector.surface")
+);
+
+/**
+ * Abort an in-flight surface move, dropping any path choice awaiting a pick - which
+ * disposes its tubes, since `SceneCanvas`'s draw effect rebuilds from
+ * `probeSurfaceChoice` and calls `disposeProbeSurfacePaths` when it is null.
+ */
+function cancelMoveToSurface(): void {
+  surfaceAbortController?.abort();
+  surfaceAbortController = null;
+  if (currentExperimentStore.probeSurfaceChoice?.probeId === probe.id) {
+    currentExperimentStore.probeSurfaceChoice = null;
+  }
+}
+
+/**
+ * Move the probe's tip onto the brain surface, or request a path pick when both an
+ * along-axis and a down-on-DV move are available.
+ */
+async function moveToSurface(): Promise<void> {
+  const controller = new AbortController();
+  surfaceAbortController = controller;
+  isFindingSurface.value = true;
+  try {
+    const referenceCoordinate = currentExperimentStore.referenceCoordinate;
+    const targets = await findTargets(
+      probe,
+      referenceCoordinate,
+      controller.signal
+    );
+    // An abort that lands after the rays resolved must still not move the probe. No
+    // toast either: the user asked for this to stop, so it is not a failure.
+    if (controller.signal.aborted) return;
+    if (!targets) {
+      notifyWarning(
+        t("probeInspector.surfaceUnavailable"),
+        t("probeInspector.surfaceUnavailableCaption")
+      );
+      return;
+    }
+
+    const { insideMillimeters, axisMillimeters, dorsoventralMillimeters } =
+      targets;
+    if (insideMillimeters) {
+      setProbeTipMillimeters(probe, insideMillimeters, referenceCoordinate);
+      return;
+    }
+    if (!axisMillimeters && !dorsoventralMillimeters) {
+      notifyWarning(
+        t("probeInspector.noSurfaceFound"),
+        t("probeInspector.noSurfaceFoundCaption")
+      );
+      return;
+    }
+    if (!axisMillimeters || !dorsoventralMillimeters) {
+      setProbeTipMillimeters(
+        probe,
+        axisMillimeters ?? dorsoventralMillimeters!,
+        referenceCoordinate
+      );
+      return;
+    }
+
+    currentExperimentStore.probeSurfaceChoice = {
+      probeId: probe.id,
+      tipPosition: [...probe.tipPosition],
+      rotation: [...probe.rotation],
+      tipMillimeters: [
+        referenceCoordinate[0] + probe.tipPosition[0],
+        referenceCoordinate[1] + probe.tipPosition[1],
+        referenceCoordinate[2] + probe.tipPosition[2]
+      ],
+      axisTargetMillimeters: axisMillimeters,
+      dorsoventralTargetMillimeters: dorsoventralMillimeters
+    };
+  } finally {
+    isFindingSurface.value = false;
+    if (surfaceAbortController === controller) surfaceAbortController = null;
+  }
+}
+
+/** Start a surface move, or cancel the one already in progress. */
+function onSurfaceClick(): void {
+  if (isMovingToSurface.value) {
+    cancelMoveToSurface();
+    return;
+  }
+  void moveToSurface();
+}
+
+onUnmounted(cancelMoveToSurface);
 </script>
 
 <template>
   <div class="column q-gutter-y-md probe-inspector">
     <SliceCanvas :probe="probe" />
 
-    <q-btn-group spread>
-      <q-btn
-        :aria-label="t('probeInspector.home')"
-        :disable="probe.lock"
-        icon="home"
-        @click="homeProbe(probe)"
+    <div>
+      <q-btn-group spread>
+        <q-btn
+          :aria-label="t('probeInspector.home')"
+          :disable="probe.lock"
+          icon="home"
+          @click="homeProbe(probe)"
+        >
+          <q-tooltip>{{ t("probeInspector.home") }}</q-tooltip>
+        </q-btn>
+        <q-btn
+          :aria-label="surfaceLabel"
+          :disable="probe.lock && !isMovingToSurface"
+          :icon="surfaceIcon"
+          @click="onSurfaceClick"
+        >
+          <q-tooltip>{{ surfaceLabel }}</q-tooltip>
+        </q-btn>
+        <q-btn
+          :aria-label="t('probeInspector.copy')"
+          icon="content_copy"
+          @click="copyProbe(currentExperimentStore.experiment, probe)"
+        >
+          <q-tooltip>{{ t("probeInspector.copy") }}</q-tooltip>
+        </q-btn>
+        <q-btn
+          :aria-label="lockLabel"
+          :icon="lockIcon"
+          @click="toggleProbeLock(probe)"
+          :color="lockColor"
+        >
+          <q-tooltip>{{ t("probeInspector.lock") }}</q-tooltip>
+        </q-btn>
+      </q-btn-group>
+
+      <q-linear-progress
+        v-if="isMovingToSurface"
+        indeterminate
+        color="primary"
+        size="sm"
       />
-      <q-btn
-        :aria-label="t('probeInspector.copy')"
-        icon="content_copy"
-        @click="copyProbe(currentExperimentStore.experiment, probe)"
-      />
-      <q-btn
-        :aria-label="lockLabel"
-        :icon="lockIcon"
-        @click="toggleProbeLock(probe)"
-        :color="lockColor"
-      />
-    </q-btn-group>
+    </div>
 
     <CommittedInput
       v-model="name"

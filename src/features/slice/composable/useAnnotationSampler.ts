@@ -15,9 +15,12 @@ import { createAnnotationMetadataStore } from "../api/annotation-store.api";
 import { openAnnotationVolume } from "../api/annotation-volume.api";
 import { getWorkerCount, groupRequestsByShard } from "../api/chunk-shard.api";
 import { createSampleResult } from "../api/sample-result.api";
-import { selectSamplePlan } from "../api/sample-plan.api";
+import { planSamples, selectSamplePlan } from "../api/sample-plan.api";
 import { buildStructureLookups } from "../api/structure-colors.api";
-import type { AnnotationVolume } from "../models/annotation-level.model";
+import type {
+  AnnotationLevel,
+  AnnotationVolume
+} from "../models/annotation-level.model";
 import type {
   SampleBand,
   SampleGeometry
@@ -82,6 +85,12 @@ export function createAnnotationSampler(
     geometry: Ref<SampleGeometry | null>
   ) => AnnotationSampleStream;
   structureIndex: ComputedRef<Map<number, TerminologyRow>>;
+  getFinestLevel: () => Promise<AnnotationLevel | null>;
+  sampleOnce: (
+    geometry: SampleGeometry,
+    levelIndex: number,
+    signal?: AbortSignal
+  ) => Promise<Uint32Array | null>;
 } {
   const workerCount = getWorkerCount(
     typeof navigator === "undefined" ? 0 : navigator.hardwareConcurrency
@@ -90,12 +99,15 @@ export function createAnnotationSampler(
 
   let nextStreamId = 0;
   let volume: AnnotationVolume | null = null;
+  let openPromise: Promise<AnnotationVolume | null> | null = null;
   const streamGenerations = new Map<string, number>();
   const streamRequestCounts = new Map<
     string,
     { total: number; done: number }
   >();
   const streamCallbacks = new Map<string, (message: SampledMessage) => void>();
+  /** Settlers of in-flight `sampleOnce` calls, resolved with `null` on volume reopen. */
+  const pendingOnce = new Map<string, (values: Uint32Array | null) => void>();
   // Re-run each stream's last plan attempt once the volume (re)opens, since
   // a stream's geometry may already have settled before the volume's
   // metadata resolved (both are async, independently of each other).
@@ -115,16 +127,24 @@ export function createAnnotationSampler(
     for (const worker of workers) worker.postMessage(message);
   }
 
+  /** The open volume, awaiting the open in flight when it hasn't resolved yet. */
+  async function getVolume(): Promise<AnnotationVolume | null> {
+    return volume ?? (openPromise ? await openPromise : null);
+  }
+
   watch(
     () => getAnnotationVolumeUrl(options.atlas.value),
     async url => {
       volume = null;
+      for (const settle of pendingOnce.values()) settle(null);
+      pendingOnce.clear();
       broadcast({ type: "open", url });
       // Metadata-only: opening a volume reads a handful of small zarr.json
       // files, never chunk bytes. The main thread needs the real level
       // shapes/scales to plan and shard correctly; each worker separately
       // opens the same URL for its own chunk-decoding store.
-      volume = await openAnnotationVolume(metadataStoreFactory(url));
+      openPromise = openAnnotationVolume(metadataStoreFactory(url));
+      volume = await openPromise;
       for (const replan of streamReplans.values()) replan();
     },
     { immediate: true }
@@ -254,9 +274,93 @@ export function createAnnotationSampler(
     return { result, isLoading };
   }
 
+  /** The finest multiscale level of the open volume, or null when it can't be opened. */
+  async function getFinestLevel(): Promise<AnnotationLevel | null> {
+    return (await getVolume())?.levels[0] ?? null;
+  }
+
+  /**
+   * Sample one geometry a single time at the given multiscale level, resolving dense
+   * row-major annotation values (0 is background). Null when the volume can't be opened,
+   * a volume reopen superseded the sampling, or `signal` aborted.
+   * @param geometry Geometry to sample.
+   * @param levelIndex Index of the level to sample from.
+   * @param signal Aborts the sampling and the workers' in-flight chunk fetches.
+   */
+  async function sampleOnce(
+    geometry: SampleGeometry,
+    levelIndex: number,
+    signal?: AbortSignal
+  ): Promise<Uint32Array | null> {
+    if (signal?.aborted) return null;
+
+    const level = (await getVolume())?.levels[levelIndex];
+    if (!level) return null;
+
+    const plan = planSamples(geometry, level, levelIndex);
+    const values = new Uint32Array(
+      geometry.widthPixels * geometry.heightPixels
+    );
+    if (plan.chunkRequests.length === 0) return values;
+
+    const streamId = `once-${nextStreamId++}`;
+
+    return new Promise<Uint32Array | null>(resolve => {
+      function onAbort(): void {
+        broadcast({ type: "cancel", streamId });
+        settle(null);
+      }
+
+      function settle(result: Uint32Array | null): void {
+        streamCallbacks.delete(streamId);
+        pendingOnce.delete(streamId);
+        signal?.removeEventListener("abort", onAbort);
+        resolve(result);
+      }
+
+      pendingOnce.set(streamId, settle);
+      signal?.addEventListener("abort", onAbort, { once: true });
+
+      let remaining = plan.chunkRequests.length;
+      streamCallbacks.set(streamId, message => {
+        for (let index = 0; index < message.sampleIndices.length; index++) {
+          values[message.sampleIndices[index]!] =
+            message.annotationValues[index]!;
+        }
+        remaining -= message.chunkCount;
+        if (remaining <= 0) settle(values);
+      });
+
+      groupRequestsByShard(plan, workerCount).forEach(
+        (requests, workerIndex) => {
+          if (requests.length === 0) return;
+          const transfer: Transferable[] = [];
+          for (const request of requests) {
+            transfer.push(
+              request.sampleIndices.buffer,
+              request.voxelOffsets.buffer
+            );
+          }
+          workers[workerIndex]!.postMessage(
+            {
+              type: "sample",
+              streamId,
+              generation: 1,
+              levelIndex,
+              requests
+            },
+            transfer
+          );
+        }
+      );
+    });
+  }
+
   return {
     createStream,
-    structureIndex: computed(() => structureLookups.value.index)
+    structureIndex: computed(() => structureLookups.value.index),
+    getFinestLevel,
+    sampleOnce
   };
 }
 

@@ -43,6 +43,15 @@ import { setGizmoControls } from "../api/gizmo.api";
 import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
 import { setReferenceCoordinateNodePosition } from "../api/reference-coordinate.api";
 import {
+  buildProbeSurfacePaths,
+  disposeProbeSurfacePaths,
+  pickProbeSurfacePathOnTap
+} from "../api/probe-surface-path.api";
+import {
+  isProbeSurfaceChoiceCurrent,
+  setProbeTipMillimeters
+} from "@/features/probe";
+import {
   deselectFromPointerDown,
   orbitCameraFromAxisGuideDoubleTap,
   selectFromSelectedInspectableState
@@ -248,6 +257,64 @@ watchEffect(() => {
       selectedInspectable
     );
   }
+});
+
+// Draw the pending surface-move choice's tubes, or clear them once resolved.
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+
+  const choice = currentExperiment.probeSurfaceChoice;
+  if (!choice) {
+    disposeProbeSurfacePaths(scene);
+    return;
+  }
+  buildProbeSurfacePaths(scene, choice);
+});
+
+// Drop a pending surface-move choice once its probe moves or disappears -
+// deselecting the probe unmounts its inspector, so this cancellation path
+// lives here rather than there.
+watchEffect(() => {
+  const choice = currentExperiment.probeSurfaceChoice;
+  if (!choice) return;
+
+  const probe = currentExperiment.probes.find(
+    ({ id }) => id === choice.probeId
+  );
+  if (!probe || !isProbeSurfaceChoiceCurrent(choice, probe)) {
+    currentExperiment.probeSurfaceChoice = null;
+  }
+});
+
+// Resolve the user's tube pick into a probe move.
+watch(runtime.scene, scene => {
+  if (!scene) return;
+
+  const observer = pickProbeSurfacePathOnTap(scene, kind => {
+    const choice = currentExperiment.probeSurfaceChoice;
+    if (!choice) return;
+
+    const probe = currentExperiment.probes.find(
+      ({ id }) => id === choice.probeId
+    );
+    // Clear before mutating, so the cancel effect never sees the applied
+    // move as a user-driven cancellation.
+    currentExperiment.probeSurfaceChoice = null;
+    // `Probe.lock` documents the probe as locked against pose edits, so a
+    // probe locked while its choice was pending drops the move instead of
+    // applying it.
+    if (!probe || probe.lock) return;
+
+    setProbeTipMillimeters(
+      probe,
+      kind === "axis"
+        ? choice.axisTargetMillimeters
+        : choice.dorsoventralTargetMillimeters,
+      currentExperiment.referenceCoordinate
+    );
+  });
+  onWatcherCleanup(() => observer.remove());
 });
 
 // Configure the gizmos from the control bar and keep the probe drag

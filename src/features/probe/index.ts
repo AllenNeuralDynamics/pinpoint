@@ -1,6 +1,7 @@
 export { default as ProbeLibraryDialog } from "./components/ProbeLibraryDialog.vue";
 export type { ProbeInterfaceProbe } from "./models/probe-interface.model";
 export type { Probe, ProbeChannelMapWindow } from "./models/probe.model";
+export type { ProbeSurfaceChoice } from "./models/probe-surface-choice.model";
 export type { ProbeVisibility } from "./models/visibility.model";
 export {
   buildProbe,
@@ -10,6 +11,8 @@ export {
   detachProbeInterfaceProbes,
   rotateProbeVisibility,
   homeProbe,
+  setProbeTipMillimeters,
+  isProbeSurfaceChoiceCurrent,
   copyProbe,
   toggleProbeLock,
   findProbeInterfaceProbeByIdentifier,

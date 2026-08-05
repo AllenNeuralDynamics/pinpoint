@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { shallowRef } from "vue";
+import { flushPromises } from "@vue/test-utils";
 import type { VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import ProbeInspector from "./ProbeInspector.vue";
@@ -13,6 +14,7 @@ import {
   getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier
 } from "@/features/probe";
+import { useProbeSurface, type ProbeSurfaceTargets } from "@/features/slice";
 import enUS from "@/i18n/en-US";
 
 const t = enUS.probeInspector;
@@ -46,6 +48,12 @@ vi.mock("@/features/slice/composable/useAnnotationSampler", () => ({
     }),
     structureIndex: shallowRef(new Map())
   })
+}));
+
+// The move-to-surface feature's own composable, mocked so `findTargets` is
+// a per-test `vi.fn` -- default cases never invoke it.
+vi.mock("@/features/slice/composable/useProbeSurface", () => ({
+  useProbeSurface: vi.fn()
 }));
 
 function fieldByLabel(wrapper: VueWrapper, label: string) {
@@ -82,6 +90,7 @@ async function editAndEnter(field: VueWrapper, value: string) {
 describe("ProbeInspector", () => {
   beforeEach(() => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
+    vi.mocked(useProbeSurface).mockReturnValue({ findTargets: vi.fn() });
   });
 
   function mountInspector(probe = makeProbe()) {
@@ -431,6 +440,219 @@ describe("ProbeInspector", () => {
       await buttonByLabel(wrapper, t.home).trigger("click");
 
       expect(probe.tipPosition).toEqual([1, 2, 3]);
+    });
+  });
+
+  describe("move to surface", () => {
+    it("moves the tip and leaves the choice null on an insideMillimeters result", async () => {
+      const findTargets = vi.fn().mockResolvedValue({
+        insideMillimeters: [1, 2, 3],
+        axisMillimeters: null,
+        dorsoventralMillimeters: null
+      } satisfies ProbeSurfaceTargets);
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper, store, probe } = mountInspector();
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+      await flushPromises();
+
+      expect(probe.tipPosition).toEqual([
+        1 - store.referenceCoordinate[0],
+        2 - store.referenceCoordinate[1],
+        3 - store.referenceCoordinate[2]
+      ]);
+      expect(store.probeSurfaceChoice).toBeNull();
+    });
+
+    it("sets the pending choice and leaves the tip unchanged when both targets are available", async () => {
+      const findTargets = vi.fn().mockResolvedValue({
+        insideMillimeters: null,
+        axisMillimeters: [1, 2, 3],
+        dorsoventralMillimeters: [4, 5, 6]
+      } satisfies ProbeSurfaceTargets);
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper, store, probe } = mountInspector(
+        makeProbe({ tipPosition: [7, 8, 9] })
+      );
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+      await flushPromises();
+
+      expect(probe.tipPosition).toEqual([7, 8, 9]);
+      expect(store.probeSurfaceChoice).toMatchObject({
+        probeId: probe.id,
+        axisTargetMillimeters: [1, 2, 3],
+        dorsoventralTargetMillimeters: [4, 5, 6]
+      });
+    });
+
+    it("moves the tip without setting a choice when only one outside-brain target is available", async () => {
+      const findTargets = vi.fn().mockResolvedValue({
+        insideMillimeters: null,
+        axisMillimeters: [1, 2, 3],
+        dorsoventralMillimeters: null
+      } satisfies ProbeSurfaceTargets);
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper, store, probe } = mountInspector();
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+      await flushPromises();
+
+      expect(probe.tipPosition).toEqual([
+        1 - store.referenceCoordinate[0],
+        2 - store.referenceCoordinate[1],
+        3 - store.referenceCoordinate[2]
+      ]);
+      expect(store.probeSurfaceChoice).toBeNull();
+    });
+
+    it("shows a no-surface-found warning and leaves the tip unchanged on all-null targets", async () => {
+      const findTargets = vi.fn().mockResolvedValue({
+        insideMillimeters: null,
+        axisMillimeters: null,
+        dorsoventralMillimeters: null
+      } satisfies ProbeSurfaceTargets);
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper, probe } = mountInspector(
+        makeProbe({ tipPosition: [1, 2, 3] })
+      );
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+      await flushPromises();
+
+      expect(notifySpy).toHaveBeenCalledWith({
+        message: t.noSurfaceFound,
+        caption: t.noSurfaceFoundCaption,
+        color: "warning",
+        icon: "warning"
+      });
+      expect(probe.tipPosition).toEqual([1, 2, 3]);
+    });
+
+    it("shows a surface-unavailable warning when findTargets resolves null", async () => {
+      const findTargets = vi.fn().mockResolvedValue(null);
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper, probe } = mountInspector(
+        makeProbe({ tipPosition: [1, 2, 3] })
+      );
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+      await flushPromises();
+
+      expect(notifySpy).toHaveBeenCalledWith({
+        message: t.surfaceUnavailable,
+        caption: t.surfaceUnavailableCaption,
+        color: "warning",
+        icon: "warning"
+      });
+      expect(probe.tipPosition).toEqual([1, 2, 3]);
+    });
+
+    it("never shows a toast when cancelled before findTargets resolves", async () => {
+      let resolveTargets!: (value: ProbeSurfaceTargets | null) => void;
+      const findTargets = vi.fn(
+        () =>
+          new Promise<ProbeSurfaceTargets | null>(resolve => {
+            resolveTargets = resolve;
+          })
+      );
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper } = mountInspector();
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+      await buttonByLabel(wrapper, t.cancelSurface).trigger("click");
+      resolveTargets({
+        insideMillimeters: null,
+        axisMillimeters: null,
+        dorsoventralMillimeters: null
+      });
+      await flushPromises();
+
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it("shows cancel with a progress bar while sampling, aborting without moving the tip on cancel click", async () => {
+      let resolveTargets!: (value: ProbeSurfaceTargets | null) => void;
+      let capturedSignal: AbortSignal | undefined;
+      const findTargets = vi.fn(
+        (
+          _probe: unknown,
+          _referenceCoordinate: unknown,
+          signal?: AbortSignal
+        ) => {
+          capturedSignal = signal;
+          return new Promise<ProbeSurfaceTargets | null>(resolve => {
+            resolveTargets = resolve;
+          });
+        }
+      );
+      vi.mocked(useProbeSurface).mockReturnValue({ findTargets });
+      const { wrapper, probe } = mountInspector(
+        makeProbe({ tipPosition: [1, 2, 3] })
+      );
+
+      await buttonByLabel(wrapper, t.surface).trigger("click");
+
+      expect(buttonByLabel(wrapper, t.cancelSurface).exists()).toBe(true);
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        true
+      );
+
+      await buttonByLabel(wrapper, t.cancelSurface).trigger("click");
+
+      expect(capturedSignal?.aborted).toBe(true);
+
+      resolveTargets({
+        insideMillimeters: [9, 9, 9],
+        axisMillimeters: null,
+        dorsoventralMillimeters: null
+      });
+      await flushPromises();
+
+      expect(probe.tipPosition).toEqual([1, 2, 3]);
+      expect(buttonByLabel(wrapper, t.surface).exists()).toBe(true);
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+    });
+
+    it("shows cancel for a pending surface choice on this probe, and clears it on click", async () => {
+      const { wrapper, store, probe } = mountInspector();
+      store.probeSurfaceChoice = {
+        probeId: probe.id,
+        tipPosition: [...probe.tipPosition],
+        rotation: [...probe.rotation],
+        tipMillimeters: [0, 0, 0],
+        axisTargetMillimeters: [1, 0, 0],
+        dorsoventralTargetMillimeters: [0, 1, 0]
+      };
+      await wrapper.vm.$nextTick();
+
+      expect(buttonByLabel(wrapper, t.cancelSurface).exists()).toBe(true);
+
+      await buttonByLabel(wrapper, t.cancelSurface).trigger("click");
+
+      expect(store.probeSurfaceChoice).toBeNull();
+    });
+
+    it("clears a pending surface choice for this probe on unmount", async () => {
+      const { wrapper, store, probe } = mountInspector();
+      store.probeSurfaceChoice = {
+        probeId: probe.id,
+        tipPosition: [...probe.tipPosition],
+        rotation: [...probe.rotation],
+        tipMillimeters: [0, 0, 0],
+        axisTargetMillimeters: [1, 0, 0],
+        dorsoventralTargetMillimeters: [0, 1, 0]
+      };
+      await wrapper.vm.$nextTick();
+
+      wrapper.unmount();
+
+      expect(store.probeSurfaceChoice).toBeNull();
     });
   });
 });

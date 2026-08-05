@@ -515,4 +515,168 @@ describe("createAnnotationSampler", () => {
     unmountStream();
     unmount();
   });
+
+  describe("sampleOnce", () => {
+    it("resolves dense annotation values for a known chunk", async () => {
+      const store = makeAnnotationVolumeStore({
+        shapeVoxels: [4, 4, 4],
+        chunkShapeVoxels: [2, 2, 2],
+        chunks: { "0/0/0": Uint32Array.from([1, 1, 1, 1, 1, 1, 1, 1]) }
+      });
+      const workerFactory = () => makeFakeWorker(store);
+      const atlas = ref(makeAtlas());
+      const terminologyRows = ref([]);
+
+      const { result: sampler, unmount } = mountWithComposable(() =>
+        createAnnotationSampler(
+          { atlas, terminologyRows },
+          workerFactory,
+          () => store
+        )
+      );
+      await flushPromises();
+
+      const values = await sampler.sampleOnce(makePlane(), 0);
+
+      expect(values).not.toBeNull();
+      expect(Array.from(values!)).toContain(1);
+
+      unmount();
+    });
+
+    it("resolves null when the volume can't be opened", async () => {
+      const atlas = ref(makeAtlas());
+      const terminologyRows = ref([]);
+      const workerFactory = () => makeFakeWorker(new Map());
+
+      const { result: sampler, unmount } = mountWithComposable(() =>
+        createAnnotationSampler(
+          { atlas, terminologyRows },
+          workerFactory,
+          () => new Map()
+        )
+      );
+      await flushPromises();
+
+      const values = await sampler.sampleOnce(makePlane(), 0);
+
+      expect(values).toBeNull();
+
+      unmount();
+    });
+
+    it("resolves null without posting anything when the signal is already aborted", async () => {
+      const store = makeAnnotationVolumeStore({
+        shapeVoxels: [4, 4, 4],
+        chunkShapeVoxels: [2, 2, 2],
+        chunks: { "0/0/0": Uint32Array.from([1, 1, 1, 1, 1, 1, 1, 1]) }
+      });
+      const postMessageSpy = vi.fn();
+      const workerFactory = () => {
+        const inner = makeFakeWorker(store);
+        return {
+          postMessage(message: InboundSamplerMessage) {
+            postMessageSpy(message);
+            inner.postMessage(message);
+          },
+          get onmessage() {
+            return inner.onmessage;
+          },
+          set onmessage(value) {
+            inner.onmessage = value;
+          },
+          terminate() {
+            inner.terminate();
+          }
+        };
+      };
+      const atlas = ref(makeAtlas());
+      const terminologyRows = ref([]);
+
+      const { result: sampler, unmount } = mountWithComposable(() =>
+        createAnnotationSampler(
+          { atlas, terminologyRows },
+          workerFactory,
+          () => store
+        )
+      );
+      await flushPromises();
+      postMessageSpy.mockClear();
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const values = await sampler.sampleOnce(
+        makePlane(),
+        0,
+        controller.signal
+      );
+
+      expect(values).toBeNull();
+      expect(postMessageSpy).not.toHaveBeenCalled();
+
+      unmount();
+    });
+
+    it("aborting mid-flight resolves null and cancels the stream on every worker", async () => {
+      const store = makeAnnotationVolumeStore({
+        shapeVoxels: [4, 4, 4],
+        chunkShapeVoxels: [2, 2, 2],
+        chunks: { "0/0/0": Uint32Array.from([1, 1, 1, 1, 1, 1, 1, 1]) }
+      });
+      const postMessageSpies: ReturnType<typeof vi.fn>[] = [];
+      const workerFactory = () => {
+        const inner = makeFakeWorker(store);
+        const spy = vi.fn((message: InboundSamplerMessage) =>
+          inner.postMessage(message)
+        );
+        postMessageSpies.push(spy);
+        return {
+          postMessage: spy,
+          get onmessage() {
+            return inner.onmessage;
+          },
+          set onmessage(value) {
+            inner.onmessage = value;
+          },
+          terminate() {
+            inner.terminate();
+          }
+        };
+      };
+      const atlas = ref(makeAtlas());
+      const terminologyRows = ref([]);
+
+      const { result: sampler, unmount } = mountWithComposable(() =>
+        createAnnotationSampler(
+          { atlas, terminologyRows },
+          workerFactory,
+          () => store
+        )
+      );
+      await flushPromises();
+      for (const spy of postMessageSpies) spy.mockClear();
+
+      const controller = new AbortController();
+      const pending = sampler.sampleOnce(makePlane(), 0, controller.signal);
+      // Let the dispatch (and abort-listener registration) inside
+      // `sampleOnce` run before aborting, or the listener wouldn't exist
+      // yet to catch the abort.
+      await flushPromises();
+      controller.abort();
+
+      const values = await pending;
+
+      expect(values).toBeNull();
+      const cancelledEverywhere = postMessageSpies.every(spy =>
+        spy.mock.calls.some(
+          ([message]) =>
+            message.type === "cancel" && message.streamId === "once-0"
+        )
+      );
+      expect(cancelledEverywhere).toBe(true);
+
+      unmount();
+    });
+  });
 });

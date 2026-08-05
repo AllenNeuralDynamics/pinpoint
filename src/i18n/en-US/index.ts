@@ -149,6 +149,13 @@ export default {
     yaw: "Yaw",
     pitch: "Pitch",
     home: "Reset tip position",
+    surface: "Move to surface",
+    cancelSurface: "Cancel move to surface",
+    noSurfaceFound: "No brain surface found",
+    noSurfaceFoundCaption:
+      "Neither the probe's axis nor straight down on DV reaches the atlas.",
+    surfaceUnavailable: "Could not read the atlas annotations",
+    surfaceUnavailableCaption: "Check your connection to the atlas source.",
     copy: "Duplicate probe",
     lock: "Lock probe",
     unlock: "Unlock probe"

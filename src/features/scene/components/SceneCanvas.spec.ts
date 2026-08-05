@@ -11,12 +11,18 @@ import type { VueWrapper } from "@vue/test-utils";
 import { flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import type {
-  ArcRotateCamera,
   GizmoManager,
+  PickingInfo,
   Scene,
   SelectionOutlineLayer
 } from "@babylonjs/core";
-import { PointerEventTypes } from "@babylonjs/core";
+import {
+  ArcRotateCamera,
+  Matrix,
+  PointerEventTypes,
+  PointerInfo,
+  Vector3
+} from "@babylonjs/core";
 import { shallowRef } from "vue";
 import SceneCanvas from "./SceneCanvas.vue";
 import type { FakeTextRenderer } from "@/test/mount-helper";
@@ -31,6 +37,7 @@ import {
 } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
+  buildAtlasRootNode,
   removeAllStructures,
   setAtlasCenterOffset,
   syncStructuresVisibility
@@ -62,7 +69,11 @@ import {
   makeTerminologyRows
 } from "@/test/fixtures";
 import { getProbeTransformNode } from "../api/probe.api";
-import { vector3ToAsr } from "../api/coordinate-transforms.api";
+import { asrToVector3, vector3ToAsr } from "../api/coordinate-transforms.api";
+import {
+  buildProbeSurfacePaths,
+  disposeProbeSurfacePaths
+} from "../api/probe-surface-path.api";
 
 vi.mock("../api/structures.api", async () => {
   const actual = await vi.importActual<typeof import("../api/structures.api")>(
@@ -102,6 +113,17 @@ vi.mock("../api/axis-guide.api", async () => {
       fontAsset: makeFontAsset(scene),
       dispose: vi.fn()
     }))
+  };
+});
+
+vi.mock("../api/probe-surface-path.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("../api/probe-surface-path.api")
+  >("../api/probe-surface-path.api");
+  return {
+    ...actual,
+    buildProbeSurfacePaths: vi.fn(actual.buildProbeSurfacePaths),
+    disposeProbeSurfacePaths: vi.fn(actual.disposeProbeSurfacePaths)
   };
 });
 
@@ -757,5 +779,177 @@ describe("SceneCanvas", () => {
       gizmoManager.gizmos.positionGizmo!.xGizmo
         .updateGizmoRotationToMatchAttachedMesh
     ).toBe(false);
+  });
+
+  describe("move to surface", () => {
+    /** Add a probe with a real contour, so `syncProbes` builds its shank meshes. */
+    async function addTestProbe(
+      store: ReturnType<typeof useCurrentExperimentStore>
+    ) {
+      const contour = [
+        [-11, 9989],
+        [-11, -11],
+        [24, -220],
+        [59, -11],
+        [59, 9989]
+      ];
+      const probeInterfaceProbe = makeProbeInterfaceProbe({
+        probe_planar_contour: contour
+      });
+      internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+      const builtProbe = makeProbe({
+        probeInterfaceIdentifier:
+          getProbeInterfaceIdentifier(probeInterfaceProbe)
+      });
+      addProbe(store.experiment, builtProbe);
+      await flushPromises();
+      return store.experiment.probes.find(p => p.id === builtProbe.id)!;
+    }
+
+    it("draws surface-path tubes when a surface-move choice is pending", async () => {
+      const { runtime } = await mountCanvas();
+      const store = useCurrentExperimentStore();
+      const probe = await addTestProbe(store);
+
+      store.probeSurfaceChoice = {
+        probeId: probe.id,
+        tipPosition: [...probe.tipPosition],
+        rotation: [...probe.rotation],
+        tipMillimeters: [0, 0, 0],
+        axisTargetMillimeters: [1, 0, 0],
+        dorsoventralTargetMillimeters: [0, 1, 0]
+      };
+      await flushPromises();
+
+      expect(buildProbeSurfacePaths).toHaveBeenCalledWith(
+        runtime.scene.value,
+        store.probeSurfaceChoice
+      );
+      expect(
+        runtime.scene.value!.getMeshByName("probeSurfacePath_axis")
+      ).toBeTruthy();
+      expect(
+        runtime.scene.value!.getMeshByName("probeSurfacePath_dorsoventral")
+      ).toBeTruthy();
+    });
+
+    it("drops a pending choice and disposes its tubes when the probe moves", async () => {
+      const { runtime } = await mountCanvas();
+      const store = useCurrentExperimentStore();
+      const probe = await addTestProbe(store);
+
+      store.probeSurfaceChoice = {
+        probeId: probe.id,
+        tipPosition: [...probe.tipPosition],
+        rotation: [...probe.rotation],
+        tipMillimeters: [0, 0, 0],
+        axisTargetMillimeters: [1, 0, 0],
+        dorsoventralTargetMillimeters: [0, 1, 0]
+      };
+      await flushPromises();
+      vi.mocked(disposeProbeSurfacePaths).mockClear();
+
+      probe.tipPosition = [1, 2, 3];
+      await flushPromises();
+
+      expect(store.probeSurfaceChoice).toBeNull();
+      expect(disposeProbeSurfacePaths).toHaveBeenCalledWith(
+        runtime.scene.value
+      );
+      expect(
+        runtime.scene.value!.getMeshByName("probeSurfacePath_axis")
+      ).toBeNull();
+    });
+
+    it("applies the dorsoventral target and clears the choice on a tube tap", async () => {
+      const { runtime } = await mountCanvas();
+      const store = useCurrentExperimentStore();
+      const probe = await addTestProbe(store);
+      const referenceCoordinate = store.referenceCoordinate;
+
+      store.probeSurfaceChoice = {
+        probeId: probe.id,
+        tipPosition: [...probe.tipPosition],
+        rotation: [...probe.rotation],
+        tipMillimeters: [
+          referenceCoordinate[0] + probe.tipPosition[0],
+          referenceCoordinate[1] + probe.tipPosition[1],
+          referenceCoordinate[2] + probe.tipPosition[2]
+        ],
+        axisTargetMillimeters: [
+          referenceCoordinate[0] + 1,
+          referenceCoordinate[1],
+          referenceCoordinate[2]
+        ],
+        dorsoventralTargetMillimeters: [
+          referenceCoordinate[0],
+          referenceCoordinate[1] + 2,
+          referenceCoordinate[2]
+        ]
+      };
+      await flushPromises();
+
+      const scene = runtime.scene.value!;
+      const camera = new ArcRotateCamera(
+        "surface-pick-camera",
+        -Math.PI / 2,
+        Math.PI / 8,
+        50,
+        Vector3.Zero(),
+        scene
+      );
+      scene.activeCamera = camera;
+      const atlasRoot = buildAtlasRootNode(scene);
+      atlasRoot.computeWorldMatrix(true);
+      const transform = camera
+        .getViewMatrix()
+        .multiply(camera.getProjectionMatrix());
+      const engine = scene.getEngine();
+      const viewport = camera.viewport.toGlobal(
+        engine.getRenderWidth(),
+        engine.getRenderHeight()
+      );
+      // `CreateTube` bakes the path into the vertex buffer rather than the
+      // mesh's own transform, and the tube is parented under the atlas
+      // root (which carries its own 180-degree flip) - project the
+      // midpoint through the atlas root's world matrix, not the raw ASR
+      // millimeters or `mesh.absolutePosition` (just the mesh's origin).
+      const midMillimeters: [number, number, number] = [
+        (store.probeSurfaceChoice!.tipMillimeters[0] +
+          store.probeSurfaceChoice!.dorsoventralTargetMillimeters[0]) /
+          2,
+        (store.probeSurfaceChoice!.tipMillimeters[1] +
+          store.probeSurfaceChoice!.dorsoventralTargetMillimeters[1]) /
+          2,
+        (store.probeSurfaceChoice!.tipMillimeters[2] +
+          store.probeSurfaceChoice!.dorsoventralTargetMillimeters[2]) /
+          2
+      ];
+      const midWorld = Vector3.TransformCoordinates(
+        asrToVector3(midMillimeters),
+        atlasRoot.getWorldMatrix()
+      );
+      const screen = Vector3.Project(
+        midWorld,
+        Matrix.Identity(),
+        transform,
+        viewport
+      );
+      scene.pointerX = screen.x;
+      scene.pointerY = screen.y;
+
+      scene.onPointerObservable.notifyObservers(
+        new PointerInfo(
+          PointerEventTypes.POINTERTAP,
+          {} as PointerEvent,
+          {} as PickingInfo
+        ),
+        PointerEventTypes.POINTERTAP
+      );
+      await flushPromises();
+
+      expect(probe.tipPosition).toEqual([0, 2, 0]);
+      expect(store.probeSurfaceChoice).toBeNull();
+    });
   });
 });

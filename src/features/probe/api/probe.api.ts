@@ -1,5 +1,6 @@
 import { markRaw, toRaw } from "vue";
 import type { Probe, ProbeChannelMapWindow } from "../models/probe.model";
+import type { ProbeSurfaceChoice } from "../models/probe-surface-choice.model";
 import type { ProbeVisibility } from "../models/visibility.model";
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import type { Experiment } from "@/features/experiment";
@@ -92,6 +93,43 @@ export function rotateProbeVisibility(probe: Probe) {
  */
 export function homeProbe(probe: Probe) {
   probe.tipPosition = [0, 0, 0];
+}
+
+/**
+ * Move a probe's tip to a point in atlas ASR millimeters.
+ * @param probe Probe to move.
+ * @param atlasMillimeters Target tip position, in atlas ASR mm.
+ * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
+ */
+export function setProbeTipMillimeters(
+  probe: Probe,
+  atlasMillimeters: [number, number, number],
+  referenceCoordinate: [number, number, number]
+): void {
+  probe.tipPosition = [
+    atlasMillimeters[0] - referenceCoordinate[0],
+    atlasMillimeters[1] - referenceCoordinate[1],
+    atlasMillimeters[2] - referenceCoordinate[2]
+  ];
+}
+
+/**
+ * Is a pending surface choice still valid, i.e. has its probe not been moved since.
+ * @param choice Choice to validate.
+ * @param probe Probe the choice was requested for.
+ */
+export function isProbeSurfaceChoiceCurrent(
+  choice: ProbeSurfaceChoice,
+  probe: Probe
+): boolean {
+  return (
+    choice.tipPosition[0] === probe.tipPosition[0] &&
+    choice.tipPosition[1] === probe.tipPosition[1] &&
+    choice.tipPosition[2] === probe.tipPosition[2] &&
+    choice.rotation[0] === probe.rotation[0] &&
+    choice.rotation[1] === probe.rotation[1] &&
+    choice.rotation[2] === probe.rotation[2]
+  );
 }
 
 /**
