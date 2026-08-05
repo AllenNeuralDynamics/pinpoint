@@ -61,6 +61,17 @@ describe("PreferencesDialog", () => {
       .find(button => button.text() === t.close)!
       .trigger("click");
 
-    expect(wrapper.emitted("ok")).toBeTruthy();
+    expect(wrapper.emitted("ok")).toEqual([[undefined]]);
+  });
+
+  it("emits ok with world-editor when Open Editor is clicked", async () => {
+    const wrapper = await mountDialog();
+
+    await wrapper
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text() === t.openEditor)!
+      .trigger("click");
+
+    expect(wrapper.emitted("ok")).toEqual([["world-editor"]]);
   });
 });

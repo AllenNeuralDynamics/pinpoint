@@ -4,9 +4,11 @@ import { useDialogPluginComponent } from "quasar";
 import ScenePreferences from "./ScenePreferences.vue";
 import ProbePreferences from "./ProbePreferences.vue";
 import ResetPreferences from "./ResetPreferences.vue";
+import type { PreferencesDialogResult } from "../models/preferences-dialog.model";
 
 defineEmits([...useDialogPluginComponent.emits]);
-const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
+const { dialogRef, onDialogHide, onDialogOK } =
+  useDialogPluginComponent<PreferencesDialogResult>();
 
 const tab = ref("scene");
 </script>
@@ -25,7 +27,9 @@ const tab = ref("scene");
         </q-tabs>
         <q-separator />
         <q-tab-panels v-model="tab" animated class="col preferences__panels">
-          <q-tab-panel name="scene"><ScenePreferences /></q-tab-panel>
+          <q-tab-panel name="scene">
+            <ScenePreferences @open-world-editor="onDialogOK('world-editor')" />
+          </q-tab-panel>
           <q-tab-panel name="probe"><ProbePreferences /></q-tab-panel>
           <q-tab-panel name="reset"><ResetPreferences /></q-tab-panel>
         </q-tab-panels>
@@ -34,7 +38,7 @@ const tab = ref("scene");
         <q-btn
           color="primary"
           :label="$t('preferences.close')"
-          @click="onDialogOK"
+          @click="onDialogOK()"
         />
       </q-card-actions>
     </q-card>
@@ -44,6 +48,7 @@ const tab = ref("scene");
 <style lang="sass" scoped>
 .preferences
   min-width: 40vw
+  height: 80vh
   display: flex
   flex-direction: column
   overflow: hidden
@@ -51,7 +56,6 @@ const tab = ref("scene");
 .preferences__content
   flex: 1 1 auto
   min-height: 0
-  max-height: 60vh
 
 .preferences__panels
   overflow-y: auto !important

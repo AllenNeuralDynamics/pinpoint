@@ -1,1 +1,1 @@
-export { default as PreferencesDialog } from "./components/PreferencesDialog.vue";
+export { openPreferencesDialog } from "./api/preference-dialogs.api";

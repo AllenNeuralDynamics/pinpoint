@@ -2,23 +2,26 @@
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { STANDARD_COLORS } from "@/features/scene";
 
+/** Standard palette plus Babylon's default clear color, so it stays pickable after switching away from it. */
+const BACKGROUND_COLOR_PALETTE = [...STANDARD_COLORS, "#33334d"];
+
 const preferences = usePreferencesStore();
 </script>
 
 <template>
-  <div>
-    <div class="text-h6">{{ $t("preferences.world") }}</div>
-    <div class="column q-gutter-y-md">
-      <div class="q-mb-md">
-        <div class="text-body2 q-pb-xs">{{
-          $t("preferences.backgroundColor")
-        }}</div>
-        <q-color
-          v-model="preferences.worldBackgroundColor"
-          :palette="STANDARD_COLORS"
-          default-view="palette"
-        />
-      </div>
+  <div class="row no-wrap q-col-gutter-md">
+    <div class="col-auto">
+      <div class="text-body2 q-pb-xs">{{
+        $t("preferences.backgroundColor")
+      }}</div>
+      <q-color
+        v-model="preferences.worldBackgroundColor"
+        class="world-preferences__color"
+        :palette="BACKGROUND_COLOR_PALETTE"
+        default-view="palette"
+      />
+    </div>
+    <div class="col column q-gutter-y-md justify-center">
       <div>
         <div class="text-body2 q-pb-xs">{{ $t("preferences.lightPower") }}</div>
         <q-slider
@@ -59,3 +62,8 @@ const preferences = usePreferencesStore();
     </div>
   </div>
 </template>
+
+<style lang="sass" scoped>
+.world-preferences__color
+  width: 300px
+</style>

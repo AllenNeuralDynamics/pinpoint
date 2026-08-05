@@ -215,6 +215,7 @@ export default {
     probe: "Probe",
     reset: "Reset",
     close: "Close",
+    done: "Done",
 
     camera: "Camera",
     projection: "Projection",
@@ -225,6 +226,7 @@ export default {
     inertiaSmooth: "Smooth",
 
     world: "World",
+    openEditor: "Open Editor",
     backgroundColor: "Background Color",
     lightPower: "Light Power",
     specularIntensity: "Specular Intensity",
