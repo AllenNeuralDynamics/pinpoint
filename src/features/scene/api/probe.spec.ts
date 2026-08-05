@@ -71,6 +71,18 @@ const NP2020_CONTOUR = [
   [793, 9989]
 ];
 
+/** Two 0.1mm shanks 1.8mm apart, joined along a top edge at y = 10mm - mirrors shank.spec.ts. */
+const TWO_SHANK_MM_CONTOUR = [
+  [-1, 10],
+  [-1, 0],
+  [-0.9, 0],
+  [-0.9, 10],
+  [0.9, 10],
+  [0.9, 0],
+  [1, 0],
+  [1, 10]
+];
+
 /**
  * Build an experiment with a single interned probe interface definition and
  * a probe referencing it.
@@ -250,6 +262,43 @@ describe("buildProbe", () => {
     expect(bounds.min[0]).toBeCloseTo(-0.41, 6);
     expect(bounds.max[0]).toBeCloseTo(0.41, 6);
     expect(bounds.min[2]).toBeCloseTo(-10.206, 6);
+  });
+
+  it("shifts the shank mesh's world x bounds by the aligned shank's offset from the unaligned bounds", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const probeInterfaceOverrides: Partial<
+      Parameters<typeof makeProbeInterfaceProbe>[0]
+    > = {
+      si_units: "mm",
+      probe_planar_contour: TWO_SHANK_MM_CONTOUR,
+      contact_positions: [
+        [-0.95, 1],
+        [0.95, 1]
+      ],
+      shank_ids: ["0", "1"],
+      contact_shapes: ["square", "square"],
+      contact_shape_params: [{ width: 0.02 }, { width: 0.02 }]
+    };
+    const unaligned = makeExperimentWithProbe({}, probeInterfaceOverrides);
+    const aligned = makeExperimentWithProbe(
+      { shankAlignmentIndex: 0 },
+      probeInterfaceOverrides
+    );
+
+    buildProbe(scene, unaligned.probe, unaligned.experiment, gizmoManager);
+    buildProbe(scene, aligned.probe, aligned.experiment, gizmoManager);
+
+    const unalignedBounds = roundedBounds(
+      scene,
+      probeMeshNames(unaligned.probe.id).shank
+    );
+    const alignedBounds = roundedBounds(
+      scene,
+      probeMeshNames(aligned.probe.id).shank
+    );
+
+    expect(alignedBounds.min[0]).toBeCloseTo(unalignedBounds.min[0]! + 0.95, 6);
+    expect(alignedBounds.max[0]).toBeCloseTo(unalignedBounds.max[0]! + 0.95, 6);
   });
 
   it("triangulates the shank's cap to match the contour's true area, including a multi-shank comb", () => {
@@ -607,6 +656,25 @@ describe("syncProbes", () => {
     probe.probeInterfaceIdentifier = getProbeInterfaceIdentifier(
       newProbeInterfaceProbe
     );
+
+    const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(rebuilt).toEqual([probe.id]);
+    expect(oldNode.isDisposed()).toBe(true);
+    expect(getProbeTransformNode(scene, probe.id)).not.toBeNull();
+    expect(getProbeTransformNode(scene, probe.id)).not.toBe(oldNode);
+  });
+
+  it("returns the ids of probes it disposed and rebuilt due to an alignment change", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe(
+      {},
+      { probe_planar_contour: NP2020_CONTOUR }
+    );
+    syncProbes(scene, experiment, gizmoManager, null);
+    const oldNode = getProbeTransformNode(scene, probe.id)!;
+
+    probe.shankAlignmentIndex = 0;
 
     const rebuilt = syncProbes(scene, experiment, gizmoManager, null);
 

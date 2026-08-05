@@ -4,8 +4,10 @@ import { useI18n } from "vue-i18n";
 import {
   copyProbe,
   findProbeInterfaceProbeByIdentifier,
+  getProbeContour,
   getProbeInterfaceDisplayName,
   getProbeInterfaceIdentifier,
+  getProbeShanks,
   homeProbe,
   type Probe,
   setProbeTipMillimeters,
@@ -27,6 +29,14 @@ import CommittedInput from "@/components/CommittedInput.vue";
 interface ProbeTypeOption {
   label: string;
   value: string;
+}
+
+// One shank-alignment choice. `null` is the contour-center option; `attrs` puts a
+// stable aria-label on the rendered button (Quasar spreads it onto each `q-btn`).
+interface ShankAlignmentOption {
+  label: string;
+  value: number | null;
+  attrs: { "aria-label": string };
 }
 
 const { probe } = defineProps<{
@@ -78,6 +88,33 @@ const probeTypeOptions = computed<ProbeTypeOption[]>(() =>
     value: getProbeInterfaceIdentifier(probeInterfaceProbe)
   }))
 );
+
+const shanks = computed(() => {
+  const definition =
+    currentExperimentStore.probeInterfaceProbes[probe.probeInterfaceIdentifier];
+  if (!definition) return [];
+  const contour = getProbeContour(definition);
+  return contour ? getProbeShanks(definition, contour) : [];
+});
+
+/**
+ * One button per shank, left to right, with the center option inserted in the
+ * middle. Empty for a single-shank probe, which needs no choice.
+ */
+const shankAlignmentOptions = computed<ShankAlignmentOption[]>(() => {
+  if (shanks.value.length < 2) return [];
+  const options = shanks.value.map<ShankAlignmentOption>((_, index) => ({
+    label: String(index),
+    value: index,
+    attrs: { "aria-label": t("probeInspector.alignShank", { index }) }
+  }));
+  options.splice(Math.ceil(options.length / 2), 0, {
+    label: t("probeInspector.alignCenterLabel"),
+    value: null,
+    attrs: { "aria-label": t("probeInspector.alignCenter") }
+  });
+  return options;
+});
 
 const name = computed({
   get: () => probe.name,
@@ -275,6 +312,21 @@ onUnmounted(cancelMoveToSurface);
       :options="probeTypeOptions"
       outlined
     />
+
+    <div>
+      <div class="text-body2 q-pb-xs">{{
+        t("probeInspector.centeredShankIndex")
+      }}</div>
+      <q-btn-toggle
+        v-if="shankAlignmentOptions.length"
+        v-model="probe.shankAlignmentIndex"
+        :aria-label="t('probeInspector.shankAlignment')"
+        :disable="probe.lock"
+        :options="shankAlignmentOptions"
+        spread
+        toggle-color="primary"
+      />
+    </div>
 
     <div class="row q-gutter-x-sm">
       <CommittedInput

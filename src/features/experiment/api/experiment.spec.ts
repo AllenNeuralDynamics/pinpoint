@@ -252,6 +252,21 @@ describe("setProbeInterface", () => {
     );
   });
 
+  it("resets shankAlignmentIndex to center", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const oldSpec = makeProbeInterfaceProbe();
+    internProbeInterfaceProbe(experiment, oldSpec);
+    const probe = makeProbe({ shankAlignmentIndex: 1 });
+    addProbe(experiment, probe);
+
+    const newSpec = makeProbeInterfaceProbe({
+      annotations: { manufacturer: "imec", model_name: "np1" }
+    });
+    setProbeInterface(experiment, probe, newSpec);
+
+    expect(probe.shankAlignmentIndex).toBeNull();
+  });
+
   it("interns the new definition", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
     const oldSpec = makeProbeInterfaceProbe();

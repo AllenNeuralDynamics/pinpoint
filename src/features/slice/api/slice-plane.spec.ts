@@ -211,10 +211,12 @@ describe("getShankSliceGeometry", () => {
       1
     )!;
 
-    const geometry = getShankSliceGeometry(frame, layout, {
-      min: 0,
-      max: twoShankContour.heightMillimeters
-    });
+    const geometry = getShankSliceGeometry(
+      frame,
+      layout,
+      { min: 0, max: twoShankContour.heightMillimeters },
+      0
+    );
 
     expect(geometry.bands).toHaveLength(2);
     expect(geometry.bands[0]!.centerMillimeters).toEqual(
@@ -222,6 +224,29 @@ describe("getShankSliceGeometry", () => {
     );
     expect(geometry.bands[1]!.centerMillimeters).toEqual(
       toAtlasMillimeters(frame, 0.95, 5)
+    );
+  });
+
+  it("shifts every band center by a non-zero alignment offset", () => {
+    const layout = getShankLayout(
+      shanks,
+      twoShankContour.heightMillimeters,
+      600,
+      1
+    )!;
+
+    const geometry = getShankSliceGeometry(
+      frame,
+      layout,
+      { min: 0, max: twoShankContour.heightMillimeters },
+      0.95
+    );
+
+    expect(geometry.bands[0]!.centerMillimeters).toEqual(
+      toAtlasMillimeters(frame, 0, 5)
+    );
+    expect(geometry.bands[1]!.centerMillimeters).toEqual(
+      toAtlasMillimeters(frame, 1.9, 5)
     );
   });
 
@@ -233,10 +258,12 @@ describe("getShankSliceGeometry", () => {
       1
     )!;
 
-    const geometry = getShankSliceGeometry(frame, layout, {
-      min: 0,
-      max: twoShankContour.heightMillimeters
-    });
+    const geometry = getShankSliceGeometry(
+      frame,
+      layout,
+      { min: 0, max: twoShankContour.heightMillimeters },
+      0
+    );
 
     for (const band of geometry.bands) {
       expect(band.halfWidthMillimeters).toBeCloseTo(0.0520833, 5);
@@ -251,10 +278,12 @@ describe("getShankSliceGeometry", () => {
       1
     )!;
 
-    const geometry = getShankSliceGeometry(frame, layout, {
-      min: 0,
-      max: twoShankContour.heightMillimeters
-    });
+    const geometry = getShankSliceGeometry(
+      frame,
+      layout,
+      { min: 0, max: twoShankContour.heightMillimeters },
+      0
+    );
 
     expect(geometry.rightMillimeters).toEqual(frame.rightMillimeters);
     expect(geometry.upMillimeters).toEqual(frame.upMillimeters);
@@ -270,7 +299,12 @@ describe("getShankSliceGeometry", () => {
       1
     )!;
 
-    const geometry = getShankSliceGeometry(frame, layout, { min: 2, max: 4 });
+    const geometry = getShankSliceGeometry(
+      frame,
+      layout,
+      { min: 2, max: 4 },
+      0
+    );
 
     expect(geometry.halfHeightMillimeters).toBe(1);
     expect(geometry.bands[0]!.centerMillimeters).toEqual(
@@ -477,8 +511,14 @@ describe("getContourPolygonPoints", () => {
   )!;
 
   it("re-origins points on the given center height", () => {
-    expect(getContourPolygonPoints(contour, 0)).toBe(
+    expect(getContourPolygonPoints(contour, 0, 0)).toBe(
       contour.points.map(({ x, y }) => `${x},${-y}`).join(" ")
+    );
+  });
+
+  it("shifts every emitted x by the alignment offset and leaves y untouched", () => {
+    expect(getContourPolygonPoints(contour, 0, 2.5)).toBe(
+      contour.points.map(({ x, y }) => `${x + 2.5},${-y}`).join(" ")
     );
   });
 });

@@ -146,6 +146,7 @@ export function setProbeInterface(
 
   internProbeInterfaceProbe(experiment, probeInterfaceProbe);
   probe.probeInterfaceIdentifier = newIdentifier;
+  probe.shankAlignmentIndex = null;
   removeInternProbeInterfaceProbe(experiment, oldIdentifier);
 }
 

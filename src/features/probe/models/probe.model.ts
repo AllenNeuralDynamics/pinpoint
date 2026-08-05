@@ -78,4 +78,10 @@ export interface Probe {
    * the probe's full contour height.
    */
   channelMapWindow: ProbeChannelMapWindow | null;
+
+  /**
+   * Index into the probe's shanks whose tip the transform node aligns with, or
+   * null to align on the contour's center.
+   */
+  shankAlignmentIndex: number | null;
 }

@@ -140,7 +140,8 @@ describe("ChannelMapCanvas", () => {
         shanks,
         heightMillimeters: contour.heightMillimeters,
         imageFraction,
-        zoomSelection
+        zoomSelection,
+        alignmentOffsetMillimeters: 0
       }
     });
     return { wrapper, store, probe, shanks, contour };
@@ -249,7 +250,8 @@ describe("ChannelMapCanvas", () => {
         shanks,
         heightMillimeters: contour.heightMillimeters,
         imageFraction: 1,
-        zoomSelection: "large"
+        zoomSelection: "large",
+        alignmentOffsetMillimeters: 0
       }
     });
 
@@ -287,7 +289,8 @@ describe("ChannelMapCanvas", () => {
         shanks,
         heightMillimeters: contour.heightMillimeters,
         imageFraction: 1,
-        zoomSelection: "large"
+        zoomSelection: "large",
+        alignmentOffsetMillimeters: 0
       }
     });
 

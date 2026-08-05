@@ -3,7 +3,11 @@ import { computed, ref, useTemplateRef } from "vue";
 import { useElementBounding, useElementSize } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import type { ProbeShank } from "@/features/probe";
-import { getProbeContour, getProbeShanks } from "@/features/probe";
+import {
+  getProbeAlignmentOffsetMillimeters,
+  getProbeContour,
+  getProbeShanks
+} from "@/features/probe";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import type { ChannelMapWidths } from "../api/channel-map-label.api";
 import {
@@ -134,7 +138,11 @@ const channelMaps = computed(() =>
           ? (SHANK_WIDTH_SCALE * widthMillimeters) / heightMillimeters
           : 0,
       channelMapWindow: getProbeChannelMapWindow(probe, heightMillimeters),
-      imageFraction: showLabels.value ? widths.imageFraction : 1
+      imageFraction: showLabels.value ? widths.imageFraction : 1,
+      alignmentOffsetMillimeters: getProbeAlignmentOffsetMillimeters(
+        shanks,
+        probe.shankAlignmentIndex
+      )
     };
   })
 );
@@ -178,7 +186,8 @@ const tooltipStyle = computed(() => {
             heightMillimeters,
             aspectRatio,
             channelMapWindow,
-            imageFraction
+            imageFraction,
+            alignmentOffsetMillimeters
           } of channelMaps"
           :key="probe.id"
           :class="[
@@ -243,6 +252,7 @@ const tooltipStyle = computed(() => {
                 class="channel-maps__viewport"
               >
                 <ChannelMapCanvas
+                  :alignment-offset-millimeters="alignmentOffsetMillimeters"
                   :height-millimeters="heightMillimeters"
                   :image-fraction="imageFraction"
                   :probe="probe"

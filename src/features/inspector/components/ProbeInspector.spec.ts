@@ -655,4 +655,121 @@ describe("ProbeInspector", () => {
       expect(store.probeSurfaceChoice).toBeNull();
     });
   });
+
+  describe("shank alignment", () => {
+    /** A 0.07mm x 10mm single-shank contour. */
+    const SINGLE_SHANK_CONTOUR = [
+      [-0.035, 0],
+      [0.035, 0],
+      [0.035, 10],
+      [-0.035, 10]
+    ];
+
+    /** Two 0.1mm shanks 1.8mm apart, joined along a top edge at y = 10mm - mirrors shank.spec.ts. */
+    const TWO_SHANK_CONTOUR = [
+      [-1, 10],
+      [-1, 0],
+      [-0.9, 0],
+      [-0.9, 10],
+      [0.9, 10],
+      [0.9, 0],
+      [1, 0],
+      [1, 10]
+    ];
+
+    /** Resolve `{index}` in the `alignShank` message the way vue-i18n would. */
+    function alignShankLabel(index: number): string {
+      return t.alignShank.replace("{index}", String(index));
+    }
+
+    function mountSingleShank() {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const store = useCurrentExperimentStore(pinia);
+      const probeInterfaceProbe = makeProbeInterfaceProbe({
+        si_units: "mm",
+        probe_planar_contour: SINGLE_SHANK_CONTOUR,
+        contact_positions: [[0, 1]],
+        contact_shapes: ["square"],
+        contact_shape_params: [{ width: 0.02 }]
+      });
+      internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+      const probe = makeProbe({
+        probeInterfaceIdentifier:
+          getProbeInterfaceIdentifier(probeInterfaceProbe)
+      });
+      store.experiment.probes = [probe];
+
+      const wrapper = mountWithQuasar(ProbeInspector, {
+        pinia,
+        props: { probe: store.experiment.probes[0]! }
+      });
+      return { wrapper, probe: store.experiment.probes[0]! };
+    }
+
+    function mountTwoShanks() {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const store = useCurrentExperimentStore(pinia);
+      const probeInterfaceProbe = makeProbeInterfaceProbe({
+        si_units: "mm",
+        probe_planar_contour: TWO_SHANK_CONTOUR,
+        contact_positions: [
+          [-0.95, 1],
+          [0.95, 1]
+        ],
+        shank_ids: ["0", "1"],
+        contact_shapes: ["square", "square"],
+        contact_shape_params: [{ width: 0.02 }, { width: 0.02 }]
+      });
+      internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+      const probe = makeProbe({
+        probeInterfaceIdentifier:
+          getProbeInterfaceIdentifier(probeInterfaceProbe)
+      });
+      store.experiment.probes = [probe];
+
+      const wrapper = mountWithQuasar(ProbeInspector, {
+        pinia,
+        props: { probe: store.experiment.probes[0]! }
+      });
+      return { wrapper, probe: store.experiment.probes[0]! };
+    }
+
+    it("renders no alignment toggle for a single-shank definition", () => {
+      const { wrapper } = mountSingleShank();
+
+      expect(wrapper.findComponent({ name: "QBtnToggle" }).exists()).toBe(
+        false
+      );
+      expect(
+        wrapper
+          .findAll("button")
+          .some(button => button.attributes("aria-label") === t.alignCenter)
+      ).toBe(false);
+    });
+
+    it("renders one button per shank plus a center option for a two-shank definition, and selecting a shank writes its index", async () => {
+      const { wrapper, probe } = mountTwoShanks();
+
+      expect(buttonByLabel(wrapper, alignShankLabel(0)).exists()).toBe(true);
+      expect(buttonByLabel(wrapper, alignShankLabel(1)).exists()).toBe(true);
+      expect(buttonByLabel(wrapper, t.alignCenter).exists()).toBe(true);
+
+      await buttonByLabel(wrapper, alignShankLabel(1)).trigger("click");
+
+      expect(probe.shankAlignmentIndex).toBe(1);
+    });
+
+    it("orders the options shank 0, center, shank 1", () => {
+      const { wrapper } = mountTwoShanks();
+
+      const toggle = wrapper.findComponent({ name: "QBtnToggle" });
+      expect(
+        (toggle.props("options") as { label: string }[]).map(
+          option => option.label
+        )
+      ).toEqual(["0", t.alignCenterLabel, "1"]);
+    });
+  });
 });

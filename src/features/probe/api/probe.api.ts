@@ -51,7 +51,8 @@ export function buildProbe(probeInterfaceProbe: ProbeInterfaceProbe): Probe {
     rotation: [0, 0, Math.PI / 2],
     sliceExtentMillimeters: null,
     sliceCenterHeightMillimeters: 0,
-    channelMapWindow: null
+    channelMapWindow: null,
+    shankAlignmentIndex: null
   };
 }
 
@@ -274,7 +275,11 @@ export function isProbe(value: unknown): value is Probe {
       isFiniteNumber(value.sliceExtentMillimeters)) &&
     isFiniteNumber(value.sliceCenterHeightMillimeters) &&
     (value.channelMapWindow === null ||
-      isProbeChannelMapWindow(value.channelMapWindow))
+      isProbeChannelMapWindow(value.channelMapWindow)) &&
+    (value.shankAlignmentIndex === null ||
+      (isFiniteNumber(value.shankAlignmentIndex) &&
+        Number.isInteger(value.shankAlignmentIndex) &&
+        value.shankAlignmentIndex >= 0))
   );
 }
 

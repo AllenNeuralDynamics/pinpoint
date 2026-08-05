@@ -218,11 +218,13 @@ export function getShankLayout(
  * @param frame Probe's shank-plane frame.
  * @param layout Packed layout the bands take their x columns and scale from.
  * @param channelMapWindow Window along the shank the bands span vertically.
+ * @param alignmentOffsetMillimeters Probe-local x the geometry is shifted by, from getProbeAlignmentOffsetMillimeters.
  */
 export function getShankSliceGeometry(
   frame: ProbeFrame,
   layout: ShankLayout,
-  channelMapWindow: ProbeChannelMapWindow
+  channelMapWindow: ProbeChannelMapWindow,
+  alignmentOffsetMillimeters: number
 ): SampleGeometry {
   const centerHeightMillimeters =
     (channelMapWindow.min + channelMapWindow.max) / 2;
@@ -237,7 +239,8 @@ export function getShankSliceGeometry(
         frame,
         (placement.shank.minimumXMillimeters +
           placement.shank.maximumXMillimeters) /
-          2,
+          2 +
+          alignmentOffsetMillimeters,
         centerHeightMillimeters
       ),
       halfWidthMillimeters:
@@ -339,13 +342,18 @@ export function getQuantizedSizePixels(
  * slice center height.
  * @param contour Probe contour to render.
  * @param centerHeightMillimeters Height the slice is currently centered on, in probe-local mm.
+ * @param alignmentOffsetMillimeters Probe-local x the geometry is shifted by, from getProbeAlignmentOffsetMillimeters.
  */
 export function getContourPolygonPoints(
   contour: ProbeContour,
-  centerHeightMillimeters: number
+  centerHeightMillimeters: number,
+  alignmentOffsetMillimeters: number
 ): string {
   return contour.points
-    .map(({ x, y }) => `${x},${centerHeightMillimeters - y}`)
+    .map(
+      ({ x, y }) =>
+        `${x + alignmentOffsetMillimeters},${centerHeightMillimeters - y}`
+    )
     .join(" ");
 }
 

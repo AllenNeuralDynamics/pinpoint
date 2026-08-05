@@ -4,7 +4,11 @@ import { useDevicePixelRatio, useElementSize } from "@vueuse/core";
 import { useI18n } from "vue-i18n";
 import type { TerminologyRow } from "@/features/atlas";
 import type { Probe } from "@/features/probe";
-import { getProbeContour } from "@/features/probe";
+import {
+  getProbeAlignmentOffsetMillimeters,
+  getProbeContour,
+  getProbeShanks
+} from "@/features/probe";
 import {
   isStructureVisible,
   setStructureVisibility
@@ -50,6 +54,17 @@ const probeInterfaceProbe = computed(
 
 const contour = computed(() =>
   probeInterfaceProbe.value ? getProbeContour(probeInterfaceProbe.value) : null
+);
+
+const shanks = computed(() =>
+  probeInterfaceProbe.value && contour.value
+    ? getProbeShanks(probeInterfaceProbe.value, contour.value)
+    : []
+);
+
+/** Probe-local x the probe's geometry is shifted by for its shank alignment, in mm. */
+const alignmentOffsetMillimeters = computed(() =>
+  getProbeAlignmentOffsetMillimeters(shanks.value, probe.shankAlignmentIndex)
 );
 
 const { zoomRange, extentMillimeters, zoomExponent, centerHeightMillimeters } =
@@ -115,7 +130,11 @@ const isLoadingBarVisible = useDelayedFlag(
 /** SVG polygon points for the contour overlay, in probe-local mm re-origined on the slice center. */
 const contourPoints = computed(() =>
   contour.value
-    ? getContourPolygonPoints(contour.value, centerHeightMillimeters.value)
+    ? getContourPolygonPoints(
+        contour.value,
+        centerHeightMillimeters.value,
+        alignmentOffsetMillimeters.value
+      )
     : null
 );
 

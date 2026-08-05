@@ -105,6 +105,40 @@ export function getProbeShanks(
 }
 
 /**
+ * Probe-local x the probe's geometry shifts by so the aligned shank's tip sits at the
+ * transform node, in mm; 0 when aligned on the contour center or the index has no shank.
+ * @param shanks Probe's shanks, left to right.
+ * @param shankAlignmentIndex Index of the shank to align on, or null for the contour center.
+ */
+export function getProbeAlignmentOffsetMillimeters(
+  shanks: ProbeShank[],
+  shankAlignmentIndex: number | null
+): number {
+  if (shankAlignmentIndex === null) return 0;
+  const shank = shanks[shankAlignmentIndex];
+  if (!shank) return 0;
+
+  let tipYMillimeters = Infinity;
+  let minimumX = Infinity;
+  let maximumX = -Infinity;
+  for (const ring of shank.rings) {
+    for (const point of ring) {
+      if (point.y < tipYMillimeters) {
+        tipYMillimeters = point.y;
+        minimumX = point.x;
+        maximumX = point.x;
+      } else if (point.y === tipYMillimeters) {
+        minimumX = Math.min(minimumX, point.x);
+        maximumX = Math.max(maximumX, point.x);
+      }
+    }
+  }
+  if (tipYMillimeters === Infinity) return 0;
+
+  return -(minimumX + maximumX) / 2;
+}
+
+/**
  * Build the fallback shank spanning a probe's whole contour, used both when
  * there's no per-shank grouping and when a split attempt turns out degenerate.
  * @param outlines Every contact outline on the probe.

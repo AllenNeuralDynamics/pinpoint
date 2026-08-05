@@ -38,17 +38,25 @@ const LABEL_LINE_HEIGHT_PIXELS = 12;
 /** How long sampling must run before the loading bar is worth showing. */
 const LOADING_BAR_DELAY_MILLISECONDS = 500;
 
-const { probe, shanks, heightMillimeters, imageFraction, zoomSelection } =
-  defineProps<{
-    probe: Probe;
-    shanks: ProbeShank[];
-    /** Height of the probe's contour, spanned by every shank. */
-    heightMillimeters: number;
-    /** Fraction of the width the sampled shank image occupies, from `ChannelMaps`' shared widths. */
-    imageFraction: number;
-    /** Zoom level controlling whether the contour and contacts overlay render. */
-    zoomSelection: ChannelMapsZoom;
-  }>();
+const {
+  probe,
+  shanks,
+  heightMillimeters,
+  imageFraction,
+  zoomSelection,
+  alignmentOffsetMillimeters
+} = defineProps<{
+  probe: Probe;
+  shanks: ProbeShank[];
+  /** Height of the probe's contour, spanned by every shank. */
+  heightMillimeters: number;
+  /** Fraction of the width the sampled shank image occupies, from `ChannelMaps`' shared widths. */
+  imageFraction: number;
+  /** Zoom level controlling whether the contour and contacts overlay render. */
+  zoomSelection: ChannelMapsZoom;
+  /** Probe-local x the probe's geometry is shifted by for its shank alignment, in mm. */
+  alignmentOffsetMillimeters: number;
+}>();
 
 const emit = defineEmits<{
   /** Structure under the pointer, or null when the pointer leaves it. */
@@ -84,7 +92,12 @@ const layout = computed(() =>
 const plane = computed(() => {
   if (!layout.value) return null;
   const frame = getProbeFrame(probe, currentExperiment.referenceCoordinate);
-  return getShankSliceGeometry(frame, layout.value, channelMapWindow.value);
+  return getShankSliceGeometry(
+    frame,
+    layout.value,
+    channelMapWindow.value,
+    alignmentOffsetMillimeters
+  );
 });
 
 const { createStream, structureIndex } = useAnnotationSampler();

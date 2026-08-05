@@ -86,6 +86,7 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     sliceExtentMillimeters: 2,
     sliceCenterHeightMillimeters: 0,
     channelMapWindow: null,
+    shankAlignmentIndex: null,
     ...overrides
   };
 }

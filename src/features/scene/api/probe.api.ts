@@ -25,7 +25,12 @@ import earcut from "earcut";
 import type { Experiment } from "@/features/experiment";
 import { getInternedProbeInterfaceProbe } from "@/features/experiment";
 import type { Probe, ProbeContour } from "@/features/probe";
-import { getProbeContour, getProbeInterfaceIdentifier } from "@/features/probe";
+import {
+  getProbeAlignmentOffsetMillimeters,
+  getProbeContour,
+  getProbeInterfaceIdentifier,
+  getProbeShanks
+} from "@/features/probe";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
@@ -105,8 +110,14 @@ export function buildProbe(
   const contour = getProbeContour(probeInterfaceProbe);
   if (!contour) return null;
 
+  const alignmentOffsetMillimeters = getProbeAlignmentOffsetMillimeters(
+    getProbeShanks(probeInterfaceProbe, contour),
+    probe.shankAlignmentIndex
+  );
+
   const probeMetadata: ProbeMetadata = {
-    probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe)
+    probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
+    shankAlignmentIndex: probe.shankAlignmentIndex
   };
 
   const node = new TransformNode(
@@ -139,6 +150,11 @@ export function buildProbe(
   );
   rodMesh.material = buildRodMaterial(scene);
   rodMesh.parent = node;
+
+  // Mesh vertices are in contour coords; this puts the aligned shank's tip on the node.
+  for (const mesh of [shankMesh, headStageMesh, rodMesh]) {
+    mesh.position.x += alignmentOffsetMillimeters;
+  }
 
   if (!gizmoManager.attachableMeshes) {
     gizmoManager.attachableMeshes = [];
@@ -202,7 +218,8 @@ export function syncProbes(
     if (
       !metadata ||
       !probe ||
-      probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier
+      probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier ||
+      probe.shankAlignmentIndex !== metadata.shankAlignmentIndex
     ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);
