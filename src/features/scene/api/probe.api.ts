@@ -31,13 +31,11 @@ import {
   getProbeInterfaceIdentifier,
   getProbeShanks
 } from "@/features/probe";
-import { getAtlasDiagonalMillimeters } from "@/features/atlas";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import {
   interpolateNodePose,
-  isNodePoseInterpolating,
   stopNodePoseInterpolation
 } from "./pose-interpolation.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
@@ -78,12 +76,6 @@ const ROD_LENGTH_MILLIMETERS = 200;
 
 /** Radius of the rod, in mm. */
 const ROD_DIAMETER_MILLIMETERS = 8;
-
-/**
- * Fraction of the atlas volume's diagonal a probe must move by, in one state
- * change, to be animated there instead of snapped.
- */
-const MOVE_ANIMATION_DIAGONAL_FRACTION = 0.01;
 
 /**
  * Get a probe's transform node by ID.
@@ -241,9 +233,6 @@ export function syncProbes(
     nodesById.set(id, node);
   }
 
-  const animationThresholdMillimeters =
-    getAtlasDiagonalMillimeters(experiment.atlas) *
-    MOVE_ANIMATION_DIAGONAL_FRACTION;
   for (const probe of experiment.probes) {
     const existingNode = nodesById.get(probe.id);
     const node =
@@ -287,24 +276,25 @@ export function syncProbes(
 
     const goalPosition = asrToVector3(probe.tipPosition);
     const goalRotation = asrToVector3(probe.rotation);
-    // Glide a probe that jumped a visible distance, and keep an in-flight
-    // glide running so an unrelated sync cannot cut its tail off.
+    // A freshly built probe snaps, so it doesn't fly in from the origin; an
+    // existing one glides to any new pose. A pose that already matches needs
+    // neither, e.g. the sync right after a gizmo drag ends.
+    if (!existingNode) {
+      node.position = goalPosition;
+      node.rotation = goalRotation;
+      continue;
+    }
     if (
-      existingNode &&
-      (isNodePoseInterpolating(node) ||
-        (animationThresholdMillimeters > 0 &&
-          Vector3.Distance(node.position, goalPosition) >
-            animationThresholdMillimeters))
+      node.position.equals(goalPosition) &&
+      node.rotation.equals(goalRotation)
     ) {
-      interpolateNodePose(scene, node, {
-        position: goalPosition,
-        rotation: goalRotation
-      });
       continue;
     }
 
-    node.position = goalPosition;
-    node.rotation = goalRotation;
+    interpolateNodePose(scene, node, {
+      position: goalPosition,
+      rotation: goalRotation
+    });
   }
 
   return rebuiltProbeIds;

@@ -3,7 +3,6 @@ import { TransformNode, Vector3 } from "@babylonjs/core";
 import { makeTestScene, tickScene } from "@/test/mount-helper";
 import {
   interpolateNodePose,
-  isNodePoseInterpolating,
   stopNodePoseInterpolation
 } from "./pose-interpolation.api";
 
@@ -43,7 +42,6 @@ describe("interpolateNodePose", () => {
     tickScene(scene, 100);
 
     expect(node.position.asArray()).toEqual(goal.asArray());
-    expect(isNodePoseInterpolating(node)).toBe(false);
 
     node.position.set(0, 0, 0);
     tickScene(scene, 100);
@@ -119,7 +117,7 @@ describe("interpolateNodePose", () => {
     node.dispose();
 
     expect(() => tickScene(scene, 100)).not.toThrow();
-    expect(isNodePoseInterpolating(node)).toBe(false);
+    expect(() => tickScene(scene, 100)).not.toThrow();
   });
 });
 

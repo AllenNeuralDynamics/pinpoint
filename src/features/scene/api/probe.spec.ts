@@ -792,27 +792,7 @@ describe("syncProbes", () => {
     }
   );
 
-  it("animates a move past 1% of the diagonal", () => {
-    const { scene, gizmoManager } = makeTestSceneWithGizmo();
-    const { experiment, probe } = makeExperimentWithProbe();
-    probe.tipPosition = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
-    const node = getProbeTransformNode(scene, probe.id)!;
-
-    probe.tipPosition = [5, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
-
-    expect(node.position.asArray()).not.toEqual(
-      asrToVector3([5, 0, 0]).asArray()
-    );
-
-    tickScene(scene, 100);
-    tickScene(scene, 100);
-
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
-  });
-
-  it("snaps a move under 1% of the diagonal", () => {
+  it("animates any position change, however small", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     probe.tipPosition = [0, 0, 0];
@@ -822,9 +802,55 @@ describe("syncProbes", () => {
     probe.tipPosition = [0.1, 0, 0];
     syncProbes(scene, experiment, gizmoManager, null);
 
+    expect(node.position.asArray()).not.toEqual(
+      asrToVector3([0.1, 0, 0]).asArray()
+    );
+
+    tickScene(scene, 100);
+    tickScene(scene, 100);
+
     expect(node.position.asArray()).toEqual(
       asrToVector3([0.1, 0, 0]).asArray()
     );
+  });
+
+  it("animates a rotation-only change", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.rotation = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.rotation = [0, 0, Math.PI / 2];
+    syncProbes(scene, experiment, gizmoManager, null);
+
+    expect(node.rotation.asArray()).not.toEqual(
+      asrToVector3([0, 0, Math.PI / 2]).asArray()
+    );
+
+    tickScene(scene, 100);
+    tickScene(scene, 100);
+
+    expect(node.rotation.asArray()).toEqual(
+      asrToVector3([0, 0, Math.PI / 2]).asArray()
+    );
+  });
+
+  it("neither animates nor snaps the probe being dragged", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null);
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [5, 0, 0];
+    probe.rotation = [0, 0, Math.PI / 2];
+    syncProbes(scene, experiment, gizmoManager, probe.id);
+    tickScene(scene, 100);
+    tickScene(scene, 100);
+
+    expect(node.position.asArray()).toEqual([0, 0, 0]);
+    expect(node.rotation.asArray()).toEqual([0, 0, 0]);
   });
 
   it("snaps a freshly built probe rather than flying it from the origin", () => {
@@ -886,20 +912,6 @@ describe("syncProbes", () => {
     tickScene(scene, 100);
 
     expect(node.position.asArray()).toEqual(midway.asArray());
-  });
-
-  it("snaps when the atlas has no known dimensions", () => {
-    const { scene, gizmoManager } = makeTestSceneWithGizmo();
-    const { experiment, probe } = makeExperimentWithProbe();
-    probe.tipPosition = [0, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
-    const node = getProbeTransformNode(scene, probe.id)!;
-
-    experiment.atlas.manifest.resolutions = [];
-    probe.tipPosition = [5, 0, 0];
-    syncProbes(scene, experiment, gizmoManager, null);
-
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
   });
 });
 

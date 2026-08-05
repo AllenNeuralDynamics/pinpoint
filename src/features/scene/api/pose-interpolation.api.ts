@@ -92,14 +92,6 @@ export function interpolateNodePose(
 }
 
 /**
- * Is a fire-and-forget pose interpolation currently running on a node.
- * @param node Node to check.
- */
-export function isNodePoseInterpolating(node: TransformNode): boolean {
-  return interpolations.has(node);
-}
-
-/**
  * Stop any in-flight pose interpolation on a node, leaving its current pose.
  * @param node Node to stop interpolating.
  */

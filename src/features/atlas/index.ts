@@ -10,7 +10,6 @@ export {
   getAtlasCenter,
   getAtlasDimensionsMillimeters,
   getAtlasLongestDimensionMillimeters,
-  getAtlasDiagonalMillimeters,
   getAnnotationVolumeUrl
 } from "./api/source.api";
 export type { TerminologyRow } from "./models/terminology-row.model";

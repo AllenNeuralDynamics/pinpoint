@@ -413,12 +413,3 @@ export function getAtlasCenter(atlas: Atlas): [number, number, number] {
 export function getAtlasLongestDimensionMillimeters(atlas: Atlas): number {
   return Math.max(...getAtlasDimensionsMillimeters(atlas));
 }
-
-/**
- * Compute the diagonal of the atlas volume's bounding box, in mm, or 0 if
- * unknown.
- * @param atlas Atlas to compute the diagonal for.
- */
-export function getAtlasDiagonalMillimeters(atlas: Atlas): number {
-  return Math.hypot(...getAtlasDimensionsMillimeters(atlas));
-}
