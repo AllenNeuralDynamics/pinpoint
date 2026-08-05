@@ -226,7 +226,7 @@ describe("ChannelMaps", () => {
     const aspectRatio = Number(
       viewport.attributes("style")!.match(/aspect-ratio: ([\d.]+)/)![1]
     );
-    expect(aspectRatio).toBeCloseTo(0.28, 10);
+    expect(aspectRatio).toBeCloseTo(0.21, 10);
 
     expect(wrapper.findAllComponents(ChannelMapCanvas)).toHaveLength(0);
     await triggerIntersection(true);

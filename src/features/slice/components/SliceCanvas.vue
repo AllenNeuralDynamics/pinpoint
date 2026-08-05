@@ -301,6 +301,7 @@ useSliceCanvasPainter(
 
   &__canvas
     display: block
+    image-rendering: pixelated
 
   &__overlay
     pointer-events: none

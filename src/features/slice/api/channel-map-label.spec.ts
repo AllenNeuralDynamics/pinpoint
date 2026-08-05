@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ProbeShank } from "@/features/probe";
 import type { SampleResult } from "../models/sample-result.model";
 import {
+  getChannelMapAspectRatio,
   getChannelMapLabels,
   getChannelMapTooltipPosition,
   getChannelMapWidths,
@@ -75,6 +76,41 @@ describe("getChannelMapWidths", () => {
       gutterMillimeters: 0,
       imageFraction: 1
     });
+  });
+});
+
+describe("getChannelMapAspectRatio", () => {
+  it("stays at the 8x ceiling for a tall skinny probe", () => {
+    expect(getChannelMapAspectRatio([makeShank(0.07)], 10, true)).toBeCloseTo(
+      0.14
+    );
+    expect(getChannelMapAspectRatio([makeShank(0.07)], 10, false)).toBeCloseTo(
+      0.056
+    );
+  });
+
+  it("shrinks the 8S1024 exaggeration from 0.296x to 0.06x per shank", () => {
+    const shanks = Array.from({ length: 8 }, () => makeShank(0.077));
+
+    expect(getChannelMapAspectRatio(shanks, 2.08, true)).toBeCloseTo(0.57);
+    expect(getChannelMapAspectRatio(shanks, 2.08, false)).toBeCloseTo(0.48);
+  });
+
+  it("clamps to true aspect for a shank naturally wider than the target", () => {
+    expect(getChannelMapAspectRatio([makeShank(0.12)], 0.7, true)).toBeCloseTo(
+      3 / 7
+    );
+  });
+
+  it("sizes the scale off the widest shank, keeping narrower shanks proportionally narrow", () => {
+    expect(
+      getChannelMapAspectRatio([makeShank(0.05), makeShank(0.2)], 4, true)
+    ).toBeCloseTo(0.165);
+  });
+
+  it("returns 0 for an empty shank array or a non-positive height", () => {
+    expect(getChannelMapAspectRatio([], 10, true)).toBe(0);
+    expect(getChannelMapAspectRatio([makeShank(0.07)], 0, true)).toBe(0);
   });
 });
 

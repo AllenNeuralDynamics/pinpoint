@@ -35,6 +35,12 @@ export interface ChannelMapLabel {
 /** Label gutter width, as a multiple of the widest shank's width. */
 const LABEL_GUTTER_SHANK_WIDTHS = 1.5;
 
+/** Rendered width of the widest shank, as a fraction of a channel map's height. */
+const TARGET_SHANK_HEIGHT_FRACTION = 0.06;
+
+/** Largest horizontal exaggeration a channel map's shanks may be stretched by. */
+const MAXIMUM_SHANK_WIDTH_SCALE = 8;
+
 /** CSS pixels between a channel map's right edge and its tooltip's left edge. */
 const TOOLTIP_GAP_PIXELS = 8;
 
@@ -63,6 +69,37 @@ export function getChannelMapWidths(shanks: ProbeShank[]): ChannelMapWidths {
     gutterMillimeters,
     imageFraction: shankMillimeters / (shankMillimeters + gutterMillimeters)
   };
+}
+
+/**
+ * Display aspect ratio of a channel map, stretched horizontally so the widest
+ * shank renders at a legible fraction of the map's height. 0 when there is
+ * nothing to draw.
+ * @param shanks Probe shanks packed left to right.
+ * @param heightMillimeters Height of the probe's contour, spanned by every shank.
+ * @param showLabels Whether the label gutter is included in the width.
+ */
+export function getChannelMapAspectRatio(
+  shanks: ProbeShank[],
+  heightMillimeters: number,
+  showLabels: boolean
+): number {
+  if (shanks.length === 0 || heightMillimeters <= 0) return 0;
+
+  const { shankMillimeters, gutterMillimeters } = getChannelMapWidths(shanks);
+  if (shankMillimeters <= 0) return 0;
+
+  const widestMillimeters = Math.max(
+    ...shanks.map(shank => shank.widthMillimeters)
+  );
+  const scale = clamp(
+    (TARGET_SHANK_HEIGHT_FRACTION * heightMillimeters) / widestMillimeters,
+    1,
+    MAXIMUM_SHANK_WIDTH_SCALE
+  );
+  const widthMillimeters =
+    shankMillimeters + (showLabels ? gutterMillimeters : 0);
+  return (scale * widthMillimeters) / heightMillimeters;
 }
 
 /**

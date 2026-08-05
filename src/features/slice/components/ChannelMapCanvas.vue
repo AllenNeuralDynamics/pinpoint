@@ -300,6 +300,7 @@ onUnmounted(() => emit("hover", null));
 
   &__canvas
     display: block
+    image-rendering: pixelated
 
   &__overlay
     pointer-events: none

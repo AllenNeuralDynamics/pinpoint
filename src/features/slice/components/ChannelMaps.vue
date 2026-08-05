@@ -9,8 +9,8 @@ import {
   getProbeShanks
 } from "@/features/probe";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import type { ChannelMapWidths } from "../api/channel-map-label.api";
 import {
+  getChannelMapAspectRatio,
   getChannelMapTooltipPosition,
   getChannelMapWidths
 } from "../api/channel-map-label.api";
@@ -35,8 +35,8 @@ interface ZoomStyles {
 interface DefinitionShanks {
   shanks: ProbeShank[];
   heightMillimeters: number;
-  /** Width split into the packed shank image and the blank label gutter. */
-  widths: ChannelMapWidths;
+  /** Fraction of the full width the shank image occupies, left of the blank label gutter. */
+  imageFraction: number;
 }
 
 const ZOOM_STYLES: Record<ChannelMapsZoom, ZoomStyles> = {
@@ -57,14 +57,11 @@ const ZOOM_STYLES: Record<ChannelMapsZoom, ZoomStyles> = {
   }
 };
 
-/** Horizontal exaggeration applied to every shank's width, so a skinny shank is legible. */
-const SHANK_WIDTH_SCALE = 8;
-
 /** Stand-in for a probe whose definition has no sliceable shanks. */
 const NO_SHANKS: DefinitionShanks = {
   shanks: [],
   heightMillimeters: 0,
-  widths: { shankMillimeters: 0, gutterMillimeters: 0, imageFraction: 1 }
+  imageFraction: 1
 };
 
 const currentExperiment = useCurrentExperimentStore();
@@ -115,7 +112,7 @@ const shanksByIdentifier = computed(() => {
     byIdentifier[identifier] = {
       shanks,
       heightMillimeters: contour.heightMillimeters,
-      widths
+      imageFraction: widths.imageFraction
     };
   }
   return byIdentifier;
@@ -124,21 +121,19 @@ const shanksByIdentifier = computed(() => {
 /** Each probe paired with its packed shanks, aspect ratio and rendered window. */
 const channelMaps = computed(() =>
   currentExperiment.probes.map(probe => {
-    const { shanks, heightMillimeters, widths } =
+    const { shanks, heightMillimeters, imageFraction } =
       shanksByIdentifier.value[probe.probeInterfaceIdentifier] ?? NO_SHANKS;
-    const widthMillimeters =
-      widths.shankMillimeters +
-      (showLabels.value ? widths.gutterMillimeters : 0);
     return {
       probe,
       shanks,
       heightMillimeters,
-      aspectRatio:
-        heightMillimeters > 0
-          ? (SHANK_WIDTH_SCALE * widthMillimeters) / heightMillimeters
-          : 0,
+      aspectRatio: getChannelMapAspectRatio(
+        shanks,
+        heightMillimeters,
+        showLabels.value
+      ),
       channelMapWindow: getProbeChannelMapWindow(probe, heightMillimeters),
-      imageFraction: showLabels.value ? widths.imageFraction : 1,
+      imageFraction: showLabels.value ? imageFraction : 1,
       alignmentOffsetMillimeters: getProbeAlignmentOffsetMillimeters(
         shanks,
         probe.shankAlignmentIndex
