@@ -31,6 +31,7 @@ import {
 import { buildProbe } from "./probe.api";
 import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
 import { buildAxisGuides } from "./axis-guide.api";
+import { CAMERA_INSPECTABLE } from "../models/camera-inspectable.model";
 import {
   deselectFromPointerDown,
   orbitCameraFromAxisGuideDoubleTap,
@@ -93,6 +94,25 @@ describe("selectFromSelectedInspectableState", () => {
       gizmoManager,
       selectionOutlineLayer,
       null
+    );
+
+    expect(gizmoManager.attachedNode).toBeNull();
+    for (const mesh of node.getChildMeshes()) {
+      expect(selectionOutlineLayer.hasMesh(mesh)).toBe(false);
+    }
+  });
+
+  it("detaches the gizmo and clears the outline when the camera is selected", () => {
+    const { scene, gizmoManager, selectionOutlineLayer, node } =
+      makeProbeInScene();
+    gizmoManager.attachToNode(node);
+    selectionOutlineLayer.addSelection(node.getChildMeshes());
+
+    selectFromSelectedInspectableState(
+      scene,
+      gizmoManager,
+      selectionOutlineLayer,
+      CAMERA_INSPECTABLE
     );
 
     expect(gizmoManager.attachedNode).toBeNull();

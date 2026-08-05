@@ -5,6 +5,7 @@ import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { makeProbe } from "@/test/fixtures";
 import { getTerminologyRows } from "@/features/atlas";
+import { CAMERA_INSPECTABLE } from "@/features/scene";
 import enUS from "@/i18n/en-US";
 
 const t = enUS.inspector;
@@ -30,7 +31,7 @@ function mountInspector() {
 
   const wrapper = mountWithQuasar(Inspector, {
     pinia,
-    global: { stubs: { ProbeInspector: true } }
+    global: { stubs: { ProbeInspector: true, CameraInspector: true } }
   });
   return { wrapper, store };
 }
@@ -88,5 +89,16 @@ describe("Inspector", () => {
       false
     );
     expect(wrapper.text()).toContain(t.emptyHint);
+  });
+
+  it("renders a CameraInspector for the camera selection and hides the hint", async () => {
+    const { wrapper, store } = mountInspector();
+    store.selectedInspectable = CAMERA_INSPECTABLE;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "CameraInspector" }).exists()).toBe(
+      true
+    );
+    expect(wrapper.text()).not.toContain(t.emptyHint);
   });
 });

@@ -1,6 +1,7 @@
 import parse from "semver/functions/parse";
 import type { Experiment } from "../models/experiment.model";
 import { isAtlas } from "@/features/atlas";
+import { isCameraPose } from "./camera-pose.api";
 import {
   getProbeInterfaceIdentifier,
   isProbe,
@@ -104,7 +105,8 @@ function isExperiment(value: unknown): value is Experiment {
     referenceCoordinate,
     visibleStructures,
     probeInterfaceProbes,
-    probes
+    probes,
+    cameraPoses
   } = value;
 
   if (typeof id !== "string") return false;
@@ -127,6 +129,13 @@ function isExperiment(value: unknown): value is Experiment {
 
   if (!Array.isArray(probes) || !probes.every(isProbe)) return false;
   if (new Set(probes.map(probe => probe.id)).size !== probes.length) {
+    return false;
+  }
+
+  if (!Array.isArray(cameraPoses) || !cameraPoses.every(isCameraPose)) {
+    return false;
+  }
+  if (new Set(cameraPoses.map(pose => pose.id)).size !== cameraPoses.length) {
     return false;
   }
 

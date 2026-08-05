@@ -6,10 +6,12 @@ import {
   serializeExperiment
 } from "./experiment-file.api";
 import {
+  addCameraPose,
   addProbe,
   buildExperiment,
   internProbeInterfaceProbe
 } from "./experiment.api";
+import { buildCameraPose } from "./camera-pose.api";
 import { buildProbe, detachProbeInterfaceProbe } from "@/features/probe";
 import { makeAtlas, makeProbeInterfaceProbe } from "@/test/fixtures";
 import type { Experiment } from "../models/experiment.model";
@@ -226,6 +228,35 @@ describe("parseExperimentFile", () => {
       probeInterfaceIdentifier: "missing identifier"
     };
     expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
+  it("returns null when cameraPoses is missing", () => {
+    const { cameraPoses: _cameraPoses, ...rest } = makeFullExperiment();
+    expect(parseExperimentFile(JSON.stringify(rest))).toBeNull();
+  });
+
+  it("returns null when a camera pose is malformed", () => {
+    const experiment = makeFullExperiment();
+    experiment.cameraPoses = [
+      {
+        ...buildCameraPose("Dorsal", [1, 2, 3]),
+        alpha: "1" as unknown as number
+      }
+    ];
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
+  it("returns null when two camera poses share an id", () => {
+    const experiment = makeFullExperiment();
+    const pose = buildCameraPose("Dorsal", [1, 2, 3]);
+    experiment.cameraPoses = [pose, { ...pose, name: "Ventral" }];
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
+  it("accepts an experiment with a valid camera pose", () => {
+    const experiment = makeFullExperiment();
+    addCameraPose(experiment, buildCameraPose("Dorsal", [1, 2, 3]));
+    expect(parseExperimentFile(JSON.stringify(experiment))).toEqual(experiment);
   });
 
   it("accepts a probe interface definition without a probe_planar_contour", () => {

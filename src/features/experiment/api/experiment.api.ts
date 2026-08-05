@@ -1,5 +1,6 @@
 import type { Atlas } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
+import type { CameraPose } from "../models/camera-pose.model";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import {
@@ -26,7 +27,8 @@ export function buildExperiment(
     referenceCoordinate,
     visibleStructures: [],
     probeInterfaceProbes: {},
-    probes: []
+    probes: [],
+    cameraPoses: []
   };
 }
 
@@ -193,4 +195,78 @@ export function removeProbe(experiment: Experiment, probe: Probe) {
     experiment,
     removed!.probeInterfaceIdentifier
   );
+}
+
+/**
+ * Move a probe within the experiment from one index to another.
+ * @param experiment Experiment holding the probes to reorder.
+ * @param fromIndex Index of the probe to move.
+ * @param toIndex Index to move it to.
+ */
+export function reorderProbe(
+  experiment: Experiment,
+  fromIndex: number,
+  toIndex: number
+) {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= experiment.probes.length ||
+    toIndex >= experiment.probes.length
+  ) {
+    return;
+  }
+  const [probe] = experiment.probes.splice(fromIndex, 1);
+  experiment.probes.splice(toIndex, 0, probe!);
+}
+
+/**
+ * Add a camera pose to the experiment, unless one with the same id already
+ * exists.
+ * @param experiment Experiment to add a camera pose to.
+ * @param pose Camera pose to add.
+ */
+export function addCameraPose(experiment: Experiment, pose: CameraPose) {
+  if (experiment.cameraPoses.some(existingPose => existingPose.id === pose.id))
+    return;
+
+  experiment.cameraPoses.push(pose);
+}
+
+/**
+ * Remove a camera pose from the experiment.
+ * @param experiment Experiment to remove this camera pose from.
+ * @param pose Camera pose to remove.
+ */
+export function removeCameraPose(experiment: Experiment, pose: CameraPose) {
+  const poseIndex = experiment.cameraPoses.findIndex(
+    existingPose => existingPose.id === pose.id
+  );
+  if (poseIndex === -1) return;
+  experiment.cameraPoses.splice(poseIndex, 1);
+}
+
+/**
+ * Move a camera pose within the experiment from one index to another.
+ * @param experiment Experiment holding the camera poses to reorder.
+ * @param fromIndex Index of the camera pose to move.
+ * @param toIndex Index to move it to.
+ */
+export function reorderCameraPose(
+  experiment: Experiment,
+  fromIndex: number,
+  toIndex: number
+) {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= experiment.cameraPoses.length ||
+    toIndex >= experiment.cameraPoses.length
+  ) {
+    return;
+  }
+  const [pose] = experiment.cameraPoses.splice(fromIndex, 1);
+  experiment.cameraPoses.splice(toIndex, 0, pose!);
 }

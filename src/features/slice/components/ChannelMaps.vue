@@ -200,14 +200,7 @@ const tooltipStyle = computed(() => {
               name="radio_button_checked"
               size="sm"
             />
-            <q-btn
-              :aria-pressed="currentExperiment.isInspectableSelected(probe)"
-              flat
-              dense
-              no-caps
-            >
-              <div :class="styles.name">{{ probe.name }}</div>
-            </q-btn>
+            <div :class="styles.name">{{ probe.name }}</div>
           </q-card-section>
           <q-separator />
           <q-card-section class="flex flex-center q-pa-sm">

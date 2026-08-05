@@ -4,6 +4,8 @@ export { default as RecentExperimentsList } from "./components/RecentExperiments
 export { default as ExperimentPropertiesDialog } from "./components/ExperimentPropertiesDialog.vue";
 export { useExperimentFile } from "./composable/useExperimentFile";
 export type { Experiment } from "./models/experiment.model";
+export type { CameraPose } from "./models/camera-pose.model";
+export { buildCameraPose, isCameraPose } from "./api/camera-pose.api";
 export { ALLEN_MOUSE_REFERENCE_COORDINATE } from "./api/reference-coordinate.api";
 
 export {
@@ -15,6 +17,10 @@ export {
   getInternedProbeInterfaceProbe,
   addProbe,
   removeProbe,
+  reorderProbe,
   setProbeInterface,
-  setExperimentProperties
+  setExperimentProperties,
+  addCameraPose,
+  removeCameraPose,
+  reorderCameraPose
 } from "./api/experiment.api";

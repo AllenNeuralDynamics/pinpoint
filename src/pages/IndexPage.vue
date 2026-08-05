@@ -191,7 +191,9 @@ onMounted(() => {
         </q-tabs>
         <q-separator />
         <q-tab-panels v-model="tab" animated class="col">
-          <q-tab-panel name="scene"><SceneHierarchy /></q-tab-panel>
+          <q-tab-panel name="scene" class="scene-panel">
+            <SceneHierarchy />
+          </q-tab-panel>
           <q-tab-panel name="channel-maps">
             <ChannelMaps />
           </q-tab-panel>
@@ -262,6 +264,9 @@ body.body--dark .q-drawer__resizer
 .q-tab-panel
   height: 100%
   overflow: hidden
+
+.q-tab-panel.scene-panel
+  overflow-y: auto
 
 .column
   flex-wrap: nowrap

@@ -3,7 +3,11 @@ export { default as SceneHierarchy } from "./components/SceneHierarchy.vue";
 export { isSameInspectable } from "./api/inspectable.api";
 export { asrToVector3, vector3ToAsr } from "./api/coordinate-transforms.api";
 export { setGizmoControls } from "./api/gizmo.api";
+export { getCameraOrbit, setCameraOrbit } from "./api/camera.api";
+export { useBabylonRuntimeService } from "./composable/useBabylonRuntimeService";
 export { STANDARD_COLORS } from "./models/standard-colors.model";
+export { CAMERA_INSPECTABLE } from "./models/camera-inspectable.model";
+export type { CameraInspectable } from "./models/camera-inspectable.model";
 export type { Inspectable, InspectableKind } from "./models/inspectable.model";
 export type {
   GizmoCoordinateSpace,

@@ -29,8 +29,9 @@ export function selectFromSelectedInspectableState(
   // Both branches result in clearing the selection outline layer at some point.
   selectionOutlineLayer.clearSelection();
 
-  // Unattached gizmo if not selecting.
-  if (!selectedInspectable) {
+  // Unattached gizmo when nothing is selected, or when the selection has no
+  // entity of its own in the scene (the camera).
+  if (!selectedInspectable || selectedInspectable.inspectableKind !== "probe") {
     gizmoManager.attachToNode(null);
     return;
   }

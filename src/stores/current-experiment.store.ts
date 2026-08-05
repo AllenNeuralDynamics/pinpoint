@@ -31,7 +31,8 @@ export const useCurrentExperimentStore = defineStore(
       referenceCoordinate: [...ALLEN_MOUSE_REFERENCE_COORDINATE],
       visibleStructures: [],
       probeInterfaceProbes: {},
-      probes: []
+      probes: [],
+      cameraPoses: []
     });
 
     /** Currently selected inspectable, or null if nothing is selected. */
@@ -42,6 +43,9 @@ export const useCurrentExperimentStore = defineStore(
 
     /** Pending surface-move choice awaiting the user's pick, or null. */
     const probeSurfaceChoice = ref<ProbeSurfaceChoice | null>(null);
+
+    /** Are the atlas axis guides shown in the scene. */
+    const areAxisGuidesVisible = ref(false);
 
     /**
      * Flag for when the terminology rows are being updated to match the new atlas.
@@ -92,6 +96,9 @@ export const useCurrentExperimentStore = defineStore(
     /** Probes in the current experiment. */
     const probes = computed(() => experiment.value.probes);
 
+    /** Saved camera poses in the current experiment. */
+    const cameraPoses = computed(() => experiment.value.cameraPoses);
+
     /**
      * Is the passed entity the actively selected one.
      * @param entity Entity to compare against the current selection.
@@ -121,7 +128,8 @@ export const useCurrentExperimentStore = defineStore(
       selectedInspectable,
       draggedProbeId,
       probeSurfaceChoice,
-      isTerminologyRowsEvaluating
+      isTerminologyRowsEvaluating,
+      areAxisGuidesVisible
     };
     const getters = {
       name,
@@ -130,7 +138,8 @@ export const useCurrentExperimentStore = defineStore(
       referenceCoordinate,
       visibleStructures,
       probeInterfaceProbes,
-      probes
+      probes,
+      cameraPoses
     };
     const actions = { isInspectableSelected, loadExperiment };
     return { ...state, ...getters, ...actions };

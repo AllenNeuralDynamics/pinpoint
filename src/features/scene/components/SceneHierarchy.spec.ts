@@ -232,11 +232,45 @@ describe("SceneHierarchy", () => {
 
     const wrapper = await mountHierarchy(pinia);
 
-    const rows = wrapper.findAll(".q-item");
+    const rows = wrapper.findAll(".probe-list .q-item");
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.classes()).toContain("probe-item--active");
+    expect(rows[0]!.classes()).toContain("hierarchy-item--active");
     expect(rows[0]!.attributes("aria-current")).toBe("true");
-    expect(rows[1]!.classes()).not.toContain("probe-item--active");
+    expect(rows[1]!.classes()).not.toContain("hierarchy-item--active");
     expect(rows[1]!.attributes("aria-current")).toBeUndefined();
+  });
+
+  it("moves the dragged probe row to the dropped-on row's index", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const currentExperiment = useCurrentExperimentStore(pinia);
+    const [a, b, c] = [
+      makeProbe({ name: "A" }),
+      makeProbe({ name: "B" }),
+      makeProbe({ name: "C" })
+    ];
+    currentExperiment.experiment.probes = [a, b, c];
+
+    const wrapper = await mountHierarchy(pinia);
+    const rows = wrapper.findAll(".probe-list .q-item");
+    await rows[0]!.find(".probe-row__handle").trigger("dragstart");
+    await rows[2]!.trigger("dragover");
+    await rows[2]!.trigger("drop");
+
+    expect(currentExperiment.experiment.probes).toEqual([b, c, a]);
+  });
+
+  it("is a no-op when a probe row is dropped without a preceding dragstart", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const currentExperiment = useCurrentExperimentStore(pinia);
+    const probes = [makeProbe({ name: "A" }), makeProbe({ name: "B" })];
+    currentExperiment.experiment.probes = [...probes];
+
+    const wrapper = await mountHierarchy(pinia);
+    const rows = wrapper.findAll(".probe-list .q-item");
+    await rows[1]!.trigger("drop");
+
+    expect(currentExperiment.experiment.probes).toEqual(probes);
   });
 });

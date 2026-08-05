@@ -359,21 +359,4 @@ describe("ChannelMaps", () => {
 
     expect(store.selectedInspectable).toEqual(store.experiment.probes[1]);
   });
-
-  it("selects the probe from its header name button and reflects it in aria-pressed", async () => {
-    const { wrapper, store } = mountChannelMaps();
-
-    const nameButton = wrapper
-      .findAllComponents({ name: "QBtn" })
-      .find(btn => btn.text() === "Contoured probe")!;
-    expect(nameButton.attributes("aria-pressed")).toBe("false");
-
-    await nameButton.trigger("click");
-
-    expect(store.selectedInspectable).toEqual(store.experiment.probes[0]);
-    const updatedButton = wrapper
-      .findAllComponents({ name: "QBtn" })
-      .find(btn => btn.text() === "Contoured probe")!;
-    expect(updatedButton.attributes("aria-pressed")).toBe("true");
-  });
 });

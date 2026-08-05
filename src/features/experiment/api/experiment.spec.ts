@@ -1,18 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { isReactive } from "vue";
 import {
+  addCameraPose,
   addProbe,
   buildExperiment,
   clearVisibleStructures,
   getInternedProbeInterfaceProbe,
   internProbeInterfaceProbe,
   isStructureVisible,
+  removeCameraPose,
   removeInternProbeInterfaceProbe,
   removeProbe,
+  reorderCameraPose,
+  reorderProbe,
   setExperimentProperties,
   setProbeInterface,
   setStructureVisibility
 } from "./experiment.api";
+import { buildCameraPose } from "./camera-pose.api";
+import type { Experiment } from "../models/experiment.model";
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
 import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
 
@@ -28,6 +34,7 @@ describe("buildExperiment", () => {
     expect(experiment.visibleStructures).toEqual([]);
     expect(experiment.probeInterfaceProbes).toEqual({});
     expect(experiment.probes).toEqual([]);
+    expect(experiment.cameraPoses).toEqual([]);
   });
 });
 
@@ -403,6 +410,129 @@ describe("removeProbe", () => {
     removeProbe(experiment, probe);
 
     expect(experiment.probeInterfaceProbes).toEqual({});
+  });
+});
+
+describe("reorderProbe", () => {
+  function makeThreeProbes(experiment: Experiment) {
+    internProbeInterfaceProbe(experiment, makeProbeInterfaceProbe());
+    const a = makeProbe({ id: "a", name: "A" });
+    const b = makeProbe({ id: "b", name: "B" });
+    const c = makeProbe({ id: "c", name: "C" });
+    addProbe(experiment, a);
+    addProbe(experiment, b);
+    addProbe(experiment, c);
+    return [a, b, c];
+  }
+
+  it("moves a probe to the dropped-on index", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const [a, b, c] = makeThreeProbes(experiment);
+
+    reorderProbe(experiment, 0, 2);
+
+    expect(experiment.probes).toEqual([b, c, a]);
+  });
+
+  it("is a no-op for equal indices", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const probes = makeThreeProbes(experiment);
+
+    reorderProbe(experiment, 1, 1);
+
+    expect(experiment.probes).toEqual(probes);
+  });
+
+  it("is a no-op for an out-of-range index", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const probes = makeThreeProbes(experiment);
+
+    reorderProbe(experiment, 0, 3);
+
+    expect(experiment.probes).toEqual(probes);
+  });
+});
+
+describe("addCameraPose", () => {
+  it("adds the pose to the experiment", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const pose = buildCameraPose("Dorsal", [1, 2, 3]);
+
+    addCameraPose(experiment, pose);
+
+    expect(experiment.cameraPoses).toEqual([pose]);
+  });
+
+  it("does nothing when a pose with the same id already exists", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const pose = { ...buildCameraPose("Dorsal", [1, 2, 3]), id: "dup" };
+    addCameraPose(experiment, pose);
+
+    addCameraPose(experiment, { ...pose, name: "Other" });
+
+    expect(experiment.cameraPoses).toHaveLength(1);
+    expect(experiment.cameraPoses[0]!.name).toBe(pose.name);
+  });
+});
+
+describe("removeCameraPose", () => {
+  it("removes the pose from the experiment", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const pose = buildCameraPose("Dorsal", [1, 2, 3]);
+    addCameraPose(experiment, pose);
+
+    removeCameraPose(experiment, pose);
+
+    expect(experiment.cameraPoses).toEqual([]);
+  });
+
+  it("is a no-op when the pose's id isn't in the experiment", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const kept = buildCameraPose("Dorsal", [1, 2, 3]);
+    addCameraPose(experiment, kept);
+
+    removeCameraPose(experiment, { ...kept, id: "never-added" });
+
+    expect(experiment.cameraPoses).toEqual([kept]);
+  });
+});
+
+describe("reorderCameraPose", () => {
+  function makeThreePoses(experiment: Experiment) {
+    const a = buildCameraPose("A", [1, 0, 0]);
+    const b = buildCameraPose("B", [2, 0, 0]);
+    const c = buildCameraPose("C", [3, 0, 0]);
+    addCameraPose(experiment, a);
+    addCameraPose(experiment, b);
+    addCameraPose(experiment, c);
+    return [a, b, c];
+  }
+
+  it("moves a pose to the dropped-on index", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const [a, b, c] = makeThreePoses(experiment);
+
+    reorderCameraPose(experiment, 0, 2);
+
+    expect(experiment.cameraPoses).toEqual([b, c, a]);
+  });
+
+  it("is a no-op for equal indices", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const poses = makeThreePoses(experiment);
+
+    reorderCameraPose(experiment, 1, 1);
+
+    expect(experiment.cameraPoses).toEqual(poses);
+  });
+
+  it("is a no-op for an out-of-range index", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const poses = makeThreePoses(experiment);
+
+    reorderCameraPose(experiment, 0, 3);
+
+    expect(experiment.cameraPoses).toEqual(poses);
   });
 });
 

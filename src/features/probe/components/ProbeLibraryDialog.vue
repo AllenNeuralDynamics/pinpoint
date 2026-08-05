@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { ref } from "vue";
 import { useDialogPluginComponent, useQuasar } from "quasar";
 import InstallProbeDialog from "./InstallProbeDialog.vue";
 import {
@@ -7,6 +6,7 @@ import {
   getProbeInterfaceIdentifier
 } from "../api/probe.api";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
+import { useDragReorder } from "@/composable/useDragReorder";
 
 defineEmits([...useDialogPluginComponent.emits]);
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
@@ -14,8 +14,14 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const $q = useQuasar();
 const probeLibraryStore = useProbeLibraryStore();
 
-const draggedIndex = ref<number | null>(null);
-const dropTargetIndex = ref<number | null>(null);
+const {
+  draggedIndex,
+  dropTargetIndex,
+  startDrag,
+  dragOverRow,
+  dropRow,
+  endDrag
+} = useDragReorder(probeLibraryStore.reorder);
 
 /**
  * Open the install-probe dialog and add its result to the library.
@@ -24,54 +30,6 @@ function installProbe() {
   $q.dialog({ component: InstallProbeDialog }).onOk(probe => {
     probeLibraryStore.add(probe);
   });
-}
-
-/**
- * Begin dragging the library row at the given index.
- * @param index Index of the dragged row.
- * @param event Drag event to mark as a move.
- */
-function startDrag(index: number, event: DragEvent) {
-  draggedIndex.value = index;
-  if (event.dataTransfer) {
-    event.dataTransfer.setData("text/plain", String(index));
-    event.dataTransfer.effectAllowed = "move";
-  }
-}
-
-/**
- * Mark the row at the given index as the drop target and allow the drop.
- * @param index Index of the row being hovered.
- * @param event Drag event to accept.
- */
-function dragOverRow(index: number, event: DragEvent) {
-  if (draggedIndex.value === null) {
-    return;
-  }
-  event.preventDefault();
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = "move";
-  }
-  dropTargetIndex.value = index;
-}
-
-/**
- * Move the dragged probe to the dropped-on index.
- * @param index Index the drag was dropped on.
- */
-function dropRow(index: number) {
-  if (draggedIndex.value !== null) {
-    probeLibraryStore.reorder(draggedIndex.value, index);
-  }
-  endDrag();
-}
-
-/**
- * Clear drag state after a drop or a cancelled drag.
- */
-function endDrag() {
-  draggedIndex.value = null;
-  dropTargetIndex.value = null;
 }
 </script>
 
@@ -100,7 +58,7 @@ function endDrag() {
             @dragover="dragOverRow(index, $event)"
             @drop="dropRow(index)"
           >
-            <q-item-section avatar>
+            <q-item-section side>
               <div
                 class="probe-row__handle"
                 draggable="true"
@@ -108,7 +66,7 @@ function endDrag() {
                 @dragend="endDrag"
                 @dragstart="startDrag(index, $event)"
               >
-                <q-icon name="drag_indicator" />
+                <q-icon name="drag_indicator" size="sm" />
               </div>
             </q-item-section>
             <q-item-section>{{

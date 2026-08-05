@@ -1,4 +1,5 @@
 import type { Atlas } from "@/features/atlas";
+import type { CameraPose } from "./camera-pose.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 
 export interface Experiment {
@@ -31,4 +32,7 @@ export interface Experiment {
   probeInterfaceProbes: Record<string, ProbeInterfaceProbe>;
 
   probes: Probe[];
+
+  /** Saved camera poses, in user-arranged order. */
+  cameraPoses: CameraPose[];
 }
