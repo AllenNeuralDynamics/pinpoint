@@ -156,23 +156,13 @@ onMounted(() => {
               >
                 <q-item-section>{{ $t("layout.probeLibrary") }}</q-item-section>
               </q-item>
-              <q-item clickable @click="openPreferencesDialog($q)">
-                <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
-              </q-item>
-            </q-list>
-          </q-menu>
-        </q-btn>
-
-        <q-btn flat :label="$t('layout.view')">
-          <q-menu auto-close>
-            <q-list>
-              <q-item clickable @click="$q.dialog({ component: SplashDialog })">
-                <q-item-section>{{ $t("layout.splashScreen") }}</q-item-section>
-              </q-item>
               <q-item clickable @click="$q.dark.toggle">
                 <q-item-section>{{
                   $t("layout.toggleDarkMode")
                 }}</q-item-section>
+              </q-item>
+              <q-item clickable @click="openPreferencesDialog($q)">
+                <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
               </q-item>
             </q-list>
           </q-menu>
