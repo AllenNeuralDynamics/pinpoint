@@ -177,9 +177,13 @@ function makeRuntimeStub() {
     engine.value = { resize };
     scene.value = built.scene;
     camera.value = {
+      alpha: 0,
+      beta: 0,
       radius: 0,
       inertia: 0.9,
-      onViewMatrixChangedObservable: new Observable()
+      isInterpolating: false,
+      onViewMatrixChangedObservable: new Observable(),
+      onAfterCheckInputsObservable: new Observable()
     } as unknown as ArcRotateCamera;
     gizmoManager.value = built.gizmoManager;
     selectionOutlineLayer.value = built.selectionOutlineLayer;
@@ -547,6 +551,16 @@ describe("SceneCanvas", () => {
       runtime.camera.value,
       "perspective"
     );
+  });
+
+  it("stays in perspective when the axis-view tracker fires with no preceding double-tap", async () => {
+    const { runtime } = await mountCanvas();
+
+    (
+      runtime.camera.value!.onAfterCheckInputsObservable as Observable<unknown>
+    ).notifyObservers(undefined);
+
+    expect(usePreferencesStore().cameraProjection).toBe("perspective");
   });
 
   it("clears the scene when the experiment's atlas changes", async () => {

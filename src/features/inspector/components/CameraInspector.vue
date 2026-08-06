@@ -116,6 +116,16 @@ onMounted(copyFromCurrentCamera);
 
 <template>
   <div class="column q-gutter-y-md">
+    <q-btn-toggle
+      v-model="preferences.cameraProjection"
+      :aria-label="t('cameraInspector.projection')"
+      :options="[
+        { label: t('cameraInspector.perspective'), value: 'perspective' },
+        { label: t('cameraInspector.orthographic'), value: 'orthographic' }
+      ]"
+      spread
+      toggle-color="primary"
+    />
     <CommittedInput
       v-model="name"
       :label="t('cameraInspector.poseName')"

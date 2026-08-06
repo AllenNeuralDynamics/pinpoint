@@ -5,7 +5,8 @@ import type {
   Observer,
   PointerInfo,
   Scene,
-  SelectionOutlineLayer
+  SelectionOutlineLayer,
+  Vector3
 } from "@babylonjs/core";
 import type { Inspectable } from "../models/inspectable.model";
 import { pickAxisGuideDirection } from "./axis-guide.api";
@@ -77,10 +78,12 @@ export function deselectFromPointerDown(
  * Orbit the camera onto an axis guide's axis when its label is double-clicked.
  * @param scene Scene to observe pointer events on.
  * @param camera Camera to orbit.
+ * @param onOrbit Called with the world direction the camera was sent towards.
  */
 export function orbitCameraFromAxisGuideDoubleTap(
   scene: Scene,
-  camera: ArcRotateCamera
+  camera: ArcRotateCamera,
+  onOrbit: (direction: Vector3) => void
 ): Observer<PointerInfo> {
   return scene.onPointerObservable.add(() => {
     const direction = pickAxisGuideDirection(
@@ -91,6 +94,7 @@ export function orbitCameraFromAxisGuideDoubleTap(
     if (!direction) return;
 
     orbitCameraTowards(camera, direction);
+    onOrbit(direction);
   }, PointerEventTypes.POINTERDOUBLETAP);
 }
 

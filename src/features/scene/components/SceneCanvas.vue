@@ -22,7 +22,11 @@ import {
   clearAxisGuides,
   createAxisGuides
 } from "../api/axis-guide.api";
-import { applyCameraProjection, setInitialZoom } from "../api/camera.api";
+import {
+  applyCameraProjection,
+  setInitialZoom,
+  trackAxisViewProjection
+} from "../api/camera.api";
 import type { SurfaceMaterialSettings } from "../api/material.api";
 import {
   applySurfaceMaterialSettingsToNewMaterials,
@@ -232,8 +236,20 @@ watchEffect(() => {
 watch([runtime.scene, runtime.camera], ([scene, camera]) => {
   if (!scene || !camera) return;
 
-  const observer = orbitCameraFromAxisGuideDoubleTap(scene, camera);
-  onWatcherCleanup(() => observer.remove());
+  const tracker = trackAxisViewProjection(
+    camera,
+    () => preferences.cameraProjection,
+    projection => {
+      preferences.cameraProjection = projection;
+    }
+  );
+  const observer = orbitCameraFromAxisGuideDoubleTap(scene, camera, direction =>
+    tracker.sendTo(direction)
+  );
+  onWatcherCleanup(() => {
+    observer.remove();
+    tracker.dispose();
+  });
 });
 
 watchEffect(() => {

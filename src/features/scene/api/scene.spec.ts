@@ -366,12 +366,13 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     scene.activeCamera = camera;
     buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas());
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
-    orbitCameraFromAxisGuideDoubleTap(scene, camera);
-    return { scene, camera, interpolateTo };
+    const onOrbit = vi.fn();
+    orbitCameraFromAxisGuideDoubleTap(scene, camera, onOrbit);
+    return { scene, camera, interpolateTo, onOrbit };
   }
 
   it("orbits to face +AP when the -AP label is double-clicked", () => {
-    const { scene, camera, interpolateTo } = makeOrbitScene();
+    const { scene, camera, interpolateTo, onOrbit } = makeOrbitScene();
     const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_-AP");
     scene.pointerX = screen.x;
     scene.pointerY = screen.y;
@@ -389,10 +390,15 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     const call = interpolateTo.mock.calls[0]!;
     expect(call[0]).toBeCloseTo(Math.PI / 2);
     expect(call[1]).toBeCloseTo(Math.PI / 2);
+    expect(onOrbit).toHaveBeenCalledTimes(1);
+    const direction = onOrbit.mock.calls[0]![0] as Vector3;
+    expect(direction.x).toBeCloseTo(0);
+    expect(direction.y).toBeCloseTo(0);
+    expect(direction.z).toBeCloseTo(1);
   });
 
   it("does nothing when double-clicking empty space", () => {
-    const { scene, interpolateTo } = makeOrbitScene();
+    const { scene, interpolateTo, onOrbit } = makeOrbitScene();
     scene.pointerX = 0;
     scene.pointerY = 0;
 
@@ -406,6 +412,7 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     );
 
     expect(interpolateTo).not.toHaveBeenCalled();
+    expect(onOrbit).not.toHaveBeenCalled();
   });
 
   it("does nothing on a single tap at the -AP label's screen position", () => {

@@ -88,6 +88,24 @@ describe("CameraInspector", () => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 
+  it("renders exactly one projection toggle, starting at 'perspective'", () => {
+    const { wrapper } = mountInspector();
+
+    const toggle = wrapper.findAllComponents({ name: "QBtnToggle" });
+    expect(toggle).toHaveLength(1);
+    expect(toggle[0]!.props("modelValue")).toBe("perspective");
+  });
+
+  it("selecting Orthographic on the toggle writes 'orthographic' to the preferences store", async () => {
+    const { wrapper, preferences } = mountInspector();
+
+    await wrapper
+      .findComponent({ name: "QBtnToggle" })
+      .vm.$emit("update:modelValue", "orthographic");
+
+    expect(preferences.cameraProjection).toBe("orthographic");
+  });
+
   it("seeds the three numeric fields from the camera, converted to the preferences store's units, on mount", async () => {
     const { wrapper, preferences } = mountInspector();
     await wrapper.vm.$nextTick();
