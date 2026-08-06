@@ -14,6 +14,7 @@ import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService
 import {
   removeAllStructures,
   setAtlasCenterOffset,
+  setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "../api/structures.api";
 import type { AxisGuides } from "../api/axis-guide.api";
@@ -152,6 +153,8 @@ watchEffect(async () => {
   const scene = runtime.scene.value;
   if (!scene) return;
 
+  const areInteriorsHidden = preferences.areStructureInteriorsHidden;
+
   isLoadingStructures.value = true;
   try {
     await syncStructuresVisibility(
@@ -165,6 +168,7 @@ watchEffect(async () => {
       t("sceneCanvas.atlasLikelyNotSupportedYet")
     );
   } finally {
+    setStructureInteriorsHidden(scene, areInteriorsHidden);
     isLoadingStructures.value = false;
   }
 });

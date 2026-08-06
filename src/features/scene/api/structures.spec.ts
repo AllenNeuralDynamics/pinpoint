@@ -14,6 +14,7 @@ import {
 import {
   removeAllStructures,
   setAtlasCenterOffset,
+  setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "./structures.api";
 import type { StructureEntity } from "@/features/atlas";
@@ -749,6 +750,67 @@ describe("removeAllStructures", () => {
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node");
     expect(atlasRootNode).not.toBeNull();
     expect(atlasRootNode!.getChildren()).toEqual([]);
+  });
+});
+
+describe("setStructureInteriorsHidden", () => {
+  it("sets needDepthPrePass on a faded structure's frozen material", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructuresVisibility(scene, [structure], []);
+    decodeSpy.mockRestore();
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    const material = mesh.material as StandardMaterial;
+
+    setStructureInteriorsHidden(scene, true);
+
+    expect(material.needDepthPrePass).toBe(true);
+    expect(material.isFrozen).toBe(true);
+  });
+
+  it("leaves a fully visible structure's material without a depth pre-pass", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructuresVisibility(scene, [], [structure]);
+    decodeSpy.mockRestore();
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    const material = mesh.material as StandardMaterial;
+
+    setStructureInteriorsHidden(scene, true);
+
+    expect(material.needDepthPrePass).toBe(false);
+  });
+
+  it("clears needDepthPrePass on a faded structure when disabled", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructuresVisibility(scene, [structure], []);
+    decodeSpy.mockRestore();
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    const material = mesh.material as StandardMaterial;
+    setStructureInteriorsHidden(scene, true);
+
+    setStructureInteriorsHidden(scene, false);
+
+    expect(material.needDepthPrePass).toBe(false);
+  });
+
+  it("no-ops on a scene with no structures", () => {
+    const scene = makeTestScene();
+
+    expect(() => setStructureInteriorsHidden(scene, true)).not.toThrow();
   });
 });
 

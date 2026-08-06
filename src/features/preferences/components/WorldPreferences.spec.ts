@@ -49,4 +49,23 @@ describe("WorldPreferences", () => {
     expect(preferences.worldLightIntensity).toBe(0);
     expect(preferences.materialSpecularIntensity).toBe(0);
   });
+
+  it("the hide-interiors toggle starts at true", () => {
+    const wrapper = mountWithQuasar(WorldPreferences);
+
+    expect(wrapper.findComponent({ name: "QToggle" }).props("modelValue")).toBe(
+      true
+    );
+  });
+
+  it("toggling off writes areStructureInteriorsHidden to false", async () => {
+    const wrapper = mountWithQuasar(WorldPreferences);
+    const preferences = usePreferencesStore();
+
+    await wrapper
+      .findComponent({ name: "QToggle" })
+      .vm.$emit("update:modelValue", false);
+
+    expect(preferences.areStructureInteriorsHidden).toBe(false);
+  });
 });

@@ -24,6 +24,9 @@ export const usePreferencesStore = defineStore(
     /** Specular exponent of every scene material; higher is glossier. */
     const materialSpecularPower = ref(64);
 
+    /** Whether see-through structures hide their own interior surfaces. */
+    const areStructureInteriorsHidden = ref(true);
+
     /** Unit numeric inputs display positions in. */
     const positionUnit = ref<PositionUnit>("millimeter");
 
@@ -55,6 +58,7 @@ export const usePreferencesStore = defineStore(
       worldLightIntensity,
       materialSpecularIntensity,
       materialSpecularPower,
+      areStructureInteriorsHidden,
       positionUnit,
       rotationUnit,
       decimalPrecision,

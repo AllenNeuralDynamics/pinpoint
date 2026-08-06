@@ -134,6 +134,25 @@ export async function syncStructuresVisibility(
 }
 
 /**
+ * Set whether see-through structures hide their own interior surfaces, using a
+ * depth pre-pass so only a transparent structure's outermost surface shades.
+ * @param scene Scene whose structure materials to update.
+ * @param areHidden Whether interior surfaces are hidden.
+ */
+export function setStructureInteriorsHidden(
+  scene: Scene,
+  areHidden: boolean
+): void {
+  for (const mesh of childStructureMeshes(buildAtlasRootNode(scene)).values()) {
+    const material = mesh.material;
+    if (!material) continue;
+
+    material.needDepthPrePass =
+      areHidden && material.alpha < STRUCTURE_VISIBLE_ALPHA;
+  }
+}
+
+/**
  * Clear the structures in the scene.
  * @param scene Scene to clear structures for.
  */

@@ -59,6 +59,10 @@ const preferences = usePreferencesStore();
           label
         />
       </div>
+      <q-toggle
+        v-model="preferences.areStructureInteriorsHidden"
+        :label="$t('preferences.hideStructureInteriors')"
+      />
     </div>
   </div>
 </template>
