@@ -1,8 +1,7 @@
 # Pinpoint V
 
-[![Deploy](https://github.com/kennethjyang/pinpoint-v/actions/workflows/deploy.yml/badge.svg)](https://github.com/kennethjyang/pinpoint-v/actions/workflows/deploy.yml)
-[![Code Quality](https://github.com/kennethjyang/pinpoint-v/actions/workflows/code-quality.yml/badge.svg)](https://github.com/kennethjyang/pinpoint-v/actions/workflows/code-quality.yml)
-[![test.yml](https://github.com/kennethjyang/pinpoint-v/actions/workflows/test.yml/badge.svg)](https://github.com/kennethjyang/pinpoint-v/actions/workflows/test.yml)
+![GitHub Release](https://img.shields.io/github/v/release/kennethjyang/pinpoint-v?label=Stable)
+![GitHub Release](https://img.shields.io/github/v/release/kennethjyang/pinpoint-v?include_prereleases&label=Latest)
 
 Next-generation in vivo electrophysiology planning and automation tool.
 
