@@ -35,6 +35,10 @@ import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import {
+  buildProbeCollisionBody,
+  disposeProbeCollisionBody
+} from "./probe-collision.api";
+import {
   interpolateNodePose,
   stopNodePoseInterpolation
 } from "./pose-interpolation.api";
@@ -74,6 +78,19 @@ export function getProbeTransformNode(
 ): TransformNode | null {
   return scene.getTransformNodeByName(
     probeEntityName(probeId, PROBE_NODE_SUFFIX)
+  );
+}
+
+/**
+ * A probe's shank, head stage, and rod meshes, or an empty list when the probe is not built.
+ * @param scene Scene the probe was built in.
+ * @param probeId Probe id whose meshes to get.
+ */
+export function getProbeMeshes(scene: Scene, probeId: string): Mesh[] {
+  return (
+    getProbeTransformNode(scene, probeId)
+      ?.getChildMeshes(false)
+      .filter((mesh): mesh is Mesh => mesh instanceof Mesh) ?? []
   );
 }
 
@@ -152,6 +169,9 @@ export function buildProbe(
     mesh.position.x += alignmentOffsetMillimeters;
   }
 
+  // Ignore the return value: no physics engine on the scene keeps this feature additive.
+  buildProbeCollisionBody(node, probe.id, [rodMesh, headStageMesh], shankMesh);
+
   if (!gizmoManager.attachableMeshes) {
     gizmoManager.attachableMeshes = [];
   }
@@ -177,6 +197,7 @@ export function disposeProbe(
   }
 
   if (probeTransformNode) stopNodePoseInterpolation(probeTransformNode);
+  disposeProbeCollisionBody(scene, probeId);
   probeTransformNode?.dispose(false, false);
   scene
     .getMaterialByName(probeEntityName(probeId, PROBE_MATERIAL_SUFFIX))

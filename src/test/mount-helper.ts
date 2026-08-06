@@ -11,16 +11,22 @@ import type { IMatrixLike, Matrix } from "@babylonjs/core";
 import {
   DracoDecoder,
   GizmoManager,
+  HavokPlugin,
   InitializeCSG2Async,
   IsCSG2Ready,
   NullEngine,
   Scene,
   SelectionOutlineLayer,
   UtilityLayerRenderer,
+  Vector3,
   WorkerPool
 } from "@babylonjs/core";
 import type { INodeLike, ParagraphOptions } from "@babylonjs/addons";
 import { FontAsset } from "@babylonjs/addons";
+import HavokPhysics, { type HavokPhysicsWithBindings } from "@babylonjs/havok";
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import Module from "manifold-3d";
 import messages from "@/i18n";
 
@@ -56,6 +62,53 @@ export async function initializeTestCSG2(): Promise<void> {
     manifoldInstance: manifold.Manifold,
     manifoldMeshInstance: manifold.Mesh
   });
+}
+
+/** Initialized Havok wasm module, reused across test scenes. */
+let testHavokInstance: HavokPhysicsWithBindings | null = null;
+
+/**
+ * Build a real Babylon `Scene` with Havok physics V2 enabled, plus the `GizmoManager` and
+ * `SelectionOutlineLayer` `buildProbe` requires, for probe collision tests.
+ */
+export async function makeTestSceneWithPhysics(): Promise<{
+  scene: Scene;
+  gizmoManager: GizmoManager;
+  selectionOutlineLayer: SelectionOutlineLayer;
+  havokPlugin: HavokPlugin;
+}> {
+  const { scene, gizmoManager, selectionOutlineLayer } =
+    makeTestSceneWithGizmo();
+
+  if (!testHavokInstance) {
+    const require = createRequire(import.meta.url);
+    const wasmPath = join(
+      dirname(require.resolve("@babylonjs/havok")),
+      "HavokPhysics.wasm"
+    );
+    const wasmBuffer = readFileSync(wasmPath);
+    testHavokInstance = await HavokPhysics({
+      wasmBinary: wasmBuffer.buffer.slice(
+        wasmBuffer.byteOffset,
+        wasmBuffer.byteOffset + wasmBuffer.byteLength
+      ) as ArrayBuffer
+    });
+  }
+
+  const havokPlugin = new HavokPlugin(true, testHavokInstance);
+  scene.enablePhysics(Vector3.Zero(), havokPlugin);
+
+  return { scene, gizmoManager, selectionOutlineLayer, havokPlugin };
+}
+
+/**
+ * Step the scene's physics engine once, for tests that need collision events without rendering.
+ * @param scene Scene whose physics engine to step.
+ * @param deltaSeconds Simulation step, in seconds.
+ */
+export function stepPhysics(scene: Scene, deltaSeconds: number): void {
+  // Bypasses a full `scene.render()`, which would also need a real render loop.
+  scene.getPhysicsEngine()?._step(deltaSeconds);
 }
 
 /**

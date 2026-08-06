@@ -66,6 +66,9 @@ export default {
     problemLoadingAxisGuides:
       "There was a problem loading the axis guide labels.",
     axisGuidesUnavailable: "The atlas axis labels won't be shown.",
+    probeCollision: "Probe {first} can collide with probe {second}.",
+    probeCollisionCaption:
+      "Move one of them so their bodies no longer overlap.",
     gizmoMode: "Transform mode",
     gizmoPosition: "Position",
     gizmoRotation: "Rotation",

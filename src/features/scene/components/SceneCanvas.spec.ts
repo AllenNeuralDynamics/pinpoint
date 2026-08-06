@@ -12,6 +12,8 @@ import { flushPromises } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import type {
   GizmoManager,
+  HavokPlugin,
+  HighlightLayer,
   PickingInfo,
   Scene,
   SelectionOutlineLayer
@@ -169,6 +171,8 @@ function makeRuntimeStub() {
   const camera = shallowRef<ArcRotateCamera | null>(null);
   const gizmoManager = shallowRef<GizmoManager | null>(null);
   const selectionOutlineLayer = shallowRef<SelectionOutlineLayer | null>(null);
+  const havokPlugin = shallowRef<HavokPlugin | null>(null);
+  const highlightLayer = shallowRef<HighlightLayer | null>(null);
   const resize = vi.fn();
   const dispose = vi.fn();
 
@@ -202,6 +206,8 @@ function makeRuntimeStub() {
     camera,
     gizmoManager,
     selectionOutlineLayer,
+    havokPlugin,
+    highlightLayer,
     init,
     dispose,
     resize,

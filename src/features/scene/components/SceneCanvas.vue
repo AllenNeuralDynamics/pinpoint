@@ -46,11 +46,18 @@ import { usePreferencesStore } from "@/stores/preferences.store";
 import { useI18n } from "vue-i18n";
 import {
   endProbeGizmoDrag,
+  getProbeMeshes,
   selectProbeFromGizmoAttach,
   setProbePositionFromGizmoDrag,
   setProbeRotationFromGizmoDrag,
   syncProbes
 } from "../api/probe.api";
+import {
+  createProbeCollisionState,
+  pruneProbeCollisions,
+  syncProbeCollisionHighlight,
+  trackProbeCollisions
+} from "../api/probe-collision.api";
 import { setGizmoControls } from "../api/gizmo.api";
 import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
 import { setReferenceCoordinateNodePosition } from "../api/reference-coordinate.api";
@@ -73,7 +80,7 @@ import {
 import { useNotify } from "@/composable/useNotify";
 
 const { t } = useI18n();
-const { notifyWarning } = useNotify();
+const { notifyError, notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const runtime = useBabylonRuntimeService();
@@ -85,6 +92,9 @@ const isLoadingStructures = ref(false);
 
 /** Axis guide text renderers, created for the current scene the first time the guides are shown. */
 const axisGuides = shallowRef<AxisGuides | null>(null);
+
+/** Overlap bookkeeping for probe trigger events, read and mutated in place. */
+const collisionState = createProbeCollisionState();
 
 const gizmoMode = ref<GizmoMode>("position");
 const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
@@ -363,7 +373,59 @@ watchEffect(() => {
       selectedInspectable
     );
   }
+
+  const highlightLayer = runtime.highlightLayer.value;
+  if (highlightLayer) {
+    const keptProbeIds = currentExperiment.probes
+      .map(({ id }) => id)
+      .filter(id => !rebuiltProbeIds.includes(id));
+    for (const probeId of pruneProbeCollisions(collisionState, keptProbeIds)) {
+      syncProbeCollisionHighlight(
+        highlightLayer,
+        collisionState,
+        probeId,
+        getProbeMeshes(scene, probeId)
+      );
+    }
+  }
 });
+
+// Highlight and warn about probes whose bodies overlap.
+watch(
+  [runtime.havokPlugin, runtime.highlightLayer, runtime.scene],
+  ([plugin, highlightLayer, scene]) => {
+    if (!plugin || !highlightLayer || !scene) return;
+
+    collisionState.pairCounts.clear();
+    const observer = trackProbeCollisions(plugin, collisionState, change => {
+      for (const probeId of change.probeIds) {
+        syncProbeCollisionHighlight(
+          highlightLayer,
+          collisionState,
+          probeId,
+          getProbeMeshes(scene, probeId)
+        );
+      }
+      if (change.kind !== "entered") return;
+
+      // The lexicographically lower probe id comes first, so exactly one probe of the pair
+      // names itself as the notification's subject.
+      const [firstId, secondId] = change.probeIds;
+      const first = currentExperiment.probes.find(({ id }) => id === firstId);
+      const second = currentExperiment.probes.find(({ id }) => id === secondId);
+      if (!first || !second) return;
+
+      notifyError(
+        t("sceneCanvas.probeCollision", {
+          first: first.name,
+          second: second.name
+        }),
+        t("sceneCanvas.probeCollisionCaption")
+      );
+    });
+    onWatcherCleanup(() => observer.remove());
+  }
+);
 
 // Draw the pending surface-move choice's tubes, or clear them once resolved.
 watchEffect(() => {
