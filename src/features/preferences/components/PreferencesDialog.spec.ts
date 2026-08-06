@@ -26,7 +26,7 @@ describe("PreferencesDialog", () => {
     wrappers.unmountAll();
   });
 
-  it("renders the title and the three tabs", async () => {
+  it("renders the title and the four tabs", async () => {
     const wrapper = await mountDialog();
 
     expect(document.body.textContent).toContain(t.title);
@@ -36,8 +36,35 @@ describe("PreferencesDialog", () => {
     expect(Array.from(tabs).map(tab => tab.textContent)).toEqual([
       t.scene,
       t.probe,
+      t.export,
       t.reset
     ]);
+  });
+
+  it("switching to the probe tab shows the probe panel", async () => {
+    const wrapper = await mountDialog();
+
+    await wrapper
+      .findComponent({ name: "QTabs" })
+      .vm.$emit("update:modelValue", "probe");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "ProbePreferences" }).exists()).toBe(
+      true
+    );
+  });
+
+  it("switching to the export tab shows the export panel", async () => {
+    const wrapper = await mountDialog();
+
+    await wrapper
+      .findComponent({ name: "QTabs" })
+      .vm.$emit("update:modelValue", "export");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "ExportPreferences" }).exists()).toBe(
+      true
+    );
   });
 
   it("switching to the probe tab shows the probe panel", async () => {

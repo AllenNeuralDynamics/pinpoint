@@ -218,6 +218,7 @@ export default {
     title: "Preferences",
     scene: "Scene",
     probe: "Probe",
+    export: "Export",
     reset: "Reset",
     close: "Close",
     done: "Done",
@@ -250,6 +251,38 @@ export default {
     rodDiameter: "Rod Diameter",
     rodLength: "Rod Length",
 
+    exportHint:
+      "Download your preferences as a JSON file, or upload one to replace them with its values.",
+    downloadPreferences: "Download Preferences",
+    uploadPreferences: "Upload Preferences",
+    downloadFailed: "Unable to download preferences.",
+    downloadFailedCaption:
+      "Check your browser's download settings and try again.",
+    invalidPreferencesFile: "Unable to read preferences file.",
+    invalidPreferencesFileCaption:
+      "Check that the file is a Pinpoint preferences JSON file and that every value is in range.",
+    preferencesImported: "Preferences replaced.",
+    preferencesImportedCaption:
+      "Every preference now matches the uploaded file.",
+    versionMajorBehind:
+      "These preferences are a major version behind Pinpoint.",
+    versionMajorBehindCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Applied every value anyway and stamped these preferences as {appVersion} - some may no longer mean the same thing.",
+    versionMinorBehind:
+      "These preferences are a minor version behind Pinpoint.",
+    versionMinorBehindCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Applied every value anyway and stamped these preferences as {appVersion}.",
+    versionMajorAhead:
+      "These preferences are from a newer major version of Pinpoint.",
+    versionMajorAheadCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Applied every value anyway and stamped these preferences as {appVersion} - some may not be supported.",
+    versionMinorAhead:
+      "These preferences are from a newer version of Pinpoint.",
+    versionMinorAheadCaption:
+      "Saved by Pinpoint {fileVersion}; this is {appVersion}. Applied every value anyway and stamped these preferences as {appVersion}.",
+    versionUnknown: "Unable to determine these preferences' Pinpoint version.",
+    versionUnknownCaption:
+      "Applied every value anyway and stamped these preferences as {appVersion}, but compatibility with this Pinpoint version is unknown.",
     resetHint:
       "Clearing a store deletes its saved data from this browser and reloads Pinpoint.",
     clear: "Clear saved data",

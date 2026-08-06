@@ -1,4 +1,3 @@
-import parse from "semver/functions/parse";
 import type { Experiment } from "../models/experiment.model";
 import { isAtlas } from "@/features/atlas";
 import { isCameraPose } from "./camera-pose.api";
@@ -8,15 +7,6 @@ import {
   isProbeInterfaceProbe
 } from "@/features/probe";
 import { isFiniteNumber, isFiniteTriple, isRecord } from "@/utils/type-guards";
-
-/** How an experiment file's Pinpoint version relates to the running one. */
-export type ExperimentVersionRelation =
-  | "match"
-  | "unknown"
-  | "majorBehind"
-  | "minorBehind"
-  | "majorAhead"
-  | "minorAhead";
 
 /** Indentation for written experiment files, so they stay human-diffable. */
 const FILE_INDENT = 2;
@@ -49,29 +39,6 @@ export function parseExperimentFile(text: string): Experiment | null {
   }
 
   return isExperiment(data) ? data : null;
-}
-
-/**
- * Compare an experiment file's Pinpoint version to the running one, ignoring
- * patch and prerelease differences.
- * @param version Version recorded in the experiment file.
- * @param appVersion Running Pinpoint version.
- */
-export function compareExperimentVersion(
-  version: string,
-  appVersion: string
-): ExperimentVersionRelation {
-  const fileSemver = parse(version);
-  const appSemver = parse(appVersion);
-  if (!fileSemver || !appSemver) return "unknown";
-
-  if (fileSemver.major !== appSemver.major) {
-    return fileSemver.major < appSemver.major ? "majorBehind" : "majorAhead";
-  }
-  if (fileSemver.minor !== appSemver.minor) {
-    return fileSemver.minor < appSemver.minor ? "minorBehind" : "minorAhead";
-  }
-  return "match";
 }
 
 /**

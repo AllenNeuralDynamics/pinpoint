@@ -1,18 +1,17 @@
 import { createEventHook, useFileDialog } from "@vueuse/core";
 import { exportFile } from "quasar";
 import { useI18n } from "vue-i18n";
-import type { ExperimentVersionRelation } from "../api/experiment-file.api";
 import {
   buildExperimentFileName,
-  compareExperimentVersion,
   parseExperimentFile,
   serializeExperiment
 } from "../api/experiment-file.api";
-import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useNotify } from "@/composable/useNotify";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { compareFileVersion, type VersionRelation } from "@/utils/version";
 
 const VERSION_MISMATCH_NOTICES: Record<
-  Exclude<ExperimentVersionRelation, "match">,
+  Exclude<VersionRelation, "match">,
   { message: string; caption: string; severity: "error" | "warning" }
 > = {
   majorBehind: {
@@ -74,7 +73,7 @@ export function useExperimentFile() {
    * @param fileVersion Version recorded in the loaded file.
    */
   function notifyVersionMismatch(
-    relation: ExperimentVersionRelation,
+    relation: VersionRelation,
     fileVersion: string
   ) {
     if (relation === "match") return;
@@ -119,10 +118,7 @@ export function useExperimentFile() {
       }
 
       notifyVersionMismatch(
-        compareExperimentVersion(
-          experiment.version,
-          import.meta.env.APP_VERSION
-        ),
+        compareFileVersion(experiment.version, import.meta.env.APP_VERSION),
         experiment.version
       );
       currentExperimentStore.loadExperiment(experiment);

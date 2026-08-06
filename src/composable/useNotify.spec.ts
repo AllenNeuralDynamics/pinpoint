@@ -40,4 +40,19 @@ describe("useNotify", () => {
     });
     wrapper.unmount();
   });
+
+  it("notifySuccess sends a positive, check-icon toast", () => {
+    const wrapper = mountWithQuasar(Harness);
+    const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+
+    wrapper.vm.notifySuccess("message", "caption");
+
+    expect(notifySpy).toHaveBeenCalledWith({
+      message: "message",
+      caption: "caption",
+      color: "positive",
+      icon: "check_circle"
+    });
+    wrapper.unmount();
+  });
 });

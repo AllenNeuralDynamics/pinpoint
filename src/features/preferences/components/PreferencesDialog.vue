@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useDialogPluginComponent } from "quasar";
 import ScenePreferences from "./ScenePreferences.vue";
 import ProbePreferences from "./ProbePreferences.vue";
+import ExportPreferences from "./ExportPreferences.vue";
 import ResetPreferences from "./ResetPreferences.vue";
 import type { PreferencesDialogResult } from "../models/preferences-dialog.model";
 
@@ -23,6 +24,7 @@ const tab = ref("scene");
         <q-tabs v-model="tab">
           <q-tab name="scene" :label="$t('preferences.scene')" />
           <q-tab name="probe" :label="$t('preferences.probe')" />
+          <q-tab name="export" :label="$t('preferences.export')" />
           <q-tab name="reset" :label="$t('preferences.reset')" />
         </q-tabs>
         <q-separator />
@@ -31,6 +33,7 @@ const tab = ref("scene");
             <ScenePreferences @open-world-editor="onDialogOK('world-editor')" />
           </q-tab-panel>
           <q-tab-panel name="probe"><ProbePreferences /></q-tab-panel>
+          <q-tab-panel name="export"><ExportPreferences /></q-tab-panel>
           <q-tab-panel name="reset"><ResetPreferences /></q-tab-panel>
         </q-tab-panels>
       </q-card-section>
