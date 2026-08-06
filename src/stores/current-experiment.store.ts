@@ -1,9 +1,10 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { computedAsync } from "@vueuse/core";
+import { computedAsync, useRefHistory } from "@vueuse/core";
 import { i18n } from "@/services/i18n.service";
 import {
   ALLEN_MOUSE_REFERENCE_COORDINATE,
+  cloneExperiment,
   type Experiment
 } from "@/features/experiment";
 import { DEFAULT_ATLAS, getTerminologyRows } from "@/features/atlas";
@@ -14,6 +15,11 @@ import {
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
+
+/** Store actions reachable through the hydration hook's untyped `context.store`. */
+interface HydratedCurrentExperimentStore {
+  resetHistory: () => void;
+}
 
 export const useCurrentExperimentStore = defineStore(
   "current-experiment",
@@ -51,6 +57,27 @@ export const useCurrentExperimentStore = defineStore(
      * Flag for when the terminology rows are being updated to match the new atlas.
      */
     const isTerminologyRowsEvaluating = ref(false);
+
+    /**
+     * Unlimited, deep-tracked undo/redo history of the current experiment.
+     * Never persisted, so it starts empty on every page load.
+     */
+    const {
+      canUndo,
+      canRedo,
+      undo: undoExperiment,
+      redo: redoExperiment,
+      commit: commitHistory,
+      clear: clearHistory
+    } = useRefHistory(experiment, {
+      deep: true,
+      clone: cloneExperiment,
+      // A gizmo drag rewrites the probe pose every frame; drop those in-between
+      // states and let `endProbeDrag` record the pose the drag was released at.
+      eventFilter: invoke => {
+        if (!draggedProbeId.value) invoke();
+      }
+    });
 
     /**
      * Get the current experiment name.
@@ -110,6 +137,53 @@ export const useCurrentExperimentStore = defineStore(
       );
     }
 
+    /** Step the experiment back one history point, if there is one. */
+    function undo() {
+      undoExperiment();
+      resyncSelectedInspectable();
+    }
+
+    /** Step the experiment forward one history point, if there is one. */
+    function redo() {
+      redoExperiment();
+      resyncSelectedInspectable();
+    }
+
+    /**
+     * Discard all undo/redo history, making the current experiment the baseline.
+     * @remarks Also swallows the pending commit for experiment mutations made
+     * earlier in this tick, so replacing the experiment leaves no undo point.
+     */
+    function resetHistory() {
+      commitHistory();
+      clearHistory();
+    }
+
+    /**
+     * Re-point the selection at the matching probe in the current experiment,
+     * clearing it when that probe is no longer there.
+     */
+    function resyncSelectedInspectable() {
+      const selected = selectedInspectable.value;
+      if (selected?.inspectableKind !== "probe") return;
+
+      selectedInspectable.value =
+        experiment.value.probes.find(({ id }) => id === selected.id) ?? null;
+    }
+
+    /**
+     * Finish the active probe drag, recording the released pose as a single
+     * history point.
+     * @remarks No-op when no drag is in progress, so a gizmo click that never
+     * moved (or a second drag-end from the other gizmo) records nothing.
+     */
+    function endProbeDrag() {
+      if (!draggedProbeId.value) return;
+
+      draggedProbeId.value = null;
+      commitHistory();
+    }
+
     /**
      * Move the current experiment into recents and load in a new one.
      * @param newExperiment Experiment to load.
@@ -119,6 +193,7 @@ export const useCurrentExperimentStore = defineStore(
 
       detachProbeInterfaceProbes(newExperiment.probeInterfaceProbes);
       experiment.value = newExperiment;
+      resetHistory();
       selectedInspectable.value = null;
       draggedProbeId.value = null;
     }
@@ -139,9 +214,18 @@ export const useCurrentExperimentStore = defineStore(
       visibleStructures,
       probeInterfaceProbes,
       probes,
-      cameraPoses
+      cameraPoses,
+      canUndo,
+      canRedo
     };
-    const actions = { isInspectableSelected, loadExperiment };
+    const actions = {
+      isInspectableSelected,
+      loadExperiment,
+      undo,
+      redo,
+      resetHistory,
+      endProbeDrag
+    };
     return { ...state, ...getters, ...actions };
   },
   {
@@ -152,6 +236,9 @@ export const useCurrentExperimentStore = defineStore(
       afterHydrate: context => {
         const experiment: Experiment = context.store.experiment;
         detachProbeInterfaceProbes(experiment.probeInterfaceProbes);
+        (
+          context.store as unknown as HydratedCurrentExperimentStore
+        ).resetHistory();
       }
     }
   }

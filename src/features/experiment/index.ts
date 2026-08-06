@@ -10,6 +10,7 @@ export { ALLEN_MOUSE_REFERENCE_COORDINATE } from "./api/reference-coordinate.api
 
 export {
   buildExperiment,
+  cloneExperiment,
   isStructureVisible,
   setStructureVisibility,
   clearVisibleStructures,

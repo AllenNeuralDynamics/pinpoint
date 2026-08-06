@@ -129,6 +129,21 @@ onMounted(() => {
             <q-list>
               <q-item
                 clickable
+                :disable="!currentExperimentStore.canUndo"
+                @click="currentExperimentStore.undo()"
+              >
+                <q-item-section>{{ $t("layout.undo") }}</q-item-section>
+              </q-item>
+              <q-item
+                clickable
+                :disable="!currentExperimentStore.canRedo"
+                @click="currentExperimentStore.redo()"
+              >
+                <q-item-section>{{ $t("layout.redo") }}</q-item-section>
+              </q-item>
+              <q-separator />
+              <q-item
+                clickable
                 @click="$q.dialog({ component: ExperimentPropertiesDialog })"
               >
                 <q-item-section>{{

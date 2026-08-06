@@ -118,6 +118,8 @@ export default {
     openRecent: "Open Recent",
     download: "Download",
     edit: "Edit",
+    undo: "Undo",
+    redo: "Redo",
     experimentProperties: "Experiment Properties",
     probeLibrary: "Probe Library",
     preferences: "Preferences",

@@ -303,4 +303,187 @@ describe("useCurrentExperimentStore", () => {
       expect(visibilityChanges).toBe(1);
     });
   });
+
+  describe("undo/redo", () => {
+    it("has no history until the experiment changes", () => {
+      const store = useCurrentExperimentStore();
+
+      expect(store.canUndo).toBe(false);
+      expect(store.canRedo).toBe(false);
+    });
+
+    it("undoes and redoes an experiment mutation", async () => {
+      const store = useCurrentExperimentStore();
+      const defaultName = store.name;
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      expect(store.canUndo).toBe(true);
+
+      store.undo();
+      expect(store.name).toBe(defaultName);
+
+      store.redo();
+      expect(store.name).toBe("Renamed");
+    });
+
+    it("keeps redo available after an undo", async () => {
+      const store = useCurrentExperimentStore();
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+      await nextTick();
+
+      expect(store.canRedo).toBe(true);
+    });
+
+    it("keeps probe interface definitions detached after undo", async () => {
+      const store = useCurrentExperimentStore();
+      const spec = makeProbeInterfaceProbe();
+      const identifier = getProbeInterfaceIdentifier(spec);
+      internProbeInterfaceProbe(store.experiment, spec);
+      addProbe(store.experiment, buildProbe(spec));
+      await nextTick();
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(isReactive(store.probeInterfaceProbes[identifier])).toBe(false);
+    });
+
+    it("re-points the selection at the restored probe", async () => {
+      const store = useCurrentExperimentStore();
+      const spec = makeProbeInterfaceProbe();
+      internProbeInterfaceProbe(store.experiment, spec);
+      addProbe(store.experiment, buildProbe(spec));
+      await nextTick();
+
+      store.selectedInspectable = store.probes[0]!;
+      store.probes[0]!.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(store.selectedInspectable).toBe(store.probes[0]);
+    });
+
+    it("clears the selection when undo removes the selected probe", async () => {
+      const store = useCurrentExperimentStore();
+      const spec = makeProbeInterfaceProbe();
+      internProbeInterfaceProbe(store.experiment, spec);
+      addProbe(store.experiment, buildProbe(spec));
+      await nextTick();
+
+      store.selectedInspectable = store.probes[0]!;
+      store.undo();
+
+      expect(store.probes).toHaveLength(0);
+      expect(store.selectedInspectable).toBeNull();
+    });
+
+    it("resets history when another experiment is loaded", async () => {
+      const store = useCurrentExperimentStore();
+      store.experiment.name = "Renamed";
+      await nextTick();
+      expect(store.canUndo).toBe(true);
+
+      store.loadExperiment(buildExperiment("Loaded", makeAtlas(), [0, 0, 0]));
+
+      expect(store.canUndo).toBe(false);
+      expect(store.canRedo).toBe(false);
+
+      await nextTick();
+
+      expect(store.canUndo).toBe(false);
+      expect(store.canRedo).toBe(false);
+    });
+
+    it("starts with no history after hydrating from storage", async () => {
+      usePersistedPinia();
+      localStorage.removeItem("current-experiment");
+
+      const firstStore = useCurrentExperimentStore();
+      firstStore.experiment.name = "Renamed";
+      await nextTick();
+
+      usePersistedPinia();
+      const rehydratedStore = useCurrentExperimentStore();
+      await nextTick();
+
+      expect(rehydratedStore.canUndo).toBe(false);
+      expect(rehydratedStore.name).toBe("Renamed");
+    });
+  });
+
+  describe("probe drag history", () => {
+    it("collapses a drag into one history point", async () => {
+      const store = useCurrentExperimentStore();
+      const spec = makeProbeInterfaceProbe();
+      internProbeInterfaceProbe(store.experiment, spec);
+      addProbe(store.experiment, buildProbe(spec));
+      await nextTick();
+
+      store.draggedProbeId = store.probes[0]!.id;
+      store.probes[0]!.tipPosition = [1, 0, 0];
+      await nextTick();
+      store.probes[0]!.tipPosition = [2, 0, 0];
+      await nextTick();
+      store.endProbeDrag();
+
+      expect(store.probes[0]!.tipPosition).toEqual([2, 0, 0]);
+
+      store.undo();
+      expect(store.probes[0]!.tipPosition).toEqual([0, 0, 0]);
+    });
+
+    it("redoes a drag as one step", async () => {
+      const store = useCurrentExperimentStore();
+      const spec = makeProbeInterfaceProbe();
+      internProbeInterfaceProbe(store.experiment, spec);
+      addProbe(store.experiment, buildProbe(spec));
+      await nextTick();
+
+      store.draggedProbeId = store.probes[0]!.id;
+      store.probes[0]!.tipPosition = [1, 0, 0];
+      await nextTick();
+      store.probes[0]!.tipPosition = [2, 0, 0];
+      await nextTick();
+      store.endProbeDrag();
+      store.undo();
+
+      store.redo();
+
+      expect(store.probes[0]!.tipPosition).toEqual([2, 0, 0]);
+    });
+
+    it("records nothing when no drag was in progress", () => {
+      const store = useCurrentExperimentStore();
+
+      store.endProbeDrag();
+
+      expect(store.canUndo).toBe(false);
+      expect(store.draggedProbeId).toBeNull();
+    });
+
+    it("resumes recording once the drag ends", async () => {
+      const store = useCurrentExperimentStore();
+      const spec = makeProbeInterfaceProbe();
+      internProbeInterfaceProbe(store.experiment, spec);
+      addProbe(store.experiment, buildProbe(spec));
+      await nextTick();
+      const defaultName = store.name;
+
+      store.draggedProbeId = store.probes[0]!.id;
+      store.probes[0]!.tipPosition = [1, 0, 0];
+      await nextTick();
+      store.endProbeDrag();
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(store.name).toBe(defaultName);
+    });
+  });
 });

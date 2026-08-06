@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isReactive } from "vue";
+import { isReactive, reactive } from "vue";
 import {
   addCameraPose,
   addProbe,
   buildExperiment,
   clearVisibleStructures,
+  cloneExperiment,
   getInternedProbeInterfaceProbe,
   internProbeInterfaceProbe,
   isStructureVisible,
@@ -35,6 +36,32 @@ describe("buildExperiment", () => {
     expect(experiment.probeInterfaceProbes).toEqual({});
     expect(experiment.probes).toEqual([]);
     expect(experiment.cameraPoses).toEqual([]);
+  });
+});
+
+describe("cloneExperiment", () => {
+  it("returns a deep copy independent of the source", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    addProbe(experiment, makeProbe());
+
+    const copy = cloneExperiment(experiment);
+    copy.probes[0]!.name = "Mutated";
+
+    expect(experiment.probes[0]!.name).not.toBe("Mutated");
+  });
+
+  it("keeps probe interface definitions detached from reactivity", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const spec = makeProbeInterfaceProbe();
+    internProbeInterfaceProbe(experiment, spec);
+    const identifier = getProbeInterfaceIdentifier(spec);
+
+    const copy = reactive(cloneExperiment(experiment));
+
+    expect(isReactive(copy.probeInterfaceProbes[identifier])).toBe(false);
+    expect(copy.probeInterfaceProbes[identifier]).toEqual(
+      makeProbeInterfaceProbe()
+    );
   });
 });
 

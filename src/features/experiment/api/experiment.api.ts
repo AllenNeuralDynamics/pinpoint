@@ -1,3 +1,4 @@
+import { toRaw } from "vue";
 import type { Atlas } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
 import type { CameraPose } from "../models/camera-pose.model";
@@ -5,6 +6,7 @@ import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import {
   detachProbeInterfaceProbe,
+  detachProbeInterfaceProbes,
   getProbeInterfaceIdentifier
 } from "@/features/probe";
 
@@ -30,6 +32,17 @@ export function buildExperiment(
     probes: [],
     cameraPoses: []
   };
+}
+
+/**
+ * Deep copy an experiment, keeping its probe interface definitions detached
+ * from reactivity.
+ * @param experiment Experiment to copy.
+ */
+export function cloneExperiment(experiment: Experiment): Experiment {
+  const copy = JSON.parse(JSON.stringify(toRaw(experiment))) as Experiment;
+  detachProbeInterfaceProbes(copy.probeInterfaceProbes);
+  return copy;
 }
 
 /**
