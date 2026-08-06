@@ -12,7 +12,6 @@ import type { Inspectable } from "../models/inspectable.model";
 import { pickAxisGuideDirection } from "./axis-guide.api";
 import { orbitCameraTowards } from "./camera.api";
 import { attachProbeSelection, getProbeTransformNode } from "./probe.api";
-import { isStructureMeshName } from "./structures.api";
 
 /**
  * Select the entity in the scene based on the selected inspectable.
@@ -51,7 +50,7 @@ export function selectFromSelectedInspectableState(
 }
 
 /**
- * Clear a selection in the scene if clicked empty space or a structure mesh.
+ * Clear a selection in the scene when a tap doesn't hit a selectable mesh.
  *
  * @param scene Scene to clear the selection in.
  * @param gizmoManager Gizmo manager to update.
@@ -65,8 +64,7 @@ export function deselectFromPointerDown(
   onDeselect: () => void
 ): Observer<PointerInfo> {
   return scene.onPointerObservable.add(pointerInfo => {
-    const pickedMesh = pointerInfo.pickInfo?.pickedMesh;
-    if (pickedMesh && !isStructureMeshName(pickedMesh.name)) return;
+    if (pointerInfo.pickInfo?.pickedMesh) return;
 
     gizmoManager.attachToNode(null);
     selectionOutlineLayer.clearSelection();

@@ -3,7 +3,6 @@ import type { PickingInfo, Scene } from "@babylonjs/core";
 import {
   ArcRotateCamera,
   Matrix,
-  MeshBuilder,
   PointerEventTypes,
   PointerInfo,
   Vector3
@@ -235,25 +234,6 @@ describe("deselectFromPointerDown", () => {
     for (const mesh of node.getChildMeshes()) {
       expect(selectionOutlineLayer.hasMesh(mesh)).toBe(false);
     }
-    expect(onDeselect).toHaveBeenCalledTimes(1);
-  });
-
-  it("deselects when tapping a structure mesh", () => {
-    const { scene, gizmoManager, selectionOutlineLayer, node } =
-      makeProbeInScene();
-    gizmoManager.attachToNode(node);
-    const structureMesh = MeshBuilder.CreateBox("1_structure_mesh", {}, scene);
-    const onDeselect = vi.fn();
-
-    deselectFromPointerDown(
-      scene,
-      gizmoManager,
-      selectionOutlineLayer,
-      onDeselect
-    );
-    tap(scene, structureMesh);
-
-    expect(gizmoManager.attachedNode).toBeNull();
     expect(onDeselect).toHaveBeenCalledTimes(1);
   });
 

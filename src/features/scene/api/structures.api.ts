@@ -2,7 +2,6 @@ import type { AbstractMesh, IndicesArray, Scene } from "@babylonjs/core";
 import {
   DracoDecoder,
   Mesh,
-  QuadraticErrorSimplification,
   StandardMaterial,
   TransformNode,
   Vector3,
@@ -14,16 +13,9 @@ import type { StructureEntity } from "@/features/atlas";
 import { asrToBabylon } from "./coordinate-transforms.api";
 import { setMaterialAlpha } from "./material.api";
 
-/** Decoded structure geometry, ready to hand off to {@link simplifyGeometry}. */
+/** Decoded structure geometry, in millimeters. */
 interface DecodedMeshData {
   positions: Float32Array;
-  indices: Uint32Array;
-}
-
-/** Simplified vertex data, ready to apply to a mesh. */
-interface SimplifiedGeometry {
-  positions: Float32Array;
-  normals: Float32Array;
   indices: Uint32Array;
 }
 
@@ -31,15 +23,6 @@ const ATLAS_ROOT_NODE_NAME = "atlasRoot_node";
 
 /** BrainGlobe v3 Draco meshes store positions in nanometers. */
 const NANOMETERS_TO_MILLIMETERS = 1e-6;
-
-/** Keep at most this fraction of a mesh's original vertices. */
-const MESH_VERTEX_KEEP_FRACTION = 0.05;
-
-/** Hard ceiling on vertices per structure, regardless of original size. */
-const MESH_MAX_VERTICES = 8000;
-
-/** Iterations `QuadraticErrorSimplification` runs between `setTimeout` yields. */
-const SIMPLIFY_SYNC_ITERATIONS = 20000;
 
 /** Suffix applied to a structure's identifier to name its Babylon mesh. */
 const STRUCTURE_MESH_SUFFIX = "_structure_mesh";
@@ -186,14 +169,6 @@ function structureMeshName(identifier: number): string {
 }
 
 /**
- * Is the given Babylon entity name a structure mesh.
- * @param name Entity name to check.
- */
-export function isStructureMeshName(name: string): boolean {
-  return name.endsWith(STRUCTURE_MESH_SUFFIX);
-}
-
-/**
  * Create a structure's hidden placeholder mesh and material, parented under
  * the atlas root.
  * @param scene Scene to add the structure to.
@@ -208,6 +183,9 @@ function buildStructureMesh(
   const mesh = new Mesh(structureMeshName(structure.identifier), scene);
   mesh.parent = atlasRootNode;
   mesh.isVisible = false;
+  // Structures are never selectable; excluding them from Babylon's
+  // per-triangle pointer pick keeps click latency independent of atlas size.
+  mesh.isPickable = false;
 
   const material = new StandardMaterial(
     `${structure.identifier}${STRUCTURE_MATERIAL_SUFFIX}`,
@@ -221,8 +199,8 @@ function buildStructureMesh(
 }
 
 /**
- * Fetch, decode, and simplify a structure's mesh geometry, then apply it to
- * its placeholder mesh and reveal it.
+ * Fetch and decode a structure's mesh geometry, then apply it to its
+ * placeholder mesh and reveal it.
  * @param mesh Placeholder mesh created by {@link buildStructureMesh}.
  * @param structure Entity information for the structure.
  * @param scene Scene the structure is being added to.
@@ -243,80 +221,19 @@ async function loadStructureGeometry(
     );
     if (mesh.isDisposed()) return;
 
-    const simplified = await simplifyGeometry(
-      scene,
-      decoded.positions,
-      decoded.indices,
-      Math.min(
-        Math.round((decoded.positions.length / 3) * MESH_VERTEX_KEEP_FRACTION),
-        MESH_MAX_VERTICES
-      )
-    );
-    if (mesh.isDisposed()) return;
+    const normals = new Float32Array(decoded.positions.length);
+    VertexData.ComputeNormals(decoded.positions, decoded.indices, normals);
 
     const vertexData = new VertexData();
-    vertexData.positions = simplified.positions;
-    vertexData.normals = simplified.normals;
-    vertexData.indices = simplified.indices;
+    vertexData.positions = decoded.positions;
+    vertexData.normals = normals;
+    vertexData.indices = decoded.indices;
     vertexData.applyToMesh(mesh);
     mesh.isVisible = true;
   } catch (error) {
     mesh.dispose(false, true);
     throw error;
   }
-}
-
-/**
- * Simplify a mesh's geometry to approximately the given vertex count.
- * @param scene Scene to build the temporary mesh in.
- * @param positions Flat `[x, y, z, ...]` vertex positions.
- * @param indices Triangle indices.
- * @param targetVertices Desired vertex count.
- */
-async function simplifyGeometry(
-  scene: Scene,
-  positions: Float32Array,
-  indices: Uint32Array,
-  targetVertices: number
-): Promise<SimplifiedGeometry> {
-  const mesh = new Mesh("simplify_scratch", scene);
-  mesh.isVisible = false;
-  const vertexData = new VertexData();
-  vertexData.positions = positions;
-  vertexData.indices = indices;
-  vertexData.applyToMesh(mesh);
-
-  let simplified = mesh;
-  if (targetVertices < mesh.getTotalVertices()) {
-    const simplification = new QuadraticErrorSimplification(mesh);
-    simplification.syncIterations = SIMPLIFY_SYNC_ITERATIONS;
-    simplified = await new Promise<Mesh>(resolve => {
-      simplification.simplify(
-        {
-          quality: targetVertices / mesh.getTotalVertices(),
-          distance: 0,
-          optimizeMesh: false
-        },
-        resolve
-      );
-    });
-    mesh.dispose();
-  }
-
-  simplified.createNormals(false);
-
-  const result: SimplifiedGeometry = {
-    positions: Float32Array.from(
-      simplified.getVerticesData(VertexBuffer.PositionKind)!
-    ),
-    normals: Float32Array.from(
-      simplified.getVerticesData(VertexBuffer.NormalKind)!
-    ),
-    indices: Uint32Array.from(simplified.getIndices()!)
-  };
-
-  simplified.dispose();
-  return result;
 }
 
 /**

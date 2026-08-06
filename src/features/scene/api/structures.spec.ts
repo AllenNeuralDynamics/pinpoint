@@ -39,8 +39,7 @@ function makeStructureEntity(
 
 /**
  * Build a positions+indices-only geometry (no normals), mirroring what a
- * Draco decode produces, from a subdivided sphere so it has enough vertices
- * to simplify meaningfully.
+ * Draco decode produces, from a subdivided sphere.
  */
 function makeRawGeometry(scene: Scene, id = "geometry"): Geometry {
   const source = MeshBuilder.CreateSphere(
@@ -203,10 +202,10 @@ describe("syncStructuresVisibility", () => {
     decodeSpy.mockRestore();
   });
 
-  it("caps a structure's simplified vertex count at 8000", async () => {
+  it("applies a structure's decoded geometry without decimating it", async () => {
     const scene = makeTestScene();
-    // A sphere with well over 8000 * 20 vertices, so the 5%-of-original
-    // budget alone would exceed the hard cap and only the cap applies.
+    // A dense sphere -- this assertion would have failed under the old
+    // 5%/8000-vertex decimation policy.
     const denseSphere = MeshBuilder.CreateSphere(
       "dense",
       { segments: 200 },
@@ -218,9 +217,10 @@ describe("syncStructuresVisibility", () => {
     );
     vertexData.indices = denseSphere.getIndices();
     const originalVertexCount = denseSphere.getTotalVertices();
+    const originalIndexCount = denseSphere.getIndices()!.length;
     denseSphere.dispose();
     // decodeMesh disposes the geometry it's handed once its data is copied
-    // out, so the original count must be read before syncing.
+    // out, so the original counts must be read before syncing.
     const geometry = new Geometry("draco_geometry", scene, vertexData, false);
     const decodeSpy = vi
       .spyOn(DracoDecoder.Default, "decodeMeshToGeometryAsync")
@@ -233,8 +233,24 @@ describe("syncStructuresVisibility", () => {
     const mesh = atlasRootNode
       .getChildren()
       .find(c => c.name === "1_structure_mesh") as Mesh;
-    expect(mesh.getTotalVertices()).toBeLessThanOrEqual(8000);
-    expect(mesh.getTotalVertices()).toBeLessThan(originalVertexCount);
+    expect(mesh.getTotalVertices()).toBe(originalVertexCount);
+    expect(mesh.getIndices()!.length).toBe(originalIndexCount);
+
+    decodeSpy.mockRestore();
+  });
+
+  it("leaves structure meshes out of pointer picking", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+
+    await syncStructuresVisibility(scene, [], [structure]);
+
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    expect(mesh.isPickable).toBe(false);
 
     decodeSpy.mockRestore();
   });
