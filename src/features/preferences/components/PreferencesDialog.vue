@@ -16,7 +16,7 @@ const tab = ref("scene");
 
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card class="preferences">
+    <q-card class="preferences fixed-dialog-card">
       <q-card-section>
         <div class="text-h5">{{ $t("preferences.title") }}</div>
       </q-card-section>
@@ -50,7 +50,6 @@ const tab = ref("scene");
 
 <style lang="sass" scoped>
 .preferences
-  min-width: 40vw
   height: 80vh
   display: flex
   flex-direction: column

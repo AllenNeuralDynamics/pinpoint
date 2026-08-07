@@ -6,3 +6,10 @@
 .dynamic-dialog-list
   max-height: 30vh
   overflow-y: auto
+
+// Explicit dialog width so panel/tab content can't drive the card size.
+// `!important` beats Quasar's `.q-dialog__inner--minimized > div` 560px cap,
+// which is more specific than this single class.
+.fixed-dialog-card
+  width: 640px
+  max-width: 100% !important

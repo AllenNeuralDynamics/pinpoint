@@ -145,7 +145,7 @@ watch(selectedManufacturerName, () => {
 
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card class="install-card">
+    <q-card class="install-card fixed-dialog-card">
       <q-card-section>
         <div class="text-h5">{{ $t("installProbe.title") }}</div>
       </q-card-section>
@@ -232,7 +232,6 @@ watch(selectedManufacturerName, () => {
 
 <style lang="sass" scoped>
 .install-card
-  min-width: 50vw
   display: flex
   flex-direction: column
   overflow: hidden
