@@ -133,7 +133,7 @@ onKeyStroke(
 
 onMounted(() => {
   // Show splash.
-  // $q.dialog({ component: SplashDialog });
+  $q.dialog({ component: SplashDialog });
 });
 
 // Reclaim models no experiment references any more. Fire-and-forget: a hard tab

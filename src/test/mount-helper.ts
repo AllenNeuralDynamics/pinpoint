@@ -4,7 +4,7 @@ import {
   type VueWrapper
 } from "@vue/test-utils";
 import type { Component } from "vue";
-import { Notify, Quasar } from "quasar";
+import { Dialog, Notify, Quasar } from "quasar";
 import { createI18n } from "vue-i18n";
 import { createPinia, type Pinia, setActivePinia } from "pinia";
 import type { IMatrixLike, Matrix } from "@babylonjs/core";
@@ -201,7 +201,7 @@ export function mountWithQuasar<T extends Component>(
       // Spread after `...mountOptions.global` so a caller's own
       // `global.plugins` is merged in rather than clobbering this array.
       plugins: [
-        [Quasar, { plugins: { Notify } }],
+        [Quasar, { plugins: { Dialog, Notify } }],
         createTestI18n(),
         pinia,
         ...(mountOptions.global?.plugins ?? [])
