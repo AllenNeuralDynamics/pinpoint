@@ -15,6 +15,7 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
   return {
     version: "5.0.0",
     appearance: "auto",
+    isSplashScreenSkipped: false,
     cameraProjection: "perspective",
     cameraInertia: 0.9,
     worldBackgroundColor: "#33334d",
@@ -51,12 +52,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the nineteen preference keys", () => {
+  it("writes only the twenty preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(19);
+    expect(keys).toHaveLength(20);
     expect(keys).not.toContain("junk");
   });
 });
@@ -116,6 +117,12 @@ describe("parsePreferencesFile", () => {
 
   it("returns null for a non-boolean isSsaoEnabled", () => {
     const fixture = { ...makePreferences(), isSsaoEnabled: "true" };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a non-boolean isSplashScreenSkipped", () => {
+    const fixture = { ...makePreferences(), isSplashScreenSkipped: "true" };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });

@@ -26,6 +26,14 @@ const preferences = usePreferencesStore();
       </div>
     </div>
     <q-separator />
+    <div>
+      <div class="text-h6">{{ $t("preferences.startupTitle") }}</div>
+      <q-toggle
+        v-model="preferences.isSplashScreenSkipped"
+        :label="$t('preferences.skipSplashScreen')"
+      />
+    </div>
+    <q-separator />
     <UnitPreferences />
   </div>
 </template>

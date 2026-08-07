@@ -33,4 +33,23 @@ describe("GeneralPreferences", () => {
       true
     );
   });
+
+  it("the skip-splash toggle starts at false", () => {
+    const wrapper = mountWithQuasar(GeneralPreferences);
+
+    expect(wrapper.findComponent({ name: "QToggle" }).props("modelValue")).toBe(
+      false
+    );
+  });
+
+  it("toggling skip splash on writes isSplashScreenSkipped to true", async () => {
+    const wrapper = mountWithQuasar(GeneralPreferences);
+    const preferences = usePreferencesStore();
+
+    await wrapper
+      .findComponent({ name: "QToggle" })
+      .vm.$emit("update:modelValue", true);
+
+    expect(preferences.isSplashScreenSkipped).toBe(true);
+  });
 });

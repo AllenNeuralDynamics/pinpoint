@@ -112,6 +112,7 @@ function isPreferences(value: unknown): value is Preferences {
   const {
     version,
     appearance,
+    isSplashScreenSkipped,
     cameraProjection,
     worldBackgroundColor,
     isSsaoEnabled,
@@ -134,6 +135,7 @@ function isPreferences(value: unknown): value is Preferences {
     return false;
   }
   if (typeof areStructureInteriorsHidden !== "boolean") return false;
+  if (typeof isSplashScreenSkipped !== "boolean") return false;
   if (typeof isSsaoEnabled !== "boolean") return false;
   if (
     typeof positionUnit !== "string" ||
@@ -171,6 +173,7 @@ function pickPreferences(source: Preferences, version: string): Preferences {
   return {
     version,
     appearance: source.appearance,
+    isSplashScreenSkipped: source.isSplashScreenSkipped,
     cameraProjection: source.cameraProjection,
     cameraInertia: source.cameraInertia,
     worldBackgroundColor: source.worldBackgroundColor,

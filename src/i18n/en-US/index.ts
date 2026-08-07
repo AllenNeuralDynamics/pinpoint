@@ -309,6 +309,9 @@ export default {
     themeDark: "Dark",
     themeAuto: "Auto",
 
+    startupTitle: "Startup",
+    skipSplashScreen: "Skip Splash Screen",
+
     unitsTitle: "Units",
     positionUnit: "Position",
     rotationUnit: "Rotation",

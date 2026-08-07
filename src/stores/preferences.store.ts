@@ -10,6 +10,8 @@ export interface Preferences {
   version: string;
   /** Theme the app renders with; `auto` follows the OS preference. */
   appearance: Appearance;
+  /** Whether the splash dialog is suppressed when Pinpoint starts. */
+  isSplashScreenSkipped: boolean;
   /** Projection the scene camera renders with. */
   cameraProjection: CameraProjection;
   /** Camera movement damping; 0 is snappy, 1 is smooth. */
@@ -51,6 +53,7 @@ export const usePreferencesStore = defineStore(
   () => {
     const version = ref(import.meta.env.APP_VERSION);
     const appearance = ref<Appearance>("auto");
+    const isSplashScreenSkipped = ref(false);
     const cameraProjection = ref<CameraProjection>("perspective");
     const cameraInertia = ref(0.9);
     const worldBackgroundColor = ref("#33334d");
@@ -74,6 +77,7 @@ export const usePreferencesStore = defineStore(
     const state = {
       version,
       appearance,
+      isSplashScreenSkipped,
       cameraProjection,
       cameraInertia,
       worldBackgroundColor,

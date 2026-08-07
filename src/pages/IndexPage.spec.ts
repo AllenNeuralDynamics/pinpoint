@@ -4,9 +4,29 @@ import { createPinia, setActivePinia } from "pinia";
 import IndexPage from "./IndexPage.vue";
 import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { makeProbe, makeSceneModel, makeSceneObject } from "@/test/fixtures";
 import { pruneSceneModels } from "@/features/scene";
+import { SplashDialog } from "@/features/splash";
+
+// The splash dialog opens in `onMounted`, before a mounted wrapper's
+// `$q.dialog` can be stubbed. Replace Quasar's `Dialog` plugin instead --
+// `mountWithQuasar` installs it, and Quasar's installer calls
+// `Plugin.install({ $q })`, so this owns `$q.dialog` from the first render.
+const { dialogSpy } = vi.hoisted(() => ({ dialogSpy: vi.fn() }));
+
+vi.mock("quasar", async importOriginal => {
+  const actual = await importOriginal<typeof import("quasar")>();
+  return {
+    ...actual,
+    Dialog: {
+      install: ({ $q }: { $q: { dialog: unknown } }) => {
+        $q.dialog = dialogSpy;
+      }
+    }
+  };
+});
 
 // Mock the leaf module (not the `@/features/atlas` barrel) -- the store's
 // `terminologyRows` is a `computedAsync` and fetches on store creation, so
@@ -53,6 +73,7 @@ describe("IndexPage", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.mocked(pruneSceneModels).mockClear();
+    dialogSpy.mockClear();
   });
 
   afterEach(() => {
@@ -69,6 +90,21 @@ describe("IndexPage", () => {
     pressUndoRedoKey();
 
     expect(store.name).toBe(defaultName);
+  });
+
+  it("opens the splash dialog on mount by default", () => {
+    wrappers.track(mountWithQuasar(IndexPage, { shallow: true }));
+
+    expect(dialogSpy).toHaveBeenCalledWith({ component: SplashDialog });
+  });
+
+  it("does not open the splash dialog when it is skipped", () => {
+    const pinia = createPinia();
+    usePreferencesStore(pinia).isSplashScreenSkipped = true;
+
+    wrappers.track(mountWithQuasar(IndexPage, { shallow: true, pinia }));
+
+    expect(dialogSpy).not.toHaveBeenCalled();
   });
 
   it("redoes the current experiment on Ctrl/Cmd+Shift+Z", async () => {

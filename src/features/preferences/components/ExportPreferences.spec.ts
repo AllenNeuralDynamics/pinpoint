@@ -71,6 +71,7 @@ function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
   return {
     version: import.meta.env.APP_VERSION,
     appearance: "auto",
+    isSplashScreenSkipped: false,
     cameraProjection: "perspective",
     cameraInertia: 0.9,
     worldBackgroundColor: "#33334d",
@@ -178,7 +179,8 @@ describe("ExportPreferences", () => {
         probeHeadStageCutDepthMillimeters: 10,
         probeRodDiameterMillimeters: 5,
         probeRodLengthMillimeters: 150,
-        appearance: "dark"
+        appearance: "dark",
+        isSplashScreenSkipped: true
       });
 
       await uploadFile(JSON.stringify(uploaded));
@@ -215,6 +217,7 @@ describe("ExportPreferences", () => {
         uploaded.probeRodLengthMillimeters
       );
       expect(store.appearance).toBe(uploaded.appearance);
+      expect(store.isSplashScreenSkipped).toBe(uploaded.isSplashScreenSkipped);
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({

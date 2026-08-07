@@ -15,6 +15,7 @@ import {
   useExperimentFile
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { AtlasHierarchy } from "@/features/atlas";
 import { ProbeLibraryDialog } from "@/features/probe";
@@ -32,6 +33,7 @@ const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
+const preferences = usePreferencesStore();
 const recentExperimentsStore = useRecentExperimentsStore();
 const { openExperiment, downloadExperiment } = useExperimentFile();
 
@@ -133,7 +135,7 @@ onKeyStroke(
 );
 
 onMounted(() => {
-  // Show splash.
+  if (preferences.isSplashScreenSkipped) return;
   $q.dialog({ component: SplashDialog });
 });
 
