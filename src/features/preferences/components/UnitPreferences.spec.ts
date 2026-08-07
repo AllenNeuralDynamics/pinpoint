@@ -45,4 +45,17 @@ describe("UnitPreferences", () => {
 
     expect(preferences.decimalPrecision).toBe(3);
   });
+
+  it("orders the position toggle µm, mm, cm with lowercase labels and no inches", () => {
+    const wrapper = mountWithQuasar(UnitPreferences);
+    const toggles = wrapper.findAllComponents({ name: "QBtnToggle" });
+    const positionToggle = toggles[0]!;
+
+    expect(positionToggle.props("options")).toEqual([
+      { label: "µm", value: "micrometer" },
+      { label: "mm", value: "millimeter" },
+      { label: "cm", value: "centimeter" }
+    ]);
+    expect(positionToggle.props("noCaps")).toBe(true);
+  });
 });

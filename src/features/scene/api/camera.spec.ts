@@ -2,37 +2,154 @@ import { describe, expect, it, vi } from "vitest";
 import { ArcRotateCamera, Camera, Observable, Vector3 } from "@babylonjs/core";
 import {
   applyCameraProjection,
+  interpolateCameraToPose,
   isCameraAlignedWith,
   orbitCameraTowards,
-  setInitialZoom,
-  trackAxisViewProjection
+  snapCameraToPose,
+  trackAxisViewProjection,
+  trackCameraPose
 } from "./camera.api";
 import type { CameraProjection } from "../models/camera.model";
+import { makeCameraPose } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
-describe("setInitialZoom", () => {
-  it("sets the radius to 1.5x the given AP length", () => {
-    const camera = { radius: 0 } as ArcRotateCamera;
+describe("snapCameraToPose", () => {
+  it("writes alpha/beta/radius, sets the world target, and stops any interpolation", () => {
+    const stopInterpolation = vi.fn();
+    const setTarget = vi.fn();
+    const camera = {
+      alpha: 0,
+      beta: 0,
+      radius: 0,
+      stopInterpolation,
+      setTarget
+    } as unknown as ArcRotateCamera;
+    const pose = makeCameraPose({ alpha: 1, beta: 2, radius: 3 });
+    const worldTarget = new Vector3(4, 5, 6);
 
-    setInitialZoom(camera, 13.2);
+    snapCameraToPose(camera, pose, worldTarget);
 
-    expect(camera.radius).toBe(13.2 * 1.5);
+    expect(stopInterpolation).toHaveBeenCalled();
+    expect(camera.alpha).toBe(1);
+    expect(camera.beta).toBe(2);
+    expect(camera.radius).toBe(3);
+    expect(setTarget).toHaveBeenCalledWith(worldTarget, false, false, true);
+  });
+});
+
+describe("interpolateCameraToPose", () => {
+  it("interpolates to the pose's orbit and the given world target", () => {
+    const interpolateTo = vi.fn();
+    const camera = { interpolateTo } as unknown as ArcRotateCamera;
+    const pose = makeCameraPose({ alpha: 1, beta: 2, radius: 3 });
+    const worldTarget = new Vector3(4, 5, 6);
+
+    interpolateCameraToPose(camera, pose, worldTarget);
+
+    expect(interpolateTo).toHaveBeenCalledWith(1, 2, 3, worldTarget);
+  });
+});
+
+describe("trackCameraPose", () => {
+  /** Mutable orbit/target fields plus a real observable, matching what the tracker reads and reacts to. */
+  type StubCamera = {
+    alpha: number;
+    beta: number;
+    radius: number;
+    target: Vector3;
+    isInterpolating: boolean;
+    onAfterCheckInputsObservable: Observable<unknown>;
+  };
+
+  /** Stub camera with writable orbit/target fields; cast to `ArcRotateCamera` only where the tracker requires it. */
+  function makeStubCamera(): StubCamera {
+    return {
+      alpha: 0,
+      beta: 0,
+      radius: 1,
+      target: Vector3.Zero(),
+      isInterpolating: false,
+      onAfterCheckInputsObservable: new Observable()
+    };
+  }
+
+  /** Fire the camera's after-check-inputs observable, as Babylon does every frame. */
+  function notify(camera: StubCamera): void {
+    camera.onAfterCheckInputsObservable.notifyObservers(undefined);
+  }
+
+  it("settles once after a change followed by two still frames", () => {
+    const camera = makeStubCamera();
+    const onSettle = vi.fn();
+    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+
+    camera.alpha = 1;
+    notify(camera);
+    expect(onSettle).not.toHaveBeenCalled();
+
+    notify(camera);
+    expect(onSettle).toHaveBeenCalledTimes(1);
+
+    notify(camera);
+    expect(onSettle).toHaveBeenCalledTimes(1);
   });
 
-  it("does nothing when the AP length is zero", () => {
-    const camera = { radius: 0 } as ArcRotateCamera;
+  it("reports nothing while the camera is interpolating", () => {
+    const camera = makeStubCamera();
+    const onSettle = vi.fn();
+    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
 
-    setInitialZoom(camera, 0);
+    camera.alpha = 1;
+    camera.isInterpolating = true;
+    notify(camera);
+    notify(camera);
+    expect(onSettle).not.toHaveBeenCalled();
 
-    expect(camera.radius).toBe(0);
+    camera.isInterpolating = false;
+    notify(camera);
+    expect(onSettle).toHaveBeenCalledTimes(1);
   });
 
-  it("does nothing when the AP length is negative", () => {
-    const camera = { radius: 0 } as ArcRotateCamera;
+  it("reports nothing on repeated still frames without a change", () => {
+    const camera = makeStubCamera();
+    const onSettle = vi.fn();
+    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+    notify(camera);
+    notify(camera);
+    onSettle.mockClear();
 
-    setInitialZoom(camera, -1);
+    notify(camera);
+    notify(camera);
 
-    expect(camera.radius).toBe(0);
+    expect(onSettle).not.toHaveBeenCalled();
+  });
+
+  it("also settles a target-only change", () => {
+    const camera = makeStubCamera();
+    const onSettle = vi.fn();
+    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+    notify(camera);
+    notify(camera);
+    onSettle.mockClear();
+
+    camera.target = new Vector3(1, 0, 0);
+    notify(camera);
+    notify(camera);
+
+    expect(onSettle).toHaveBeenCalledTimes(1);
+    expect(onSettle).toHaveBeenCalledWith([0, 0, 1], camera.target);
+  });
+
+  it("dispose() empties the observer list", () => {
+    const camera = makeStubCamera();
+    const tracker = trackCameraPose(
+      camera as unknown as ArcRotateCamera,
+      vi.fn()
+    );
+
+    tracker.dispose();
+
+    expect(camera.onAfterCheckInputsObservable.observers).toHaveLength(0);
   });
 });
 

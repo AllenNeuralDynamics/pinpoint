@@ -1,22 +1,19 @@
 <script lang="ts" setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useDragReorder } from "@/composable/useDragReorder";
+import { useNumericModel } from "@/composable/useNumericModel";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import {
-  getCameraOrbit,
-  setCameraOrbit,
-  useBabylonRuntimeService
-} from "@/features/scene";
-import {
   addCameraPose,
-  buildCameraPose,
   type CameraPose,
+  copyCameraPose,
   removeCameraPose,
-  reorderCameraPose
+  reorderCameraPose,
+  setCameraPose
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -29,34 +26,65 @@ import {
 
 const { t } = useI18n();
 const currentExperiment = useCurrentExperimentStore();
-const runtime = useBabylonRuntimeService();
 const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: numberRules } =
   useValidationRules();
+const {
+  draggedIndex,
+  dropTargetIndex,
+  startDrag,
+  dragOverRow,
+  dropRow,
+  endDrag
+} = useDragReorder((fromIndex, toIndex) =>
+  reorderCameraPose(currentExperiment.experiment, fromIndex, toIndex)
+);
 
 const name = ref(t("cameraInspector.defaultPoseName"));
-const orbit = ref<[number, number, number]>([0, 0, 0]);
 
-// Declared next to orbit (the documented exception in AGENTS.md). Camera
-// poses store raw radians/mm; display converts through the same preferences
-// ProbeInspector's rotation/position fields use.
-const alpha = useNumericTupleModel(
-  () => orbit.value,
+const pose = computed(() => currentExperiment.cameraPose);
+
+const alpha = useNumericModel(
+  () => pose.value.alpha,
+  value => (pose.value.alpha = value),
+  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
+  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  () => preferences.decimalPrecision
+);
+const beta = useNumericModel(
+  () => pose.value.beta,
+  value => (pose.value.beta = value),
+  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
+  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  () => preferences.decimalPrecision
+);
+const radius = useNumericModel(
+  () => pose.value.radius,
+  value => (pose.value.radius = value),
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
+  () => preferences.decimalPrecision
+);
+const targetAp = useNumericTupleModel(
+  () => pose.value.target,
   0,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
   () => preferences.decimalPrecision
 );
-const beta = useNumericTupleModel(
-  () => orbit.value,
+const targetDv = useNumericTupleModel(
+  () => pose.value.target,
   1,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
+  millimeters =>
+    millimetersToPositionUnit(millimeters, preferences.positionUnit),
+  value => positionUnitToMillimeters(value, preferences.positionUnit),
   () => preferences.decimalPrecision
 );
-const radius = useNumericTupleModel(
-  () => orbit.value,
+const targetMl = useNumericTupleModel(
+  () => pose.value.target,
   2,
   millimeters =>
     millimetersToPositionUnit(millimeters, preferences.positionUnit),
@@ -71,47 +99,27 @@ const positionSuffix = computed(() =>
   unitLabels.position(preferences.positionUnit)
 );
 
-const {
-  draggedIndex,
-  dropTargetIndex,
-  startDrag,
-  dragOverRow,
-  dropRow,
-  endDrag
-} = useDragReorder((fromIndex, toIndex) =>
-  reorderCameraPose(currentExperiment.experiment, fromIndex, toIndex)
-);
-
 /**
- * Save the drafted orbit as a new named pose in the experiment.
+ * Save the live camera pose to the library under the typed name.
  */
 function savePose(): void {
   addCameraPose(
     currentExperiment.experiment,
-    buildCameraPose(name.value, orbit.value)
+    copyCameraPose(pose.value, name.value)
   );
 }
 
 /**
- * Move the live camera to a saved pose's orbit.
- * @param pose Camera pose to apply.
+ * Move the live camera to a saved pose's orbit and target.
+ * @param savedPose Camera pose to apply.
  */
-function applyPose(pose: CameraPose): void {
-  const camera = runtime.camera.value;
-  if (!camera) return;
-  setCameraOrbit(camera, [pose.alpha, pose.beta, pose.radius]);
+function applyPose(savedPose: CameraPose): void {
+  setCameraPose(
+    pose.value,
+    [savedPose.alpha, savedPose.beta, savedPose.radius],
+    savedPose.target
+  );
 }
-
-/**
- * Overwrite the draft with the scene camera's current orbit.
- */
-function copyFromCurrentCamera(): void {
-  const camera = runtime.camera.value;
-  if (!camera) return;
-  orbit.value = getCameraOrbit(camera);
-}
-
-onMounted(copyFromCurrentCamera);
 </script>
 
 <template>
@@ -126,41 +134,71 @@ onMounted(copyFromCurrentCamera);
       spread
       toggle-color="primary"
     />
+    <div>
+      <div class="text-body2 q-pb-xs">{{ t("cameraInspector.orbit") }}</div>
+      <div class="row q-gutter-x-sm">
+        <CommittedInput
+          v-model="alpha"
+          class="col"
+          :label="t('cameraInspector.alpha')"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+        <CommittedInput
+          v-model="beta"
+          class="col"
+          :label="t('cameraInspector.beta')"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+        <CommittedInput
+          v-model="radius"
+          class="col"
+          :label="t('cameraInspector.radius')"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+      </div>
+    </div>
+    <div>
+      <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
+      <div class="row q-gutter-x-sm">
+        <CommittedInput
+          v-model="targetAp"
+          class="col"
+          :label="t('axis.ap')"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+        <CommittedInput
+          v-model="targetDv"
+          class="col"
+          :label="t('axis.dv')"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+        <CommittedInput
+          v-model="targetMl"
+          class="col"
+          :label="t('axis.ml')"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+      </div>
+    </div>
+    <q-separator />
+    <div class="text-body2">{{ t("cameraInspector.poses") }}</div>
     <CommittedInput
       v-model="name"
       :label="t('cameraInspector.poseName')"
       outlined
       :rules="nameRules"
-    />
-    <div class="row q-gutter-x-sm">
-      <CommittedInput
-        v-model="alpha"
-        class="col"
-        :label="t('cameraInspector.alpha')"
-        outlined
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-      />
-      <CommittedInput
-        v-model="beta"
-        class="col"
-        :label="t('cameraInspector.beta')"
-        outlined
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-      />
-      <CommittedInput
-        v-model="radius"
-        class="col"
-        :label="t('cameraInspector.radius')"
-        outlined
-        :rules="numberRules"
-        :suffix="positionSuffix"
-      />
-    </div>
-    <q-btn
-      :label="t('cameraInspector.copyFromCurrent')"
-      @click="copyFromCurrentCamera"
     />
     <q-btn
       color="primary"

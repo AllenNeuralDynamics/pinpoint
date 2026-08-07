@@ -2,6 +2,11 @@ import { toRaw } from "vue";
 import type { Atlas } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
 import type { CameraPose } from "../models/camera-pose.model";
+import { buildCameraPose, frameCameraPoseOnAtlas } from "./camera-pose.api";
+import {
+  atlasToReferenceRelative,
+  referenceRelativeToAtlas
+} from "./reference-coordinate.api";
 import type { VisibleStructure } from "../models/visible-structure.model";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
@@ -47,6 +52,7 @@ export function buildExperiment(
     ),
     probeInterfaceProbes: {},
     probes: [],
+    cameraPose: buildCameraPose(atlas, referenceCoordinate),
     cameraPoses: []
   };
 }
@@ -80,15 +86,52 @@ export function setExperimentProperties(
 ) {
   const { name, atlas, referenceCoordinate, defaultStructureIdentifiers } =
     properties;
+  const isNewAtlas = !isSameAtlas(atlas, experiment.atlas);
 
-  if (!isSameAtlas(atlas, experiment.atlas)) {
+  if (isNewAtlas) {
     resetStructureVisibility(experiment, defaultStructureIdentifiers);
   }
 
   experiment.name = name.trim();
   experiment.atlas = { ...atlas };
+
+  if (isNewAtlas) {
+    // Probe tips and the camera target are offsets from the reference
+    // coordinate, and a new atlas brings its own landmark, so those offsets
+    // carry over untouched. Only the camera's framing is absolute to the
+    // volume, so it is rebuilt.
+    experiment.referenceCoordinate = [...referenceCoordinate];
+    frameCameraPoseOnAtlas(experiment.cameraPose, atlas, referenceCoordinate);
+    return;
+  }
+
+  moveReferenceCoordinate(experiment, referenceCoordinate);
+}
+
+/**
+ * Move an experiment's reference coordinate within one atlas, re-deriving every
+ * probe tip and the camera target so they stay at the same atlas coordinate.
+ * @param experiment Experiment to move the reference coordinate of.
+ * @param referenceCoordinate New reference coordinate, in atlas ASR mm.
+ */
+function moveReferenceCoordinate(
+  experiment: Experiment,
+  referenceCoordinate: [number, number, number]
+) {
+  const previous = experiment.referenceCoordinate;
+  for (const probe of experiment.probes) {
+    probe.tipPosition = atlasToReferenceRelative(
+      referenceCoordinate,
+      referenceRelativeToAtlas(previous, probe.tipPosition)
+    );
+  }
+  experiment.cameraPose.target = atlasToReferenceRelative(
+    referenceCoordinate,
+    referenceRelativeToAtlas(previous, experiment.cameraPose.target)
+  );
   experiment.referenceCoordinate = [...referenceCoordinate];
 }
+
 /**
  * The experiment's visible-structure entry for a structure, or null when the
  * structure is not shown.

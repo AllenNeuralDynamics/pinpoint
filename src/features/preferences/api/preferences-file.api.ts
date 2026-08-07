@@ -66,7 +66,6 @@ const CAMERA_PROJECTIONS: readonly string[] = [
 ] satisfies readonly CameraProjection[];
 
 const POSITION_UNITS: readonly string[] = [
-  "inch",
   "centimeter",
   "millimeter",
   "micrometer"

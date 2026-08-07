@@ -5,6 +5,7 @@ import type {
   TerminologyRow
 } from "@/features/atlas";
 import type { ProbeGeometry } from "@/features/scene";
+import type { CameraPose } from "@/features/experiment";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 
@@ -88,6 +89,25 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     sliceCenterHeightMillimeters: 0,
     channelMapWindow: null,
     shankAlignmentIndex: null,
+    ...overrides
+  };
+}
+
+/**
+ * Build a fixture camera pose.
+ * @param overrides Fields to override on the default pose.
+ */
+export function makeCameraPose(
+  overrides: Partial<CameraPose> = {}
+): CameraPose {
+  return {
+    inspectableKind: "camera",
+    id: "camera-pose-id",
+    name: "Pose",
+    alpha: -Math.PI / 2,
+    beta: Math.PI / 8,
+    radius: 10,
+    target: [0, 0, 0],
     ...overrides
   };
 }

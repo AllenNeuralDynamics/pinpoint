@@ -23,11 +23,11 @@ const decimalPrecision = useClampedNumberModel(
         <q-btn-toggle
           v-model="preferences.positionUnit"
           :aria-label="$t('preferences.positionUnit')"
+          no-caps
           :options="[
-            { label: $t('units.inch'), value: 'inch' },
-            { label: $t('units.centimeter'), value: 'centimeter' },
+            { label: $t('units.micrometer'), value: 'micrometer' },
             { label: $t('units.millimeter'), value: 'millimeter' },
-            { label: $t('units.micrometer'), value: 'micrometer' }
+            { label: $t('units.centimeter'), value: 'centimeter' }
           ]"
           spread
           toggle-color="primary"
@@ -40,6 +40,7 @@ const decimalPrecision = useClampedNumberModel(
         <q-btn-toggle
           v-model="preferences.rotationUnit"
           :aria-label="$t('preferences.rotationUnit')"
+          no-caps
           :options="[
             { label: $t('units.degree'), value: 'degree' },
             { label: $t('units.radian'), value: 'radian' }

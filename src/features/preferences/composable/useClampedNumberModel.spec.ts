@@ -81,4 +81,26 @@ describe("useClampedNumberModel", () => {
 
     expect(source.value).toBe(5);
   });
+
+  it("reads through toDisplay when given", () => {
+    const source = ref(5);
+    const model = useClampedNumberModel(source, 0, 10_000, mm => mm * 1000);
+
+    expect(model.value).toBe(5000);
+  });
+
+  it("writes through fromDisplay, then clamps in stored units", () => {
+    const source = ref(5);
+    const model = useClampedNumberModel(
+      source,
+      0,
+      10,
+      mm => mm * 1000,
+      um => um / 1000
+    );
+
+    model.value = "7000";
+
+    expect(source.value).toBe(7);
+  });
 });

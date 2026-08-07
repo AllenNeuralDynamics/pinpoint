@@ -11,8 +11,8 @@ import {
   watchEffect
 } from "vue";
 import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService";
+import { useCameraPoseSync } from "../composable/useCameraPoseSync";
 import {
-  removeAllStructures,
   setAtlasCenterOffset,
   setStructureInteriorsHidden,
   syncStructuresVisibility
@@ -25,7 +25,6 @@ import {
 } from "../api/axis-guide.api";
 import {
   applyCameraProjection,
-  setInitialZoom,
   trackAxisViewProjection
 } from "../api/camera.api";
 import type { SurfaceMaterialSettings } from "../api/material.api";
@@ -83,6 +82,12 @@ const { notifyError, notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const runtime = useBabylonRuntimeService();
+useCameraPoseSync(
+  runtime.camera,
+  () => currentExperiment.atlas,
+  () => currentExperiment.referenceCoordinate,
+  () => currentExperiment.experiment.cameraPose
+);
 
 const canvas = useTemplateRef<HTMLCanvasElement>("canvas");
 
@@ -174,6 +179,7 @@ watchEffect(async () => {
   try {
     await syncStructuresVisibility(
       scene,
+      currentExperiment.atlas,
       fadedStructures.value,
       opaqueStructures.value
     );
@@ -240,16 +246,6 @@ watchEffect(() => {
   }
 
   buildAxisGuides(scene, guides, currentExperiment.atlas);
-});
-
-watchEffect(() => {
-  const camera = runtime.camera.value;
-  if (!camera) return;
-
-  setInitialZoom(
-    camera,
-    getAtlasDimensionsMillimeters(currentExperiment.atlas)[0]
-  );
 });
 
 watch([runtime.scene, runtime.camera], ([scene, camera]) => {
@@ -329,17 +325,6 @@ watch(runtime.scene, scene => {
   );
   onWatcherCleanup(() => observer.remove());
 });
-
-// Clear the scene whenever the atlas changes, but not on the scene's own
-// first availability.
-watch(
-  [runtime.scene, () => currentExperiment.atlas],
-  ([newScene], [oldScene]) => {
-    if (!newScene || !oldScene) return;
-
-    removeAllStructures(newScene);
-  }
-);
 
 watchEffect(() => {
   const scene = runtime.scene.value;

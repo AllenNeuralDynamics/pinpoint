@@ -1,10 +1,8 @@
 import { Camera } from "@babylonjs/core";
 import type { ArcRotateCamera, Vector3 } from "@babylonjs/core";
+import type { CameraPose } from "@/features/experiment";
 import type { CameraProjection } from "../models/camera.model";
 import { clamp } from "@/utils/math";
-
-/** Initial camera zoom, as a multiple of the atlas's AP length. */
-const INITIAL_ZOOM_AP_MULTIPLIER = 1.5;
 
 /** Horizontal magnitude below which a direction counts as straight up or down. */
 const ORBIT_POLE_EPSILON = 1e-6;
@@ -22,20 +20,6 @@ const ORBIT_POLE_ALPHA = -Math.PI / 2;
  * of `0.01` / `PI - 0.01`, which stop it from ever reaching a pole exactly.
  */
 const AXIS_VIEW_TOLERANCE = 0.02;
-
-/**
- * Set the initial zoom of the camera based on the atlas's AP extent.
- * @param camera Camera to set the zoom of.
- * @param apLengthMillimeters Atlas AP extent, in mm.
- */
-export function setInitialZoom(
-  camera: ArcRotateCamera,
-  apLengthMillimeters: number
-) {
-  if (apLengthMillimeters <= 0) return;
-
-  camera.radius = apLengthMillimeters * INITIAL_ZOOM_AP_MULTIPLIER;
-}
 
 /**
  * Orbit the camera to sit along the given world direction from its target,
@@ -64,22 +48,44 @@ export function orbitCameraTowards(
  * Read the camera's current orbit as alpha/beta in radians and radius in mm.
  * @param camera Camera to read the orbit of.
  */
-export function getCameraOrbit(
-  camera: ArcRotateCamera
-): [number, number, number] {
+function getCameraOrbit(camera: ArcRotateCamera): [number, number, number] {
   return [camera.alpha, camera.beta, camera.radius];
 }
 
 /**
- * Animate the camera to an orbit, leaving its target untouched.
- * @param camera Camera to move.
- * @param orbit Alpha/beta in radians and radius in mm to interpolate to.
+ * Place the camera at a pose's orbit and world target immediately, cancelling
+ * any glide in flight.
+ * @param camera Camera to place.
+ * @param pose Camera pose to place the camera at.
+ * @param worldTarget Pose's target in Babylon world space.
  */
-export function setCameraOrbit(
+export function snapCameraToPose(
   camera: ArcRotateCamera,
-  orbit: [number, number, number]
+  pose: CameraPose,
+  worldTarget: Vector3
 ): void {
-  camera.interpolateTo(orbit[0], orbit[1], orbit[2]);
+  camera.stopInterpolation();
+  camera.alpha = pose.alpha;
+  camera.beta = pose.beta;
+  camera.radius = pose.radius;
+  // `cloneAlphaBetaRadius: true` keeps the angles/radius just set above --
+  // `setTarget`'s default recomputes them from the vector between the
+  // camera's pre-existing position and the new target instead.
+  camera.setTarget(worldTarget, false, false, true);
+}
+
+/**
+ * Glide the camera to a pose's orbit and world target.
+ * @param camera Camera to move.
+ * @param pose Camera pose to interpolate to.
+ * @param worldTarget Pose's target in Babylon world space.
+ */
+export function interpolateCameraToPose(
+  camera: ArcRotateCamera,
+  pose: CameraPose,
+  worldTarget: Vector3
+): void {
+  camera.interpolateTo(pose.alpha, pose.beta, pose.radius, worldTarget);
 }
 
 /**
@@ -131,6 +137,55 @@ export function isCameraAlignedWith(
       Math.sin(camera.alpha) * sinBeta * direction.z) /
     length;
   return dot >= Math.cos(AXIS_VIEW_TOLERANCE);
+}
+
+/** Handle on a camera pose tracker. */
+export interface CameraPoseTracker {
+  /** Detach the tracker from the camera. */
+  dispose: () => void;
+}
+
+/**
+ * Report the camera's orbit and world target once it stops moving, so a drag,
+ * a zoom, or a glide yields one update instead of one per frame.
+ * @param camera Camera to track.
+ * @param onSettle Called with the settled orbit and its world target.
+ */
+export function trackCameraPose(
+  camera: ArcRotateCamera,
+  onSettle: (orbit: [number, number, number], worldTarget: Vector3) => void
+): CameraPoseTracker {
+  /** Orbit and target seen on the previous frame, or null before the first. */
+  let previousOrbit: [number, number, number] | null = null;
+  let previousTarget: Vector3 | null = null;
+  /** Has the camera moved since the last report. */
+  let hasMoved = false;
+
+  const observer = camera.onAfterCheckInputsObservable.add(() => {
+    const orbit = getCameraOrbit(camera);
+    const isStill =
+      !!previousOrbit &&
+      !!previousTarget &&
+      orbit[0] === previousOrbit[0] &&
+      orbit[1] === previousOrbit[1] &&
+      orbit[2] === previousOrbit[2] &&
+      camera.target.equals(previousTarget);
+    previousOrbit = orbit;
+    previousTarget = camera.target.clone();
+
+    if (!isStill) {
+      hasMoved = true;
+      return;
+    }
+    // Inertia and interpolation both keep changing the orbit frame to frame, so
+    // a still frame with nothing in flight is the end of the whole movement.
+    if (!hasMoved || camera.isInterpolating) return;
+
+    hasMoved = false;
+    onSettle(orbit, camera.target.clone());
+  });
+
+  return { dispose: () => observer.remove() };
 }
 
 /** Handle on an axis-view projection tracker. */

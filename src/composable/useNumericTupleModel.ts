@@ -1,4 +1,5 @@
-import { computed, type WritableComputedRef } from "vue";
+import { type WritableComputedRef } from "vue";
+import { useNumericModel } from "./useNumericModel";
 
 /**
  * A writable string view onto one element of a numeric tuple, for binding to a
@@ -18,23 +19,13 @@ export function useNumericTupleModel(
   fromDisplay: (displayValue: number) => number,
   getDecimals: () => number | null
 ): WritableComputedRef<string> {
-  function format(storedValue: number): string {
-    const displayValue = toDisplay(storedValue);
-    const decimals = getDecimals();
-    return decimals === null
-      ? String(displayValue)
-      : displayValue.toFixed(decimals);
-  }
-
-  return computed({
-    get: () => format(getTuple()[index]),
-    set: (value: string) => {
-      const storedValue = fromDisplay(Number(value));
-      const tuple = getTuple();
-      // A blur that did not edit the field commits the rounded string back;
-      // ignore it so showing fewer decimals never truncates the store.
-      if (format(tuple[index]) === format(storedValue)) return;
-      tuple[index] = storedValue;
-    }
-  });
+  return useNumericModel(
+    () => getTuple()[index],
+    storedValue => {
+      getTuple()[index] = storedValue;
+    },
+    toDisplay,
+    fromDisplay,
+    getDecimals
+  );
 }

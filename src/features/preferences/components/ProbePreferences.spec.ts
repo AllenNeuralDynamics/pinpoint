@@ -64,4 +64,30 @@ describe("ProbePreferences", () => {
       expect(preferences[key]).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("displays every geometry field in the preferences store's position unit", async () => {
+    const wrapper = mountWithQuasar(ProbePreferences);
+    const preferences = usePreferencesStore();
+    preferences.probeShankThicknessMillimeters = 1;
+    preferences.positionUnit = "micrometer";
+    await wrapper.vm.$nextTick();
+
+    const shankThickness = fieldByLabel(wrapper, t.shankThickness);
+    expect(shankThickness.props("modelValue")).toBe(1000);
+    expect(shankThickness.props("suffix")).toBe("µm");
+  });
+
+  it("writes a value entered in the display unit back in millimeters", async () => {
+    const wrapper = mountWithQuasar(ProbePreferences);
+    const preferences = usePreferencesStore();
+    preferences.positionUnit = "micrometer";
+    await wrapper.vm.$nextTick();
+
+    await fieldByLabel(wrapper, t.rodLength).vm.$emit(
+      "update:modelValue",
+      "500"
+    );
+
+    expect(preferences.probeRodLengthMillimeters).toBe(0.5);
+  });
 });

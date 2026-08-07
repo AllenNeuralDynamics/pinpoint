@@ -377,6 +377,19 @@ describe("useCurrentExperimentStore", () => {
       expect(store.selectedInspectable).toBe(store.probes[0]);
     });
 
+    it("re-points the selection at the restored camera pose object after undo", async () => {
+      const store = useCurrentExperimentStore();
+      store.selectedInspectable = store.experiment.cameraPose;
+      const preUndoCameraPose = store.experiment.cameraPose;
+
+      store.experiment.cameraPose.alpha = 1;
+      await nextTick();
+      store.undo();
+
+      expect(store.selectedInspectable).toBe(store.experiment.cameraPose);
+      expect(store.selectedInspectable).not.toBe(preUndoCameraPose);
+    });
+
     it("clears the selection when undo removes the selected probe", async () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();

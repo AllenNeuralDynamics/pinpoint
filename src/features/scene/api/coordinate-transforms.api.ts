@@ -23,3 +23,11 @@ export function vector3ToAsr(vector: Vector3): [number, number, number] {
 export function asrToBabylon([a, s, r]: [number, number, number]): Vector3 {
   return new Vector3(r, -s, -a);
 }
+
+/**
+ * Convert a Babylon world vector back into an ASR coordinate, negating AP and DV.
+ * @param vector Babylon vector to convert.
+ */
+export function babylonToAsr(vector: Vector3): [number, number, number] {
+  return [-vector.z, -vector.y, vector.x];
+}

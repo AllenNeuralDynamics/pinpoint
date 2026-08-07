@@ -19,7 +19,6 @@ import {
   removeProbe,
   reorderProbe
 } from "@/features/experiment";
-import { CAMERA_INSPECTABLE } from "../models/camera-inspectable.model";
 
 const $q = useQuasar();
 const probeLibrary = useProbeLibraryStore();
@@ -176,15 +175,23 @@ function removeProbeAndDeselect(probe: Probe) {
       <q-list class="scene-list" separator>
         <q-item
           v-ripple
-          :active="currentExperiment.isInspectableSelected(CAMERA_INSPECTABLE)"
+          :active="
+            currentExperiment.isInspectableSelected(
+              currentExperiment.cameraPose
+            )
+          "
           active-class="hierarchy-item--active"
           :aria-current="
-            currentExperiment.isInspectableSelected(CAMERA_INSPECTABLE)
+            currentExperiment.isInspectableSelected(
+              currentExperiment.cameraPose
+            )
               ? 'true'
               : undefined
           "
           clickable
-          @click="currentExperiment.selectedInspectable = CAMERA_INSPECTABLE"
+          @click="
+            currentExperiment.selectedInspectable = currentExperiment.cameraPose
+          "
         >
           <q-item-section side><q-icon name="sym_o_videocam" /></q-item-section>
           <q-item-section>{{ $t("sceneHierarchy.camera") }}</q-item-section>

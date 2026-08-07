@@ -183,10 +183,12 @@ export default {
   cameraInspector: {
     poseName: "Pose name",
     defaultPoseName: "Pose",
-    copyFromCurrent: "Copy from Current",
     alpha: "Alpha",
     beta: "Beta",
     radius: "Radius",
+    orbit: "Orbit",
+    target: "Target",
+    poses: "Saved Poses",
     projection: "Projection",
     perspective: "Perspective",
     orthographic: "Orthographic",
@@ -213,7 +215,6 @@ export default {
     goHome: "Go Home"
   },
   units: {
-    inch: "in",
     centimeter: "cm",
     millimeter: "mm",
     micrometer: "µm",

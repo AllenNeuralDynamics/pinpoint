@@ -10,9 +10,13 @@ import {
   buildExperiment,
   internProbeInterfaceProbe
 } from "./experiment.api";
-import { buildCameraPose } from "./camera-pose.api";
+import { copyCameraPose } from "./camera-pose.api";
 import { buildProbe, detachProbeInterfaceProbe } from "@/features/probe";
-import { makeAtlas, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeCameraPose,
+  makeProbeInterfaceProbe
+} from "@/test/fixtures";
 import type { Experiment } from "../models/experiment.model";
 
 /**
@@ -260,6 +264,20 @@ describe("parseExperimentFile", () => {
     expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
   });
 
+  it("returns null when cameraPose is missing", () => {
+    const { cameraPose: _cameraPose, ...rest } = makeFullExperiment();
+    expect(parseExperimentFile(JSON.stringify(rest))).toBeNull();
+  });
+
+  it("returns null when cameraPose.target holds a non-number", () => {
+    const experiment = makeFullExperiment();
+    experiment.cameraPose = {
+      ...experiment.cameraPose,
+      target: [1, "2", 3] as unknown as [number, number, number]
+    };
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
   it("returns null when cameraPoses is missing", () => {
     const { cameraPoses: _cameraPoses, ...rest } = makeFullExperiment();
     expect(parseExperimentFile(JSON.stringify(rest))).toBeNull();
@@ -269,7 +287,7 @@ describe("parseExperimentFile", () => {
     const experiment = makeFullExperiment();
     experiment.cameraPoses = [
       {
-        ...buildCameraPose("Dorsal", [1, 2, 3]),
+        ...copyCameraPose(makeCameraPose(), "Dorsal"),
         alpha: "1" as unknown as number
       }
     ];
@@ -278,14 +296,14 @@ describe("parseExperimentFile", () => {
 
   it("returns null when two camera poses share an id", () => {
     const experiment = makeFullExperiment();
-    const pose = buildCameraPose("Dorsal", [1, 2, 3]);
+    const pose = copyCameraPose(makeCameraPose(), "Dorsal");
     experiment.cameraPoses = [pose, { ...pose, name: "Ventral" }];
     expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
   });
 
   it("accepts an experiment with a valid camera pose", () => {
     const experiment = makeFullExperiment();
-    addCameraPose(experiment, buildCameraPose("Dorsal", [1, 2, 3]));
+    addCameraPose(experiment, copyCameraPose(makeCameraPose(), "Dorsal"));
     expect(parseExperimentFile(JSON.stringify(experiment))).toEqual(experiment);
   });
 

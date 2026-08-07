@@ -8,7 +8,6 @@ export interface UnitLabels {
 }
 
 const POSITION_UNIT_MESSAGE_KEYS = {
-  inch: "units.inch",
   centimeter: "units.centimeter",
   millimeter: "units.millimeter",
   micrometer: "units.micrometer"

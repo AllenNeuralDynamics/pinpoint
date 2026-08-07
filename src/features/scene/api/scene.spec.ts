@@ -15,6 +15,7 @@ import {
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 import {
   makeAtlas,
+  makeCameraPose,
   makeProbe,
   makeProbeGeometry,
   makeProbeInterfaceProbe
@@ -30,7 +31,6 @@ import {
 import { buildProbe } from "./probe.api";
 import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
 import { buildAxisGuides } from "./axis-guide.api";
-import { CAMERA_INSPECTABLE } from "../models/camera-inspectable.model";
 import {
   deselectFromPointerDown,
   orbitCameraFromAxisGuideDoubleTap,
@@ -111,7 +111,7 @@ describe("selectFromSelectedInspectableState", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      CAMERA_INSPECTABLE
+      makeCameraPose()
     );
 
     expect(gizmoManager.attachedNode).toBeNull();

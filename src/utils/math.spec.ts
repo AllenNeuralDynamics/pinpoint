@@ -7,10 +7,6 @@ import {
 } from "./math";
 
 describe("millimetersToPositionUnit", () => {
-  it("converts millimeters to inches", () => {
-    expect(millimetersToPositionUnit(25.4, "inch")).toBe(1);
-  });
-
   it("converts millimeters to micrometers", () => {
     expect(millimetersToPositionUnit(1, "micrometer")).toBe(1000);
   });
@@ -21,10 +17,6 @@ describe("millimetersToPositionUnit", () => {
 });
 
 describe("positionUnitToMillimeters", () => {
-  it("converts inches to millimeters", () => {
-    expect(positionUnitToMillimeters(1, "inch")).toBe(25.4);
-  });
-
   it("converts centimeters to millimeters", () => {
     expect(positionUnitToMillimeters(1, "centimeter")).toBe(10);
   });

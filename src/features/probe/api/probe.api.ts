@@ -4,6 +4,7 @@ import type { ProbeSurfaceChoice } from "../models/probe-surface-choice.model";
 import type { ProbeVisibility } from "../models/visibility.model";
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import type { Experiment } from "@/features/experiment";
+import { atlasToReferenceRelative } from "@/features/experiment";
 import {
   KNOWN_MANUFACTURERS,
   KNOWN_PROBES
@@ -107,11 +108,10 @@ export function setProbeTipMillimeters(
   atlasMillimeters: [number, number, number],
   referenceCoordinate: [number, number, number]
 ): void {
-  probe.tipPosition = [
-    atlasMillimeters[0] - referenceCoordinate[0],
-    atlasMillimeters[1] - referenceCoordinate[1],
-    atlasMillimeters[2] - referenceCoordinate[2]
-  ];
+  probe.tipPosition = atlasToReferenceRelative(
+    referenceCoordinate,
+    atlasMillimeters
+  );
 }
 
 /**

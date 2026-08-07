@@ -26,10 +26,6 @@ describe("useUnitLabels", () => {
     it("labels micrometer as µm", () => {
       expect(mountUnitLabels().position("micrometer")).toBe("µm");
     });
-
-    it("labels inch as in", () => {
-      expect(mountUnitLabels().position("inch")).toBe("in");
-    });
   });
 
   describe("rotation", () => {

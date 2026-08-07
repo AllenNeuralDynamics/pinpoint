@@ -157,7 +157,7 @@ describe("applyPreferences", () => {
       cameraInertia: 0.1,
       worldBackgroundColor: "#ff0000",
       areStructureInteriorsHidden: false,
-      positionUnit: "inch",
+      positionUnit: "centimeter",
       rotationUnit: "radian",
       decimalPrecision: 1,
       probeRodLengthMillimeters: 150,

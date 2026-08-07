@@ -1,11 +1,10 @@
 /** Length unit a millimeter value can be displayed in. */
-export type PositionUnit = "inch" | "centimeter" | "millimeter" | "micrometer";
+export type PositionUnit = "centimeter" | "millimeter" | "micrometer";
 
 /** Angle unit a radian value can be displayed in. */
 export type RotationUnit = "degree" | "radian";
 
 const MILLIMETERS_PER_POSITION_UNIT: Record<PositionUnit, number> = {
-  inch: 25.4,
   centimeter: 10,
   millimeter: 1,
   micrometer: 0.001

@@ -3,6 +3,7 @@ import { Vector3 } from "@babylonjs/core";
 import {
   asrToBabylon,
   asrToVector3,
+  babylonToAsr,
   vector3ToAsr
 } from "./coordinate-transforms.api";
 
@@ -72,6 +73,26 @@ describe("asrToVector3 / vector3ToAsr round-trip", () => {
     "round-trips %j through a Vector3",
     coordinate => {
       const roundTripped = vector3ToAsr(asrToVector3(coordinate));
+      expect(roundTripped).toEqual(coordinate);
+    }
+  );
+});
+
+describe("asrToBabylon / babylonToAsr round-trip", () => {
+  // asrToBabylon is used to place probe tips, the reference coordinate node,
+  // and now camera poses; babylonToAsr must exactly invert it or a value
+  // written and read back through it would drift.
+  const cases: [number, number, number][] = [
+    [0, 0, 0],
+    [1, 2, 3],
+    [-1, -2, -3],
+    [0.3, 0.4, 0.5]
+  ];
+
+  it.each(cases.map(coordinate => [coordinate] as const))(
+    "round-trips %j through a Vector3",
+    coordinate => {
+      const roundTripped = babylonToAsr(asrToBabylon(coordinate));
       expect(roundTripped).toEqual(coordinate);
     }
   );

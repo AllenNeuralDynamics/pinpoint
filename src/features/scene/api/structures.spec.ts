@@ -20,12 +20,16 @@ import {
 import type { StructureEntity } from "@/features/atlas";
 import { asrToBabylon } from "./coordinate-transforms.api";
 import { makeTestScene, stubDracoDecoder } from "@/test/mount-helper";
+import { makeAtlas } from "@/test/fixtures";
 
 vi.mock("axios");
 
 // Every test spies on `decodeMeshToGeometryAsync` directly, so the codec's
 // own worker pool is never exercised.
 stubDracoDecoder();
+
+/** Atlas shared by tests that aren't specifically about switching atlases. */
+const atlas = makeAtlas();
 
 function makeStructureEntity(
   overrides: Partial<StructureEntity> = {}
@@ -145,7 +149,7 @@ describe("syncStructuresVisibility", () => {
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -186,7 +190,7 @@ describe("syncStructuresVisibility", () => {
       .mockResolvedValue(geometry);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -228,7 +232,7 @@ describe("syncStructuresVisibility", () => {
       .mockResolvedValue(geometry);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -245,7 +249,7 @@ describe("syncStructuresVisibility", () => {
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -268,7 +272,7 @@ describe("syncStructuresVisibility", () => {
       );
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -284,7 +288,7 @@ describe("syncStructuresVisibility", () => {
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [structure], []);
+    await syncStructuresVisibility(scene, atlas, [structure], []);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -300,9 +304,9 @@ describe("syncStructuresVisibility", () => {
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
     decodeSpy.mockClear();
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     expect(decodeSpy).not.toHaveBeenCalled();
 
@@ -314,8 +318,8 @@ describe("syncStructuresVisibility", () => {
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
-    await syncStructuresVisibility(scene, [], []);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], []);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     expect(
@@ -332,9 +336,9 @@ describe("syncStructuresVisibility", () => {
 
     // Import the structure, remove it, then bring it back as
     // always-present-but-not-visible.
-    await syncStructuresVisibility(scene, [], [structure]);
-    await syncStructuresVisibility(scene, [], []);
-    await syncStructuresVisibility(scene, [structure], []);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], []);
+    await syncStructuresVisibility(scene, atlas, [structure], []);
 
     // The removed material must not linger: exactly one "1_structure_material" should
     // exist, not an orphaned first one shadowing the live one.
@@ -357,7 +361,12 @@ describe("syncStructuresVisibility", () => {
     const alwaysPresent = makeStructureEntity({ identifier: 1 });
     const visible = makeStructureEntity({ identifier: 2 });
 
-    await syncStructuresVisibility(scene, [alwaysPresent, visible], [visible]);
+    await syncStructuresVisibility(
+      scene,
+      atlas,
+      [alwaysPresent, visible],
+      [visible]
+    );
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const meshes = atlasRootNode.getChildren() as Mesh[];
@@ -376,7 +385,7 @@ describe("syncStructuresVisibility", () => {
     const structure = makeStructureEntity({ identifier: 1 });
 
     await expect(
-      syncStructuresVisibility(scene, [], [structure])
+      syncStructuresVisibility(scene, atlas, [], [structure])
     ).rejects.toThrow("network error");
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
@@ -394,7 +403,7 @@ describe("syncStructuresVisibility", () => {
     const structure = makeStructureEntity({ identifier: 1 });
 
     await expect(
-      syncStructuresVisibility(scene, [], [structure])
+      syncStructuresVisibility(scene, atlas, [], [structure])
     ).rejects.toThrow("bad draco data");
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
@@ -412,9 +421,9 @@ describe("syncStructuresVisibility", () => {
       .mockRejectedValue(decodeError);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await expect(syncStructuresVisibility(scene, [], [structure])).rejects.toBe(
-      decodeError
-    );
+    await expect(
+      syncStructuresVisibility(scene, atlas, [], [structure])
+    ).rejects.toBe(decodeError);
 
     decodeSpy.mockRestore();
   });
@@ -444,6 +453,7 @@ describe("syncStructuresVisibility", () => {
 
     const syncPromise = syncStructuresVisibility(
       scene,
+      atlas,
       [],
       [failing, succeeding]
     );
@@ -470,7 +480,7 @@ describe("syncStructuresVisibility", () => {
     // dangling, so a later sync sees it as absent and retries it.
     mockedGet.mockReset();
     mockedGet.mockResolvedValue({ data: new ArrayBuffer(0) });
-    await syncStructuresVisibility(scene, [], [failing, succeeding]);
+    await syncStructuresVisibility(scene, atlas, [], [failing, succeeding]);
 
     expect(mockedGet).toHaveBeenCalledWith(failing.meshPath, {
       responseType: "arraybuffer"
@@ -499,7 +509,7 @@ describe("syncStructuresVisibility", () => {
     let callIndex = 0;
     mockedGet.mockImplementation(() => deferred[callIndex++]!.promise);
 
-    const syncPromise = syncStructuresVisibility(scene, [], structures);
+    const syncPromise = syncStructuresVisibility(scene, atlas, [], structures);
 
     // Give both requests a chance to fire before resolving either.
     await Promise.resolve();
@@ -531,9 +541,9 @@ describe("syncStructuresVisibility", () => {
       () => new Promise(resolve => (resolveFetch = resolve))
     );
 
-    const first = syncStructuresVisibility(scene, [], [structure]);
+    const first = syncStructuresVisibility(scene, atlas, [], [structure]);
     await Promise.resolve(); // let the first sync claim its placeholder mesh
-    const second = syncStructuresVisibility(scene, [], [structure]);
+    const second = syncStructuresVisibility(scene, atlas, [], [structure]);
 
     resolveFetch({ data: new ArrayBuffer(0) });
     await Promise.all([first, second]);
@@ -558,7 +568,7 @@ describe("syncStructuresVisibility", () => {
       () => new Promise(resolve => (resolveFetch = resolve))
     );
 
-    const syncPromise = syncStructuresVisibility(scene, [structure], []);
+    const syncPromise = syncStructuresVisibility(scene, atlas, [structure], []);
     await Promise.resolve();
 
     // The placeholder's material must already be at the assigned alpha
@@ -576,52 +586,12 @@ describe("syncStructuresVisibility", () => {
     expect(mesh.isVisible).toBe(true);
   });
 
-  it("freezes an imported structure's material", async () => {
+  it("applies a changed alpha and forces the material to rebind", async () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
-
-    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
-    const mesh = atlasRootNode
-      .getChildren()
-      .find(c => c.name === "1_structure_mesh") as Mesh;
-    expect(mesh.material!.isFrozen).toBe(true);
-
-    decodeSpy.mockRestore();
-  });
-
-  it("freezes a structure's material before its geometry has loaded", async () => {
-    const scene = makeTestScene();
-    stubDecode(scene);
-    const structure = makeStructureEntity({ identifier: 1 });
-
-    let resolveFetch!: (value: { data: ArrayBuffer }) => void;
-    mockedGet.mockImplementation(
-      () => new Promise(resolve => (resolveFetch = resolve))
-    );
-
-    const syncPromise = syncStructuresVisibility(scene, [], [structure]);
-    await Promise.resolve();
-
-    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
-    const mesh = atlasRootNode
-      .getChildren()
-      .find(c => c.name === "1_structure_mesh") as Mesh;
-    expect(mesh.material!.isFrozen).toBe(true);
-    expect(mesh.isVisible).toBe(false);
-
-    resolveFetch({ data: new ArrayBuffer(0) });
-    await syncPromise;
-  });
-
-  it("applies a changed alpha to a frozen material and forces it to rebind", async () => {
-    const scene = makeTestScene();
-    const decodeSpy = stubDecode(scene);
-    const structure = makeStructureEntity({ identifier: 1 });
-
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -630,21 +600,20 @@ describe("syncStructuresVisibility", () => {
     const material = mesh.material!;
     const markDirtySpy = vi.spyOn(material, "markDirty");
 
-    await syncStructuresVisibility(scene, [structure], []);
+    await syncStructuresVisibility(scene, atlas, [structure], []);
 
     expect(material.alpha).toBe(0.1);
-    expect(material.isFrozen).toBe(true);
     expect(markDirtySpy).toHaveBeenCalledWith(true);
 
     decodeSpy.mockRestore();
   });
 
-  it("leaves a frozen material untouched when its alpha is unchanged", async () => {
+  it("leaves the material untouched when its alpha is unchanged", async () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -652,7 +621,7 @@ describe("syncStructuresVisibility", () => {
       .find(c => c.name === "1_structure_mesh") as Mesh;
     const markDirtySpy = vi.spyOn(mesh.material!, "markDirty");
 
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
 
     expect(markDirtySpy).not.toHaveBeenCalled();
 
@@ -669,12 +638,12 @@ describe("syncStructuresVisibility", () => {
       () => new Promise(resolve => (resolveFetch = resolve))
     );
 
-    const first = syncStructuresVisibility(scene, [], [structure]);
+    const first = syncStructuresVisibility(scene, atlas, [], [structure]);
     await Promise.resolve();
 
     // The structure is no longer desired by the time the second sync runs,
     // so it disposes the still-loading placeholder mesh.
-    const second = syncStructuresVisibility(scene, [], []);
+    const second = syncStructuresVisibility(scene, atlas, [], []);
 
     resolveFetch({ data: new ArrayBuffer(0) });
     await Promise.all([first, second]);
@@ -684,6 +653,79 @@ describe("syncStructuresVisibility", () => {
       atlasRootNode.getChildren().some(c => c.name === "1_structure_mesh")
     ).toBe(false);
     expect(scene.materials).toEqual([]);
+  });
+
+  it("disposes the previous atlas's mesh and rebuilds it when the atlas changes", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const firstMesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+
+    const humanAtlas = makeAtlas({ name: "allen_human" });
+    await syncStructuresVisibility(scene, humanAtlas, [], [structure]);
+    const secondMesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+
+    expect(secondMesh).not.toBe(firstMesh);
+    expect(decodeSpy).toHaveBeenCalledTimes(2);
+
+    decodeSpy.mockRestore();
+  });
+
+  it("reuses the mesh across two syncs for the same atlas", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const firstMesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    decodeSpy.mockClear();
+
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    const secondMesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+
+    expect(secondMesh).toBe(firstMesh);
+    expect(decodeSpy).not.toHaveBeenCalled();
+
+    decodeSpy.mockRestore();
+  });
+
+  it("repaints a structure's material when its colour changes on a later pass with the same atlas", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({
+      identifier: 1,
+      color: Color3.FromInts(255, 0, 0)
+    });
+
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    const material = mesh.material as StandardMaterial;
+    expect(material.diffuseColor.equals(Color3.FromInts(255, 0, 0))).toBe(true);
+
+    const recoloredStructure = {
+      ...structure,
+      color: Color3.FromInts(0, 255, 0)
+    };
+    await syncStructuresVisibility(scene, atlas, [], [recoloredStructure]);
+
+    expect(material.diffuseColor.equals(Color3.FromInts(0, 255, 0))).toBe(true);
+
+    decodeSpy.mockRestore();
   });
 });
 
@@ -705,7 +747,7 @@ describe("removeAllStructures", () => {
       makeStructureEntity({ identifier: 1 }),
       makeStructureEntity({ identifier: 2 })
     ];
-    await syncStructuresVisibility(scene, [], structures);
+    await syncStructuresVisibility(scene, atlas, [], structures);
     decodeSpy.mockRestore();
 
     removeAllStructures(scene);
@@ -719,7 +761,7 @@ describe("removeAllStructures", () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
     decodeSpy.mockRestore();
 
     removeAllStructures(scene);
@@ -731,7 +773,7 @@ describe("removeAllStructures", () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
     decodeSpy.mockRestore();
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const unrelatedMesh = new Mesh("probeTip_mesh", scene);
@@ -754,11 +796,11 @@ describe("removeAllStructures", () => {
 });
 
 describe("setStructureInteriorsHidden", () => {
-  it("sets needDepthPrePass on a faded structure's frozen material", async () => {
+  it("sets needDepthPrePass on a faded structure's material", async () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
-    await syncStructuresVisibility(scene, [structure], []);
+    await syncStructuresVisibility(scene, atlas, [structure], []);
     decodeSpy.mockRestore();
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -769,14 +811,13 @@ describe("setStructureInteriorsHidden", () => {
     setStructureInteriorsHidden(scene, true);
 
     expect(material.needDepthPrePass).toBe(true);
-    expect(material.isFrozen).toBe(true);
   });
 
   it("leaves a fully visible structure's material without a depth pre-pass", async () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
-    await syncStructuresVisibility(scene, [], [structure]);
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
     decodeSpy.mockRestore();
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -793,7 +834,7 @@ describe("setStructureInteriorsHidden", () => {
     const scene = makeTestScene();
     const decodeSpy = stubDecode(scene);
     const structure = makeStructureEntity({ identifier: 1 });
-    await syncStructuresVisibility(scene, [structure], []);
+    await syncStructuresVisibility(scene, atlas, [structure], []);
     decodeSpy.mockRestore();
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
     const mesh = atlasRootNode
@@ -811,6 +852,42 @@ describe("setStructureInteriorsHidden", () => {
     const scene = makeTestScene();
 
     expect(() => setStructureInteriorsHidden(scene, true)).not.toThrow();
+  });
+
+  it("forces the material to rebind when needDepthPrePass changes", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructuresVisibility(scene, atlas, [structure], []);
+    decodeSpy.mockRestore();
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    const markDirtySpy = vi.spyOn(mesh.material!, "markDirty");
+
+    setStructureInteriorsHidden(scene, true);
+
+    expect(markDirtySpy).toHaveBeenCalledWith(true);
+  });
+
+  it("leaves the material untouched when needDepthPrePass is unchanged", async () => {
+    const scene = makeTestScene();
+    const decodeSpy = stubDecode(scene);
+    const structure = makeStructureEntity({ identifier: 1 });
+    await syncStructuresVisibility(scene, atlas, [], [structure]);
+    decodeSpy.mockRestore();
+    const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
+    const mesh = atlasRootNode
+      .getChildren()
+      .find(c => c.name === "1_structure_mesh") as Mesh;
+    const markDirtySpy = vi.spyOn(mesh.material!, "markDirty");
+
+    // A fully visible structure's alpha already keeps needDepthPrePass
+    // false, so enabling interior-hiding doesn't change it.
+    setStructureInteriorsHidden(scene, true);
+
+    expect(markDirtySpy).not.toHaveBeenCalled();
   });
 });
 

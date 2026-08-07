@@ -3,9 +3,8 @@ import { createPinia, setActivePinia } from "pinia";
 import Inspector from "./Inspector.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { makeProbe } from "@/test/fixtures";
+import { makeCameraPose, makeProbe } from "@/test/fixtures";
 import { getTerminologyRows } from "@/features/atlas";
-import { CAMERA_INSPECTABLE } from "@/features/scene";
 import enUS from "@/i18n/en-US";
 
 const t = enUS.inspector;
@@ -93,7 +92,7 @@ describe("Inspector", () => {
 
   it("renders a CameraInspector for the camera selection and hides the hint", async () => {
     const { wrapper, store } = mountInspector();
-    store.selectedInspectable = CAMERA_INSPECTABLE;
+    store.selectedInspectable = makeCameraPose();
     await wrapper.vm.$nextTick();
 
     expect(wrapper.findComponent({ name: "CameraInspector" }).exists()).toBe(

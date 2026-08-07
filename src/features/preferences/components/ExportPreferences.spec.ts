@@ -165,7 +165,7 @@ describe("ExportPreferences", () => {
         materialSpecularIntensity: 0.5,
         materialSpecularPower: 32,
         areStructureInteriorsHidden: false,
-        positionUnit: "inch",
+        positionUnit: "centimeter",
         rotationUnit: "radian",
         decimalPrecision: 1,
         probeShankThicknessMillimeters: 1,

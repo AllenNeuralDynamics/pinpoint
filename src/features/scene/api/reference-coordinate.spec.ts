@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { Vector3 } from "@babylonjs/core";
+import { TransformNode, Vector3 } from "@babylonjs/core";
 import {
   buildReferenceCoordinateNode,
-  setReferenceCoordinateNodePosition
+  referenceRelativeToWorld,
+  setReferenceCoordinateNodePosition,
+  worldToReferenceRelative
 } from "./reference-coordinate.api";
 import { asrToVector3 } from "./coordinate-transforms.api";
+import { setAtlasCenterOffset } from "./structures.api";
+import { getAtlasCenter } from "@/features/atlas";
+import { makeAtlas } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
 describe("buildReferenceCoordinateNode", () => {
@@ -73,5 +78,51 @@ describe("setReferenceCoordinateNodePosition", () => {
 
     expect(scene.getTransformNodeByName("referenceCoordinate_node")).toBe(node);
     expect(node.position.equals(asrToVector3([4, 5, 6]))).toBe(true);
+  });
+});
+
+describe("referenceRelativeToWorld / worldToReferenceRelative round-trip", () => {
+  const atlas = makeAtlas();
+  const referenceCoordinate: [number, number, number] = [5.7, 0.44, 5.4];
+
+  it("round-trips a relative coordinate through world space", () => {
+    const relativeCoordinate: [number, number, number] = [1, 2, 3];
+
+    const world = referenceRelativeToWorld(
+      atlas,
+      referenceCoordinate,
+      relativeCoordinate
+    );
+    const roundTripped = worldToReferenceRelative(
+      atlas,
+      referenceCoordinate,
+      world
+    );
+
+    expect(roundTripped).toEqual(relativeCoordinate);
+  });
+
+  it("matches where the real scene hierarchy places the reference-relative coordinate", () => {
+    const scene = makeTestScene();
+    setAtlasCenterOffset(scene, getAtlasCenter(atlas));
+    setReferenceCoordinateNodePosition(scene, referenceCoordinate);
+    const relativeCoordinate: [number, number, number] = [1, 2, 3];
+    const child = new TransformNode("child", scene);
+    child.parent = buildReferenceCoordinateNode(scene);
+    child.position = asrToVector3(relativeCoordinate);
+    child.computeWorldMatrix(true);
+
+    const expectedWorld = referenceRelativeToWorld(
+      atlas,
+      referenceCoordinate,
+      relativeCoordinate
+    );
+
+    // The arithmetic shortcut derives world position from the atlas centre
+    // directly; this pins it to the real node hierarchy `setAtlasCenterOffset`
+    // and `setReferenceCoordinateNodePosition` build.
+    expect(
+      Vector3.Distance(child.absolutePosition, expectedWorld)
+    ).toBeLessThan(1e-6);
   });
 });
