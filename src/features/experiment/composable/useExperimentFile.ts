@@ -3,9 +3,12 @@ import { exportFile } from "quasar";
 import { useI18n } from "vue-i18n";
 import {
   buildExperimentFileName,
-  parseExperimentFile,
-  serializeExperiment
+  EXPERIMENT_FILE_MIME_TYPE,
+  type SceneObjectModel,
+  unzipExperiment,
+  zipExperiment
 } from "../api/experiment-file.api";
+import { getSceneObjectModel, putSceneObjectModel } from "@/features/scene";
 import { useNotify } from "@/composable/useNotify";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { compareFileVersion, type VersionRelation } from "@/utils/version";
@@ -42,7 +45,7 @@ const VERSION_MISMATCH_NOTICES: Record<
 };
 
 /**
- * Open and download the current experiment as a JSON file, notifying on
+ * Open and download the current experiment as a zip file, notifying on
  * unreadable files, unreachable atlases, and failed downloads.
  */
 export function useExperimentFile() {
@@ -50,7 +53,7 @@ export function useExperimentFile() {
   const { notifyError, notifyWarning } = useNotify();
   const currentExperimentStore = useCurrentExperimentStore();
   const { open: openExperiment, onChange } = useFileDialog({
-    accept: "application/json",
+    accept: ".zip,application/zip",
     multiple: false,
     reset: true
   });
@@ -87,14 +90,26 @@ export function useExperimentFile() {
   }
 
   /**
-   * Download the current experiment as a JSON file.
+   * Download the current experiment as a zip file containing its JSON and
+   * one model file per referenced scene object still in IndexedDB.
    */
-  function downloadExperiment() {
+  async function downloadExperiment() {
     const { experiment } = currentExperimentStore;
+    const sceneObjectModels = new Map<string, SceneObjectModel>();
+    for (const { id } of experiment.sceneObjects) {
+      const modelFile = await getSceneObjectModel(id);
+      if (modelFile) {
+        sceneObjectModels.set(id, {
+          fileName: modelFile.name,
+          bytes: new Uint8Array(await modelFile.arrayBuffer())
+        });
+      }
+    }
+
     const result = exportFile(
       buildExperimentFileName(experiment),
-      serializeExperiment(experiment),
-      "application/json"
+      zipExperiment(experiment, sceneObjectModels),
+      EXPERIMENT_FILE_MIME_TYPE
     );
 
     if (result !== true) {
@@ -111,17 +126,25 @@ export function useExperimentFile() {
     if (!file) return;
 
     try {
-      const experiment = parseExperimentFile(await file.text());
-      if (!experiment) {
+      const archive = unzipExperiment(new Uint8Array(await file.arrayBuffer()));
+      if (!archive) {
         notifyInvalidExperimentFile();
         return;
       }
 
+      // Written before `loadExperiment`, so the scene sync's first run finds them.
+      for (const [id, { fileName, bytes }] of archive.sceneObjectModels) {
+        await putSceneObjectModel(id, new File([bytes.slice()], fileName));
+      }
+
       notifyVersionMismatch(
-        compareFileVersion(experiment.version, import.meta.env.APP_VERSION),
-        experiment.version
+        compareFileVersion(
+          archive.experiment.version,
+          import.meta.env.APP_VERSION
+        ),
+        archive.experiment.version
       );
-      currentExperimentStore.loadExperiment(experiment);
+      currentExperimentStore.loadExperiment(archive.experiment);
       await openedHook.trigger();
     } catch {
       notifyInvalidExperimentFile();

@@ -12,7 +12,8 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
 
     tickScene(scene, 50);
@@ -22,7 +23,8 @@ describe("interpolateNodePose", () => {
     const node2 = new TransformNode("n2", scene2);
     interpolateNodePose(scene2, node2, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
 
     tickScene(scene2, 150);
@@ -35,7 +37,8 @@ describe("interpolateNodePose", () => {
     const goal = new Vector3(10, 0, 0);
     interpolateNodePose(scene, node, {
       position: goal,
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
 
     tickScene(scene, 100);
@@ -54,7 +57,8 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: Vector3.Zero(),
-      rotation: new Vector3(0, 0, 1)
+      rotation: new Vector3(0, 0, 1),
+      scaling: Vector3.One()
     });
 
     tickScene(scene, 100);
@@ -70,7 +74,8 @@ describe("interpolateNodePose", () => {
     node.rotation = new Vector3(0, 0, -3);
     interpolateNodePose(scene, node, {
       position: Vector3.Zero(),
-      rotation: new Vector3(0, 0, 3)
+      rotation: new Vector3(0, 0, 3),
+      scaling: Vector3.One()
     });
 
     tickScene(scene, 100);
@@ -87,14 +92,16 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
     tickScene(scene, 100);
     expect(node.position.x).toBeCloseTo(5);
 
     interpolateNodePose(scene, node, {
       position: new Vector3(0, 0, 20),
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
     tickScene(scene, 100);
 
@@ -111,13 +118,31 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
 
     node.dispose();
 
     expect(() => tickScene(scene, 100)).not.toThrow();
     expect(() => tickScene(scene, 100)).not.toThrow();
+  });
+
+  it("animates scale alongside position, landing exactly on the goal after the duration", () => {
+    const scene = makeTestScene();
+    const node = new TransformNode("n", scene);
+    interpolateNodePose(scene, node, {
+      position: Vector3.Zero(),
+      rotation: Vector3.Zero(),
+      scaling: new Vector3(2, 2, 2)
+    });
+
+    tickScene(scene, 100);
+    expect(node.scaling.x).toBeCloseTo(1.5);
+    expect(node.scaling.asArray()).not.toEqual([2, 2, 2]);
+
+    tickScene(scene, 100);
+    expect(node.scaling.asArray()).toEqual([2, 2, 2]);
   });
 });
 
@@ -127,7 +152,8 @@ describe("stopNodePoseInterpolation", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero()
+      rotation: Vector3.Zero(),
+      scaling: Vector3.One()
     });
     tickScene(scene, 100);
     expect(node.position.x).toBeCloseTo(5);

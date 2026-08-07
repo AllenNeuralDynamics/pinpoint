@@ -18,3 +18,18 @@ export type {
 } from "./models/gizmo.model";
 export type { CameraProjection } from "./models/camera.model";
 export type { ProbeGeometry } from "./models/probe-geometry.model";
+export {
+  buildSceneObject,
+  isSceneObject,
+  toggleSceneObjectCollidable,
+  toggleSceneObjectLock,
+  toggleSceneObjectVisibility
+} from "./api/scene-object.api";
+export {
+  getSceneObjectModel,
+  pruneSceneObjectModels,
+  putSceneObjectModel
+} from "./api/scene-object-model.api";
+export type { SceneObject } from "./models/scene-object.model";
+export type { SceneObjectVisibility } from "./models/scene-object-visibility.model";
+export { canLoadModelFile } from "./api/model-file.api";

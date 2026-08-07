@@ -10,6 +10,7 @@ import {
 import type { VisibleStructure } from "../models/visible-structure.model";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
+import type { SceneObject } from "@/features/scene";
 import {
   detachProbeInterfaceProbe,
   detachProbeInterfaceProbes,
@@ -52,6 +53,7 @@ export function buildExperiment(
     ),
     probeInterfaceProbes: {},
     probes: [],
+    sceneObjects: [],
     cameraPose: buildCameraPose(atlas, referenceCoordinate),
     cameraPoses: []
   };
@@ -324,6 +326,67 @@ export function reorderProbe(
   }
   const [probe] = experiment.probes.splice(fromIndex, 1);
   experiment.probes.splice(toIndex, 0, probe!);
+}
+
+/**
+ * Add a scene object to the experiment, unless one with the same id already
+ * exists.
+ * @param experiment Experiment to add a scene object to.
+ * @param sceneObject Scene object to add.
+ */
+export function addSceneObject(
+  experiment: Experiment,
+  sceneObject: SceneObject
+) {
+  if (
+    experiment.sceneObjects.some(
+      existingSceneObject => existingSceneObject.id === sceneObject.id
+    )
+  ) {
+    return;
+  }
+
+  experiment.sceneObjects.push(sceneObject);
+}
+
+/**
+ * Remove a scene object from the experiment.
+ * @param experiment Experiment to remove this scene object from.
+ * @param sceneObject Scene object to remove.
+ */
+export function removeSceneObject(
+  experiment: Experiment,
+  sceneObject: SceneObject
+) {
+  const sceneObjectIndex = experiment.sceneObjects.findIndex(
+    existingSceneObject => existingSceneObject.id === sceneObject.id
+  );
+  if (sceneObjectIndex === -1) return;
+  experiment.sceneObjects.splice(sceneObjectIndex, 1);
+}
+
+/**
+ * Move a scene object within the experiment from one index to another.
+ * @param experiment Experiment holding the scene objects to reorder.
+ * @param fromIndex Index of the scene object to move.
+ * @param toIndex Index to move it to.
+ */
+export function reorderSceneObject(
+  experiment: Experiment,
+  fromIndex: number,
+  toIndex: number
+) {
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= experiment.sceneObjects.length ||
+    toIndex >= experiment.sceneObjects.length
+  ) {
+    return;
+  }
+  const [sceneObject] = experiment.sceneObjects.splice(fromIndex, 1);
+  experiment.sceneObjects.splice(toIndex, 0, sceneObject!);
 }
 
 /**

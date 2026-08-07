@@ -2,6 +2,7 @@ import type { Atlas } from "@/features/atlas";
 import type { CameraPose } from "./camera-pose.model";
 import type { VisibleStructure } from "./visible-structure.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
+import type { SceneObject } from "@/features/scene";
 
 export interface Experiment {
   // Unique identifier.
@@ -36,6 +37,9 @@ export interface Experiment {
 
   /** Live orbit and target of the scene camera. */
   cameraPose: CameraPose;
+
+  /** Arbitrary 3D models placed in the scene, in user-arranged order. */
+  sceneObjects: SceneObject[];
 
   /** Saved camera poses, in user-arranged order. */
   cameraPoses: CameraPose[];

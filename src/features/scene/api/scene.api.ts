@@ -12,6 +12,10 @@ import type { Inspectable } from "../models/inspectable.model";
 import { pickAxisGuideDirection } from "./axis-guide.api";
 import { orbitCameraTowards } from "./camera.api";
 import { attachProbeSelection, getProbeTransformNode } from "./probe.api";
+import {
+  attachSceneObjectSelection,
+  getSceneObjectTransformNode
+} from "./scene-object-node.api";
 
 /**
  * Select the entity in the scene based on the selected inspectable.
@@ -29,24 +33,39 @@ export function selectFromSelectedInspectableState(
   // Both branches result in clearing the selection outline layer at some point.
   selectionOutlineLayer.clearSelection();
 
-  // Unattached gizmo when nothing is selected, or when the selection has no
-  // entity of its own in the scene (the camera).
-  if (!selectedInspectable || selectedInspectable.inspectableKind !== "probe") {
-    gizmoManager.attachToNode(null);
-    return;
+  switch (selectedInspectable?.inspectableKind) {
+    case undefined:
+    case "camera":
+      gizmoManager.attachToNode(null);
+      return;
+    case "probe": {
+      const probeTransformNode = getProbeTransformNode(
+        scene,
+        selectedInspectable.id
+      );
+      if (!probeTransformNode) return;
+      attachProbeSelection(
+        gizmoManager,
+        selectionOutlineLayer,
+        selectedInspectable,
+        probeTransformNode
+      );
+      return;
+    }
+    case "sceneObject": {
+      const sceneObjectTransformNode = getSceneObjectTransformNode(
+        scene,
+        selectedInspectable.id
+      );
+      if (!sceneObjectTransformNode) return;
+      attachSceneObjectSelection(
+        gizmoManager,
+        selectionOutlineLayer,
+        selectedInspectable,
+        sceneObjectTransformNode
+      );
+    }
   }
-
-  const probeTransformNode = getProbeTransformNode(
-    scene,
-    selectedInspectable.id
-  );
-  if (!probeTransformNode) return;
-  attachProbeSelection(
-    gizmoManager,
-    selectionOutlineLayer,
-    selectedInspectable,
-    probeTransformNode
-  );
 }
 
 /**

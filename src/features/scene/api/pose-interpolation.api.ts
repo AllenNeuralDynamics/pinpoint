@@ -1,10 +1,11 @@
 import type { Observer, Scene, TransformNode } from "@babylonjs/core";
 import { Quaternion, TmpVectors, Vector3 } from "@babylonjs/core";
 
-/** Position and Euler rotation a node is interpolated between. */
+/** Position, Euler rotation, and scale a node is interpolated between. */
 export interface NodePose {
   position: Vector3;
   rotation: Vector3;
+  scaling: Vector3;
 }
 
 /** Duration of a pose interpolation, in seconds. */
@@ -36,15 +37,25 @@ export function interpolateNodePose(
   if (existing) {
     existing.start.position.copyFrom(node.position);
     existing.start.rotation.copyFrom(node.rotation);
+    existing.start.scaling.copyFrom(node.scaling);
     existing.goal.position.copyFrom(goal.position);
     existing.goal.rotation.copyFrom(goal.rotation);
+    existing.goal.scaling.copyFrom(goal.scaling);
     existing.elapsedSeconds = 0;
     return;
   }
 
   const interpolation: NodeInterpolation = {
-    start: { position: node.position.clone(), rotation: node.rotation.clone() },
-    goal: { position: goal.position.clone(), rotation: goal.rotation.clone() },
+    start: {
+      position: node.position.clone(),
+      rotation: node.rotation.clone(),
+      scaling: node.scaling.clone()
+    },
+    goal: {
+      position: goal.position.clone(),
+      rotation: goal.rotation.clone(),
+      scaling: goal.scaling.clone()
+    },
     elapsedSeconds: 0,
     observer: null
   };
@@ -59,6 +70,7 @@ export function interpolateNodePose(
     if (interpolation.elapsedSeconds >= DURATION_SECONDS) {
       node.position.copyFrom(interpolation.goal.position);
       node.rotation.copyFrom(interpolation.goal.rotation);
+      node.scaling.copyFrom(interpolation.goal.scaling);
       stopNodePoseInterpolation(node);
       return;
     }
@@ -71,6 +83,12 @@ export function interpolateNodePose(
       interpolation.goal.position,
       amount,
       node.position
+    );
+    Vector3.LerpToRef(
+      interpolation.start.scaling,
+      interpolation.goal.scaling,
+      amount,
+      node.scaling
     );
     // Slerp the orientation: an Euler lerp takes the long way round whenever
     // two angles straddle a wrap.

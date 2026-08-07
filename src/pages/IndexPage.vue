@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { onMounted, ref, type Ref } from "vue";
+import { onMounted, onUnmounted, ref, type Ref } from "vue";
 import { onKeyStroke } from "@vueuse/core";
-import { SceneCanvas, SceneHierarchy } from "@/features/scene";
+import {
+  pruneSceneObjectModels,
+  SceneCanvas,
+  SceneHierarchy
+} from "@/features/scene";
 import { type TouchPanValue, useQuasar } from "quasar";
 import {
   ExperimentPropertiesDialog,
@@ -10,6 +14,7 @@ import {
   useExperimentFile
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { AtlasHierarchy } from "@/features/atlas";
 import { ProbeLibraryDialog } from "@/features/probe";
 import { openPreferencesDialog } from "@/features/preferences";
@@ -26,6 +31,7 @@ const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
+const recentExperimentsStore = useRecentExperimentsStore();
 const { openExperiment, downloadExperiment } = useExperimentFile();
 
 const leftDrawerOpen = ref(false);
@@ -129,6 +135,17 @@ onMounted(() => {
   // Show splash.
   // $q.dialog({ component: SplashDialog });
 });
+
+// Reclaim models no experiment references any more. Fire-and-forget: a hard tab
+// close can cut the IndexedDB transaction short, and the sweep is idempotent, so
+// the next teardown finishes the job.
+onUnmounted(() => {
+  const referencedIds = [
+    currentExperimentStore.experiment,
+    ...recentExperimentsStore.recents
+  ].flatMap(experiment => experiment.sceneObjects.map(({ id }) => id));
+  void pruneSceneObjectModels(referencedIds);
+});
 </script>
 
 <template>
@@ -159,7 +176,7 @@ onMounted(() => {
               >
                 <q-item-section>{{ $t("layout.openRecent") }}</q-item-section>
               </q-item>
-              <q-item clickable @click="downloadExperiment">
+              <q-item clickable @click="() => void downloadExperiment()">
                 <q-item-section>{{ $t("layout.download") }}</q-item-section>
               </q-item>
             </q-list>

@@ -10,7 +10,12 @@ import {
   KNOWN_PROBES
 } from "../models/known-probes.model";
 import { STANDARD_COLORS } from "@/features/scene";
-import { isFiniteTriple, isFiniteNumber, isRecord } from "@/utils/type-guards";
+import {
+  isFiniteTriple,
+  isFiniteNumber,
+  isHexColor,
+  isRecord
+} from "@/utils/type-guards";
 
 /** Every valid probe visibility, for validating untrusted probe data. */
 const PROBE_VISIBILITIES: readonly string[] = [
@@ -18,9 +23,6 @@ const PROBE_VISIBILITIES: readonly string[] = [
   "shanks",
   "hidden"
 ] satisfies readonly ProbeVisibility[];
-
-/** `#RRGGBB`, the only form `Color3.FromHexString` renders correctly. */
-const PROBE_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /** Appended to a copied probe's name. */
 const PROBE_COPY_NAME_SUFFIX = " - copy";
@@ -263,8 +265,7 @@ export function isProbe(value: unknown): value is Probe {
     typeof value.id === "string" &&
     value.id.length > 0 &&
     typeof value.name === "string" &&
-    typeof value.color === "string" &&
-    PROBE_COLOR_PATTERN.test(value.color) &&
+    isHexColor(value.color) &&
     typeof value.visibility === "string" &&
     PROBE_VISIBILITIES.includes(value.visibility) &&
     typeof value.lock === "boolean" &&

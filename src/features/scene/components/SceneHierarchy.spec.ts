@@ -1,13 +1,25 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
 import { createPinia, type Pinia, setActivePinia } from "pinia";
+import type { AbstractEngine } from "@babylonjs/core";
 import SceneHierarchy from "./SceneHierarchy.vue";
-import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
+import {
+  createWrapperRegistry,
+  flushMicrotasks,
+  mountWithQuasar
+} from "@/test/mount-helper";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getAtlasCenter, getTerminologyRows } from "@/features/atlas";
 import { getInternedProbeInterfaceProbe } from "@/features/experiment";
-import { makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeProbe,
+  makeProbeInterfaceProbe,
+  makeSceneObject
+} from "@/test/fixtures";
+import { BabylonRuntimeServiceKey } from "@/services/babylon-runtime.service";
+import { canLoadModelFile } from "../api/model-file.api";
+import { putSceneObjectModel } from "../api/scene-object-model.api";
 
 // `useCurrentExperimentStore`'s `manifest`/`terminologyRows` are
 // `computedAsync` and fetch on store creation -- mock the leaf module (not
@@ -24,6 +36,50 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   };
 });
 
+// Mock the leaf modules the model-file picker's handler calls, not the
+// `@/features/scene` barrel, mirroring `current-experiment.store.spec.ts`.
+vi.mock("../api/model-file.api", () => ({
+  canLoadModelFile: vi.fn()
+}));
+vi.mock("../api/scene-object-model.api", () => ({
+  putSceneObjectModel: vi.fn()
+}));
+
+// `useFileDialog`'s input is never attached to the DOM, so it can't be
+// driven through a queryable `<input type="file">`. Replace it with a fake
+// that records the registered `onChange` callback and an `open` spy,
+// mirroring `useExperimentFile.spec.ts`.
+const openModelFileDialogSpy = vi.fn();
+let capturedOnModelFileChange:
+  | ((files: FileList | null) => void | Promise<void>)
+  | null = null;
+
+vi.mock("@vueuse/core", async importOriginal => {
+  const actual = await importOriginal<typeof import("@vueuse/core")>();
+  return {
+    ...actual,
+    useFileDialog: () => ({
+      files: { value: null },
+      open: openModelFileDialogSpy,
+      reset: vi.fn(),
+      onChange: (
+        callback: (files: FileList | null) => void | Promise<void>
+      ) => {
+        capturedOnModelFileChange = callback;
+      },
+      onCancel: vi.fn()
+    })
+  };
+});
+
+/**
+ * Build a fake `FileList` containing a single file, matching what a real
+ * file input's `change` event would provide.
+ */
+function makeFileList(file: File): FileList {
+  return { 0: file, length: 1, item: () => file } as unknown as FileList;
+}
+
 // The "Add Probe" dropdown's content is teleported to `document.body`
 // rather than into `wrapper.element`'s subtree (Quasar's `QMenu`), so each
 // mounted instance must be attached to, and torn down from, `document.body`
@@ -33,7 +89,17 @@ const wrappers = createWrapperRegistry<VueWrapper>();
 
 async function mountHierarchy(pinia: Pinia) {
   return wrappers.track(
-    mountWithQuasar(SceneHierarchy, { pinia, attachTo: document.body })
+    mountWithQuasar(SceneHierarchy, {
+      pinia,
+      attachTo: document.body,
+      global: {
+        provide: {
+          [BabylonRuntimeServiceKey as symbol]: {
+            engine: { value: {} as AbstractEngine }
+          }
+        }
+      }
+    })
   );
 }
 
@@ -56,6 +122,10 @@ describe("SceneHierarchy", () => {
   beforeEach(() => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
     vi.mocked(getAtlasCenter).mockReturnValue([0, 0, 0]);
+    openModelFileDialogSpy.mockReset();
+    capturedOnModelFileChange = null;
+    vi.mocked(canLoadModelFile).mockReset();
+    vi.mocked(putSceneObjectModel).mockReset();
   });
 
   afterEach(() => {
@@ -253,7 +323,7 @@ describe("SceneHierarchy", () => {
 
     const wrapper = await mountHierarchy(pinia);
     const rows = wrapper.findAll(".probe-list .q-item");
-    await rows[0]!.find(".probe-row__handle").trigger("dragstart");
+    await rows[0]!.find(".hierarchy-row__handle").trigger("dragstart");
     await rows[2]!.trigger("dragover");
     await rows[2]!.trigger("drop");
 
@@ -272,5 +342,121 @@ describe("SceneHierarchy", () => {
     await rows[1]!.trigger("drop");
 
     expect(currentExperiment.experiment.probes).toEqual(probes);
+  });
+
+  describe("scene objects", () => {
+    it("adds a scene object named after a picked file, selects it, and stores its model file", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const currentExperiment = useCurrentExperimentStore(pinia);
+      vi.mocked(canLoadModelFile).mockResolvedValue(true);
+      const file = new File([new Uint8Array([1, 2, 3])], "Brain Model.glb", {
+        type: "model/gltf-binary"
+      });
+
+      await mountHierarchy(pinia);
+      await capturedOnModelFileChange!(makeFileList(file));
+      await flushMicrotasks();
+
+      expect(currentExperiment.sceneObjects).toHaveLength(1);
+      const [sceneObject] = currentExperiment.sceneObjects;
+      expect(sceneObject!.name).toBe("Brain Model");
+      expect(currentExperiment.selectedInspectable).toEqual(sceneObject);
+      expect(putSceneObjectModel).toHaveBeenCalledWith(sceneObject!.id, file);
+    });
+
+    it("notifies and adds nothing when the model file can't be imported", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const currentExperiment = useCurrentExperimentStore(pinia);
+      vi.mocked(canLoadModelFile).mockResolvedValue(false);
+      const file = new File(["not a model"], "broken.glb", {
+        type: "model/gltf-binary"
+      });
+
+      const wrapper = await mountHierarchy(pinia);
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+      await capturedOnModelFileChange!(makeFileList(file));
+      await flushMicrotasks();
+
+      expect(currentExperiment.sceneObjects).toEqual([]);
+      expect(notifySpy).toHaveBeenCalledWith(
+        expect.objectContaining({ color: "negative" })
+      );
+    });
+
+    it("flips visibility and swaps the icon when the eye button is clicked", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const currentExperiment = useCurrentExperimentStore(pinia);
+      const sceneObject = makeSceneObject({ visibility: "visible" });
+      currentExperiment.experiment.sceneObjects = [sceneObject];
+
+      const wrapper = await mountHierarchy(pinia);
+      const visibilityButton = wrapper
+        .findAllComponents({ name: "QBtn" })
+        .find(
+          btn =>
+            btn.classes().includes("visibility-button") &&
+            btn.element.closest(".scene-object-list")
+        )!;
+      expect(visibilityButton.props("icon")).toBe("sym_o_visibility");
+
+      await visibilityButton.trigger("click");
+
+      expect(sceneObject.visibility).toBe("hidden");
+      expect(visibilityButton.props("icon")).toBe("sym_o_visibility_off");
+    });
+
+    it("removes the scene object and clears the selection when the delete button is clicked", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const currentExperiment = useCurrentExperimentStore(pinia);
+      const sceneObject = makeSceneObject();
+      currentExperiment.experiment.sceneObjects = [sceneObject];
+      currentExperiment.selectedInspectable = sceneObject;
+
+      const wrapper = await mountHierarchy(pinia);
+      const deleteButton = wrapper
+        .findAllComponents({ name: "QBtn" })
+        .find(btn => btn.props("icon") === "delete")!;
+      await deleteButton.trigger("click");
+
+      expect(currentExperiment.sceneObjects).toEqual([]);
+      expect(currentExperiment.selectedInspectable).toBeNull();
+    });
+
+    it("reorders scene objects when a row is dragged onto another", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+      const currentExperiment = useCurrentExperimentStore(pinia);
+      const [a, b, c] = [
+        makeSceneObject({ name: "A" }),
+        makeSceneObject({ name: "B" }),
+        makeSceneObject({ name: "C" })
+      ];
+      currentExperiment.experiment.sceneObjects = [a, b, c];
+
+      const wrapper = await mountHierarchy(pinia);
+      const rows = wrapper.findAll(".scene-object-list .q-item");
+      await rows[0]!.find(".hierarchy-row__handle").trigger("dragstart");
+      await rows[2]!.trigger("dragover");
+      await rows[2]!.trigger("drop");
+
+      expect(currentExperiment.experiment.sceneObjects).toEqual([b, c, a]);
+    });
+
+    it("carries no drag handle on the camera or axis-guide rows", async () => {
+      const pinia = createPinia();
+      setActivePinia(pinia);
+
+      const wrapper = await mountHierarchy(pinia);
+      const rows = wrapper.findAll(".scene-list .q-item");
+
+      expect(rows).toHaveLength(2);
+      for (const row of rows) {
+        expect(row.find(".hierarchy-row__handle").exists()).toBe(false);
+      }
+    });
   });
 });

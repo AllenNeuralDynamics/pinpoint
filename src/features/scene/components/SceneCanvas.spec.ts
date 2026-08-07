@@ -68,6 +68,7 @@ import {
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
+  makeSceneObject,
   makeTerminologyRows
 } from "@/test/fixtures";
 import { getProbeTransformNode } from "../api/probe.api";
@@ -976,6 +977,37 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(wrapper.findAllComponents({ name: "QBtnToggle" })).toHaveLength(0);
+  });
+
+  it("offers a scale option only while a scene object is selected, resetting the mode when it stops being scalable", async () => {
+    const { wrapper } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    store.selectedInspectable = makeProbe();
+    await flushPromises();
+
+    const modeToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "position")!;
+    expect(modeToggle.props("options")).toHaveLength(2);
+
+    store.selectedInspectable = makeSceneObject();
+    await flushPromises();
+
+    const options = modeToggle.props("options") as { value: string }[];
+    expect(options).toHaveLength(3);
+    expect(options[2]).toMatchObject({
+      value: "scale",
+      icon: "sym_o_pan_zoom"
+    });
+
+    await modeToggle.vm.$emit("update:modelValue", "scale");
+    await flushPromises();
+
+    store.selectedInspectable = makeProbe();
+    await flushPromises();
+
+    expect(modeToggle.props("modelValue")).toBe("position");
   });
 
   describe("move to surface", () => {

@@ -3,7 +3,7 @@ import {
   isSameInspectable,
   moveInspectableToMillimeters
 } from "./inspectable.api";
-import { makeCameraPose, makeProbe } from "@/test/fixtures";
+import { makeCameraPose, makeProbe, makeSceneObject } from "@/test/fixtures";
 
 describe("isSameInspectable", () => {
   it("returns true for two probes with the same id, even with different names", () => {
@@ -18,6 +18,13 @@ describe("isSameInspectable", () => {
     const b = makeProbe({ id: "B", name: "Probe" });
 
     expect(isSameInspectable(a, b)).toBe(false);
+  });
+
+  it("returns false for a probe and a scene object with the same id", () => {
+    const probe = makeProbe({ id: "A" });
+    const sceneObject = makeSceneObject({ id: "A" });
+
+    expect(isSameInspectable(probe, sceneObject)).toBe(false);
   });
 
   it("returns true for two camera poses", () => {
@@ -46,6 +53,19 @@ describe("moveInspectableToMillimeters", () => {
     moveInspectableToMillimeters(probe, atlasMillimeters, referenceCoordinate);
 
     expect(probe.tipPosition).toEqual([9, 18, 27]);
+  });
+
+  it("moves a scene object's position, leaving other fields untouched", () => {
+    const sceneObject = makeSceneObject({ rotation: [1, 2, 3] });
+
+    moveInspectableToMillimeters(
+      sceneObject,
+      atlasMillimeters,
+      referenceCoordinate
+    );
+
+    expect(sceneObject.position).toEqual([9, 18, 27]);
+    expect(sceneObject.rotation).toEqual([1, 2, 3]);
   });
 
   it("moves a camera's target, leaving its orbit untouched", () => {

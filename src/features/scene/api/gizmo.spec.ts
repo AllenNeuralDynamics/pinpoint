@@ -63,10 +63,17 @@ describe("setGizmoControls", () => {
     setGizmoControls(gizmoManager, "position", "local");
     expect(gizmoManager.positionGizmoEnabled).toBe(true);
     expect(gizmoManager.rotationGizmoEnabled).toBe(false);
+    expect(gizmoManager.scaleGizmoEnabled).toBe(false);
 
     setGizmoControls(gizmoManager, "rotation", "local");
     expect(gizmoManager.positionGizmoEnabled).toBe(false);
     expect(gizmoManager.rotationGizmoEnabled).toBe(true);
+    expect(gizmoManager.scaleGizmoEnabled).toBe(false);
+
+    setGizmoControls(gizmoManager, "scale", "local");
+    expect(gizmoManager.positionGizmoEnabled).toBe(false);
+    expect(gizmoManager.rotationGizmoEnabled).toBe(false);
+    expect(gizmoManager.scaleGizmoEnabled).toBe(true);
   });
 
   it("returns the manager's own gizmo instances, unchanged across a mode switch", () => {
@@ -75,10 +82,12 @@ describe("setGizmoControls", () => {
     const positionMode = setGizmoControls(gizmoManager, "position", "local")!;
     expect(positionMode.positionGizmo).toBe(gizmoManager.gizmos.positionGizmo);
     expect(positionMode.rotationGizmo).toBe(gizmoManager.gizmos.rotationGizmo);
+    expect(positionMode.scaleGizmo).toBe(gizmoManager.gizmos.scaleGizmo);
 
     const rotationMode = setGizmoControls(gizmoManager, "rotation", "local")!;
     expect(rotationMode.positionGizmo).toBe(positionMode.positionGizmo);
     expect(rotationMode.rotationGizmo).toBe(positionMode.rotationGizmo);
+    expect(rotationMode.scaleGizmo).toBe(positionMode.scaleGizmo);
   });
 
   it("keeps the newly enabled gizmo attached to the selected node", () => {

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { HighlightLayer, Vector3 } from "@babylonjs/core";
+import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
 import type { Experiment } from "@/features/experiment";
 import {
   addProbe,
@@ -17,27 +18,34 @@ import {
   makeAtlas,
   makeProbe,
   makeProbeGeometry,
-  makeProbeInterfaceProbe
+  makeProbeInterfaceProbe,
+  makeSceneObject
 } from "@/test/fixtures";
 import {
   initializeTestCSG2,
-  makeTestSceneWithGizmo,
+  makeTestModelFile,
   makeTestSceneWithPhysics,
   stepPhysics
 } from "@/test/mount-helper";
 import { buildProbe, disposeProbe, getProbeMeshes } from "./probe.api";
-import type { ProbeCollisionChange } from "./probe-collision.api";
 import {
-  createProbeCollisionState,
-  pruneProbeCollisions,
-  syncProbeCollisionHighlight,
-  trackProbeCollisions
-} from "./probe-collision.api";
+  buildSceneObjectNode,
+  getSceneObjectMeshes
+} from "./scene-object-node.api";
+import type { CollisionChange } from "./collision.api";
+import {
+  createCollisionState,
+  disposeCollisionBody,
+  pruneCollisions,
+  syncCollisionHighlight,
+  trackCollisions
+} from "./collision.api";
 
 // The head stage is CSG2-subtracted; initialize it once for every test in this file, mirroring
 // what `babylon-runtime.service.ts` does at startup.
 beforeAll(async () => {
   await initializeTestCSG2();
+  registerBuiltInLoaders();
 });
 
 /** Single-shank contour (imec NP1000), in micrometers - mirrors probe.spec.ts. */
@@ -87,7 +95,7 @@ function makeExperimentWithProbe(
   return { experiment, probe };
 }
 
-describe("probe collision bodies", () => {
+describe("scene entity collision bodies", () => {
   it("reports one entered transition, with ids sorted ascending, when two probe bodies start overlapping", async () => {
     const { scene, gizmoManager, havokPlugin } =
       await makeTestSceneWithPhysics();
@@ -110,9 +118,9 @@ describe("probe collision bodies", () => {
     nodeA.position = Vector3.Zero();
     nodeB.position = Vector3.Zero();
 
-    const state = createProbeCollisionState();
-    const changes: ProbeCollisionChange[] = [];
-    trackProbeCollisions(havokPlugin, state, change => changes.push(change));
+    const state = createCollisionState();
+    const changes: CollisionChange[] = [];
+    trackCollisions(havokPlugin, state, change => changes.push(change));
 
     for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
 
@@ -120,7 +128,7 @@ describe("probe collision bodies", () => {
     expect(changes).toHaveLength(1);
     expect(changes[0]).toEqual({
       kind: "entered",
-      probeIds: [expectedFirst, expectedSecond]
+      entityIds: [expectedFirst, expectedSecond]
     });
   });
 
@@ -147,14 +155,14 @@ describe("probe collision bodies", () => {
     nodeA.position = Vector3.Zero();
     nodeB.position = Vector3.Zero();
 
-    const state = createProbeCollisionState();
-    trackProbeCollisions(havokPlugin, state, change => {
-      for (const probeId of change.probeIds) {
-        syncProbeCollisionHighlight(
+    const state = createCollisionState();
+    trackCollisions(havokPlugin, state, change => {
+      for (const entityId of change.entityIds) {
+        syncCollisionHighlight(
           highlightLayer,
           state,
-          probeId,
-          getProbeMeshes(scene, probeId)
+          entityId,
+          getProbeMeshes(scene, entityId)
         );
       }
     });
@@ -200,14 +208,14 @@ describe("probe collision bodies", () => {
     nodeA.position = Vector3.Zero();
     nodeB.position = Vector3.Zero();
 
-    const state = createProbeCollisionState();
-    trackProbeCollisions(havokPlugin, state, change => {
-      for (const probeId of change.probeIds) {
-        syncProbeCollisionHighlight(
+    const state = createCollisionState();
+    trackCollisions(havokPlugin, state, change => {
+      for (const entityId of change.entityIds) {
+        syncCollisionHighlight(
           highlightLayer,
           state,
-          probeId,
-          getProbeMeshes(scene, probeId)
+          entityId,
+          getProbeMeshes(scene, entityId)
         );
       }
     });
@@ -220,20 +228,93 @@ describe("probe collision bodies", () => {
     // Disposing a body while it overlaps emits no TRIGGER_EXITED, so the pair count would leak
     // without an explicit prune.
     disposeProbe(scene, a.probe.id, gizmoManager);
-    const affected = pruneProbeCollisions(state, [b.probe.id]);
+    const affected = pruneCollisions(state, [b.probe.id]);
     expect(affected).toEqual([b.probe.id]);
 
-    for (const probeId of affected) {
-      syncProbeCollisionHighlight(
+    for (const entityId of affected) {
+      syncCollisionHighlight(
         highlightLayer,
         state,
-        probeId,
-        getProbeMeshes(scene, probeId)
+        entityId,
+        getProbeMeshes(scene, entityId)
       );
     }
     for (const mesh of meshesB) {
       expect(highlightLayer.hasMesh(mesh)).toBe(false);
     }
+  });
+
+  it("un-highlights a scene object's own mesh when its collider is disposed while overlapping, unlike a rebuilt probe", async () => {
+    const { scene, gizmoManager, havokPlugin } =
+      await makeTestSceneWithPhysics();
+    const highlightLayer = new HighlightLayer("test_highlight_layer", scene);
+    const { experiment, probe } = makeExperimentWithProbe();
+    const probeNode = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
+    probeNode.position = Vector3.Zero();
+
+    const sceneObject = makeSceneObject();
+    const modelFile = await makeTestModelFile();
+    const objectNode = (await buildSceneObjectNode(
+      scene,
+      sceneObject,
+      modelFile,
+      gizmoManager
+    ))!.node;
+    objectNode.position = Vector3.Zero();
+
+    /** Meshes of a colliding entity, whichever kind it is - mirrors `SceneCanvas.vue`. */
+    function entityMeshes(entityId: string) {
+      const probeMeshes = getProbeMeshes(scene, entityId);
+      return probeMeshes.length
+        ? probeMeshes
+        : getSceneObjectMeshes(scene, entityId);
+    }
+
+    const state = createCollisionState();
+    trackCollisions(havokPlugin, state, change => {
+      for (const entityId of change.entityIds) {
+        syncCollisionHighlight(
+          highlightLayer,
+          state,
+          entityId,
+          entityMeshes(entityId)
+        );
+      }
+    });
+
+    for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
+
+    const objectMeshes = getSceneObjectMeshes(scene, sceneObject.id);
+    expect(objectMeshes).not.toHaveLength(0);
+    expect(highlightLayer.hasMesh(objectMeshes[0]!)).toBe(true);
+
+    // Unlike a probe rebuild, which disposes the old, highlighted mesh along with its
+    // collider, turning a scene object's `collidable` off disposes only the collider - the
+    // render mesh, and its highlight-layer registration, survive.
+    disposeCollisionBody(scene, sceneObject.id, "object");
+
+    // Mirrors `SceneCanvas.vue`'s `syncSceneObjectsFromState`: prune the stale pair, then
+    // resync highlight for both the surviving partner and the changed entity itself.
+    const survivors = pruneCollisions(state, [probe.id]);
+    for (const entityId of new Set([...survivors, sceneObject.id])) {
+      syncCollisionHighlight(
+        highlightLayer,
+        state,
+        entityId,
+        entityMeshes(entityId)
+      );
+    }
+
+    for (const mesh of objectMeshes) {
+      expect(highlightLayer.hasMesh(mesh)).toBe(false);
+    }
+    scene.dispose();
   });
 
   it("offsets the body's world bounds by the shank alignment offset, matching an unaligned build", async () => {
@@ -298,21 +379,76 @@ describe("probe collision bodies", () => {
     ).toBeCloseTo(expectedOffset, 3);
   });
 
-  it("builds a transform node but no collider when the scene has no physics engine", () => {
-    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+  it("reports a single entered CollisionChange with both ids when a probe body and a scene object body overlap", async () => {
+    const { scene, gizmoManager, havokPlugin } =
+      await makeTestSceneWithPhysics();
     const { experiment, probe } = makeExperimentWithProbe();
-
-    const node = buildProbe(
+    const probeNode = buildProbe(
       scene,
       probe,
       experiment,
       gizmoManager,
       makeProbeGeometry()
-    );
+    )!;
+    probeNode.position = Vector3.Zero();
 
-    expect(node).not.toBeNull();
-    expect(scene.getTransformNodeByName(`${probe.id}_probe_collider`)).toBe(
-      null
-    );
+    const sceneObject = makeSceneObject();
+    const modelFile = await makeTestModelFile();
+    const objectNode = (await buildSceneObjectNode(
+      scene,
+      sceneObject,
+      modelFile,
+      gizmoManager
+    ))!.node;
+    objectNode.position = Vector3.Zero();
+
+    const state = createCollisionState();
+    const changes: CollisionChange[] = [];
+    trackCollisions(havokPlugin, state, change => changes.push(change));
+
+    for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
+
+    const [expectedFirst, expectedSecond] = [probe.id, sceneObject.id].sort();
+    expect(changes).toEqual([
+      { kind: "entered", entityIds: [expectedFirst, expectedSecond] }
+    ]);
+    scene.dispose();
+  });
+
+  it("still reports a collision for a hidden scene object, since its collider stays active", async () => {
+    const { scene, gizmoManager, havokPlugin } =
+      await makeTestSceneWithPhysics();
+    const { experiment, probe } = makeExperimentWithProbe();
+    const probeNode = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    )!;
+    probeNode.position = Vector3.Zero();
+
+    const sceneObject = makeSceneObject({ visibility: "hidden" });
+    const modelFile = await makeTestModelFile();
+    const objectNode = (await buildSceneObjectNode(
+      scene,
+      sceneObject,
+      modelFile,
+      gizmoManager
+    ))!.node;
+    objectNode.position = Vector3.Zero();
+    for (const mesh of getSceneObjectMeshes(scene, sceneObject.id)) {
+      mesh.setEnabled(false);
+    }
+
+    const state = createCollisionState();
+    const changes: CollisionChange[] = [];
+    trackCollisions(havokPlugin, state, change => changes.push(change));
+
+    for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]!.kind).toBe("entered");
+    scene.dispose();
   });
 });

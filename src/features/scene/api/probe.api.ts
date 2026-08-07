@@ -8,6 +8,7 @@ import type {
   IRotationGizmo,
   Nullable,
   Observer,
+  PhysicsShape,
   Scene,
   SelectionOutlineLayer
 } from "@babylonjs/core";
@@ -17,6 +18,8 @@ import {
   ExtrudePolygon,
   Mesh,
   MeshBuilder,
+  PhysicsShapeBox,
+  PhysicsShapeConvexHull,
   StandardMaterial,
   TransformNode,
   Vector3
@@ -34,10 +37,13 @@ import {
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
+import { buildCollisionBody, disposeCollisionBody } from "./collision.api";
 import {
-  buildProbeCollisionBody,
-  disposeProbeCollisionBody
-} from "./probe-collision.api";
+  buildSceneEntityName,
+  isSceneEntityName,
+  sceneEntityIdFromName,
+  sceneEntityNameSuffix
+} from "./scene-entity.api";
 import {
   interpolateNodePose,
   stopNodePoseInterpolation
@@ -46,23 +52,20 @@ import type { ProbeMetadata } from "../models/probe-metadata.model";
 import type { ProbeGeometry } from "../models/probe-geometry.model";
 import type { TransformGizmos } from "../models/gizmo.model";
 
-/** Probe entity suffix start */
-const PROBE_ENTITY_SUFFIX = "_probe_";
-
 /** Suffix applied to a probe's id to name its parenting transform node. */
-const PROBE_NODE_SUFFIX = `${PROBE_ENTITY_SUFFIX}node`;
-
-/** Suffix applied to a probe's id to name its shank/head-stage material. */
-const PROBE_MATERIAL_SUFFIX = `${PROBE_ENTITY_SUFFIX}material`;
+const PROBE_NODE_SUFFIX = sceneEntityNameSuffix("probe", "node");
 
 /** Suffix applied to a probe's id to name its shank mesh. */
-const SHANK_MESH_SUFFIX = `${PROBE_ENTITY_SUFFIX}shank_mesh`;
+const SHANK_MESH_SUFFIX = sceneEntityNameSuffix("probe", "shank_mesh");
 
 /** Suffix applied to a probe's id to name its head stage mesh. */
-const HEAD_STAGE_MESH_SUFFIX = `${PROBE_ENTITY_SUFFIX}head-stage_mesh`;
+const HEAD_STAGE_MESH_SUFFIX = sceneEntityNameSuffix(
+  "probe",
+  "head-stage_mesh"
+);
 
 /** Suffix applied to a probe's id to name its rod mesh. */
-const ROD_MESH_SUFFIX = `${PROBE_ENTITY_SUFFIX}rod_mesh`;
+const ROD_MESH_SUFFIX = sceneEntityNameSuffix("probe", "rod_mesh");
 
 /** Name of the shared gray material used by every probe's rod mesh. */
 const ROD_MATERIAL_NAME = "probe_rod_material";
@@ -77,7 +80,7 @@ export function getProbeTransformNode(
   probeId: string
 ): TransformNode | null {
   return scene.getTransformNodeByName(
-    probeEntityName(probeId, PROBE_NODE_SUFFIX)
+    buildSceneEntityName(probeId, "probe", "node")
   );
 }
 
@@ -131,7 +134,7 @@ export function buildProbe(
   };
 
   const node = new TransformNode(
-    probeEntityName(probe.id, PROBE_NODE_SUFFIX),
+    buildSceneEntityName(probe.id, "probe", "node"),
     scene
   );
   node.metadata = probeMetadata;
@@ -141,13 +144,13 @@ export function buildProbe(
   const shankMesh = buildShankMesh(
     scene,
     contour,
-    probeEntityName(probe.id, SHANK_MESH_SUFFIX),
+    buildSceneEntityName(probe.id, "probe", "shank_mesh"),
     geometry
   );
   const headStageMesh = buildHeadStageMesh(
     scene,
     contour,
-    probeEntityName(probe.id, HEAD_STAGE_MESH_SUFFIX),
+    buildSceneEntityName(probe.id, "probe", "head-stage_mesh"),
     geometry
   );
   for (const mesh of [shankMesh, headStageMesh]) {
@@ -158,7 +161,7 @@ export function buildProbe(
   const rodMesh = buildRodMesh(
     scene,
     contour,
-    probeEntityName(probe.id, ROD_MESH_SUFFIX),
+    buildSceneEntityName(probe.id, "probe", "rod_mesh"),
     geometry
   );
   rodMesh.material = buildRodMaterial(scene);
@@ -170,7 +173,9 @@ export function buildProbe(
   }
 
   // Ignore the return value: no physics engine on the scene keeps this feature additive.
-  buildProbeCollisionBody(node, probe.id, [rodMesh, headStageMesh], shankMesh);
+  buildCollisionBody(node, probe.id, "probe", () =>
+    buildProbeCollisionShapes(scene, [rodMesh, headStageMesh], shankMesh)
+  );
 
   if (!gizmoManager.attachableMeshes) {
     gizmoManager.attachableMeshes = [];
@@ -197,10 +202,10 @@ export function disposeProbe(
   }
 
   if (probeTransformNode) stopNodePoseInterpolation(probeTransformNode);
-  disposeProbeCollisionBody(scene, probeId);
+  disposeCollisionBody(scene, probeId, "probe");
   probeTransformNode?.dispose(false, false);
   scene
-    .getMaterialByName(probeEntityName(probeId, PROBE_MATERIAL_SUFFIX))
+    .getMaterialByName(buildSceneEntityName(probeId, "probe", "material"))
     ?.dispose();
   gizmoManager.attachableMeshes = (gizmoManager.attachableMeshes ?? []).filter(
     mesh => !mesh.name.startsWith(probeId)
@@ -232,7 +237,7 @@ export function syncProbes(
   for (const node of referenceCoordinateNode.getChildren(child =>
     child.name.endsWith(PROBE_NODE_SUFFIX)
   ) as TransformNode[]) {
-    const id = probeIdFromEntityName(node.name);
+    const id = sceneEntityIdFromName(node.name, "probe");
     const probe = experimentProbesById.get(id);
     const metadata = node.metadata as ProbeMetadata | null;
     if (
@@ -310,7 +315,8 @@ export function syncProbes(
 
     interpolateNodePose(scene, node, {
       position: goalPosition,
-      rotation: goalRotation
+      rotation: goalRotation,
+      scaling: node.scaling
     });
   }
 
@@ -353,9 +359,9 @@ export function selectProbeFromGizmoAttach(
 ): Observer<Nullable<AbstractMesh>> {
   return gizmoManager.onAttachedToMeshObservable.add(mesh => {
     if (!mesh) return;
-    if (!isProbeEntityName(mesh.name)) return;
+    if (!isSceneEntityName(mesh.name, "probe")) return;
 
-    const probeId = probeIdFromEntityName(mesh.name);
+    const probeId = sceneEntityIdFromName(mesh.name, "probe");
     const probeTransformNode = getProbeTransformNode(scene, probeId);
     if (!probeTransformNode) return;
 
@@ -425,7 +431,7 @@ export function endProbeGizmoDrag(
 ): Observer<DragStartEndEvent>[] {
   const onEnd = (gizmo: IGizmo) => () => {
     if (!gizmo.attachedNode) return;
-    if (!isProbeEntityName(gizmo.attachedNode.name)) return;
+    if (!isSceneEntityName(gizmo.attachedNode.name, "probe")) return;
     onDragEnd();
   };
 
@@ -446,9 +452,9 @@ function attachedProbeFromGizmo(
   probes: Probe[]
 ): { probe: Probe; node: TransformNode } | null {
   const node = gizmo.attachedNode;
-  if (!node || !isProbeEntityName(node.name)) return null;
+  if (!node || !isSceneEntityName(node.name, "probe")) return null;
 
-  const probeId = probeIdFromEntityName(node.name);
+  const probeId = sceneEntityIdFromName(node.name, "probe");
   const probe = probes.find(probe => probe.id === probeId);
   if (!probe) return null;
 
@@ -456,29 +462,23 @@ function attachedProbeFromGizmo(
 }
 
 /**
- * Babylon name for one of a probe's entities, derived from its id.
- * @param probeId Probe id to derive the name from.
- * @param suffix Suffix identifying the kind of entity.
+ * Convex hulls for the rod and head stage plus an axis-aligned box for the shanks.
+ * @param scene Scene to build the shapes in.
+ * @param hullMeshes Meshes to bound with convex hulls (rod, head stage).
+ * @param boxMesh Mesh to bound with an axis-aligned box (shanks).
  */
-function probeEntityName(probeId: string, suffix: string): string {
-  return `${probeId}${suffix}`;
-}
-
-/**
- * Is the given Babylon entity name one of a probe's entities.
- * @param name Entity name to check.
- */
-function isProbeEntityName(name: string): boolean {
-  return name.includes(PROBE_ENTITY_SUFFIX);
-}
-
-/**
- * Recover a probe's id from one of its entity names.
- * @param entityName Entity name produced by {@link probeEntityName}.
- */
-function probeIdFromEntityName(entityName: string): string {
-  const suffixStart = entityName.indexOf(PROBE_ENTITY_SUFFIX);
-  return suffixStart === -1 ? entityName : entityName.slice(0, suffixStart);
+function buildProbeCollisionShapes(
+  scene: Scene,
+  hullMeshes: Mesh[],
+  boxMesh: Mesh
+): { shape: PhysicsShape; mesh: Mesh }[] {
+  return [
+    ...hullMeshes.map(mesh => ({
+      shape: new PhysicsShapeConvexHull(mesh, scene),
+      mesh
+    })),
+    { shape: PhysicsShapeBox.FromMesh(boxMesh), mesh: boxMesh }
+  ];
 }
 
 /**
@@ -488,7 +488,7 @@ function probeIdFromEntityName(entityName: string): string {
  */
 function buildProbeMaterial(scene: Scene, probe: Probe): StandardMaterial {
   const material = new StandardMaterial(
-    probeEntityName(probe.id, PROBE_MATERIAL_SUFFIX),
+    buildSceneEntityName(probe.id, "probe", "material"),
     scene
   );
   material.diffuseColor = Color3.FromHexString(probe.color);

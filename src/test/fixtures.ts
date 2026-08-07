@@ -4,10 +4,32 @@ import type {
   Manifest,
   TerminologyRow
 } from "@/features/atlas";
-import type { ProbeGeometry } from "@/features/scene";
+import type { ProbeGeometry, SceneObject } from "@/features/scene";
 import type { CameraPose } from "@/features/experiment";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
+
+/**
+ * Build a fixture scene object.
+ * @param overrides Fields to override on the default scene object.
+ */
+export function makeSceneObject(
+  overrides: Partial<SceneObject> = {}
+): SceneObject {
+  return {
+    inspectableKind: "sceneObject",
+    id: crypto.randomUUID(),
+    name: "Object abc123",
+    color: "#ffffff",
+    visibility: "visible",
+    lock: false,
+    collidable: true,
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    ...overrides
+  };
+}
 
 /**
  * Build a fixture atlas.

@@ -8,16 +8,18 @@ import type { Inspectable } from "../models/inspectable.model";
  * @param b Second entity to compare.
  */
 export function isSameInspectable(a: Inspectable, b: Inspectable): boolean {
+  if (a.inspectableKind !== b.inspectableKind) return false;
   // The scene has exactly one camera, so any two camera inspectables match.
+  // Checking both narrows `a` and `b` to `Probe | SceneObject` below.
   if (a.inspectableKind === "camera" || b.inspectableKind === "camera") {
-    return a.inspectableKind === b.inspectableKind;
+    return true;
   }
   return a.id === b.id;
 }
 
 /**
- * Move an inspectable onto a point in atlas ASR mm: a probe's tip, or the camera's
- * orbit target with its orbit left alone.
+ * Move an inspectable onto a point in atlas ASR mm: a probe's tip, a scene
+ * object's origin, or the camera's orbit target with its orbit left alone.
  * @param inspectable Inspectable to move, mutated in place.
  * @param atlasMillimeters Destination, in atlas ASR mm.
  * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
@@ -32,6 +34,14 @@ export function moveInspectableToMillimeters(
       inspectable,
       [inspectable.alpha, inspectable.beta, inspectable.radius],
       atlasToReferenceRelative(referenceCoordinate, atlasMillimeters)
+    );
+    return;
+  }
+
+  if (inspectable.inspectableKind === "sceneObject") {
+    inspectable.position = atlasToReferenceRelative(
+      referenceCoordinate,
+      atlasMillimeters
     );
     return;
   }

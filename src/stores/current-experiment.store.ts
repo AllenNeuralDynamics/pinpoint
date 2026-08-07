@@ -52,6 +52,9 @@ export const useCurrentExperimentStore = defineStore(
     /** ID of the probe currently being dragged, or null. */
     const draggedProbeId = ref<string | null>(null);
 
+    /** ID of the scene object currently being dragged, or null. */
+    const draggedSceneObjectId = ref<string | null>(null);
+
     /** Pending surface-move choice awaiting the user's pick, or null. */
     const probeSurfaceChoice = ref<ProbeSurfaceChoice | null>(null);
 
@@ -80,10 +83,11 @@ export const useCurrentExperimentStore = defineStore(
     } = useRefHistory(experiment, {
       deep: true,
       clone: cloneExperiment,
-      // A gizmo drag rewrites the probe pose every frame; drop those in-between
-      // states and let `endProbeDrag` record the pose the drag was released at.
+      // A gizmo drag rewrites the pose every frame for either entity kind;
+      // drop those in-between states and let `endProbeDrag`/
+      // `endSceneObjectDrag` record the pose the drag was released at.
       eventFilter: invoke => {
-        if (!draggedProbeId.value) invoke();
+        if (!draggedProbeId.value && !draggedSceneObjectId.value) invoke();
       }
     });
 
@@ -143,6 +147,9 @@ export const useCurrentExperimentStore = defineStore(
     /** Probes in the current experiment. */
     const probes = computed(() => experiment.value.probes);
 
+    /** Scene objects in the current experiment. */
+    const sceneObjects = computed(() => experiment.value.sceneObjects);
+
     /** Saved camera poses in the current experiment. */
     const cameraPoses = computed(() => experiment.value.cameraPoses);
 
@@ -194,9 +201,14 @@ export const useCurrentExperimentStore = defineStore(
         selectedInspectable.value = experiment.value.cameraPose;
         return;
       }
-
+      if (selected.inspectableKind === "probe") {
+        selectedInspectable.value =
+          experiment.value.probes.find(({ id }) => id === selected.id) ?? null;
+        return;
+      }
       selectedInspectable.value =
-        experiment.value.probes.find(({ id }) => id === selected.id) ?? null;
+        experiment.value.sceneObjects.find(({ id }) => id === selected.id) ??
+        null;
     }
 
     /**
@@ -213,6 +225,19 @@ export const useCurrentExperimentStore = defineStore(
     }
 
     /**
+     * Finish the active scene object drag, recording the released pose as a
+     * single history point.
+     * @remarks No-op when no drag is in progress, so a gizmo click that never
+     * moved (or a second drag-end from the other gizmo) records nothing.
+     */
+    function endSceneObjectDrag() {
+      if (!draggedSceneObjectId.value) return;
+
+      draggedSceneObjectId.value = null;
+      commitHistory();
+    }
+
+    /**
      * Move the current experiment into recents and load in a new one.
      * @param newExperiment Experiment to load.
      */
@@ -224,12 +249,14 @@ export const useCurrentExperimentStore = defineStore(
       resetHistory();
       selectedInspectable.value = null;
       draggedProbeId.value = null;
+      draggedSceneObjectId.value = null;
     }
 
     const state = {
       experiment,
       selectedInspectable,
       draggedProbeId,
+      draggedSceneObjectId,
       probeSurfaceChoice,
       isTerminologyRowsEvaluating,
       areAxisGuidesVisible,
@@ -243,6 +270,7 @@ export const useCurrentExperimentStore = defineStore(
       visibleStructures,
       probeInterfaceProbes,
       probes,
+      sceneObjects,
       cameraPose,
       cameraPoses,
       canUndo,
@@ -254,7 +282,8 @@ export const useCurrentExperimentStore = defineStore(
       undo,
       redo,
       resetHistory,
-      endProbeDrag
+      endProbeDrag,
+      endSceneObjectDrag
     };
     return { ...state, ...getters, ...actions };
   },

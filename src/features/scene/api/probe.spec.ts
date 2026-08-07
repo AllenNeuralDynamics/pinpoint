@@ -1366,7 +1366,8 @@ describe("endProbeGizmoDrag", () => {
     endProbeGizmoDrag(
       {
         positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
+        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
       },
       onDragEnd
     );
@@ -1393,7 +1394,8 @@ describe("endProbeGizmoDrag", () => {
     endProbeGizmoDrag(
       {
         positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
+        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
       },
       onDragEnd
     );
@@ -1420,7 +1422,8 @@ describe("endProbeGizmoDrag", () => {
     const observers = endProbeGizmoDrag(
       {
         positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
+        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
       },
       onDragEnd
     );
@@ -1465,7 +1468,8 @@ describe("endProbeGizmoDrag", () => {
     endProbeGizmoDrag(
       {
         positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
+        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
       },
       () => {
         draggedProbeId = null;

@@ -25,3 +25,14 @@ export function isFiniteTriple(
     Array.isArray(value) && value.length === 3 && value.every(isFiniteNumber)
   );
 }
+
+/** `#RRGGBB`, the only form `Color3.FromHexString` renders correctly. */
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * Check that a value is a `#RRGGBB` color string.
+ * @param value Value to check.
+ */
+export function isHexColor(value: unknown): value is string {
+  return typeof value === "string" && HEX_COLOR_PATTERN.test(value);
+}

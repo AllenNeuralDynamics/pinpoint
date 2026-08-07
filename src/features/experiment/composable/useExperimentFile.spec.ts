@@ -2,6 +2,7 @@ import parse from "semver/functions/parse";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent } from "vue";
 import type { VueWrapper } from "@vue/test-utils";
+import { strToU8, zipSync } from "fflate";
 import { useExperimentFile } from "./useExperimentFile";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
@@ -9,9 +10,11 @@ import {
   flushMicrotasks,
   mountWithQuasar
 } from "@/test/mount-helper";
-import { makeAtlas } from "@/test/fixtures";
-import { serializeExperiment } from "../api/experiment-file.api";
+import { makeAtlas, makeSceneObject } from "@/test/fixtures";
+import { zipExperiment } from "../api/experiment-file.api";
 import { buildExperiment } from "../api/experiment.api";
+import type { Experiment } from "../models/experiment.model";
+import { getSceneObjectModel } from "@/features/scene";
 import enUS from "@/i18n/en-US";
 
 // Mock the leaf module (not the `@/features/atlas` barrel), matching the
@@ -25,6 +28,18 @@ vi.mock("@/features/atlas/api/source.api", async () => {
     getTerminologyRows: vi.fn()
   };
 });
+
+// `getSceneObjectModel`/`putSceneObjectModel` go through `idb-keyval`, which
+// needs a real IndexedDB the test environment doesn't provide. Replace it
+// with an in-memory map, matching `scene-object-model.spec.ts`.
+const sceneObjectModelMemoryStore = new Map<string, unknown>();
+vi.mock("idb-keyval", () => ({
+  createStore: () => "fake-store",
+  get: async (key: string) => sceneObjectModelMemoryStore.get(key),
+  set: async (key: string, value: unknown) => {
+    sceneObjectModelMemoryStore.set(key, value);
+  }
+}));
 
 // `useFileDialog`'s input is never attached to the DOM, so it can't be
 // driven through a queryable `<input type="file">` the way
@@ -59,6 +74,21 @@ vi.mock("@vueuse/core", async importOriginal => {
  */
 function makeFileList(file: File): FileList {
   return { 0: file, length: 1, item: () => file } as unknown as FileList;
+}
+
+/**
+ * Build a zip file for an experiment, matching what a real experiment
+ * download would produce.
+ * @param experiment Experiment to zip.
+ * @param fileName Name for the built `File`.
+ */
+function makeExperimentZipFile(
+  experiment: Experiment,
+  fileName = "e.zip"
+): File {
+  return new File([zipExperiment(experiment, new Map()).slice()], fileName, {
+    type: "application/zip"
+  });
 }
 
 const Harness = defineComponent({
@@ -122,9 +152,7 @@ describe("useExperimentFile", () => {
         makeAtlas(),
         [0, 0, 0]
       );
-      const file = new File([serializeExperiment(experiment)], "e.json", {
-        type: "application/json"
-      });
+      const file = makeExperimentZipFile(experiment);
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
@@ -139,9 +167,7 @@ describe("useExperimentFile", () => {
       const onOpenedSpy = vi.fn();
       wrapper.vm.onOpened(onOpenedSpy);
       const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
-      const file = new File([serializeExperiment(experiment)], "e.json", {
-        type: "application/json"
-      });
+      const file = makeExperimentZipFile(experiment);
 
       await capturedOnChange!(makeFileList(file));
       await flushMicrotasks();
@@ -149,12 +175,12 @@ describe("useExperimentFile", () => {
       expect(onOpenedSpy).toHaveBeenCalled();
     });
 
-    it("notifies an error and leaves the store untouched for invalid JSON", async () => {
+    it("notifies an error and leaves the store untouched for non-zip bytes", async () => {
       const wrapper = mountHarness();
       const store = useCurrentExperimentStore();
       const originalName = store.name;
-      const file = new File(["not json"], "e.json", {
-        type: "application/json"
+      const file = new File(["not a zip"], "e.zip", {
+        type: "application/zip"
       });
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
@@ -168,11 +194,10 @@ describe("useExperimentFile", () => {
       expect(store.name).toBe(originalName);
     });
 
-    it("notifies an error for a well-formed JSON file that isn't an experiment", async () => {
+    it("notifies an error for a zip whose experiment.json isn't an experiment", async () => {
       const wrapper = mountHarness();
-      const file = new File(["{}"], "e.json", {
-        type: "application/json"
-      });
+      const zipBytes = zipSync({ "experiment.json": strToU8("{}") });
+      const file = new File([zipBytes], "e.zip", { type: "application/zip" });
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
@@ -197,12 +222,12 @@ describe("useExperimentFile", () => {
       expect(store.name).toBe(originalName);
     });
 
-    it("notifies an error when the file can't be read as text", async () => {
+    it("notifies an error when the file can't be read", async () => {
       const wrapper = mountHarness();
-      const file = new File(["irrelevant"], "e.json", {
-        type: "application/json"
+      const file = new File(["irrelevant"], "e.zip", {
+        type: "application/zip"
       });
-      vi.spyOn(file, "text").mockRejectedValue(new Error("read failed"));
+      vi.spyOn(file, "arrayBuffer").mockRejectedValue(new Error("read failed"));
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
@@ -221,9 +246,7 @@ describe("useExperimentFile", () => {
         ...buildExperiment("Loaded", makeAtlas(), [0, 0, 0]),
         version: buildOlderMajorVersion()
       };
-      const file = new File([serializeExperiment(experiment)], "e.json", {
-        type: "application/json"
-      });
+      const file = makeExperimentZipFile(experiment);
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
@@ -246,9 +269,7 @@ describe("useExperimentFile", () => {
         ...buildExperiment("Loaded", makeAtlas(), [0, 0, 0]),
         version: buildNewerMinorVersion()
       };
-      const file = new File([serializeExperiment(experiment)], "e.json", {
-        type: "application/json"
-      });
+      const file = makeExperimentZipFile(experiment);
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
@@ -271,9 +292,7 @@ describe("useExperimentFile", () => {
         ...buildExperiment("Loaded", makeAtlas(), [0, 0, 0]),
         version: "5.0"
       };
-      const file = new File([serializeExperiment(experiment)], "e.json", {
-        type: "application/json"
-      });
+      const file = makeExperimentZipFile(experiment);
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
       await capturedOnChange!(makeFileList(file));
@@ -287,6 +306,31 @@ describe("useExperimentFile", () => {
         })
       );
     });
+
+    it("writes a scene object's model file before loading the experiment", async () => {
+      const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
+      const sceneObject = makeSceneObject();
+      experiment.sceneObjects = [sceneObject];
+      const bytes = new Uint8Array([1, 2, 3, 4]);
+      const file = new File(
+        [
+          zipExperiment(
+            experiment,
+            new Map([[sceneObject.id, { fileName: "model.obj", bytes }]])
+          ).slice()
+        ],
+        "e.zip",
+        { type: "application/zip" }
+      );
+      mountHarness();
+
+      await capturedOnChange!(makeFileList(file));
+      await flushMicrotasks();
+
+      const stored = await getSceneObjectModel(sceneObject.id);
+      expect(stored?.name).toBe("model.obj");
+      expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(bytes);
+    });
   });
 
   describe("downloadExperiment", () => {
@@ -298,7 +342,7 @@ describe("useExperimentFile", () => {
         .spyOn(HTMLAnchorElement.prototype, "click")
         .mockImplementation(() => {});
 
-      wrapper.vm.downloadExperiment();
+      await wrapper.vm.downloadExperiment();
       await flushMicrotasks();
 
       expect(clickSpy).toHaveBeenCalled();
