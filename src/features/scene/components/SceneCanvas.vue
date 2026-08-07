@@ -147,6 +147,12 @@ const probeGeometry = computed<ProbeGeometry>(() => ({
   rodLengthMillimeters: preferences.probeRodLengthMillimeters
 }));
 
+/** Whether the gizmo toolbar is shown: the camera has no gizmo to drive. */
+const isGizmoToolbarVisible = computed(() => {
+  const selected = currentExperiment.selectedInspectable;
+  return !!selected && selected.inspectableKind !== "camera";
+});
+
 /**
  * Trigger engine resizing on page area resize.
  */
@@ -605,7 +611,11 @@ onUnmounted(() => {
     />
   </div>
   <q-resize-observer @resize="onResize" />
-  <q-page-sticky :offset="[0, 18]" position="bottom">
+  <q-page-sticky
+    v-if="isGizmoToolbarVisible"
+    :offset="[0, 18]"
+    position="bottom"
+  >
     <q-card>
       <q-card-section class="row justify-center gizmo-controls">
         <q-btn-toggle
