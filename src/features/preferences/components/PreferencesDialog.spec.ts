@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { VueWrapper } from "@vue/test-utils";
+import type { ComponentMountingOptions, VueWrapper } from "@vue/test-utils";
 import PreferencesDialog from "./PreferencesDialog.vue";
 import {
   createWrapperRegistry,
@@ -15,9 +15,11 @@ type DialogWrapper = VueWrapper<
 
 const wrappers = createWrapperRegistry<DialogWrapper>();
 
-async function mountDialog(): Promise<DialogWrapper> {
+async function mountDialog(
+  options: ComponentMountingOptions<typeof PreferencesDialog> = {}
+): Promise<DialogWrapper> {
   return wrappers.track(
-    (await mountDialogWithQuasar(PreferencesDialog)) as DialogWrapper
+    (await mountDialogWithQuasar(PreferencesDialog, options)) as DialogWrapper
   );
 }
 
@@ -26,7 +28,7 @@ describe("PreferencesDialog", () => {
     wrappers.unmountAll();
   });
 
-  it("renders the title and the four tabs", async () => {
+  it("renders the title and the five tabs", async () => {
     const wrapper = await mountDialog();
 
     expect(document.body.textContent).toContain(t.title);
@@ -34,11 +36,41 @@ describe("PreferencesDialog", () => {
       .findComponent({ name: "QTabs" })
       .element.querySelectorAll(".q-tab__label");
     expect(Array.from(tabs).map(tab => tab.textContent)).toEqual([
+      t.general,
       t.scene,
       t.probe,
       t.export,
       t.reset
     ]);
+  });
+
+  it("shows the general panel by default", async () => {
+    const wrapper = await mountDialog();
+
+    expect(wrapper.findComponent({ name: "GeneralPreferences" }).exists()).toBe(
+      true
+    );
+  });
+
+  it("opens on the tab given by the tab prop", async () => {
+    const wrapper = await mountDialog({ props: { tab: "reset" } });
+
+    expect(wrapper.findComponent({ name: "ResetPreferences" }).exists()).toBe(
+      true
+    );
+  });
+
+  it("still switches tabs when opened with a tab prop", async () => {
+    const wrapper = await mountDialog({ props: { tab: "scene" } });
+
+    await wrapper
+      .findComponent({ name: "QTabs" })
+      .vm.$emit("update:modelValue", "probe");
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "ProbePreferences" }).exists()).toBe(
+      true
+    );
   });
 
   it("switching to the probe tab shows the probe panel", async () => {
@@ -92,7 +124,7 @@ describe("PreferencesDialog", () => {
   });
 
   it("emits ok with world-editor when Open Editor is clicked", async () => {
-    const wrapper = await mountDialog();
+    const wrapper = await mountDialog({ props: { tab: "scene" } });
 
     await wrapper
       .findAllComponents({ name: "QBtn" })

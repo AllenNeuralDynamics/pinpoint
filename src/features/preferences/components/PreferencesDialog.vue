@@ -1,17 +1,19 @@
 <script lang="ts" setup>
-import { ref } from "vue";
 import { useDialogPluginComponent } from "quasar";
+import GeneralPreferences from "./GeneralPreferences.vue";
 import ScenePreferences from "./ScenePreferences.vue";
 import ProbePreferences from "./ProbePreferences.vue";
 import ExportPreferences from "./ExportPreferences.vue";
 import ResetPreferences from "./ResetPreferences.vue";
-import type { PreferencesDialogResult } from "../models/preferences-dialog.model";
+import type {
+  PreferencesDialogResult,
+  PreferencesTab
+} from "../models/preferences-dialog.model";
 
 defineEmits([...useDialogPluginComponent.emits]);
+const tab = defineModel<PreferencesTab>("tab", { default: "general" });
 const { dialogRef, onDialogHide, onDialogOK } =
   useDialogPluginComponent<PreferencesDialogResult>();
-
-const tab = ref("scene");
 </script>
 
 <template>
@@ -22,6 +24,7 @@ const tab = ref("scene");
       </q-card-section>
       <q-card-section class="column no-wrap preferences__content q-pt-none">
         <q-tabs v-model="tab">
+          <q-tab name="general" :label="$t('preferences.general')" />
           <q-tab name="scene" :label="$t('preferences.scene')" />
           <q-tab name="probe" :label="$t('preferences.probe')" />
           <q-tab name="export" :label="$t('preferences.export')" />
@@ -29,6 +32,7 @@ const tab = ref("scene");
         </q-tabs>
         <q-separator />
         <q-tab-panels v-model="tab" animated class="col preferences__panels">
+          <q-tab-panel name="general"><GeneralPreferences /></q-tab-panel>
           <q-tab-panel name="scene">
             <ScenePreferences @open-world-editor="onDialogOK('world-editor')" />
           </q-tab-panel>

@@ -21,30 +21,39 @@ interface FakeDialogChain {
 function makeFakeQuasar(): {
   quasar: QVueGlobals;
   openedComponents: unknown[];
+  openedProps: Array<Record<string, unknown> | undefined>;
   chains: FakeDialogChain[];
 } {
   const openedComponents: unknown[] = [];
+  const openedProps: Array<Record<string, unknown> | undefined> = [];
   const chains: FakeDialogChain[] = [];
 
-  const dialog = vi.fn((options: { component: unknown }) => {
-    openedComponents.push(options.component);
-    const chain: FakeDialogChain = {
-      onOk: callback => {
-        chain.recordedOnOk = callback;
-        return chain;
-      },
-      onCancel: () => chain,
-      onDismiss: () => chain,
-      hide: () => chain,
-      update: () => chain
-    };
-    chains.push(chain);
-    return chain;
-  });
+  const dialog = vi.fn(
+    (options: {
+      component: unknown;
+      componentProps?: Record<string, unknown>;
+    }) => {
+      openedComponents.push(options.component);
+      openedProps.push(options.componentProps);
+      const chain: FakeDialogChain = {
+        onOk: callback => {
+          chain.recordedOnOk = callback;
+          return chain;
+        },
+        onCancel: () => chain,
+        onDismiss: () => chain,
+        hide: () => chain,
+        update: () => chain
+      };
+      chains.push(chain);
+      return chain;
+    }
+  );
 
   return {
     quasar: { dialog } as unknown as QVueGlobals,
     openedComponents,
+    openedProps,
     chains
   };
 }
@@ -88,5 +97,31 @@ describe("openPreferencesDialog", () => {
     chains[0]!.recordedOnOk!(undefined);
 
     expect(openedComponents).toEqual([PreferencesDialog]);
+  });
+
+  it("opens PreferencesDialog on the general tab by default", () => {
+    const { quasar, openedProps } = makeFakeQuasar();
+
+    openPreferencesDialog(quasar);
+
+    expect(openedProps[0]).toEqual({ tab: "general" });
+  });
+
+  it("opens PreferencesDialog on a requested tab", () => {
+    const { quasar, openedProps } = makeFakeQuasar();
+
+    openPreferencesDialog(quasar, "probe");
+
+    expect(openedProps[0]).toEqual({ tab: "probe" });
+  });
+
+  it("re-opens PreferencesDialog on the scene tab after the world editor", () => {
+    const { quasar, openedProps, chains } = makeFakeQuasar();
+
+    openPreferencesDialog(quasar);
+    chains[0]!.recordedOnOk!("world-editor");
+    chains[1]!.recordedOnOk!();
+
+    expect(openedProps[2]).toEqual({ tab: "scene" });
   });
 });

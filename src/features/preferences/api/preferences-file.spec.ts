@@ -14,6 +14,7 @@ import type { Preferences } from "@/stores/preferences.store";
 function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
   return {
     version: "5.0.0",
+    appearance: "auto",
     cameraProjection: "perspective",
     cameraInertia: 0.9,
     worldBackgroundColor: "#33334d",
@@ -50,12 +51,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the eighteen preference keys", () => {
+  it("writes only the nineteen preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(18);
+    expect(keys).toHaveLength(19);
     expect(keys).not.toContain("junk");
   });
 });
@@ -88,6 +89,12 @@ describe("parsePreferencesFile", () => {
 
   it("returns null for an unrecognized cameraProjection", () => {
     const fixture = { ...makePreferences(), cameraProjection: "isometric" };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for an unrecognized appearance", () => {
+    const fixture = { ...makePreferences(), appearance: "sepia" };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });

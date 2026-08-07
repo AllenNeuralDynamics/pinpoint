@@ -1,15 +1,23 @@
 import type { QVueGlobals } from "quasar";
 import PreferencesDialog from "../components/PreferencesDialog.vue";
 import WorldEditorDialog from "../components/WorldEditorDialog.vue";
-import type { PreferencesDialogResult } from "../models/preferences-dialog.model";
+import type {
+  PreferencesDialogResult,
+  PreferencesTab
+} from "../models/preferences-dialog.model";
 
 /**
- * Open the preferences dialog, routing its world-editor request onward.
+ * Open the preferences dialog on a given tab, routing its world-editor
+ * request onward.
  * @param quasar Quasar instance whose dialog plugin mounts the dialog.
+ * @param tab Tab the dialog opens on.
  */
-export function openPreferencesDialog(quasar: QVueGlobals): void {
+export function openPreferencesDialog(
+  quasar: QVueGlobals,
+  tab: PreferencesTab = "general"
+): void {
   quasar
-    .dialog({ component: PreferencesDialog })
+    .dialog({ component: PreferencesDialog, componentProps: { tab } })
     .onOk((result?: PreferencesDialogResult) => {
       if (result === "world-editor") openWorldEditorDialog(quasar);
     });
@@ -21,6 +29,6 @@ export function openPreferencesDialog(quasar: QVueGlobals): void {
  */
 function openWorldEditorDialog(quasar: QVueGlobals): void {
   quasar.dialog({ component: WorldEditorDialog }).onOk(() => {
-    openPreferencesDialog(quasar);
+    openPreferencesDialog(quasar, "scene");
   });
 }

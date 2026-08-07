@@ -1,3 +1,4 @@
+import type { Appearance } from "./appearance.api";
 import type { CameraProjection } from "@/features/scene";
 import type { Preferences } from "@/stores/preferences.store";
 import type { PositionUnit, RotationUnit } from "@/utils/math";
@@ -76,6 +77,12 @@ const ROTATION_UNITS: readonly string[] = [
   "radian"
 ] satisfies readonly RotationUnit[];
 
+const APPEARANCES: readonly string[] = [
+  "light",
+  "dark",
+  "auto"
+] satisfies readonly Appearance[];
+
 /**
  * Inclusive bounds each numeric preference must fall inside, matching the
  * ranges the preference inputs clamp to.
@@ -104,6 +111,7 @@ function isPreferences(value: unknown): value is Preferences {
 
   const {
     version,
+    appearance,
     cameraProjection,
     worldBackgroundColor,
     isSsaoEnabled,
@@ -137,6 +145,9 @@ function isPreferences(value: unknown): value is Preferences {
     !ROTATION_UNITS.includes(rotationUnit)
   )
     return false;
+  if (typeof appearance !== "string" || !APPEARANCES.includes(appearance)) {
+    return false;
+  }
 
   for (const [key, [minimum, maximum]] of Object.entries(
     NUMERIC_PREFERENCE_RANGES
@@ -159,6 +170,7 @@ function isPreferences(value: unknown): value is Preferences {
 function pickPreferences(source: Preferences, version: string): Preferences {
   return {
     version,
+    appearance: source.appearance,
     cameraProjection: source.cameraProjection,
     cameraInertia: source.cameraInertia,
     worldBackgroundColor: source.worldBackgroundColor,

@@ -233,11 +233,6 @@ onUnmounted(() => {
               >
                 <q-item-section>{{ $t("layout.probeLibrary") }}</q-item-section>
               </q-item>
-              <q-item clickable @click="$q.dark.toggle">
-                <q-item-section>{{
-                  $t("layout.toggleDarkMode")
-                }}</q-item-section>
-              </q-item>
               <q-item clickable @click="openPreferencesDialog($q)">
                 <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
               </q-item>

@@ -155,7 +155,6 @@ export default {
     preferences: "Preferences",
     view: "View",
     splashScreen: "Splash Screen",
-    toggleDarkMode: "Toggle Dark Mode",
     scene: "Scene",
     channelMaps: "Channel Maps",
     atlas: "Atlas",
@@ -279,6 +278,7 @@ export default {
   },
   preferences: {
     title: "Preferences",
+    general: "General",
     scene: "Scene",
     probe: "Probe",
     export: "Export",
@@ -302,6 +302,12 @@ export default {
     specularPower: "Glossiness",
     hideStructureInteriors: "Hide Interior Surfaces",
     ambientOcclusion: "Ambient Occlusion",
+
+    appearanceTitle: "Appearance",
+    theme: "Theme",
+    themeLight: "Light",
+    themeDark: "Dark",
+    themeAuto: "Auto",
 
     unitsTitle: "Units",
     positionUnit: "Position",

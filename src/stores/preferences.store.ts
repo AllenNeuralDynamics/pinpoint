@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { type Ref, ref } from "vue";
+import type { Appearance } from "@/features/preferences";
 import type { CameraProjection } from "@/features/scene";
 import type { PositionUnit, RotationUnit } from "@/utils/math";
 
@@ -7,6 +8,8 @@ import type { PositionUnit, RotationUnit } from "@/utils/math";
 export interface Preferences {
   /** Semantic version of Pinpoint that last wrote these preferences. */
   version: string;
+  /** Theme the app renders with; `auto` follows the OS preference. */
+  appearance: Appearance;
   /** Projection the scene camera renders with. */
   cameraProjection: CameraProjection;
   /** Camera movement damping; 0 is snappy, 1 is smooth. */
@@ -47,6 +50,7 @@ export const usePreferencesStore = defineStore(
   "preferences",
   () => {
     const version = ref(import.meta.env.APP_VERSION);
+    const appearance = ref<Appearance>("auto");
     const cameraProjection = ref<CameraProjection>("perspective");
     const cameraInertia = ref(0.9);
     const worldBackgroundColor = ref("#33334d");
@@ -69,6 +73,7 @@ export const usePreferencesStore = defineStore(
     // preference must appear in both.
     const state = {
       version,
+      appearance,
       cameraProjection,
       cameraInertia,
       worldBackgroundColor,

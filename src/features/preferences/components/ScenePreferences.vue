@@ -1,6 +1,5 @@
 <script lang="ts" setup>
 import CameraPreferences from "./CameraPreferences.vue";
-import UnitPreferences from "./UnitPreferences.vue";
 
 const emit = defineEmits<{ openWorldEditor: [] }>();
 </script>
@@ -18,7 +17,5 @@ const emit = defineEmits<{ openWorldEditor: [] }>();
         @click="emit('openWorldEditor')"
       />
     </div>
-    <q-separator />
-    <UnitPreferences />
   </div>
 </template>

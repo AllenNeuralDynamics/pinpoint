@@ -70,6 +70,7 @@ function buildNewerMinorVersion(): string {
 function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
   return {
     version: import.meta.env.APP_VERSION,
+    appearance: "auto",
     cameraProjection: "perspective",
     cameraInertia: 0.9,
     worldBackgroundColor: "#33334d",
@@ -176,7 +177,8 @@ describe("ExportPreferences", () => {
         probeHeadStageLengthMillimeters: 30,
         probeHeadStageCutDepthMillimeters: 10,
         probeRodDiameterMillimeters: 5,
-        probeRodLengthMillimeters: 150
+        probeRodLengthMillimeters: 150,
+        appearance: "dark"
       });
 
       await uploadFile(JSON.stringify(uploaded));
@@ -212,6 +214,7 @@ describe("ExportPreferences", () => {
       expect(store.probeRodLengthMillimeters).toBe(
         uploaded.probeRodLengthMillimeters
       );
+      expect(store.appearance).toBe(uploaded.appearance);
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
