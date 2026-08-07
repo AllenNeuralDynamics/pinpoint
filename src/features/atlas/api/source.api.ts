@@ -233,6 +233,43 @@ export function isSameAtlas(
 }
 
 /**
+ * Are two atlases equal by value, manifest included, so an atlas object
+ * replaced with an unchanged copy can be told apart from a real atlas change.
+ * @param first First atlas to compare.
+ * @param second Second atlas to compare.
+ */
+export function isEqualAtlas(first: Atlas, second: Atlas): boolean {
+  const firstManifest = first.manifest;
+  const secondManifest = second.manifest;
+  return (
+    isSameAtlas(first, second) &&
+    firstManifest.terminologyLocation === secondManifest.terminologyLocation &&
+    firstManifest.annotationSetLocation ===
+      secondManifest.annotationSetLocation &&
+    firstManifest.atlasLink === secondManifest.atlasLink &&
+    isEqualTripleList(firstManifest.resolutions, secondManifest.resolutions) &&
+    isEqualTripleList(firstManifest.shape, secondManifest.shape)
+  );
+}
+
+/**
+ * Are two lists of numeric triples equal element by element.
+ * @param first First triple list to compare.
+ * @param second Second triple list to compare.
+ */
+function isEqualTripleList(
+  first: [number, number, number][],
+  second: [number, number, number][]
+): boolean {
+  return (
+    first.length === second.length &&
+    first.every((triple, index) =>
+      triple.every((value, axis) => value === second[index]![axis])
+    )
+  );
+}
+
+/**
  * Fetch and aggregate the manifests of an atlas's size variants, or null if
  * unreachable or without a usable finest variant.
  * @param listing Listing of the atlas to resolve.

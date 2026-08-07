@@ -11,6 +11,7 @@ import {
   getAtlasLongestDimensionMillimeters,
   getTerminologyRows,
   isAtlas,
+  isEqualAtlas,
   isSameAtlas,
   listAtlases,
   listAtlasesHTTP,
@@ -965,5 +966,112 @@ describe("isSameAtlas", () => {
     });
 
     expect(isSameAtlas(atlas, listing)).toBe(true);
+  });
+});
+
+describe("isEqualAtlas", () => {
+  it("returns true for two independently built equal atlases", () => {
+    const first = makeAtlas();
+    const second = JSON.parse(JSON.stringify(makeAtlas()));
+
+    expect(isEqualAtlas(first, second)).toBe(true);
+  });
+
+  it("returns false when name differs", () => {
+    const first = makeAtlas({ name: "allen_mouse" });
+    const second = makeAtlas({ name: "allen_human" });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when source differs", () => {
+    const first = makeAtlas({ source: "https://a.test" });
+    const second = makeAtlas({ source: "https://b.test" });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when manifest.terminologyLocation differs", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({ terminologyLocation: "/a" })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({ terminologyLocation: "/b" })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when manifest.annotationSetLocation differs", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({ annotationSetLocation: "/a" })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({ annotationSetLocation: "/b" })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when manifest.atlasLink differs", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({ atlasLink: "http://a.test" })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({ atlasLink: "http://b.test" })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when manifest.atlasLink is null on one side", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({ atlasLink: null })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({ atlasLink: "http://a.test" })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when a resolutions value differs", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({ resolutions: [[0.025, 0.025, 0.025]] })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({ resolutions: [[0.05, 0.025, 0.025]] })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when the resolutions length differs", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [[0.025, 0.025, 0.025]]
+      })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [
+          [0.025, 0.025, 0.025],
+          [0.05, 0.05, 0.05]
+        ]
+      })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when a shape value differs", () => {
+    const first = makeAtlas({
+      manifest: makeManifest({ shape: [[528, 320, 456]] })
+    });
+    const second = makeAtlas({
+      manifest: makeManifest({ shape: [[528, 320, 457]] })
+    });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
   });
 });

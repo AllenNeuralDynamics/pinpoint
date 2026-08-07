@@ -123,6 +123,8 @@ export default {
     edit: "Edit",
     undo: "Undo",
     redo: "Redo",
+    ctrlKey: "Ctrl",
+    shiftKey: "Shift",
     experimentProperties: "Experiment Properties",
     probeLibrary: "Probe Library",
     preferences: "Preferences",

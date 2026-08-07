@@ -5,6 +5,7 @@ export {
   DEFAULT_ATLAS,
   getTerminologyRows,
   isAtlas,
+  isEqualAtlas,
   isSameAtlas,
   structureEntitiesFromIdentifiers,
   getAtlasCenter,

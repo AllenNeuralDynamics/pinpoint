@@ -414,6 +414,54 @@ describe("useCurrentExperimentStore", () => {
       expect(rehydratedStore.canUndo).toBe(false);
       expect(rehydratedStore.name).toBe("Renamed");
     });
+
+    it("holds the atlas reference across an undo that leaves the atlas unchanged", async () => {
+      const store = useCurrentExperimentStore();
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      const atlasBefore = store.atlas;
+
+      store.undo();
+
+      expect(store.atlas).toBe(atlasBefore);
+    });
+
+    it("does not refetch the terminology rows when the atlas is unchanged", async () => {
+      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+      vi.mocked(getTerminologyRows).mockClear();
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+      await flushPromises();
+      await flushPromises();
+
+      expect(getTerminologyRows).not.toHaveBeenCalled();
+    });
+
+    it("re-points the atlas and refetches when an undo restores a different atlas", async () => {
+      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+      const store = useCurrentExperimentStore();
+      await flushPromises();
+      await flushPromises();
+
+      store.experiment.atlas = makeAtlas({ name: "allen_human" });
+      await nextTick();
+      await flushPromises();
+      await flushPromises();
+      vi.mocked(getTerminologyRows).mockClear();
+
+      store.undo();
+      await flushPromises();
+      await flushPromises();
+
+      expect(store.atlas.name).toBe(DEFAULT_ATLAS.name);
+      expect(getTerminologyRows).toHaveBeenCalled();
+    });
   });
 
   describe("probe drag history", () => {

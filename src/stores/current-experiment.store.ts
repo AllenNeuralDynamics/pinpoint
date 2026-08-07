@@ -7,7 +7,11 @@ import {
   cloneExperiment,
   type Experiment
 } from "@/features/experiment";
-import { DEFAULT_ATLAS, getTerminologyRows } from "@/features/atlas";
+import {
+  DEFAULT_ATLAS,
+  getTerminologyRows,
+  isEqualAtlas
+} from "@/features/atlas";
 import {
   detachProbeInterfaceProbes,
   type ProbeSurfaceChoice
@@ -84,10 +88,22 @@ export const useCurrentExperimentStore = defineStore(
      */
     const name = computed(() => experiment.value.name);
 
+    /** Latest atlas object handed out by `atlas`, replaced only on a real change. */
+    let lastAtlas = experiment.value.atlas;
+
     /**
-     * Get the current experiment atlas.
+     * Get the current experiment atlas, keeping the previous object while its
+     * value is unchanged so undo/redo's whole-experiment clone does not look
+     * like an atlas change to atlas-derived work.
+     * @remarks Depends on the atlas only ever being replaced wholesale, never
+     * edited field by field - an in-place edit would keep this reference and so
+     * would not propagate.
      */
-    const atlas = computed(() => experiment.value.atlas);
+    const atlas = computed(() => {
+      const next = experiment.value.atlas;
+      if (!isEqualAtlas(lastAtlas, next)) lastAtlas = next;
+      return lastAtlas;
+    });
 
     /**
      * Terminology rows of the current atlas.

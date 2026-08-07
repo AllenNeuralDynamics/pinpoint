@@ -518,6 +518,38 @@ describe("SceneCanvas", () => {
     );
   });
 
+  it("does no atlas-derived scene work when an undo leaves the atlas unchanged", async () => {
+    await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    store.experiment.name = "Renamed";
+    await flushPromises();
+    vi.mocked(setInitialZoom).mockClear();
+    vi.mocked(setAtlasCenterOffset).mockClear();
+    vi.mocked(removeAllStructures).mockClear();
+
+    store.undo();
+    await flushPromises();
+
+    expect(setInitialZoom).not.toHaveBeenCalled();
+    expect(setAtlasCenterOffset).not.toHaveBeenCalled();
+    expect(removeAllStructures).not.toHaveBeenCalled();
+  });
+
+  it("still re-zooms when an undo restores a different atlas", async () => {
+    await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    store.experiment.atlas = makeAtlas({ name: "allen_human" });
+    await flushPromises();
+    vi.mocked(setInitialZoom).mockClear();
+
+    store.undo();
+    await flushPromises();
+
+    expect(setInitialZoom).toHaveBeenCalled();
+  });
+
   it("applies the camera's inertia from the preferences store", async () => {
     const { runtime } = await mountCanvas();
 
