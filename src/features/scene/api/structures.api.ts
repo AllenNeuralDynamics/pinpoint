@@ -33,7 +33,7 @@ const STRUCTURE_MATERIAL_SUFFIX = "_structure_material";
 /** Alpha applied to a visible structure's material. */
 const STRUCTURE_VISIBLE_ALPHA = 1;
 
-/** Alpha applied to an always-present structure's material when faded out. */
+/** Alpha applied to a transparent structure's material. */
 const STRUCTURE_FADED_ALPHA = 0.1;
 
 /**
@@ -64,28 +64,28 @@ export function setAtlasCenterOffset(
 }
 
 /**
- * Sync the scene's structures with the given visibility, fading
- * always-present structures instead of removing them.
+ * Sync the scene's structures, fading the transparent ones instead of
+ * removing them.
  * @param scene Scene to sync.
- * @param alwaysPresentStructures Structures to keep in the scene at all times.
- * @param visibleStructures Structures that should be fully visible.
+ * @param fadedStructures Structures to keep in the scene faded out.
+ * @param opaqueStructures Structures to draw fully opaque.
  */
 export async function syncStructuresVisibility(
   scene: Scene,
-  alwaysPresentStructures: StructureEntity[],
-  visibleStructures: StructureEntity[]
+  fadedStructures: StructureEntity[],
+  opaqueStructures: StructureEntity[]
 ) {
   const atlasRootNode = buildAtlasRootNode(scene);
   const presentMeshes = childStructureMeshes(atlasRootNode);
 
-  const visibleIdentifiers = new Set(
-    visibleStructures.map(({ identifier }) => identifier)
+  const opaqueIdentifiers = new Set(
+    opaqueStructures.map(({ identifier }) => identifier)
   );
 
-  // Keyed by mesh name so always-present-and-visible structures collapse to
-  // one entry and line up with `presentMeshes`.
+  // Keyed by mesh name so faded-and-opaque structures collapse to one entry
+  // and line up with `presentMeshes`.
   const desiredStructures = new Map(
-    [...alwaysPresentStructures, ...visibleStructures].map(structure => [
+    [...fadedStructures, ...opaqueStructures].map(structure => [
       structureMeshName(structure.identifier),
       structure
     ])
@@ -116,7 +116,7 @@ export async function syncStructuresVisibility(
     if (material) {
       setMaterialAlpha(
         material,
-        visibleIdentifiers.has(structure.identifier)
+        opaqueIdentifiers.has(structure.identifier)
           ? STRUCTURE_VISIBLE_ALPHA
           : STRUCTURE_FADED_ALPHA
       );

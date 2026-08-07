@@ -14,6 +14,7 @@ export default {
   },
   atlasHierarchy: {
     search: "Search",
+    enabledOnly: "Enabled only",
     clear: "Clear"
   },
   currentExperiment: {

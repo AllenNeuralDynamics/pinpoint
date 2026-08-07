@@ -2,6 +2,7 @@ import { toRaw } from "vue";
 import type { Atlas } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
 import type { CameraPose } from "../models/camera-pose.model";
+import type { VisibleStructure } from "../models/visible-structure.model";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import {
@@ -11,15 +12,29 @@ import {
 } from "@/features/probe";
 
 /**
- * Returns a new experiment with the given name, atlas, and reference coordinate.
+ * Build the visible-structure entries an experiment starts with: every default
+ * structure, transparent.
+ * @param defaultStructureIdentifiers Identifiers of the atlas's default structures.
+ */
+export function buildDefaultVisibleStructures(
+  defaultStructureIdentifiers: number[]
+): VisibleStructure[] {
+  return defaultStructureIdentifiers.map(id => ({ id, isTransparent: true }));
+}
+
+/**
+ * Returns a new experiment with the given name, atlas, and reference coordinate,
+ * seeded with the atlas's default structures as transparent.
  * @param name Experiment name.
  * @param atlas Full atlas object.
  * @param referenceCoordinate Reference coordinate of atlas (in ASR, mm).
+ * @param defaultStructureIdentifiers Identifiers of the atlas's default structures.
  */
 export function buildExperiment(
   name: string,
   atlas: Atlas,
-  referenceCoordinate: [number, number, number]
+  referenceCoordinate: [number, number, number],
+  defaultStructureIdentifiers: number[] = []
 ): Experiment {
   return {
     id: crypto.randomUUID(),
@@ -27,7 +42,9 @@ export function buildExperiment(
     name,
     atlas,
     referenceCoordinate,
-    visibleStructures: [],
+    visibleStructures: buildDefaultVisibleStructures(
+      defaultStructureIdentifiers
+    ),
     probeInterfaceProbes: {},
     probes: [],
     cameraPoses: []
@@ -46,10 +63,11 @@ export function cloneExperiment(experiment: Experiment): Experiment {
 }
 
 /**
- * Commit edited properties onto an experiment in place, clearing visible
+ * Commit edited properties onto an experiment in place, re-seeding the shown
  * structures when the atlas changed since their identifiers are atlas-specific.
  * @param experiment Experiment to update.
- * @param properties Name, atlas, and reference coordinate to commit.
+ * @param properties Name, atlas, reference coordinate, and default structure
+ * identifiers to commit.
  */
 export function setExperimentProperties(
   experiment: Experiment,
@@ -57,12 +75,14 @@ export function setExperimentProperties(
     name: string;
     atlas: Atlas;
     referenceCoordinate: [number, number, number];
+    defaultStructureIdentifiers: number[];
   }
 ) {
-  const { name, atlas, referenceCoordinate } = properties;
+  const { name, atlas, referenceCoordinate, defaultStructureIdentifiers } =
+    properties;
 
   if (!isSameAtlas(atlas, experiment.atlas)) {
-    clearVisibleStructures(experiment);
+    resetStructureVisibility(experiment, defaultStructureIdentifiers);
   }
 
   experiment.name = name.trim();
@@ -70,42 +90,71 @@ export function setExperimentProperties(
   experiment.referenceCoordinate = [...referenceCoordinate];
 }
 /**
- * Is the structure visible on the atlas in the experiment.
+ * The experiment's visible-structure entry for a structure, or null when the
+ * structure is not shown.
+ * @param experiment Experiment to read from.
+ * @param identifier Identifier of the structure to look up.
+ */
+export function getVisibleStructure(
+  experiment: Experiment,
+  identifier: number
+): VisibleStructure | null {
+  return (
+    experiment.visibleStructures.find(({ id }) => id === identifier) ?? null
+  );
+}
+
+/**
+ * Is the structure fully visible, i.e. shown and not transparent.
  * @param experiment Experiment to check visibility in.
  * @param identifier Identifier of the structure to check.
  */
 export function isStructureVisible(experiment: Experiment, identifier: number) {
-  return experiment.visibleStructures.includes(identifier);
+  return getVisibleStructure(experiment, identifier)?.isTransparent === false;
 }
 
 /**
- * Set the visibility of the structure in the atlas.
+ * Set a structure's visibility: `true` shows it, `null` shows it transparent,
+ * and `false` removes it. Replaces any existing entry for the identifier.
  * @param experiment Experiment to set visibility in.
  * @param identifier Identifier of the structure to set the visibility of.
- * @param value Is the structure visible or not.
+ * @param value Visible, transparent, or not shown.
  */
 export function setStructureVisibility(
   experiment: Experiment,
   identifier: number,
-  value: boolean
+  value: boolean | null
 ) {
-  if (value) {
-    if (!isStructureVisible(experiment, identifier)) {
-      experiment.visibleStructures.push(identifier);
-    }
-  } else {
-    const index = experiment.visibleStructures.indexOf(identifier);
-    if (index === -1) return;
-    experiment.visibleStructures.splice(index, 1);
+  const index = experiment.visibleStructures.findIndex(
+    ({ id }) => id === identifier
+  );
+
+  if (value === false) {
+    if (index !== -1) experiment.visibleStructures.splice(index, 1);
+    return;
   }
+
+  const entry: VisibleStructure = {
+    id: identifier,
+    isTransparent: value === null
+  };
+  if (index === -1) experiment.visibleStructures.push(entry);
+  else experiment.visibleStructures[index] = entry;
 }
 
 /**
- * Reset visible structures.
- * @param experiment Experiment to clear visible structures in.
+ * Reset the shown structures back to the atlas's transparent defaults.
+ * @param experiment Experiment to reset structure visibility in.
+ * @param defaultStructureIdentifiers Identifiers of the atlas's default structures.
  */
-export function clearVisibleStructures(experiment: Experiment) {
+export function resetStructureVisibility(
+  experiment: Experiment,
+  defaultStructureIdentifiers: number[]
+) {
   experiment.visibleStructures.length = 0;
+  experiment.visibleStructures.push(
+    ...buildDefaultVisibleStructures(defaultStructureIdentifiers)
+  );
 }
 
 /**

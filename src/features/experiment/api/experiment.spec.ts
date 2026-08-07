@@ -4,9 +4,9 @@ import {
   addCameraPose,
   addProbe,
   buildExperiment,
-  clearVisibleStructures,
   cloneExperiment,
   getInternedProbeInterfaceProbe,
+  getVisibleStructure,
   internProbeInterfaceProbe,
   isStructureVisible,
   removeCameraPose,
@@ -14,6 +14,7 @@ import {
   removeProbe,
   reorderCameraPose,
   reorderProbe,
+  resetStructureVisibility,
   setExperimentProperties,
   setProbeInterface,
   setStructureVisibility
@@ -36,6 +37,15 @@ describe("buildExperiment", () => {
     expect(experiment.probeInterfaceProbes).toEqual({});
     expect(experiment.probes).toEqual([]);
     expect(experiment.cameraPoses).toEqual([]);
+  });
+
+  it("seeds visibleStructures with the default structure identifiers as transparent", () => {
+    const experiment = buildExperiment("E", makeAtlas(), [0, 0, 0], [1, 2]);
+
+    expect(experiment.visibleStructures).toEqual([
+      { id: 1, isTransparent: true },
+      { id: 2, isTransparent: true }
+    ]);
   });
 });
 
@@ -66,14 +76,21 @@ describe("cloneExperiment", () => {
 });
 
 describe("isStructureVisible", () => {
-  it("returns true when the identifier is in visibleStructures", () => {
+  it("returns true for an opaque entry", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [5];
+    experiment.visibleStructures = [{ id: 5, isTransparent: false }];
 
     expect(isStructureVisible(experiment, 5)).toBe(true);
   });
 
-  it("returns false when the identifier is not in visibleStructures", () => {
+  it("returns false for a transparent entry", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    experiment.visibleStructures = [{ id: 5, isTransparent: true }];
+
+    expect(isStructureVisible(experiment, 5)).toBe(false);
+  });
+
+  it("returns false when the identifier is absent", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
 
     expect(isStructureVisible(experiment, 5)).toBe(false);
@@ -81,50 +98,106 @@ describe("isStructureVisible", () => {
 });
 
 describe("setStructureVisibility", () => {
-  it("adds the identifier when setting visible and not already present", () => {
+  it("appends an opaque entry when setting true on an absent id", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
 
     setStructureVisibility(experiment, 5, true);
 
-    expect(experiment.visibleStructures).toEqual([5]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 5, isTransparent: false }
+    ]);
   });
 
-  it("does not duplicate the identifier when already visible", () => {
+  it("appends a transparent entry when setting null on an absent id", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [5];
+
+    setStructureVisibility(experiment, 5, null);
+
+    expect(experiment.visibleStructures).toEqual([
+      { id: 5, isTransparent: true }
+    ]);
+  });
+
+  it("replaces a transparent entry with an opaque one in place", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    experiment.visibleStructures = [{ id: 5, isTransparent: true }];
 
     setStructureVisibility(experiment, 5, true);
 
-    expect(experiment.visibleStructures).toEqual([5]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 5, isTransparent: false }
+    ]);
   });
 
-  it("removes the identifier when setting invisible and present", () => {
+  it("removes the entry when setting false and present", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [5, 6];
+    experiment.visibleStructures = [
+      { id: 5, isTransparent: false },
+      { id: 6, isTransparent: false }
+    ];
 
     setStructureVisibility(experiment, 5, false);
 
-    expect(experiment.visibleStructures).toEqual([6]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 6, isTransparent: false }
+    ]);
   });
 
-  it("is a no-op when setting invisible and not present", () => {
+  it("is a no-op when setting false and not present", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [6];
+    experiment.visibleStructures = [{ id: 6, isTransparent: false }];
 
     setStructureVisibility(experiment, 5, false);
 
-    expect(experiment.visibleStructures).toEqual([6]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 6, isTransparent: false }
+    ]);
+  });
+
+  it("leaves exactly one entry when called twice with true", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+
+    setStructureVisibility(experiment, 5, true);
+    setStructureVisibility(experiment, 5, true);
+
+    expect(experiment.visibleStructures).toEqual([
+      { id: 5, isTransparent: false }
+    ]);
   });
 });
 
-describe("clearVisibleStructures", () => {
-  it("resets visibleStructures to []", () => {
+describe("getVisibleStructure", () => {
+  it("returns the entry for a shown structure", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [1, 2, 3];
+    experiment.visibleStructures = [{ id: 5, isTransparent: false }];
 
-    clearVisibleStructures(experiment);
+    expect(getVisibleStructure(experiment, 5)).toEqual({
+      id: 5,
+      isTransparent: false
+    });
+  });
 
-    expect(experiment.visibleStructures).toEqual([]);
+  it("returns null when the identifier is absent", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+
+    expect(getVisibleStructure(experiment, 5)).toBeNull();
+  });
+});
+
+describe("resetStructureVisibility", () => {
+  it("resets visibleStructures to the transparent defaults", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    experiment.visibleStructures = [
+      { id: 1, isTransparent: false },
+      { id: 3, isTransparent: false }
+    ];
+
+    resetStructureVisibility(experiment, [1, 2]);
+
+    expect(experiment.visibleStructures).toEqual([
+      { id: 1, isTransparent: true },
+      { id: 2, isTransparent: true }
+    ]);
   });
 });
 
@@ -571,7 +644,8 @@ describe("setExperimentProperties", () => {
     setExperimentProperties(experiment, {
       name: "  New Name  ",
       atlas,
-      referenceCoordinate: [1, 2, 3]
+      referenceCoordinate: [1, 2, 3],
+      defaultStructureIdentifiers: []
     });
 
     expect(experiment.name).toBe("New Name");
@@ -586,49 +660,75 @@ describe("setExperimentProperties", () => {
     setExperimentProperties(experiment, {
       name: "New",
       atlas: makeAtlas(),
-      referenceCoordinate
+      referenceCoordinate,
+      defaultStructureIdentifiers: []
     });
     referenceCoordinate[0] = 99;
 
     expect(experiment.referenceCoordinate).toEqual([1, 2, 3]);
   });
 
-  it("clears visibleStructures when the atlas name differs", () => {
+  it("re-seeds visibleStructures when the atlas name differs", () => {
     const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [1, 2, 3];
+    experiment.visibleStructures = [
+      { id: 1, isTransparent: false },
+      { id: 2, isTransparent: false },
+      { id: 3, isTransparent: false }
+    ];
 
     setExperimentProperties(experiment, {
       name: "New",
       atlas: makeAtlas({ name: "allen_human" }),
-      referenceCoordinate: [0, 0, 0]
+      referenceCoordinate: [0, 0, 0],
+      defaultStructureIdentifiers: [4, 5]
     });
 
-    expect(experiment.visibleStructures).toEqual([]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 4, isTransparent: true },
+      { id: 5, isTransparent: true }
+    ]);
   });
 
-  it("clears visibleStructures when only the source differs", () => {
+  it("re-seeds visibleStructures when only the source differs", () => {
     const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [1, 2, 3];
+    experiment.visibleStructures = [
+      { id: 1, isTransparent: false },
+      { id: 2, isTransparent: false },
+      { id: 3, isTransparent: false }
+    ];
 
     setExperimentProperties(experiment, {
       name: "New",
       atlas: makeAtlas({ source: "https://other.test" }),
-      referenceCoordinate: [0, 0, 0]
+      referenceCoordinate: [0, 0, 0],
+      defaultStructureIdentifiers: [4, 5]
     });
 
-    expect(experiment.visibleStructures).toEqual([]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 4, isTransparent: true },
+      { id: 5, isTransparent: true }
+    ]);
   });
 
   it("keeps visibleStructures when a structurally equal but distinct atlas object is passed", () => {
     const experiment = buildExperiment("Old", makeAtlas(), [0, 0, 0]);
-    experiment.visibleStructures = [1, 2, 3];
+    experiment.visibleStructures = [
+      { id: 1, isTransparent: false },
+      { id: 2, isTransparent: false },
+      { id: 3, isTransparent: false }
+    ];
 
     setExperimentProperties(experiment, {
       name: "New",
       atlas: makeAtlas(),
-      referenceCoordinate: [0, 0, 0]
+      referenceCoordinate: [0, 0, 0],
+      defaultStructureIdentifiers: [4, 5]
     });
 
-    expect(experiment.visibleStructures).toEqual([1, 2, 3]);
+    expect(experiment.visibleStructures).toEqual([
+      { id: 1, isTransparent: false },
+      { id: 2, isTransparent: false },
+      { id: 3, isTransparent: false }
+    ]);
   });
 });

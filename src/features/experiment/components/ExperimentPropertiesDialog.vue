@@ -1,7 +1,13 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef, watch } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
-import { type Atlas, AtlasPicker, isSameAtlas } from "@/features/atlas";
+import {
+  type Atlas,
+  AtlasPicker,
+  getDefaultStructureIdentifiers,
+  getTerminologyRows,
+  isSameAtlas
+} from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
@@ -32,6 +38,7 @@ const atlas = ref<Atlas | null>({ ...currentExperimentStore.atlas });
 const referenceCoordinate = ref<[number, number, number]>([
   ...currentExperimentStore.referenceCoordinate
 ]);
+const isSaving = ref(false);
 
 const positionSuffix = computed(() =>
   unitLabels.position(preferences.positionUnit)
@@ -82,13 +89,29 @@ function selectName() {
 /**
  * Commit the edited properties to the current experiment and close.
  */
-function save() {
-  if (isSaveDisabled.value || !atlas.value) return;
+async function save() {
+  if (isSaveDisabled.value || !atlas.value || isSaving.value) return;
+
+  const pickedAtlas = atlas.value;
+  isSaving.value = true;
+  // Only a changed atlas re-seeds the shown structures, so skip the fetch
+  // otherwise.
+  const defaultStructureIdentifiers = isSameAtlas(
+    pickedAtlas,
+    currentExperimentStore.atlas
+  )
+    ? []
+    : getDefaultStructureIdentifiers(
+        pickedAtlas.name,
+        await getTerminologyRows(pickedAtlas)
+      );
+  isSaving.value = false;
 
   setExperimentProperties(currentExperimentStore.experiment, {
     name: name.value,
-    atlas: atlas.value,
-    referenceCoordinate: referenceCoordinate.value
+    atlas: pickedAtlas,
+    referenceCoordinate: referenceCoordinate.value,
+    defaultStructureIdentifiers
   });
 
   onDialogOK();
@@ -160,6 +183,7 @@ watch(atlas, (newAtlas, oldAtlas) => {
           icon="save"
           :label="$t('experimentProperties.save')"
           :disable="isSaveDisabled"
+          :loading="isSaving"
           @click="save"
         >
           <q-tooltip v-if="isSaveDisabled">

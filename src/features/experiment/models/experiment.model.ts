@@ -1,5 +1,6 @@
 import type { Atlas } from "@/features/atlas";
 import type { CameraPose } from "./camera-pose.model";
+import type { VisibleStructure } from "./visible-structure.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 
 export interface Experiment {
@@ -21,9 +22,9 @@ export interface Experiment {
   referenceCoordinate: [number, number, number];
 
   /**
-   * Identifiers of the atlas structures currently marked visible.
+   * Structures currently shown on the atlas, at most one entry per `id`.
    */
-  visibleStructures: number[];
+  visibleStructures: VisibleStructure[];
 
   /**
    * Probe interface definitions used by this experiment's probes, keyed by

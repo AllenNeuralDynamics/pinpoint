@@ -26,7 +26,7 @@ function makeFullExperiment(): Experiment {
   });
   internProbeInterfaceProbe(experiment, spec);
   addProbe(experiment, buildProbe(spec));
-  experiment.visibleStructures = [5];
+  experiment.visibleStructures = [{ id: 5, isTransparent: false }];
   return experiment;
 }
 
@@ -121,10 +121,41 @@ describe("parseExperimentFile", () => {
     expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
   });
 
-  it("returns null when visibleStructures contains a non-number", () => {
+  it("returns null when visibleStructures contains a non-number id", () => {
     const experiment = {
       ...makeFullExperiment(),
-      visibleStructures: ["1"] as unknown as number[]
+      visibleStructures: ["1"] as unknown as Experiment["visibleStructures"]
+    };
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
+  it("returns null when a visible structure is missing isTransparent", () => {
+    const experiment = {
+      ...makeFullExperiment(),
+      visibleStructures: [
+        { id: 1 }
+      ] as unknown as Experiment["visibleStructures"]
+    };
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
+  it("returns null when a visible structure's id has the wrong type", () => {
+    const experiment = {
+      ...makeFullExperiment(),
+      visibleStructures: [
+        { id: "1", isTransparent: true }
+      ] as unknown as Experiment["visibleStructures"]
+    };
+    expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
+  });
+
+  it("returns null when two visible structures share an id", () => {
+    const experiment = {
+      ...makeFullExperiment(),
+      visibleStructures: [
+        { id: 1, isTransparent: true },
+        { id: 1, isTransparent: false }
+      ]
     };
     expect(parseExperimentFile(JSON.stringify(experiment))).toBeNull();
   });

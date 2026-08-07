@@ -10,7 +10,7 @@ import {
   getProbeShanks
 } from "@/features/probe";
 import {
-  isStructureVisible,
+  getVisibleStructure,
   setStructureVisibility
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -180,16 +180,20 @@ function onPointerLeave(): void {
 }
 
 /**
- * Toggle the hovered structure's visibility in the 3D scene.
+ * Toggle the hovered structure in the 3D scene: remove it when already shown,
+ * otherwise add it fully opaque.
  */
 function onClick(): void {
   const structure = hoveredStructure.value;
   if (!structure) return;
 
+  const isShown =
+    getVisibleStructure(currentExperiment.experiment, structure.identifier) !==
+    null;
   setStructureVisibility(
     currentExperiment.experiment,
     structure.identifier,
-    !isStructureVisible(currentExperiment.experiment, structure.identifier)
+    !isShown
   );
 }
 

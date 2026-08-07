@@ -6,8 +6,9 @@ import AtlasHierarchy from "./AtlasHierarchy.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { setStructureVisibility } from "@/features/experiment";
+import { getDefaultStructureIdentifiers } from "../api/hierarchy.api";
 import { getTerminologyRows } from "../api/source.api";
-import { makeTerminologyRows } from "@/test/fixtures";
+import { makeTerminologyRow, makeTerminologyRows } from "@/test/fixtures";
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -101,9 +102,13 @@ describe("AtlasHierarchy", () => {
 
     const checkbox = wrapper.findComponent({ name: "QCheckbox" });
     expect(checkbox.props("modelValue")).toBe(false);
+    expect(checkbox.props("toggleIndeterminate")).toBe(false);
 
     await checkbox.vm.$emit("update:modelValue", true);
-    expect(store.experiment.visibleStructures).toContain(8);
+    expect(store.experiment.visibleStructures).toContainEqual({
+      id: 8,
+      isTransparent: false
+    });
   });
 
   it("shows the Clear button only when structures are visible, and clears on click", async () => {
@@ -125,7 +130,51 @@ describe("AtlasHierarchy", () => {
     expect(clearBtn).toBeDefined();
 
     await clearBtn.trigger("click");
-    expect(store.visibleStructures).toEqual([]);
+    expect(store.visibleStructures).toEqual(
+      getDefaultStructureIdentifiers(store.atlas.name, []).map(id => ({
+        id,
+        isTransparent: true
+      }))
+    );
+  });
+
+  it("gives a default structure a tri-state checkbox reflecting its transparent seed", async () => {
+    vi.mocked(getTerminologyRows).mockResolvedValue([
+      makeTerminologyRow({ identifier: 997, parent_identifier: null }),
+      makeTerminologyRow({
+        identifier: 184,
+        parent_identifier: 997,
+        annotation_value: 184,
+        name: "olfactory areas",
+        abbreviation: "OLF"
+      })
+    ]);
+    const wrapper = await mountHierarchy();
+    const store = useCurrentExperimentStore();
+
+    const checkbox = wrapper.findComponent({ name: "QCheckbox" });
+    expect(checkbox.props("toggleIndeterminate")).toBe(true);
+    expect(checkbox.props("modelValue")).toBeNull();
+
+    await checkbox.vm.$emit("update:modelValue", true);
+    expect(store.experiment.visibleStructures).toContainEqual({
+      id: 184,
+      isTransparent: false
+    });
+    expect(
+      store.experiment.visibleStructures.filter(({ id }) => id === 184)
+    ).toHaveLength(1);
+
+    await checkbox.vm.$emit("update:modelValue", false);
+    expect(store.experiment.visibleStructures).not.toContainEqual(
+      expect.objectContaining({ id: 184 })
+    );
+
+    await checkbox.vm.$emit("update:modelValue", null);
+    expect(store.experiment.visibleStructures).toContainEqual({
+      id: 184,
+      isTransparent: true
+    });
   });
 
   it("orders each row as guides, then checkbox, then icon, then text", async () => {
@@ -198,5 +247,63 @@ describe("AtlasHierarchy", () => {
     expect(
       wrapper.findComponent({ name: "QVirtualScrollStub" }).attributes("style")
     ).toContain("--hierarchy-content-width: 56px");
+  });
+
+  it("filters to enabled regions in hierarchy order when Enabled only is toggled on", async () => {
+    const wrapper = await mountHierarchy();
+    const store = useCurrentExperimentStore();
+    setStructureVisibility(store.experiment, 700, true);
+    setStructureVisibility(store.experiment, 8, true);
+
+    await wrapper.findComponent({ name: "QToggle" }).setValue(true);
+
+    const stub = wrapper.findComponent({ name: "QVirtualScrollStub" });
+    expect(
+      (stub.props("items") as { identifier: number }[]).map(i => i.identifier)
+    ).toEqual([8, 700]);
+    expect(wrapper.findAll(".guide")).toHaveLength(0);
+    expect(stub.attributes("style")).toContain(
+      "--hierarchy-content-width: 56px"
+    );
+
+    await wrapper.findComponent({ name: "QInput" }).setValue("grey");
+    await wrapper.vm.$nextTick();
+
+    const filteredIdentifiers = (
+      wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items") as {
+        identifier: number;
+      }[]
+    ).map(i => i.identifier);
+    expect(filteredIdentifiers).toEqual([8]);
+  });
+
+  it("shows nothing enabled on a pristine experiment", async () => {
+    const wrapper = await mountHierarchy();
+
+    await wrapper.findComponent({ name: "QToggle" }).setValue(true);
+
+    expect(
+      wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items")
+    ).toEqual([]);
+  });
+
+  it("treats an indeterminate default structure as not enabled", async () => {
+    vi.mocked(getTerminologyRows).mockResolvedValue([
+      makeTerminologyRow({ identifier: 997, parent_identifier: null }),
+      makeTerminologyRow({
+        identifier: 184,
+        parent_identifier: 997,
+        annotation_value: 184,
+        name: "olfactory areas",
+        abbreviation: "OLF"
+      })
+    ]);
+    const wrapper = await mountHierarchy();
+
+    await wrapper.findComponent({ name: "QToggle" }).setValue(true);
+
+    expect(
+      wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items")
+    ).toEqual([]);
   });
 });

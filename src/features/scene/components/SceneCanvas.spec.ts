@@ -331,6 +331,29 @@ describe("SceneCanvas", () => {
     expect(syncStructuresVisibility).toHaveBeenCalled();
   });
 
+  it("splits visibleStructures into a faded call and an opaque call", async () => {
+    const terminologyRows = makeTerminologyRows();
+    vi.mocked(getTerminologyRows).mockResolvedValue(terminologyRows);
+
+    await mountCanvas();
+    useCurrentExperimentStore().experiment.visibleStructures = [
+      { id: 8, isTransparent: true },
+      { id: 567, isTransparent: false }
+    ];
+    await flushPromises();
+
+    expect(structureEntitiesFromIdentifiers).toHaveBeenCalledWith(
+      DEFAULT_ATLAS,
+      terminologyRows,
+      [8]
+    );
+    expect(structureEntitiesFromIdentifiers).toHaveBeenCalledWith(
+      DEFAULT_ATLAS,
+      terminologyRows,
+      [567]
+    );
+  });
+
   it("syncs empty structure lists while terminology rows are still evaluating", async () => {
     // Never resolves, so `isTerminologyRowsEvaluating` stays true throughout.
     vi.mocked(getTerminologyRows).mockReturnValue(new Promise(() => {}));

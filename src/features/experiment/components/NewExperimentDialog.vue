@@ -1,7 +1,12 @@
 <script lang="ts" setup>
 import { computed, ref, useTemplateRef } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
-import { type Atlas, AtlasPicker } from "@/features/atlas";
+import {
+  type Atlas,
+  AtlasPicker,
+  getDefaultStructureIdentifiers,
+  getTerminologyRows
+} from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
 import { buildExperiment } from "../api/experiment.api";
@@ -15,6 +20,7 @@ const { requiredName: nameRules } = useValidationRules();
 
 const name = ref<string | null>(null);
 const atlas = ref<Atlas | null>(null);
+const isCreating = ref(false);
 const nameInput = useTemplateRef<QInput>("nameInput");
 
 /**
@@ -23,15 +29,27 @@ const nameInput = useTemplateRef<QInput>("nameInput");
 const isCreateDisabled = computed(() => !name.value || !atlas.value);
 
 /**
- * Create a new experiment with the given name and atlas, seeding its
- * reference coordinate from the atlas's default reference coordinate.
+ * Create a new experiment with the given name and atlas, seeding its reference
+ * coordinate and default structures from the picked atlas.
  */
-function create() {
-  if (!name.value || !atlas.value) return;
+async function create() {
+  if (!name.value || !atlas.value || isCreating.value) return;
+
+  isCreating.value = true;
+  const defaultStructureIdentifiers = getDefaultStructureIdentifiers(
+    atlas.value.name,
+    await getTerminologyRows(atlas.value)
+  );
+  isCreating.value = false;
 
   const referenceCoordinate = buildInitialReferenceCoordinate(atlas.value);
   currentExperimentStore.loadExperiment(
-    buildExperiment(name.value, atlas.value, referenceCoordinate)
+    buildExperiment(
+      name.value,
+      atlas.value,
+      referenceCoordinate,
+      defaultStructureIdentifiers
+    )
   );
 
   onDialogOK();
@@ -66,6 +84,7 @@ function create() {
           icon="add"
           :label="$t('newExperiment.create')"
           :disable="isCreateDisabled"
+          :loading="isCreating"
           @click="create"
         >
           <q-tooltip v-if="isCreateDisabled">

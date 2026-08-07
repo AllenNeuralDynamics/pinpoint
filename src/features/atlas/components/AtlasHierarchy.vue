@@ -3,12 +3,14 @@ import { computed, onMounted, ref, useTemplateRef } from "vue";
 import { useFuzzyFilter } from "@/composable/useFuzzyFilter";
 import {
   flattenHierarchy,
+  getDefaultStructureIdentifiers,
   widestHierarchyRowWidth
 } from "../api/hierarchy.api";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
-  clearVisibleStructures,
+  getVisibleStructure,
   isStructureVisible,
+  resetStructureVisibility,
   setStructureVisibility
 } from "@/features/experiment";
 
@@ -28,18 +30,54 @@ const currentExperiment = useCurrentExperimentStore();
 const filter = ref<string | null>(null);
 const root = useTemplateRef<HTMLDivElement>("root");
 const fontsReady = ref(false);
+const enabledOnly = ref(false);
 
 const items = computed(() =>
   flattenHierarchy(currentExperiment.terminologyRows)
+);
+
+// Filtering ahead of Fuse narrows both the hierarchy-ordered list and the
+// search results, and keeps hierarchy order while not searching. A transparent
+// (indeterminate) structure is not enabled.
+const searchableItems = computed(() =>
+  enabledOnly.value
+    ? items.value.filter(item =>
+        isStructureVisible(currentExperiment.experiment, item.identifier)
+      )
+    : items.value
 );
 
 // Fuzzy search across the abbreviation (label) and the full name. A
 // whitespace-only filter is treated as blank, keeping the hierarchy order.
 const { isSearching, filtered: displayedItems } = useFuzzyFilter(
   computed(() => filter.value ?? ""),
-  items,
+  searchableItems,
   { keys: ["name", "abbreviation"] },
   query => query.trim().length === 0
+);
+
+/** Indent guides only apply to the full hierarchy-ordered list. */
+const showGuides = computed(() => !isSearching.value && !enabledOnly.value);
+
+const defaultStructureIdentifiers = computed(() =>
+  getDefaultStructureIdentifiers(
+    currentExperiment.atlas.name,
+    currentExperiment.terminologyRows
+  )
+);
+
+/**
+ * Whether any structure differs from the atlas's all-transparent default, i.e.
+ * whether Clear has anything to reset.
+ */
+const hasStructureChanges = computed(
+  () =>
+    currentExperiment.visibleStructures.length !==
+      defaultStructureIdentifiers.value.length ||
+    currentExperiment.visibleStructures.some(
+      ({ id, isTransparent }) =>
+        !isTransparent || !defaultStructureIdentifiers.value.includes(id)
+    )
 );
 
 const contentWidth = computed(() => {
@@ -47,12 +85,26 @@ const contentWidth = computed(() => {
   return widestHierarchyRowWidth(
     displayedItems.value,
     {
-      guideWidth: isSearching.value ? 0 : GUIDE_WIDTH,
+      guideWidth: showGuides.value ? GUIDE_WIDTH : 0,
       chromeWidth: ROW_CHROME_WIDTH
     },
     makeTextMeasurer(root.value)
   );
 });
+
+/**
+ * Checkbox state for a structure: checked when opaque, indeterminate when
+ * transparent, unchecked when not shown.
+ * @param identifier Structure identifier.
+ */
+function structureCheckboxValue(identifier: number): boolean | null {
+  const visibleStructure = getVisibleStructure(
+    currentExperiment.experiment,
+    identifier
+  );
+  if (!visibleStructure) return false;
+  return visibleStructure.isTransparent ? null : true;
+}
 
 /**
  * Build a canvas-backed text measurer using the list's own font.
@@ -84,6 +136,11 @@ onMounted(async () => {
         <q-icon name="search" />
       </template>
     </q-input>
+    <q-toggle
+      v-model="enabledOnly"
+      :label="$t('atlasHierarchy.enabledOnly')"
+      dense
+    />
 
     <q-virtual-scroll
       :items="displayedItems"
@@ -96,7 +153,7 @@ onMounted(async () => {
           :key="item.identifier"
           class="hierarchy-row row items-center no-wrap"
         >
-          <template v-if="!isSearching">
+          <template v-if="showGuides">
             <span
               v-for="(guide, index) in item.guides"
               :key="index"
@@ -106,19 +163,17 @@ onMounted(async () => {
           </template>
           <div class="row q-gutter-x-xs items-center no-wrap">
             <q-checkbox
-              :model-value="
-                isStructureVisible(
-                  currentExperiment.experiment,
-                  item.identifier
-                )
+              :model-value="structureCheckboxValue(item.identifier)"
+              :toggle-indeterminate="
+                defaultStructureIdentifiers.includes(item.identifier)
               "
               dense
               @update:model-value="
-                visible =>
+                value =>
                   setStructureVisibility(
                     currentExperiment.experiment,
                     item.identifier,
-                    visible
+                    value
                   )
               "
             />
@@ -135,10 +190,15 @@ onMounted(async () => {
     </q-virtual-scroll>
 
     <q-btn
-      v-if="currentExperiment.visibleStructures.length"
+      v-if="hasStructureChanges"
       icon="clear_all"
       :label="$t('atlasHierarchy.clear')"
-      @click="clearVisibleStructures(currentExperiment.experiment)"
+      @click="
+        resetStructureVisibility(
+          currentExperiment.experiment,
+          defaultStructureIdentifiers
+        )
+      "
     />
   </div>
 </template>

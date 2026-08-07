@@ -4,11 +4,13 @@ import { computedAsync, useRefHistory } from "@vueuse/core";
 import { i18n } from "@/services/i18n.service";
 import {
   ALLEN_MOUSE_REFERENCE_COORDINATE,
+  buildDefaultVisibleStructures,
   cloneExperiment,
   type Experiment
 } from "@/features/experiment";
 import {
   DEFAULT_ATLAS,
+  getDefaultStructureIdentifiers,
   getTerminologyRows,
   isEqualAtlas
 } from "@/features/atlas";
@@ -39,7 +41,11 @@ export const useCurrentExperimentStore = defineStore(
       name: i18n.global.t("currentExperiment.defaultName"),
       atlas: structuredClone(DEFAULT_ATLAS),
       referenceCoordinate: [...ALLEN_MOUSE_REFERENCE_COORDINATE],
-      visibleStructures: [],
+      // `allen_mouse` has a known default-structure list, so no terminology
+      // rows are needed to resolve it.
+      visibleStructures: buildDefaultVisibleStructures(
+        getDefaultStructureIdentifiers(DEFAULT_ATLAS.name, [])
+      ),
       probeInterfaceProbes: {},
       probes: [],
       cameraPoses: []

@@ -9,7 +9,12 @@ import {
 import NewExperimentDialog from "./NewExperimentDialog.vue";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getTerminologyRows } from "@/features/atlas";
-import { makeAtlas, makeManifest, makeProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeManifest,
+  makeProbe,
+  makeTerminologyRows
+} from "@/test/fixtures";
 import enUS from "@/i18n/en-US";
 
 // `useCurrentExperimentStore`'s `terminologyRows` is `computedAsync`,
@@ -133,6 +138,7 @@ describe("NewExperimentDialog", () => {
         .vm.$emit("update:modelValue", atlas);
 
       await createButton(wrapper).trigger("click");
+      await flushMicrotasks();
 
       const store = useCurrentExperimentStore();
       expect(store.name).toBe("My Experiment");
@@ -157,9 +163,26 @@ describe("NewExperimentDialog", () => {
         .findComponent({ name: "AtlasPicker" })
         .vm.$emit("update:modelValue", atlas);
       await createButton(wrapper).trigger("click");
+      await flushMicrotasks();
 
       expect(store.selectedInspectable).toBeNull();
       expect(store.draggedProbeId).toBeNull();
+    });
+
+    it("seeds default structures from the picked atlas's terminology rows", async () => {
+      vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+      const atlas = makeAtlas({ name: "african_molerat" });
+
+      const wrapper = await mountDialog();
+      await wrapper.findComponent({ name: "QInput" }).setValue("My Experiment");
+      await wrapper
+        .findComponent({ name: "AtlasPicker" })
+        .vm.$emit("update:modelValue", atlas);
+      await createButton(wrapper).trigger("click");
+      await flushMicrotasks();
+
+      const store = useCurrentExperimentStore();
+      expect(store.visibleStructures).toEqual([{ id: 8, isTransparent: true }]);
     });
 
     it("does nothing when name or atlas is missing", async () => {

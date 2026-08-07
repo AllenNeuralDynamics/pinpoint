@@ -9,7 +9,7 @@ import {
 } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getTerminologyRows } from "@/features/atlas";
-import { makeAtlas, makeManifest } from "@/test/fixtures";
+import { makeAtlas, makeManifest, makeTerminologyRows } from "@/test/fixtures";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { buildExperiment } from "../api/experiment.api";
 
@@ -197,6 +197,22 @@ describe("ExperimentPropertiesDialog", () => {
     expect(coordinates[0]!.find("input").element.value).toBe("1.000");
     expect(coordinates[1]!.find("input").element.value).toBe("1.000");
     expect(coordinates[2]!.find("input").element.value).toBe("1.000");
+  });
+
+  it("re-seeds default structures when a different atlas is picked and saved", async () => {
+    vi.mocked(getTerminologyRows).mockResolvedValue(makeTerminologyRows());
+    const wrapper = await mountDialog();
+
+    await atlasPicker(wrapper).vm.$emit(
+      "update:modelValue",
+      makeAtlas({ name: "african_molerat" })
+    );
+    await flushMicrotasks();
+    await saveButton(wrapper).trigger("click");
+    await flushMicrotasks();
+
+    const store = useCurrentExperimentStore();
+    expect(store.visibleStructures).toEqual([{ id: 8, isTransparent: true }]);
   });
 
   it("does not re-seed when re-picking an equal but distinct atlas object", async () => {

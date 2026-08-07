@@ -4,7 +4,11 @@ import { createPinia, setActivePinia } from "pinia";
 import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { flushPromises } from "@vue/test-utils";
 import { useCurrentExperimentStore } from "./current-experiment.store";
-import { DEFAULT_ATLAS, getTerminologyRows } from "@/features/atlas";
+import {
+  DEFAULT_ATLAS,
+  getDefaultStructureIdentifiers,
+  getTerminologyRows
+} from "@/features/atlas";
 import type { TerminologyRow } from "@/features/atlas";
 import {
   addProbe,
@@ -54,9 +58,14 @@ describe("useCurrentExperimentStore", () => {
   });
 
   describe("visibleStructures", () => {
-    it("get returns the experiment's visibleStructures", () => {
+    it("get returns the experiment's seeded default structures", () => {
       const store = useCurrentExperimentStore();
-      expect(store.visibleStructures).toEqual([]);
+      expect(store.visibleStructures).toEqual(
+        getDefaultStructureIdentifiers(DEFAULT_ATLAS.name, []).map(id => ({
+          id,
+          isTransparent: true
+        }))
+      );
     });
   });
 

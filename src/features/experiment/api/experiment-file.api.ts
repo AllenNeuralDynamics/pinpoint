@@ -1,4 +1,5 @@
 import type { Experiment } from "../models/experiment.model";
+import type { VisibleStructure } from "../models/visible-structure.model";
 import { isAtlas } from "@/features/atlas";
 import { isCameraPose } from "./camera-pose.api";
 import {
@@ -83,7 +84,13 @@ function isExperiment(value: unknown): value is Experiment {
   if (!isFiniteTriple(referenceCoordinate)) return false;
   if (
     !Array.isArray(visibleStructures) ||
-    !visibleStructures.every(isFiniteNumber)
+    !visibleStructures.every(isVisibleStructure)
+  ) {
+    return false;
+  }
+  if (
+    new Set(visibleStructures.map(({ id }: VisibleStructure) => id)).size !==
+    visibleStructures.length
   ) {
     return false;
   }
@@ -108,5 +115,17 @@ function isExperiment(value: unknown): value is Experiment {
 
   return probes.every(probe =>
     Object.hasOwn(probeInterfaceProbes, probe.probeInterfaceIdentifier)
+  );
+}
+
+/**
+ * Check that a value has the shape of a `VisibleStructure`.
+ * @param value Value to check.
+ */
+function isVisibleStructure(value: unknown): value is VisibleStructure {
+  return (
+    isRecord(value) &&
+    isFiniteNumber(value.id) &&
+    typeof value.isTransparent === "boolean"
   );
 }

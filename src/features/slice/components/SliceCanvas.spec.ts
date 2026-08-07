@@ -392,16 +392,65 @@ describe("SliceCanvas", () => {
 
     await canvas.trigger("pointermove", { clientX: 75, clientY: 25 });
     await canvas.trigger("click");
-    expect(store.experiment.visibleStructures).toContain(8);
+    expect(store.experiment.visibleStructures).toContainEqual({
+      id: 8,
+      isTransparent: false
+    });
 
     await canvas.trigger("click");
-    expect(store.experiment.visibleStructures).not.toContain(8);
+    expect(store.experiment.visibleStructures).not.toContainEqual({
+      id: 8,
+      isTransparent: false
+    });
+  });
+
+  it("clicking a transparent structure removes it, and a second click makes it opaque", async () => {
+    mockResult.value = makeSampleResult(2, [0, 8, 0, 0]);
+    const rows = [makeTerminologyRow({ annotation_value: 8, identifier: 8 })];
+    vi.mocked(getTerminologyRows).mockResolvedValue(rows);
+    mockStructureIndex.value = new Map(
+      rows.map(row => [row.annotation_value, row])
+    );
+    const { wrapper, store } = mountSlice();
+    await flushPromises();
+    store.experiment.visibleStructures = [{ id: 8, isTransparent: true }];
+
+    const canvas = wrapper.find("canvas");
+    vi.spyOn(canvas.element, "getBoundingClientRect").mockReturnValue({
+      left: 0,
+      top: 0,
+      width: 100,
+      height: 100,
+      right: 100,
+      bottom: 100,
+      x: 0,
+      y: 0,
+      toJSON: () => ({})
+    });
+
+    await canvas.trigger("pointermove", { clientX: 75, clientY: 25 });
+    await canvas.trigger("click");
+    expect(store.experiment.visibleStructures).not.toContainEqual({
+      id: 8,
+      isTransparent: true
+    });
+    expect(store.experiment.visibleStructures).not.toContainEqual({
+      id: 8,
+      isTransparent: false
+    });
+
+    await canvas.trigger("click");
+    expect(store.experiment.visibleStructures).toContainEqual({
+      id: 8,
+      isTransparent: false
+    });
   });
 
   it("a click over background is a no-op", async () => {
     mockResult.value = makeSampleResult(2, [0, 0, 0, 0]);
     const { wrapper, store } = mountSlice();
     await wrapper.vm.$nextTick();
+    const before = [...store.experiment.visibleStructures];
 
     const canvas = wrapper.find("canvas");
     vi.spyOn(canvas.element, "getBoundingClientRect").mockReturnValue({
@@ -419,7 +468,7 @@ describe("SliceCanvas", () => {
     await canvas.trigger("pointermove", { clientX: 10, clientY: 10 });
     await canvas.trigger("click");
 
-    expect(store.experiment.visibleStructures).toEqual([]);
+    expect(store.experiment.visibleStructures).toEqual(before);
   });
 
   it("shows a progress bar only once loading has run past the debounce delay", async () => {
