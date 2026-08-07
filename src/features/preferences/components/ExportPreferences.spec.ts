@@ -76,6 +76,8 @@ function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
     worldLightIntensity: 1,
     materialSpecularIntensity: 1,
     materialSpecularPower: 64,
+    isSsaoEnabled: true,
+    ssaoRatio: 0.5,
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
@@ -165,6 +167,8 @@ describe("ExportPreferences", () => {
         materialSpecularIntensity: 0.5,
         materialSpecularPower: 32,
         areStructureInteriorsHidden: false,
+        isSsaoEnabled: false,
+        ssaoRatio: 0.25,
         positionUnit: "centimeter",
         rotationUnit: "radian",
         decimalPrecision: 1,
@@ -188,6 +192,8 @@ describe("ExportPreferences", () => {
       expect(store.areStructureInteriorsHidden).toBe(
         uploaded.areStructureInteriorsHidden
       );
+      expect(store.isSsaoEnabled).toBe(uploaded.isSsaoEnabled);
+      expect(store.ssaoRatio).toBe(uploaded.ssaoRatio);
       expect(store.positionUnit).toBe(uploaded.positionUnit);
       expect(store.rotationUnit).toBe(uploaded.rotationUnit);
       expect(store.decimalPrecision).toBe(uploaded.decimalPrecision);

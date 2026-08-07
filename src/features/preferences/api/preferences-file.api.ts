@@ -85,6 +85,7 @@ const NUMERIC_PREFERENCE_RANGES = {
   worldLightIntensity: [0, 2],
   materialSpecularIntensity: [0, 1],
   materialSpecularPower: [1, 128],
+  ssaoRatio: [0.1, 1],
   decimalPrecision: [0, 10],
   probeShankThicknessMillimeters: [0.001, 100],
   probeHeadStageLengthMillimeters: [0.01, 1000],
@@ -105,6 +106,7 @@ function isPreferences(value: unknown): value is Preferences {
     version,
     cameraProjection,
     worldBackgroundColor,
+    isSsaoEnabled,
     areStructureInteriorsHidden,
     positionUnit,
     rotationUnit
@@ -124,6 +126,7 @@ function isPreferences(value: unknown): value is Preferences {
     return false;
   }
   if (typeof areStructureInteriorsHidden !== "boolean") return false;
+  if (typeof isSsaoEnabled !== "boolean") return false;
   if (
     typeof positionUnit !== "string" ||
     !POSITION_UNITS.includes(positionUnit)
@@ -162,6 +165,8 @@ function pickPreferences(source: Preferences, version: string): Preferences {
     worldLightIntensity: source.worldLightIntensity,
     materialSpecularIntensity: source.materialSpecularIntensity,
     materialSpecularPower: source.materialSpecularPower,
+    isSsaoEnabled: source.isSsaoEnabled,
+    ssaoRatio: source.ssaoRatio,
     areStructureInteriorsHidden: source.areStructureInteriorsHidden,
     positionUnit: source.positionUnit,
     rotationUnit: source.rotationUnit,

@@ -59,6 +59,12 @@ const preferences = usePreferencesStore();
           label
         />
       </div>
+    </div>
+    <div class="col-auto column q-gutter-y-sm justify-center">
+      <q-toggle
+        v-model="preferences.isSsaoEnabled"
+        :label="$t('preferences.ambientOcclusion')"
+      />
       <q-toggle
         v-model="preferences.areStructureInteriorsHidden"
         :label="$t('preferences.hideStructureInteriors')"

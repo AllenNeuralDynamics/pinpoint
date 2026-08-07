@@ -37,12 +37,13 @@ import type { StructureEntity } from "@/features/atlas";
 import {
   getAtlasCenter,
   getAtlasDimensionsMillimeters,
+  getAtlasLongestDimensionMillimeters,
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useI18n } from "vue-i18n";
-import type { Mesh, Scene } from "@babylonjs/core";
+import type { Mesh, Scene, SSAO2RenderingPipeline } from "@babylonjs/core";
 import {
   endProbeGizmoDrag,
   getProbeMeshes,
@@ -87,6 +88,12 @@ import {
   setHemisphericLightIntensity,
   setSceneBackgroundColor
 } from "../api/scene.api";
+import {
+  attachSsaoPipeline,
+  detachSsaoPipeline,
+  isSsaoSupported,
+  scaleSsaoToAtlas
+} from "../api/ssao.api";
 import { useNotify } from "@/composable/useNotify";
 
 const { t } = useI18n();
@@ -112,6 +119,9 @@ const isLoadingStructures = ref(false);
 
 /** Axis guide text renderers, created for the current scene the first time the guides are shown. */
 const axisGuides = shallowRef<AxisGuides | null>(null);
+
+/** SSAO pipeline for the current scene, present while ambient occlusion is on and supported. */
+const ssaoPipeline = shallowRef<SSAO2RenderingPipeline | null>(null);
 
 /** Overlap bookkeeping for scene entity trigger events, read and mutated in place. */
 const collisionState = createCollisionState();
@@ -373,6 +383,37 @@ watchEffect(() => {
   if (!scene) return;
 
   setHemisphericLightIntensity(scene, preferences.worldLightIntensity);
+});
+
+// SSAO bakes its render ratio into its post-processes, so a ratio change rebuilds the pipeline.
+watch(
+  [
+    runtime.scene,
+    runtime.camera,
+    () => preferences.isSsaoEnabled,
+    () => preferences.ssaoRatio
+  ],
+  ([scene, camera, isEnabled, ratio]) => {
+    if (!scene || !camera || !isEnabled || !isSsaoSupported()) return;
+
+    const pipeline = attachSsaoPipeline(scene, camera, ratio);
+    ssaoPipeline.value = pipeline;
+    onWatcherCleanup(() => {
+      detachSsaoPipeline(pipeline);
+      ssaoPipeline.value = null;
+    });
+  }
+);
+
+// Occlusion radius and depth cutoff are in millimetres, so they track the atlas's size.
+watchEffect(() => {
+  const pipeline = ssaoPipeline.value;
+  if (!pipeline) return;
+
+  scaleSsaoToAtlas(
+    pipeline,
+    getAtlasLongestDimensionMillimeters(currentExperiment.atlas)
+  );
 });
 
 watchEffect(() => {

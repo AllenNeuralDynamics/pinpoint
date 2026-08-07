@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
+import type { VueWrapper } from "@vue/test-utils";
 import WorldPreferences from "./WorldPreferences.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { STANDARD_COLORS } from "@/features/scene";
+import enUS from "@/i18n/en-US";
+
+const t = enUS.preferences;
+
+/** The toggle rendering a given label. */
+function findToggle(wrapper: VueWrapper, label: string) {
+  return wrapper
+    .findAllComponents({ name: "QToggle" })
+    .find(toggle => toggle.props("label") === label)!;
+}
 
 describe("WorldPreferences", () => {
   it("picking a palette color writes it to worldBackgroundColor", async () => {
@@ -53,19 +64,40 @@ describe("WorldPreferences", () => {
   it("the hide-interiors toggle starts at true", () => {
     const wrapper = mountWithQuasar(WorldPreferences);
 
-    expect(wrapper.findComponent({ name: "QToggle" }).props("modelValue")).toBe(
-      true
-    );
+    expect(
+      findToggle(wrapper, t.hideStructureInteriors).props("modelValue")
+    ).toBe(true);
   });
 
   it("toggling off writes areStructureInteriorsHidden to false", async () => {
     const wrapper = mountWithQuasar(WorldPreferences);
     const preferences = usePreferencesStore();
 
-    await wrapper
-      .findComponent({ name: "QToggle" })
-      .vm.$emit("update:modelValue", false);
+    await findToggle(wrapper, t.hideStructureInteriors).vm.$emit(
+      "update:modelValue",
+      false
+    );
 
     expect(preferences.areStructureInteriorsHidden).toBe(false);
+  });
+
+  it("the ambient-occlusion toggle starts at false", () => {
+    const wrapper = mountWithQuasar(WorldPreferences);
+
+    expect(findToggle(wrapper, t.ambientOcclusion).props("modelValue")).toBe(
+      false
+    );
+  });
+
+  it("toggling ambient occlusion on writes isSsaoEnabled to true", async () => {
+    const wrapper = mountWithQuasar(WorldPreferences);
+    const preferences = usePreferencesStore();
+
+    await findToggle(wrapper, t.ambientOcclusion).vm.$emit(
+      "update:modelValue",
+      true
+    );
+
+    expect(preferences.isSsaoEnabled).toBe(true);
   });
 });

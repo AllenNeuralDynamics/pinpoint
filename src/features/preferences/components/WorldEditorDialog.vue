@@ -28,5 +28,5 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 
 <style lang="sass" scoped>
 .world-editor
-  min-width: 620px
+  min-width: 780px
 </style>

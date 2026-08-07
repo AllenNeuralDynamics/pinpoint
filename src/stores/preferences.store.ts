@@ -19,6 +19,10 @@ export interface Preferences {
   materialSpecularIntensity: number;
   /** Specular exponent of every scene material; higher is glossier. */
   materialSpecularPower: number;
+  /** Whether the scene renders with screen-space ambient occlusion. */
+  isSsaoEnabled: boolean;
+  /** Size of the ambient occlusion pass relative to the canvas, 0-1; lower is faster. */
+  ssaoRatio: number;
   /** Whether see-through structures hide their own interior surfaces. */
   areStructureInteriorsHidden: boolean;
   /** Unit numeric inputs display positions in. */
@@ -49,6 +53,8 @@ export const usePreferencesStore = defineStore(
     const worldLightIntensity = ref(1);
     const materialSpecularIntensity = ref(1);
     const materialSpecularPower = ref(64);
+    const isSsaoEnabled = ref(false);
+    const ssaoRatio = ref(0.5);
     const areStructureInteriorsHidden = ref(true);
     const positionUnit = ref<PositionUnit>("millimeter");
     const rotationUnit = ref<RotationUnit>("degree");
@@ -69,6 +75,8 @@ export const usePreferencesStore = defineStore(
       worldLightIntensity,
       materialSpecularIntensity,
       materialSpecularPower,
+      isSsaoEnabled,
+      ssaoRatio,
       areStructureInteriorsHidden,
       positionUnit,
       rotationUnit,

@@ -20,6 +20,8 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     worldLightIntensity: 1,
     materialSpecularIntensity: 1,
     materialSpecularPower: 64,
+    isSsaoEnabled: true,
+    ssaoRatio: 0.5,
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
@@ -48,12 +50,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the sixteen preference keys", () => {
+  it("writes only the eighteen preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(16);
+    expect(keys).toHaveLength(18);
     expect(keys).not.toContain("junk");
   });
 });
@@ -101,6 +103,18 @@ describe("parsePreferencesFile", () => {
       ...makePreferences(),
       areStructureInteriorsHidden: "true"
     };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a non-boolean isSsaoEnabled", () => {
+    const fixture = { ...makePreferences(), isSsaoEnabled: "true" };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for an ssaoRatio above 1", () => {
+    const fixture = makePreferences({ ssaoRatio: 1.5 });
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
@@ -157,6 +171,8 @@ describe("applyPreferences", () => {
       cameraInertia: 0.1,
       worldBackgroundColor: "#ff0000",
       areStructureInteriorsHidden: false,
+      isSsaoEnabled: false,
+      ssaoRatio: 0.25,
       positionUnit: "centimeter",
       rotationUnit: "radian",
       decimalPrecision: 1,
