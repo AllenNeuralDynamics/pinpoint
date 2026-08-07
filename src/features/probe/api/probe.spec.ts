@@ -18,7 +18,12 @@ import {
   toggleProbeLock
 } from "./probe.api";
 import { addProbe, buildExperiment } from "@/features/experiment";
-import { makeAtlas, makeProbe, makeProbeInterfaceProbe } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeProbe,
+  makeProbeInterfaceProbe,
+  makeSceneModel
+} from "@/test/fixtures";
 
 describe("buildProbe", () => {
   it("references the given probe identifier", () => {
@@ -49,6 +54,7 @@ describe("buildProbe", () => {
     expect(probe.sliceExtentMillimeters).toBeNull();
     expect(probe.sliceCenterHeightMillimeters).toBe(0);
     expect(probe.channelMapWindow).toBeNull();
+    expect(probe.bodyModel).toBeNull();
   });
 
   it("gives each probe a unique id", () => {
@@ -446,6 +452,26 @@ describe("isProbe", () => {
     expect(isProbe(makeProbe({ channelMapWindow: { min: -1, max: 1 } }))).toBe(
       false
     );
+  });
+
+  it("accepts a probe with a null bodyModel", () => {
+    expect(isProbe(makeProbe({ bodyModel: null }))).toBe(true);
+  });
+
+  it("accepts a probe with a well-formed bodyModel", () => {
+    expect(isProbe(makeProbe({ bodyModel: makeSceneModel() }))).toBe(true);
+  });
+
+  it("rejects a probe missing bodyModel", () => {
+    const probe = makeProbe();
+    delete (probe as Partial<Probe>).bodyModel;
+    expect(isProbe(probe)).toBe(false);
+  });
+
+  it("rejects a probe with a malformed bodyModel", () => {
+    expect(
+      isProbe(makeProbe({ bodyModel: { id: "a" } as unknown as null }))
+    ).toBe(false);
   });
 });
 

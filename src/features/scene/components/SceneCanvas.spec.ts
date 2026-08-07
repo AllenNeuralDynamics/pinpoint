@@ -24,6 +24,7 @@ import {
   Observable,
   PointerEventTypes,
   PointerInfo,
+  TransformNode,
   Vector3
 } from "@babylonjs/core";
 import { shallowRef } from "vue";
@@ -68,6 +69,7 @@ import {
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
+  makeSceneModel,
   makeSceneObject,
   makeTerminologyRows
 } from "@/test/fixtures";
@@ -1028,6 +1030,96 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     store.selectedInspectable = makeProbe();
+    await flushPromises();
+
+    expect(modeToggle.props("modelValue")).toBe("position");
+  });
+
+  it("drags the body model gizmo without moving the probe, and undoes the release as one step", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    const contour = [
+      [-11, 9989],
+      [-11, -11],
+      [24, -220],
+      [59, -11],
+      [59, 9989]
+    ];
+    const probeInterfaceProbe = makeProbeInterfaceProbe({
+      probe_planar_contour: contour
+    });
+    internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+    const builtProbe = makeProbe({
+      probeInterfaceIdentifier:
+        getProbeInterfaceIdentifier(probeInterfaceProbe),
+      bodyModel: makeSceneModel()
+    });
+    addProbe(store.experiment, builtProbe);
+    const probe = store.experiment.probes.find(p => p.id === builtProbe.id)!;
+    store.selectedInspectable = probe;
+    store.bodyModelGizmoProbeId = probe.id;
+    await flushPromises();
+
+    const scene = runtime.scene.value!;
+    const gizmoManager = runtime.gizmoManager.value!;
+    const probeNode = getProbeTransformNode(scene, probe.id)!;
+    const bodyModelNode = new TransformNode(
+      `${probe.id}_probe_body-model_node`,
+      scene
+    );
+    bodyModelNode.parent = probeNode;
+
+    gizmoManager.attachToNode(bodyModelNode);
+    bodyModelNode.position.set(1, 2, 3);
+    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
+      {} as never
+    );
+
+    expect(probe.bodyModel!.position).toEqual([1, 2, 3]);
+    expect(probe.tipPosition).toEqual([0, 0, 0]);
+    expect(store.draggedProbeId).toBe(probe.id);
+
+    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
+      {} as never
+    );
+    await flushPromises();
+
+    expect(store.draggedProbeId).toBeNull();
+
+    store.undo();
+
+    const restoredProbe = store.probes.find(p => p.id === builtProbe.id)!;
+    expect(restoredProbe.bodyModel!.position).toEqual([0, 0, 0]);
+  });
+
+  it("offers a scale option while the body model gizmo is attached, resetting the mode on detach", async () => {
+    const { wrapper } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    const probe = makeProbe({ bodyModel: makeSceneModel() });
+    addProbe(store.experiment, probe);
+    store.selectedInspectable = probe;
+    await flushPromises();
+
+    const modeToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "position")!;
+    expect(modeToggle.props("options")).toHaveLength(2);
+
+    store.bodyModelGizmoProbeId = probe.id;
+    await flushPromises();
+
+    const options = modeToggle.props("options") as { value: string }[];
+    expect(options).toHaveLength(3);
+    expect(options[2]).toMatchObject({
+      value: "scale",
+      icon: "sym_o_pan_zoom"
+    });
+
+    await modeToggle.vm.$emit("update:modelValue", "scale");
+    await flushPromises();
+
+    store.bodyModelGizmoProbeId = null;
     await flushPromises();
 
     expect(modeToggle.props("modelValue")).toBe("position");

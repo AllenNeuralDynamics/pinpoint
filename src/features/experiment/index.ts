@@ -37,6 +37,7 @@ export {
   addSceneObject,
   removeSceneObject,
   reorderSceneObject,
+  getExperimentModelIds,
   addCameraPose,
   removeCameraPose,
   reorderCameraPose

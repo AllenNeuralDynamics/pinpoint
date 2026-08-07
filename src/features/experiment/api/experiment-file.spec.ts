@@ -17,6 +17,7 @@ import {
   makeAtlas,
   makeCameraPose,
   makeProbeInterfaceProbe,
+  makeSceneModel,
   makeSceneObject
 } from "@/test/fixtures";
 import type { Experiment } from "../models/experiment.model";
@@ -61,8 +62,28 @@ describe("zipExperiment / unzipExperiment", () => {
     );
 
     expect(archive?.experiment).toEqual(experiment);
-    expect(archive?.sceneObjectModels.get(sceneObject.id)).toEqual({
+    expect(archive?.models.get(sceneObject.id)).toEqual({
       fileName: "model.obj",
+      bytes
+    });
+  });
+
+  it("round-trips a probe's body model file under the models directory", () => {
+    const experiment = makeFullExperiment();
+    const bodyModel = makeSceneModel();
+    experiment.probes[0] = { ...experiment.probes[0]!, bodyModel };
+    const bytes = new Uint8Array([5, 6, 7]);
+
+    const archive = unzipExperiment(
+      zipExperiment(
+        experiment,
+        new Map([[bodyModel.id, { fileName: "body.glb", bytes }]])
+      )
+    );
+
+    expect(archive?.experiment).toEqual(experiment);
+    expect(archive?.models.get(bodyModel.id)).toEqual({
+      fileName: "body.glb",
       bytes
     });
   });
@@ -80,7 +101,7 @@ describe("zipExperiment / unzipExperiment", () => {
       )
     );
 
-    expect(archive?.sceneObjectModels.get(sceneObject.id)?.fileName).toBe(
+    expect(archive?.models.get(sceneObject.id)?.fileName).toBe(
       "imagingWell.obj"
     );
   });
@@ -113,13 +134,13 @@ describe("zipExperiment / unzipExperiment", () => {
     const experiment = makeFullExperiment();
     const entries = {
       "experiment.json": strToU8(JSON.stringify(experiment)),
-      "objects/unreferenced-id/model.glb": new Uint8Array([9, 9, 9])
+      "models/unreferenced-id/model.glb": new Uint8Array([9, 9, 9])
     };
 
     const archive = unzipExperiment(zipSync(entries));
 
     expect(archive?.experiment).toEqual(experiment);
-    expect(archive?.sceneObjectModels.size).toBe(0);
+    expect(archive?.models.size).toBe(0);
   });
 
   it("returns null when id is missing", () => {

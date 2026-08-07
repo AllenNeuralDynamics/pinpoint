@@ -18,13 +18,16 @@ import {
   makeAtlas,
   makeProbe,
   makeProbeGeometry,
-  makeProbeInterfaceProbe
+  makeProbeInterfaceProbe,
+  makeSceneModel
 } from "@/test/fixtures";
 import {
   initializeTestCSG2,
   makeTestSceneWithGizmo,
+  makeTestSceneWithPhysics,
   tickScene
 } from "@/test/mount-helper";
+import type { ProbeMetadata } from "../models/probe-metadata.model";
 import {
   attachProbeSelection,
   buildProbe,
@@ -632,6 +635,31 @@ describe("buildProbe", () => {
 
     expect(unknownBounds).toEqual(knownBounds);
   });
+
+  it("builds only the shank, records the body model id, and skips the collider when a body model is attached", async () => {
+    const { scene, gizmoManager } = await makeTestSceneWithPhysics();
+    const bodyModel = makeSceneModel();
+    const { experiment, probe } = makeExperimentWithProbe({ bodyModel });
+
+    const node = buildProbe(
+      scene,
+      probe,
+      experiment,
+      gizmoManager,
+      makeProbeGeometry()
+    );
+
+    const names = probeMeshNames(probe.id);
+    const children = node!.getChildMeshes().map(mesh => mesh.name);
+    expect(children).toEqual([names.shank]);
+    expect(scene.getMeshByName(names.headStage)).toBeNull();
+    expect(scene.getMeshByName(names.rod)).toBeNull();
+    const metadata = node!.metadata as ProbeMetadata;
+    expect(metadata.bodyModelId).toBe(bodyModel.id);
+    expect(
+      scene.getTransformNodeByName(`${probe.id}_probe_collider`)
+    ).toBeNull();
+  });
 });
 
 describe("disposeProbe", () => {
@@ -810,6 +838,39 @@ describe("syncProbes", () => {
     expect(getProbeTransformNode(scene, probe.id)).not.toBe(oldNode);
   });
 
+  it("returns the ids of probes it disposed and rebuilt due to a body model being attached, then removed", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+    const builtNode = getProbeTransformNode(scene, probe.id)!;
+
+    probe.bodyModel = makeSceneModel();
+    const rebuiltOnAttach = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
+
+    expect(rebuiltOnAttach).toEqual([probe.id]);
+    expect(builtNode.isDisposed()).toBe(true);
+    const attachedNode = getProbeTransformNode(scene, probe.id)!;
+
+    probe.bodyModel = null;
+    const rebuiltOnRemove = syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry()
+    );
+
+    expect(rebuiltOnRemove).toEqual([probe.id]);
+    expect(attachedNode.isDisposed()).toBe(true);
+    expect(getProbeTransformNode(scene, probe.id)).not.toBeNull();
+  });
+
   it("disposes and rebuilds a probe node whose metadata is null", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
@@ -887,7 +948,13 @@ describe("syncProbes", () => {
     syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const oldNode = getProbeTransformNode(scene, probe.id)!;
     const oldShankMesh = scene.getMeshByName(probeMeshNames(probe.id).shank)!;
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, oldNode);
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      probe,
+      oldNode,
+      oldNode
+    );
 
     const newProbeInterfaceProbe = makeProbeInterfaceProbe({
       probe_planar_contour: NP2020_CONTOUR,
@@ -914,7 +981,13 @@ describe("syncProbes", () => {
     // Once reattached (what SceneCanvas.vue now does on a rebuild), the
     // gizmo and outline point at the new entity, not the disposed one.
     const newNode = getProbeTransformNode(scene, probe.id)!;
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, newNode);
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      probe,
+      newNode,
+      newNode
+    );
 
     expect(gizmoManager.attachedNode).toBe(newNode);
     for (const mesh of newNode.getChildMeshes()) {
@@ -1104,7 +1177,13 @@ describe("attachProbeSelection", () => {
       makeProbeGeometry()
     )!;
 
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, node);
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      probe,
+      node,
+      node
+    );
 
     expect(gizmoManager.attachedNode).toBe(node);
     for (const mesh of node.getChildMeshes()) {
@@ -1132,8 +1211,20 @@ describe("attachProbeSelection", () => {
       makeProbeGeometry()
     )!;
 
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, a.probe, nodeA);
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, b.probe, nodeB);
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      a.probe,
+      nodeA,
+      nodeA
+    );
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      b.probe,
+      nodeB,
+      nodeB
+    );
 
     for (const mesh of nodeA.getChildMeshes()) {
       expect(selectionOutlineLayer.hasMesh(mesh)).toBe(false);
@@ -1155,7 +1246,13 @@ describe("attachProbeSelection", () => {
       makeProbeGeometry()
     )!;
 
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, probe, node);
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      probe,
+      node,
+      node
+    );
 
     expect(gizmoManager.attachedNode).toBeNull();
     for (const mesh of node.getChildMeshes()) {
@@ -1183,8 +1280,20 @@ describe("attachProbeSelection", () => {
       makeProbeGeometry()
     )!;
 
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, a.probe, nodeA);
-    attachProbeSelection(gizmoManager, selectionOutlineLayer, b.probe, nodeB);
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      a.probe,
+      nodeA,
+      nodeA
+    );
+    attachProbeSelection(
+      gizmoManager,
+      selectionOutlineLayer,
+      b.probe,
+      nodeB,
+      nodeB
+    );
 
     expect(gizmoManager.attachedNode).toBeNull();
   });
@@ -1210,6 +1319,7 @@ describe("selectProbeFromGizmoAttach", () => {
       gizmoManager,
       selectionOutlineLayer,
       experiment.probes,
+      (_probe, probeNode) => probeNode,
       onSelect
     );
     gizmoManager.onAttachedToMeshObservable.notifyObservers(shankMesh);
@@ -1237,6 +1347,7 @@ describe("selectProbeFromGizmoAttach", () => {
       gizmoManager,
       selectionOutlineLayer,
       experiment.probes,
+      (_probe, probeNode) => probeNode,
       onSelect
     );
     gizmoManager.onAttachedToMeshObservable.notifyObservers(shankMesh);
@@ -1258,6 +1369,7 @@ describe("selectProbeFromGizmoAttach", () => {
       gizmoManager,
       selectionOutlineLayer,
       experiment.probes,
+      (_probe, probeNode) => probeNode,
       onSelect
     );
     gizmoManager.onAttachedToMeshObservable.notifyObservers(null);
@@ -1311,6 +1423,30 @@ describe("setProbePositionFromGizmoDrag", () => {
       {} as DragEvent
     );
 
+    expect(onDrag).not.toHaveBeenCalled();
+  });
+
+  it("leaves the probe's tip position unchanged when the gizmo is attached to its body-model node (regression: `_probe_` substring match)", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    const bodyModelNode = new TransformNode(
+      `${probe.id}_probe_body-model_node`,
+      scene
+    );
+    gizmoManager.attachToNode(bodyModelNode);
+    bodyModelNode.position.set(1, 2, 3);
+    const onDrag = vi.fn();
+
+    setProbePositionFromGizmoDrag(
+      gizmoManager.gizmos.positionGizmo!,
+      experiment.probes,
+      onDrag
+    );
+    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
+      {} as DragEvent
+    );
+
+    expect(probe.tipPosition).toEqual([0, 0, 0]);
     expect(onDrag).not.toHaveBeenCalled();
   });
 });
@@ -1506,5 +1642,30 @@ describe("endProbeGizmoDrag", () => {
       makeProbeGeometry()
     );
     expect(node.position.asArray()).toEqual(beforeSync.asArray());
+  });
+
+  it("does not fire when the gizmo is attached to a probe's body-model node (regression: `_probe_` substring match)", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { probe } = makeExperimentWithProbe();
+    const bodyModelNode = new TransformNode(
+      `${probe.id}_probe_body-model_node`,
+      scene
+    );
+    gizmoManager.attachToNode(bodyModelNode);
+    const onDragEnd = vi.fn();
+
+    endProbeGizmoDrag(
+      {
+        positionGizmo: gizmoManager.gizmos.positionGizmo!,
+        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
+        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
+      },
+      onDragEnd
+    );
+    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
+      {} as DragStartEndEvent
+    );
+
+    expect(onDragEnd).not.toHaveBeenCalled();
   });
 });

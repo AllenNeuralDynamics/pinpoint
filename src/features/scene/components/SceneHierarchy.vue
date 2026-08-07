@@ -1,8 +1,5 @@
 <script lang="ts" setup>
-import { ref } from "vue";
-import { useFileDialog } from "@vueuse/core";
 import { useQuasar } from "quasar";
-import { useI18n } from "vue-i18n";
 import {
   buildProbe,
   getProbeInterfaceDisplayName,
@@ -16,7 +13,6 @@ import {
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDragReorder } from "@/composable/useDragReorder";
-import { useNotify } from "@/composable/useNotify";
 import {
   addProbe,
   addSceneObject,
@@ -30,21 +26,13 @@ import {
   buildSceneObject,
   toggleSceneObjectVisibility
 } from "../api/scene-object.api";
-import { putSceneObjectModel } from "../api/scene-object-model.api";
-import { canLoadModelFile } from "../api/model-file.api";
+import { useModelFileImport } from "../composable/useModelFileImport";
 import type { SceneObject } from "../models/scene-object.model";
 import type { SceneObjectVisibility } from "../models/scene-object-visibility.model";
-import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService";
-
-/** Extensions Babylon's registered built-in loaders claim. */
-const MODEL_FILE_ACCEPT = ".glb,.gltf,.obj,.stl,.fbx,.babylon,.splat,.ply,.spz";
 
 const $q = useQuasar();
 const probeLibrary = useProbeLibraryStore();
 const currentExperiment = useCurrentExperimentStore();
-const runtime = useBabylonRuntimeService();
-const { t } = useI18n();
-const { notifyError } = useNotify();
 
 const {
   draggedIndex,
@@ -68,11 +56,12 @@ const {
   reorderSceneObject(currentExperiment.experiment, fromIndex, toIndex)
 );
 
-const { open: openModelFile, onChange: onModelFileChange } = useFileDialog({
-  accept: MODEL_FILE_ACCEPT,
-  multiple: false,
-  reset: true
-});
+const { isImporting: isImportingModel, open: openModelFile } =
+  useModelFileImport((modelId, file) => {
+    const sceneObject = buildSceneObject(modelId, file.name);
+    addSceneObject(currentExperiment.experiment, sceneObject);
+    currentExperiment.selectedInspectable = sceneObject;
+  });
 
 /** Icon for each probe visibility state. */
 const PROBE_VISIBILITY_ICONS: Record<ProbeVisibility, string> = {
@@ -86,9 +75,6 @@ const SCENE_OBJECT_VISIBILITY_ICONS: Record<SceneObjectVisibility, string> = {
   visible: "sym_o_visibility",
   hidden: "sym_o_visibility_off"
 };
-
-/** Is a picked model file currently being imported. */
-const isImportingModel = ref(false);
 
 /**
  * Build probe, add it to the scene, and select it.
@@ -122,36 +108,6 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
     currentExperiment.selectedInspectable = null;
   }
 }
-
-onModelFileChange(async files => {
-  // `reset: true` fires a null change before opening the picker.
-  const file = files?.[0];
-  const engine = runtime.engine.value;
-  if (!file || !engine) return;
-
-  isImportingModel.value = true;
-  try {
-    if (!(await canLoadModelFile(engine, file))) {
-      notifyError(
-        t("sceneHierarchy.invalidModelFile"),
-        t("sceneHierarchy.invalidModelFileCaption")
-      );
-      return;
-    }
-
-    const sceneObject = buildSceneObject(crypto.randomUUID(), file.name);
-    await putSceneObjectModel(sceneObject.id, file);
-    addSceneObject(currentExperiment.experiment, sceneObject);
-    currentExperiment.selectedInspectable = sceneObject;
-  } catch {
-    notifyError(
-      t("sceneHierarchy.invalidModelFile"),
-      t("sceneHierarchy.invalidModelFileCaption")
-    );
-  } finally {
-    isImportingModel.value = false;
-  }
-});
 </script>
 
 <template>
@@ -267,7 +223,7 @@ onModelFileChange(async files => {
           icon="add"
           :label="$t('sceneHierarchy.addSceneObject')"
           :loading="isImportingModel"
-          @click="() => openModelFile()"
+          @click="openModelFile"
         />
         <q-list class="scene-list" separator>
           <q-item

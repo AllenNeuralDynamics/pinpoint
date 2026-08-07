@@ -24,5 +24,6 @@ export { getProbeContactOutlines, getProbeContour } from "./api/contour.api";
 export type { ProbeShank } from "./api/shank.api";
 export {
   getProbeAlignmentOffsetMillimeters,
+  getProbeShankBasePositionMillimeters,
   getProbeShanks
 } from "./api/shank.api";

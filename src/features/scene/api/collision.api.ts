@@ -2,19 +2,22 @@ import type {
   HavokPlugin,
   HighlightLayer,
   IBasePhysicsCollisionEvent,
-  Mesh,
   Observer,
   PhysicsShape,
   Scene
 } from "@babylonjs/core";
 import {
   Color3,
+  Matrix,
+  Mesh,
   PhysicsBody,
   PhysicsEventType,
   PhysicsMotionType,
   PhysicsShapeContainer,
   Quaternion,
-  TransformNode
+  TransformNode,
+  Vector3,
+  VertexBuffer
 } from "@babylonjs/core";
 import type { SceneEntityKind } from "../models/scene-entity.model";
 import {
@@ -95,6 +98,51 @@ export function buildCollisionBody(
   body.disableSync = true;
 
   return body;
+}
+
+/**
+ * Build one mesh holding every given mesh's vertices in a node's frame at the
+ * given scale, for cooking a single convex hull. Caller disposes it.
+ * @param scene Scene to build the mesh in.
+ * @param node Node the positions are expressed relative to.
+ * @param name Name for the hull mesh.
+ * @param meshes Meshes whose vertices to collect.
+ * @param scaling Scale to bake into the positions.
+ */
+export function buildHullMesh(
+  scene: Scene,
+  node: TransformNode,
+  name: string,
+  meshes: Mesh[],
+  scaling: Vector3
+): Mesh {
+  const worldToNode = Matrix.Invert(node.computeWorldMatrix(true));
+  const scale = Matrix.Scaling(scaling.x, scaling.y, scaling.z);
+
+  const positions: number[] = [];
+  const transformed = new Vector3();
+  for (const mesh of meshes) {
+    const toHull = mesh
+      .computeWorldMatrix(true)
+      .multiply(worldToNode)
+      .multiply(scale);
+    const meshPositions = mesh.getVerticesData(VertexBuffer.PositionKind);
+    if (!meshPositions) continue;
+    for (let i = 0; i < meshPositions.length; i += 3) {
+      Vector3.TransformCoordinatesFromFloatsToRef(
+        meshPositions[i]!,
+        meshPositions[i + 1]!,
+        meshPositions[i + 2]!,
+        toHull,
+        transformed
+      );
+      positions.push(transformed.x, transformed.y, transformed.z);
+    }
+  }
+
+  const hull = new Mesh(name, scene);
+  hull.setVerticesData(VertexBuffer.PositionKind, positions);
+  return hull;
 }
 
 /**

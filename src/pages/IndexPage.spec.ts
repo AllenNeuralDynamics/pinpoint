@@ -5,8 +5,8 @@ import IndexPage from "./IndexPage.vue";
 import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
-import { makeSceneObject } from "@/test/fixtures";
-import { pruneSceneObjectModels } from "@/features/scene";
+import { makeProbe, makeSceneModel, makeSceneObject } from "@/test/fixtures";
+import { pruneSceneModels } from "@/features/scene";
 
 // Mock the leaf module (not the `@/features/atlas` barrel) -- the store's
 // `terminologyRows` is a `computedAsync` and fetches on store creation, so
@@ -23,8 +23,8 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 
 // Mock the leaf module the `@/features/scene` barrel re-exports, not the
 // barrel itself.
-vi.mock("@/features/scene/api/scene-object-model.api", () => ({
-  pruneSceneObjectModels: vi.fn().mockResolvedValue([])
+vi.mock("@/features/scene/api/scene-model.api", () => ({
+  pruneSceneModels: vi.fn().mockResolvedValue([])
 }));
 
 const wrappers = createWrapperRegistry();
@@ -52,7 +52,7 @@ function pressUndoRedoKey(
 describe("IndexPage", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
-    vi.mocked(pruneSceneObjectModels).mockClear();
+    vi.mocked(pruneSceneModels).mockClear();
   });
 
   afterEach(() => {
@@ -100,26 +100,35 @@ describe("IndexPage", () => {
     expect(store.name).toBe("Renamed");
   });
 
-  it("sweeps unreferenced scene object models on unmount", async () => {
+  it("sweeps unreferenced scene object and probe body models on unmount", async () => {
     const wrapper = mountWithQuasar(IndexPage, { shallow: true });
     const currentExperimentStore = useCurrentExperimentStore();
     const recentExperimentsStore = useRecentExperimentsStore();
     const currentSceneObject = makeSceneObject();
+    const currentProbe = makeProbe({ bodyModel: makeSceneModel() });
     currentExperimentStore.experiment.sceneObjects = [currentSceneObject];
+    currentExperimentStore.experiment.probes = [currentProbe];
     const recentSceneObject = makeSceneObject();
+    const recentProbe = makeProbe({ bodyModel: makeSceneModel() });
     recentExperimentsStore.recents = [
       {
         ...currentExperimentStore.experiment,
-        sceneObjects: [recentSceneObject]
+        sceneObjects: [recentSceneObject],
+        probes: [recentProbe]
       }
     ];
     await nextTick();
 
     wrapper.unmount();
 
-    expect(pruneSceneObjectModels).toHaveBeenCalledTimes(1);
-    expect(
-      new Set(vi.mocked(pruneSceneObjectModels).mock.calls[0]![0])
-    ).toEqual(new Set([currentSceneObject.id, recentSceneObject.id]));
+    expect(pruneSceneModels).toHaveBeenCalledTimes(1);
+    expect(new Set(vi.mocked(pruneSceneModels).mock.calls[0]![0])).toEqual(
+      new Set([
+        currentSceneObject.id,
+        currentProbe.bodyModel!.id,
+        recentSceneObject.id,
+        recentProbe.bodyModel!.id
+      ])
+    );
   });
 });

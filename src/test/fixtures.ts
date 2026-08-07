@@ -4,10 +4,26 @@ import type {
   Manifest,
   TerminologyRow
 } from "@/features/atlas";
-import type { ProbeGeometry, SceneObject } from "@/features/scene";
+import type { ProbeGeometry, SceneModel, SceneObject } from "@/features/scene";
 import type { CameraPose } from "@/features/experiment";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
+
+/**
+ * Build a fixture scene model.
+ * @param overrides Fields to override on the default scene model.
+ */
+export function makeSceneModel(
+  overrides: Partial<SceneModel> = {}
+): SceneModel {
+  return {
+    id: crypto.randomUUID(),
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    ...overrides
+  };
+}
 
 /**
  * Build a fixture scene object.
@@ -17,16 +33,13 @@ export function makeSceneObject(
   overrides: Partial<SceneObject> = {}
 ): SceneObject {
   return {
+    ...makeSceneModel(),
     inspectableKind: "sceneObject",
-    id: crypto.randomUUID(),
     name: "Object abc123",
     color: "#ffffff",
     visibility: "visible",
     lock: false,
     collidable: true,
-    position: [0, 0, 0],
-    rotation: [0, 0, 0],
-    scale: [1, 1, 1],
     ...overrides
   };
 }
@@ -111,6 +124,7 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     sliceCenterHeightMillimeters: 0,
     channelMapWindow: null,
     shankAlignmentIndex: null,
+    bodyModel: null,
     ...overrides
   };
 }

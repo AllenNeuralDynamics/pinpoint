@@ -9,6 +9,7 @@ export type { Hemisphere, HemisphereCenters } from "./api/structure-center.api";
 export { asrToVector3, vector3ToAsr } from "./api/coordinate-transforms.api";
 export { setGizmoControls } from "./api/gizmo.api";
 export { useBabylonRuntimeService } from "./composable/useBabylonRuntimeService";
+export { useModelFileImport } from "./composable/useModelFileImport";
 export { STANDARD_COLORS } from "./models/standard-colors.model";
 export type { Inspectable, InspectableKind } from "./models/inspectable.model";
 export type {
@@ -26,10 +27,13 @@ export {
   toggleSceneObjectVisibility
 } from "./api/scene-object.api";
 export {
-  getSceneObjectModel,
-  pruneSceneObjectModels,
-  putSceneObjectModel
-} from "./api/scene-object-model.api";
+  buildSceneModel,
+  getSceneModel,
+  isSceneModel,
+  pruneSceneModels,
+  putSceneModel
+} from "./api/scene-model.api";
+export type { SceneModel } from "./models/scene-model.model";
 export type { SceneObject } from "./models/scene-object.model";
 export type { SceneObjectVisibility } from "./models/scene-object-visibility.model";
 export { canLoadModelFile } from "./api/model-file.api";

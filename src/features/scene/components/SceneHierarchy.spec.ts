@@ -19,7 +19,7 @@ import {
 } from "@/test/fixtures";
 import { BabylonRuntimeServiceKey } from "@/services/babylon-runtime.service";
 import { canLoadModelFile } from "../api/model-file.api";
-import { putSceneObjectModel } from "../api/scene-object-model.api";
+import { putSceneModel } from "../api/scene-model.api";
 
 // `useCurrentExperimentStore`'s `manifest`/`terminologyRows` are
 // `computedAsync` and fetch on store creation -- mock the leaf module (not
@@ -41,9 +41,14 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 vi.mock("../api/model-file.api", () => ({
   canLoadModelFile: vi.fn()
 }));
-vi.mock("../api/scene-object-model.api", () => ({
-  putSceneObjectModel: vi.fn()
-}));
+vi.mock("../api/scene-model.api", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("../api/scene-model.api")>();
+  return {
+    ...actual,
+    putSceneModel: vi.fn()
+  };
+});
 
 // `useFileDialog`'s input is never attached to the DOM, so it can't be
 // driven through a queryable `<input type="file">`. Replace it with a fake
@@ -125,7 +130,7 @@ describe("SceneHierarchy", () => {
     openModelFileDialogSpy.mockReset();
     capturedOnModelFileChange = null;
     vi.mocked(canLoadModelFile).mockReset();
-    vi.mocked(putSceneObjectModel).mockReset();
+    vi.mocked(putSceneModel).mockReset();
   });
 
   afterEach(() => {
@@ -362,7 +367,7 @@ describe("SceneHierarchy", () => {
       const [sceneObject] = currentExperiment.sceneObjects;
       expect(sceneObject!.name).toBe("Brain Model");
       expect(currentExperiment.selectedInspectable).toEqual(sceneObject);
-      expect(putSceneObjectModel).toHaveBeenCalledWith(sceneObject!.id, file);
+      expect(putSceneModel).toHaveBeenCalledWith(sceneObject!.id, file);
     });
 
     it("notifies and adds nothing when the model file can't be imported", async () => {

@@ -283,7 +283,7 @@ useSliceCanvasPainter(
         :markers="1"
         :marker-labels="zoomMarkerLabel"
         dense
-        class="q-mt-md"
+        class="q-mt-md q-px-lg"
         :aria-label="t('slice.zoom')"
       />
     </div>

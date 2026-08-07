@@ -55,6 +55,9 @@ export const useCurrentExperimentStore = defineStore(
     /** ID of the scene object currently being dragged, or null. */
     const draggedSceneObjectId = ref<string | null>(null);
 
+    /** Probe id whose body model currently holds the transform gizmo, or null. */
+    const bodyModelGizmoProbeId = ref<string | null>(null);
+
     /** Is the camera mid-movement, streaming its pose into the experiment. */
     const isCameraMoving = ref(false);
 
@@ -273,6 +276,7 @@ export const useCurrentExperimentStore = defineStore(
       selectedInspectable.value = null;
       draggedProbeId.value = null;
       draggedSceneObjectId.value = null;
+      bodyModelGizmoProbeId.value = null;
       isCameraMoving.value = false;
     }
 
@@ -281,6 +285,7 @@ export const useCurrentExperimentStore = defineStore(
       selectedInspectable,
       draggedProbeId,
       draggedSceneObjectId,
+      bodyModelGizmoProbeId,
       isCameraMoving,
       probeSurfaceChoice,
       isTerminologyRowsEvaluating,

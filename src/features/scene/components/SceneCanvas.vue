@@ -68,7 +68,16 @@ import {
   setSceneObjectScaleFromGizmoDrag,
   syncSceneObjects
 } from "../api/scene-object-node.api";
-import { getSceneObjectModel } from "../api/scene-object-model.api";
+import {
+  createProbeBodyModelSyncState,
+  endProbeBodyModelGizmoDrag,
+  getProbeGizmoNode,
+  setProbeBodyModelPositionFromGizmoDrag,
+  setProbeBodyModelRotationFromGizmoDrag,
+  setProbeBodyModelScaleFromGizmoDrag,
+  syncProbeBodyModels
+} from "../api/probe-body-model.api";
+import { getSceneModel } from "../api/scene-model.api";
 import { setGizmoControls } from "../api/gizmo.api";
 import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
 import { setReferenceCoordinateNodePosition } from "../api/reference-coordinate.api";
@@ -128,6 +137,9 @@ const collisionState = createCollisionState();
 
 /** Load bookkeeping for scene object GLBs, read and mutated in place. */
 const sceneObjectSyncState = createSceneObjectSyncState();
+
+/** Load bookkeeping for probe body models, read and mutated in place. */
+const probeBodyModelSyncState = createProbeBodyModelSyncState();
 
 const gizmoMode = ref<GizmoMode>("position");
 const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
@@ -190,9 +202,11 @@ const isGizmoToolbarVisible = computed(() => {
   return !selected.lock;
 });
 
-/** Whether the selection can be scaled: only scene objects can. */
+/** Whether the selection can be scaled: scene objects, and a body model under the gizmo. */
 const isScaleGizmoAvailable = computed(
-  () => currentExperiment.selectedInspectable?.inspectableKind === "sceneObject"
+  () =>
+    currentExperiment.selectedInspectable?.inspectableKind === "sceneObject" ||
+    currentExperiment.bodyModelGizmoProbeId !== null
 );
 
 /** Transform-mode toggle options, offering scale only for scene objects. */
@@ -459,6 +473,15 @@ watchEffect(() => {
     probeGeometry.value
   );
 
+  // A rebuilt probe loses its body model node, so the gizmo cannot stay on it.
+  const bodyModelGizmoProbeId = currentExperiment.bodyModelGizmoProbeId;
+  if (
+    bodyModelGizmoProbeId &&
+    rebuiltProbeIds.includes(bodyModelGizmoProbeId)
+  ) {
+    currentExperiment.bodyModelGizmoProbeId = null;
+  }
+
   const selectedInspectable = currentExperiment.selectedInspectable;
   if (
     selectionOutlineLayer &&
@@ -469,7 +492,8 @@ watchEffect(() => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      selectedInspectable
+      selectedInspectable,
+      currentExperiment.bodyModelGizmoProbeId
     );
   }
 
@@ -506,7 +530,7 @@ async function syncSceneObjectsFromState() {
       gizmoManager,
       sceneObjectSyncState,
       currentExperiment.draggedSceneObjectId,
-      getSceneObjectModel
+      getSceneModel
     );
   if (failedIds.length) {
     notifyError(
@@ -568,10 +592,79 @@ watch(() => currentExperiment.sceneObjects, syncSceneObjectsFromState, {
   deep: true
 });
 
+/**
+ * Sync probe body models from state: builds each from its stored file
+ * (loading it lazily), then applies visibility and local pose, and cooks the
+ * probe's convex-hull collider.
+ */
+async function syncProbeBodyModelsFromState() {
+  const scene = runtime.scene.value;
+  const gizmoManager = runtime.gizmoManager.value;
+  if (!scene || !gizmoManager) return;
+
+  const { failedIds, colliderFailedIds, colliderChangedIds } =
+    await syncProbeBodyModels(
+      scene,
+      currentExperiment.experiment,
+      gizmoManager,
+      probeBodyModelSyncState,
+      currentExperiment.draggedProbeId,
+      getSceneModel
+    );
+  if (failedIds.length) {
+    notifyError(
+      t("sceneCanvas.probeBodyModelUnavailable"),
+      t("sceneCanvas.probeBodyModelUnavailableCaption")
+    );
+  }
+  if (colliderFailedIds.length) {
+    notifyWarning(
+      t("sceneCanvas.probeBodyModelColliderUnavailable"),
+      t("sceneCanvas.probeBodyModelColliderUnavailableCaption")
+    );
+  }
+
+  // Havok emits no TRIGGER_EXITED when a body is disposed while overlapping
+  // (e.g. attaching, replacing, or re-cooking the hull for a new pose), so
+  // force-drop any stale pair for these ids rather than leaving them
+  // permanently highlighted/notified as colliding.
+  const highlightLayer = runtime.highlightLayer.value;
+  if (colliderChangedIds.length && highlightLayer) {
+    const keptEntityIds = [
+      ...currentExperiment.probes.map(({ id }) => id),
+      ...currentExperiment.sceneObjects.map(({ id }) => id)
+    ].filter(id => !colliderChangedIds.includes(id));
+    const affectedIds = new Set([
+      ...pruneCollisions(collisionState, keptEntityIds),
+      ...colliderChangedIds
+    ]);
+    for (const entityId of affectedIds) {
+      syncCollisionHighlight(
+        highlightLayer,
+        collisionState,
+        entityId,
+        collisionEntityMeshes(scene, entityId)
+      );
+    }
+  }
+}
+
+watch(
+  [runtime.scene, runtime.gizmoManager, () => currentExperiment.draggedProbeId],
+  syncProbeBodyModelsFromState,
+  { immediate: true }
+);
+watch(() => currentExperiment.probes, syncProbeBodyModelsFromState, {
+  deep: true
+});
+
 // A reopened experiment can supply a model that was missing last time.
 watch(
   () => currentExperiment.experiment.id,
-  () => sceneObjectSyncState.failedIds.clear()
+  () => {
+    sceneObjectSyncState.failedIds.clear();
+    probeBodyModelSyncState.failedIds.clear();
+  }
 );
 
 // Highlight and warn about scene entities whose bodies overlap.
@@ -633,6 +726,25 @@ watchEffect(() => {
   );
   if (!probe || !isProbeSurfaceChoiceCurrent(choice, probe)) {
     currentExperiment.probeSurfaceChoice = null;
+  }
+});
+
+// Drop the body model gizmo when its probe stops being the selected, unlocked
+// probe that still carries a model - deselecting, locking, or undoing the
+// model away all leave the gizmo with nothing to drive.
+watchEffect(() => {
+  const probeId = currentExperiment.bodyModelGizmoProbeId;
+  if (!probeId) return;
+
+  const selected = currentExperiment.selectedInspectable;
+  const probe = currentExperiment.probes.find(({ id }) => id === probeId);
+  if (
+    selected?.inspectableKind !== "probe" ||
+    selected.id !== probeId ||
+    !probe?.bodyModel ||
+    probe.lock
+  ) {
+    currentExperiment.bodyModelGizmoProbeId = null;
   }
 });
 
@@ -734,6 +846,33 @@ watch(
       currentExperiment.endSceneObjectDrag();
     });
 
+    const bodyModelPositionDraggingObserver =
+      setProbeBodyModelPositionFromGizmoDrag(
+        gizmos.positionGizmo,
+        probes,
+        probeId => {
+          currentExperiment.draggedProbeId = probeId;
+        }
+      );
+    const bodyModelRotationDraggingObserver =
+      setProbeBodyModelRotationFromGizmoDrag(
+        gizmos.rotationGizmo,
+        probes,
+        probeId => {
+          currentExperiment.draggedProbeId = probeId;
+        }
+      );
+    const bodyModelScaleDraggingObserver = setProbeBodyModelScaleFromGizmoDrag(
+      gizmos.scaleGizmo,
+      probes,
+      probeId => {
+        currentExperiment.draggedProbeId = probeId;
+      }
+    );
+    const bodyModelDragEndObservers = endProbeBodyModelGizmoDrag(gizmos, () => {
+      currentExperiment.endProbeDrag();
+    });
+
     onWatcherCleanup(() => {
       probePositionDraggingObserver.remove();
       probeRotationDraggingObserver.remove();
@@ -742,6 +881,10 @@ watch(
       sceneObjectRotationDraggingObserver.remove();
       sceneObjectScaleDraggingObserver.remove();
       sceneObjectDragEndObservers.forEach(observer => observer.remove());
+      bodyModelPositionDraggingObserver.remove();
+      bodyModelRotationDraggingObserver.remove();
+      bodyModelScaleDraggingObserver.remove();
+      bodyModelDragEndObservers.forEach(observer => observer.remove());
     });
   }
 );
@@ -764,6 +907,13 @@ watch(
       gizmoManager,
       selectionOutlineLayer,
       probes,
+      (probe, probeNode) =>
+        getProbeGizmoNode(
+          scene,
+          probe,
+          probeNode,
+          currentExperiment.bodyModelGizmoProbeId
+        ),
       probe => {
         currentExperiment.selectedInspectable = probe;
       }
@@ -806,7 +956,8 @@ watchEffect(() => {
     scene,
     gizmoManager,
     selectionOutlineLayer,
-    currentExperiment.selectedInspectable
+    currentExperiment.selectedInspectable,
+    currentExperiment.bodyModelGizmoProbeId
   );
 });
 

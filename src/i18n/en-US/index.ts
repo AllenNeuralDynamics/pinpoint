@@ -33,7 +33,10 @@ export default {
   axis: {
     ap: "AP",
     dv: "DV",
-    ml: "ML"
+    ml: "ML",
+    x: "X",
+    y: "Y",
+    z: "Z"
   },
   newExperiment: {
     title: "New Experiment",
@@ -83,6 +86,13 @@ export default {
       "A 3D object's model couldn't be turned into a collision shape.",
     sceneObjectColliderUnavailableCaption:
       "It won't collide with probes or other 3D objects.",
+    probeBodyModelUnavailable: "Unable to load a probe's body model.",
+    probeBodyModelUnavailableCaption:
+      "Its model file is missing from this browser's storage.",
+    probeBodyModelColliderUnavailable:
+      "A probe's body model couldn't be turned into a collision shape.",
+    probeBodyModelColliderUnavailableCaption:
+      "It won't collide with other probes or 3D objects.",
     gizmoMode: "Transform mode",
     gizmoPosition: "Position",
     gizmoRotation: "Rotation",
@@ -157,6 +167,11 @@ export default {
     dragToReorder: "Drag to reorder",
     close: "Close"
   },
+  modelFile: {
+    invalidModelFile: "Unable to import that 3D model.",
+    invalidModelFileCaption:
+      "Check that the file is a glTF, GLB, OBJ, STL, FBX, or Babylon model with at least one mesh."
+  },
   sceneHierarchy: {
     probes: "Probes",
     scene: "Scene",
@@ -170,10 +185,7 @@ export default {
     addSceneObject: "Add 3D Object",
     removeSceneObject: "Remove 3D object",
     showSceneObject: "Show 3D object",
-    hideSceneObject: "Hide 3D object",
-    invalidModelFile: "Unable to import that 3D model.",
-    invalidModelFileCaption:
-      "Check that the file is a glTF, GLB, OBJ, STL, FBX, or Babylon model with at least one mesh."
+    hideSceneObject: "Hide 3D object"
   },
   inspector: {
     emptyHint: "Pick something from the scene to inspect."
@@ -199,7 +211,19 @@ export default {
     shankAlignment: "Probe alignment",
     alignShank: "Align to shank {index}",
     alignCenter: "Align to probe center",
-    alignCenterLabel: "C"
+    alignCenterLabel: "C",
+    inPlaneSlice: "In-plane Slice",
+    properties: "Properties",
+    bodyModel: "Body Model",
+    uploadBodyModel: "Upload body 3D model",
+    replaceBodyModel: "Replace body 3D model",
+    removeBodyModel: "Remove body 3D model",
+    attachBodyModelGizmo: "Attach gizmo",
+    detachBodyModelGizmo: "Detach gizmo",
+    bodyModelPosition: "Position {axis}",
+    bodyModelRotation: "Rotation {axis}",
+    bodyModelScale: "Scale {axis}",
+    scaleSuffix: "×"
   },
 
   sceneObjectInspector: {

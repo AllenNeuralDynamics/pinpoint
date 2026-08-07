@@ -4,11 +4,12 @@ import { useI18n } from "vue-i18n";
 import {
   buildExperimentFileName,
   EXPERIMENT_FILE_MIME_TYPE,
-  type SceneObjectModel,
+  type SceneModelFile,
   unzipExperiment,
   zipExperiment
 } from "../api/experiment-file.api";
-import { getSceneObjectModel, putSceneObjectModel } from "@/features/scene";
+import { getExperimentModelIds } from "../api/experiment.api";
+import { getSceneModel, putSceneModel } from "@/features/scene";
 import { useNotify } from "@/composable/useNotify";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { compareFileVersion, type VersionRelation } from "@/utils/version";
@@ -91,15 +92,15 @@ export function useExperimentFile() {
 
   /**
    * Download the current experiment as a zip file containing its JSON and
-   * one model file per referenced scene object still in IndexedDB.
+   * one model file per referenced scene model still in IndexedDB.
    */
   async function downloadExperiment() {
     const { experiment } = currentExperimentStore;
-    const sceneObjectModels = new Map<string, SceneObjectModel>();
-    for (const { id } of experiment.sceneObjects) {
-      const modelFile = await getSceneObjectModel(id);
+    const models = new Map<string, SceneModelFile>();
+    for (const id of getExperimentModelIds(experiment)) {
+      const modelFile = await getSceneModel(id);
       if (modelFile) {
-        sceneObjectModels.set(id, {
+        models.set(id, {
           fileName: modelFile.name,
           bytes: new Uint8Array(await modelFile.arrayBuffer())
         });
@@ -108,7 +109,7 @@ export function useExperimentFile() {
 
     const result = exportFile(
       buildExperimentFileName(experiment),
-      zipExperiment(experiment, sceneObjectModels),
+      zipExperiment(experiment, models),
       EXPERIMENT_FILE_MIME_TYPE
     );
 
@@ -133,8 +134,8 @@ export function useExperimentFile() {
       }
 
       // Written before `loadExperiment`, so the scene sync's first run finds them.
-      for (const [id, { fileName, bytes }] of archive.sceneObjectModels) {
-        await putSceneObjectModel(id, new File([bytes.slice()], fileName));
+      for (const [id, { fileName, bytes }] of archive.models) {
+        await putSceneModel(id, new File([bytes.slice()], fileName));
       }
 
       notifyVersionMismatch(

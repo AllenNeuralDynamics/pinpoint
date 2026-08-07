@@ -9,7 +9,7 @@ import {
   KNOWN_MANUFACTURERS,
   KNOWN_PROBES
 } from "../models/known-probes.model";
-import { STANDARD_COLORS } from "@/features/scene";
+import { isSceneModel, STANDARD_COLORS } from "@/features/scene";
 import {
   isFiniteTriple,
   isFiniteNumber,
@@ -55,7 +55,8 @@ export function buildProbe(probeInterfaceProbe: ProbeInterfaceProbe): Probe {
     sliceExtentMillimeters: null,
     sliceCenterHeightMillimeters: 0,
     channelMapWindow: null,
-    shankAlignmentIndex: null
+    shankAlignmentIndex: null,
+    bodyModel: null
   };
 }
 
@@ -280,7 +281,8 @@ export function isProbe(value: unknown): value is Probe {
     (value.shankAlignmentIndex === null ||
       (isFiniteNumber(value.shankAlignmentIndex) &&
         Number.isInteger(value.shankAlignmentIndex) &&
-        value.shankAlignmentIndex >= 0))
+        value.shankAlignmentIndex >= 0)) &&
+    (value.bodyModel === null || isSceneModel(value.bodyModel))
   );
 }
 

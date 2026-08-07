@@ -1,3 +1,4 @@
+import type { SceneModel } from "@/features/scene";
 import type { ProbeVisibility } from "../models/visibility.model";
 
 /**
@@ -84,4 +85,10 @@ export interface Probe {
    * null to align on the contour's center.
    */
   shankAlignmentIndex: number | null;
+
+  /**
+   * Placement of the 3D model that replaces the probe's head stage and rod, or
+   * null to draw the built-in head stage and rod.
+   */
+  bodyModel: SceneModel | null;
 }

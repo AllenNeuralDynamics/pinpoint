@@ -10,24 +10,26 @@ import type {
   Nullable,
   Observer,
   Scene,
-  SelectionOutlineLayer
+  SelectionOutlineLayer,
+  Vector3
 } from "@babylonjs/core";
 import {
   Color3,
   ImportMeshAsync,
-  Matrix,
   Mesh,
   PhysicsShapeConvexHull,
   StandardMaterial,
-  TransformNode,
-  Vector3,
-  VertexBuffer
+  TransformNode
 } from "@babylonjs/core";
 import type { Experiment } from "@/features/experiment";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
-import { buildCollisionBody, disposeCollisionBody } from "./collision.api";
+import {
+  buildCollisionBody,
+  buildHullMesh,
+  disposeCollisionBody
+} from "./collision.api";
 import {
   buildSceneEntityName,
   isSceneEntityName,
@@ -132,54 +134,6 @@ export interface SceneObjectBuild {
 }
 
 /**
- * Build one mesh holding every part's vertices in the object node's frame at the
- * given scale, for cooking a single convex hull. Caller disposes it.
- * @param scene Scene to build the mesh in.
- * @param node Object transform node the positions are expressed relative to.
- * @param sceneObjectId Scene object id the hull mesh is named after.
- * @param meshes Part meshes whose vertices to collect.
- * @param scaling Scale to bake into the positions.
- */
-function buildSceneObjectHullMesh(
-  scene: Scene,
-  node: TransformNode,
-  sceneObjectId: string,
-  meshes: Mesh[],
-  scaling: Vector3
-): Mesh {
-  const worldToNode = Matrix.Invert(node.computeWorldMatrix(true));
-  const scale = Matrix.Scaling(scaling.x, scaling.y, scaling.z);
-
-  const positions: number[] = [];
-  const transformed = new Vector3();
-  for (const mesh of meshes) {
-    const toHull = mesh
-      .computeWorldMatrix(true)
-      .multiply(worldToNode)
-      .multiply(scale);
-    const meshPositions = mesh.getVerticesData(VertexBuffer.PositionKind);
-    if (!meshPositions) continue;
-    for (let i = 0; i < meshPositions.length; i += 3) {
-      Vector3.TransformCoordinatesFromFloatsToRef(
-        meshPositions[i]!,
-        meshPositions[i + 1]!,
-        meshPositions[i + 2]!,
-        toHull,
-        transformed
-      );
-      positions.push(transformed.x, transformed.y, transformed.z);
-    }
-  }
-
-  const hull = new Mesh(
-    buildSceneEntityName(sceneObjectId, "object", "hull"),
-    scene
-  );
-  hull.setVerticesData(VertexBuffer.PositionKind, positions);
-  return hull;
-}
-
-/**
  * Cook the object's single convex-hull trigger collider from its parts.
  * @param scene Scene the object was built in.
  * @param node Object transform node to parent the collider to.
@@ -194,10 +148,10 @@ function buildSceneObjectCollider(
   meshes: Mesh[],
   scaling: Vector3
 ): void {
-  const hull = buildSceneObjectHullMesh(
+  const hull = buildHullMesh(
     scene,
     node,
-    sceneObjectId,
+    buildSceneEntityName(sceneObjectId, "object", "hull"),
     meshes,
     scaling
   );

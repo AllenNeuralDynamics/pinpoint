@@ -1,7 +1,8 @@
 import type { SceneObject } from "../models/scene-object.model";
 import type { SceneObjectVisibility } from "../models/scene-object-visibility.model";
+import { buildSceneModel, isSceneModel } from "./scene-model.api";
 import { STANDARD_COLORS } from "../models/standard-colors.model";
-import { isFiniteTriple, isHexColor, isRecord } from "@/utils/type-guards";
+import { isHexColor, isRecord } from "@/utils/type-guards";
 
 /** Every valid scene object visibility, for validating untrusted data. */
 const SCENE_OBJECT_VISIBILITIES: readonly string[] = [
@@ -17,16 +18,13 @@ const SCENE_OBJECT_VISIBILITIES: readonly string[] = [
  */
 export function buildSceneObject(id: string, fileName: string): SceneObject {
   return {
+    ...buildSceneModel(id),
     inspectableKind: "sceneObject",
-    id,
     name: fileName.replace(/\.[^./\\]+$/, "") || fileName,
     color: STANDARD_COLORS[Math.floor(Math.random() * STANDARD_COLORS.length)]!,
     visibility: "visible",
     lock: false,
-    collidable: true,
-    position: [0, 0, 0],
-    rotation: [0, 0, 0],
-    scale: [1, 1, 1]
+    collidable: true
   };
 }
 
@@ -64,16 +62,12 @@ export function isSceneObject(value: unknown): value is SceneObject {
 
   return (
     value.inspectableKind === "sceneObject" &&
-    typeof value.id === "string" &&
-    value.id.length > 0 &&
+    isSceneModel(value) &&
     typeof value.name === "string" &&
     isHexColor(value.color) &&
     typeof value.visibility === "string" &&
     SCENE_OBJECT_VISIBILITIES.includes(value.visibility) &&
     typeof value.lock === "boolean" &&
-    typeof value.collidable === "boolean" &&
-    isFiniteTriple(value.position) &&
-    isFiniteTriple(value.rotation) &&
-    isFiniteTriple(value.scale)
+    typeof value.collidable === "boolean"
   );
 }

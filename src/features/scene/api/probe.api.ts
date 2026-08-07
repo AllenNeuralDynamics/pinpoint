@@ -98,6 +98,18 @@ export function getProbeMeshes(scene: Scene, probeId: string): Mesh[] {
 }
 
 /**
+ * A probe's shank mesh, or null when the probe is not built.
+ * @param scene Scene the probe was built in.
+ * @param probeId Probe id whose shank mesh to get.
+ */
+export function getProbeShankMesh(scene: Scene, probeId: string): Mesh | null {
+  const mesh = scene.getMeshByName(
+    buildSceneEntityName(probeId, "probe", "shank_mesh")
+  );
+  return mesh instanceof Mesh ? mesh : null;
+}
+
+/**
  * Build a probe's shank, head stage, and rod meshes, or return its existing
  * transform node if already built.
  * @param scene Scene to build the probe in.
@@ -130,7 +142,8 @@ export function buildProbe(
   const probeMetadata: ProbeMetadata = {
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     shankAlignmentIndex: probe.shankAlignmentIndex,
-    geometry
+    geometry,
+    bodyModelId: probe.bodyModel?.id ?? null
   };
 
   const node = new TransformNode(
@@ -147,40 +160,43 @@ export function buildProbe(
     buildSceneEntityName(probe.id, "probe", "shank_mesh"),
     geometry
   );
-  const headStageMesh = buildHeadStageMesh(
-    scene,
-    contour,
-    buildSceneEntityName(probe.id, "probe", "head-stage_mesh"),
-    geometry
-  );
-  for (const mesh of [shankMesh, headStageMesh]) {
-    mesh.material = material;
-    mesh.parent = node;
-  }
-
-  const rodMesh = buildRodMesh(
-    scene,
-    contour,
-    buildSceneEntityName(probe.id, "probe", "rod_mesh"),
-    geometry
-  );
-  rodMesh.material = buildRodMaterial(scene);
-  rodMesh.parent = node;
-
+  shankMesh.material = material;
+  shankMesh.parent = node;
   // Mesh vertices are in contour coords; this puts the aligned shank's tip on the node.
-  for (const mesh of [shankMesh, headStageMesh, rodMesh]) {
-    mesh.position.x += alignmentOffsetMillimeters;
-  }
+  shankMesh.position.x += alignmentOffsetMillimeters;
 
-  // Ignore the return value: no physics engine on the scene keeps this feature additive.
-  buildCollisionBody(node, probe.id, "probe", () =>
-    buildProbeCollisionShapes(scene, [rodMesh, headStageMesh], shankMesh)
-  );
+  gizmoManager.attachableMeshes ??= [];
+  gizmoManager.attachableMeshes.push(shankMesh);
 
-  if (!gizmoManager.attachableMeshes) {
-    gizmoManager.attachableMeshes = [];
+  // A body model replaces the head stage and rod, and its own convex hull
+  // replaces their collision shapes once `syncProbeBodyModels` has imported it.
+  if (!probe.bodyModel) {
+    const headStageMesh = buildHeadStageMesh(
+      scene,
+      contour,
+      buildSceneEntityName(probe.id, "probe", "head-stage_mesh"),
+      geometry
+    );
+    headStageMesh.material = material;
+    headStageMesh.parent = node;
+    headStageMesh.position.x += alignmentOffsetMillimeters;
+
+    const rodMesh = buildRodMesh(
+      scene,
+      contour,
+      buildSceneEntityName(probe.id, "probe", "rod_mesh"),
+      geometry
+    );
+    rodMesh.material = buildRodMaterial(scene);
+    rodMesh.parent = node;
+    rodMesh.position.x += alignmentOffsetMillimeters;
+
+    // Ignore the return value: no physics engine on the scene keeps this feature additive.
+    buildCollisionBody(node, probe.id, "probe", () =>
+      buildProbeCollisionShapes(scene, [rodMesh, headStageMesh], shankMesh)
+    );
+    gizmoManager.attachableMeshes.push(headStageMesh, rodMesh);
   }
-  gizmoManager.attachableMeshes.push(shankMesh, headStageMesh, rodMesh);
 
   return node;
 }
@@ -245,7 +261,8 @@ export function syncProbes(
       !probe ||
       probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier ||
       probe.shankAlignmentIndex !== metadata.shankAlignmentIndex ||
-      !isSameProbeGeometry(metadata.geometry, geometry)
+      !isSameProbeGeometry(metadata.geometry, geometry) ||
+      (probe.bodyModel?.id ?? null) !== metadata.bodyModelId
     ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);
@@ -330,14 +347,16 @@ export function syncProbes(
  * @param selectionOutlineLayer Selection outline layer to add the probe's meshes to.
  * @param probe Probe being selected, whose lock decides whether a gizmo attaches.
  * @param probeTransformNode Probe transform node to attach and select.
+ * @param gizmoNode Node the gizmo attaches to - the probe's node, or its body model's while that gizmo is attached.
  */
 export function attachProbeSelection(
   gizmoManager: GizmoManager,
   selectionOutlineLayer: SelectionOutlineLayer,
   probe: Probe,
-  probeTransformNode: TransformNode
+  probeTransformNode: TransformNode,
+  gizmoNode: TransformNode
 ): void {
-  gizmoManager.attachToNode(probe.lock ? null : probeTransformNode);
+  gizmoManager.attachToNode(probe.lock ? null : gizmoNode);
   selectionOutlineLayer.clearSelection();
   selectionOutlineLayer.addSelection(probeTransformNode.getChildMeshes());
 }
@@ -348,6 +367,7 @@ export function attachProbeSelection(
  * @param gizmoManager Gizmo manager to update.
  * @param selectionOutlineLayer Selection outline layer to add probe to selection.
  * @param probes Experiment probes to resolve the attached mesh against.
+ * @param resolveGizmoNode Resolve the node the gizmo attaches to for a selected probe.
  * @param onSelect Callback invoked with the probe whose mesh was attached to.
  */
 export function selectProbeFromGizmoAttach(
@@ -355,6 +375,10 @@ export function selectProbeFromGizmoAttach(
   gizmoManager: GizmoManager,
   selectionOutlineLayer: SelectionOutlineLayer,
   probes: Probe[],
+  resolveGizmoNode: (
+    probe: Probe,
+    probeTransformNode: TransformNode
+  ) => TransformNode,
   onSelect: (probe: Probe) => void
 ): Observer<Nullable<AbstractMesh>> {
   return gizmoManager.onAttachedToMeshObservable.add(mesh => {
@@ -372,7 +396,8 @@ export function selectProbeFromGizmoAttach(
       gizmoManager,
       selectionOutlineLayer,
       probe,
-      probeTransformNode
+      probeTransformNode,
+      resolveGizmoNode(probe, probeTransformNode)
     );
     onSelect(probe);
   });
@@ -430,8 +455,7 @@ export function endProbeGizmoDrag(
   onDragEnd: () => void
 ): Observer<DragStartEndEvent>[] {
   const onEnd = (gizmo: IGizmo) => () => {
-    if (!gizmo.attachedNode) return;
-    if (!isSceneEntityName(gizmo.attachedNode.name, "probe")) return;
+    if (!gizmo.attachedNode?.name.endsWith(PROBE_NODE_SUFFIX)) return;
     onDragEnd();
   };
 
@@ -452,7 +476,7 @@ function attachedProbeFromGizmo(
   probes: Probe[]
 ): { probe: Probe; node: TransformNode } | null {
   const node = gizmo.attachedNode;
-  if (!node || !isSceneEntityName(node.name, "probe")) return null;
+  if (!node?.name.endsWith(PROBE_NODE_SUFFIX)) return null;
 
   const probeId = sceneEntityIdFromName(node.name, "probe");
   const probe = probes.find(probe => probe.id === probeId);

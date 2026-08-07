@@ -3,6 +3,7 @@ import { makeProbeInterfaceProbe } from "@/test/fixtures";
 import { getProbeContour } from "./contour.api";
 import {
   getProbeAlignmentOffsetMillimeters,
+  getProbeShankBasePositionMillimeters,
   getProbeShanks
 } from "./shank.api";
 
@@ -191,6 +192,45 @@ describe("getProbeAlignmentOffsetMillimeters", () => {
     expect(getProbeAlignmentOffsetMillimeters(shanks, 1)).toBeCloseTo(
       -0.98,
       10
+    );
+  });
+});
+
+describe("getProbeShankBasePositionMillimeters", () => {
+  function makeTwoShankFixture() {
+    const probeInterfaceProbe = makeProbeInterfaceProbe({
+      si_units: "mm",
+      probe_planar_contour: TWO_SHANK_CONTOUR,
+      contact_positions: [
+        [-0.95, 1],
+        [0.95, 1]
+      ],
+      shank_ids: ["0", "1"],
+      contact_shapes: ["square", "square"],
+      contact_shape_params: [{ width: 0.02 }, { width: 0.02 }]
+    });
+    const contour = getProbeContour(probeInterfaceProbe)!;
+    return { contour, shanks: getProbeShanks(probeInterfaceProbe, contour) };
+  }
+
+  it("combines the aligned shank's x offset with the contour height, at z", () => {
+    const { contour, shanks } = makeTwoShankFixture();
+
+    const position = getProbeShankBasePositionMillimeters(contour, shanks, 0);
+
+    expect(position[0]).toBeCloseTo(
+      getProbeAlignmentOffsetMillimeters(shanks, 0),
+      10
+    );
+    expect(position[1]).toBe(0);
+    expect(position[2]).toBe(contour.heightMillimeters);
+  });
+
+  it("falls back to the contour center (x = 0) when aligned on null", () => {
+    const { contour, shanks } = makeTwoShankFixture();
+
+    expect(getProbeShankBasePositionMillimeters(contour, shanks, null)).toEqual(
+      [0, 0, contour.heightMillimeters]
     );
   });
 });

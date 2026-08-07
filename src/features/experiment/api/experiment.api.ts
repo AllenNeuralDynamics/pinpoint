@@ -390,6 +390,20 @@ export function reorderSceneObject(
 }
 
 /**
+ * Every scene model id an experiment references: its scene objects and its
+ * probes' body models.
+ * @param experiment Experiment to collect model ids from.
+ */
+export function getExperimentModelIds(experiment: Experiment): string[] {
+  return [
+    ...experiment.sceneObjects.map(({ id }) => id),
+    ...experiment.probes.flatMap(probe =>
+      probe.bodyModel ? [probe.bodyModel.id] : []
+    )
+  ];
+}
+
+/**
  * Add a camera pose to the experiment, unless one with the same id already
  * exists.
  * @param experiment Experiment to add a camera pose to.

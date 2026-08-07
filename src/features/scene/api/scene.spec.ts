@@ -92,6 +92,7 @@ describe("selectFromSelectedInspectableState", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
+      null,
       null
     );
 
@@ -111,7 +112,8 @@ describe("selectFromSelectedInspectableState", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      makeCameraPose()
+      makeCameraPose(),
+      null
     );
 
     expect(gizmoManager.attachedNode).toBeNull();
@@ -128,7 +130,8 @@ describe("selectFromSelectedInspectableState", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      probe
+      probe,
+      null
     );
 
     expect(gizmoManager.attachedNode).toBe(node);
@@ -147,7 +150,8 @@ describe("selectFromSelectedInspectableState", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      missingProbe
+      missingProbe,
+      null
     );
 
     for (const mesh of node.getChildMeshes()) {
@@ -180,13 +184,15 @@ describe("selectFromSelectedInspectableState", () => {
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      a.probe
+      a.probe,
+      null
     );
     selectFromSelectedInspectableState(
       scene,
       gizmoManager,
       selectionOutlineLayer,
-      probeB
+      probeB,
+      null
     );
 
     expect(gizmoManager.attachedNode).toBe(nodeB);

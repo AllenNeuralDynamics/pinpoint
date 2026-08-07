@@ -10,11 +10,21 @@ import {
   flushMicrotasks,
   mountWithQuasar
 } from "@/test/mount-helper";
-import { makeAtlas, makeSceneObject } from "@/test/fixtures";
+import {
+  makeAtlas,
+  makeProbe,
+  makeProbeInterfaceProbe,
+  makeSceneModel,
+  makeSceneObject
+} from "@/test/fixtures";
 import { zipExperiment } from "../api/experiment-file.api";
-import { buildExperiment } from "../api/experiment.api";
+import {
+  buildExperiment,
+  internProbeInterfaceProbe
+} from "../api/experiment.api";
+import { getProbeInterfaceIdentifier } from "@/features/probe";
 import type { Experiment } from "../models/experiment.model";
-import { getSceneObjectModel } from "@/features/scene";
+import { getSceneModel } from "@/features/scene";
 import enUS from "@/i18n/en-US";
 
 // Mock the leaf module (not the `@/features/atlas` barrel), matching the
@@ -29,9 +39,9 @@ vi.mock("@/features/atlas/api/source.api", async () => {
   };
 });
 
-// `getSceneObjectModel`/`putSceneObjectModel` go through `idb-keyval`, which
-// needs a real IndexedDB the test environment doesn't provide. Replace it
-// with an in-memory map, matching `scene-object-model.spec.ts`.
+// `getSceneModel`/`putSceneModel` go through `idb-keyval`, which needs a
+// real IndexedDB the test environment doesn't provide. Replace it with an
+// in-memory map, matching `scene-model.spec.ts`.
 const sceneObjectModelMemoryStore = new Map<string, unknown>();
 vi.mock("idb-keyval", () => ({
   createStore: () => "fake-store",
@@ -327,8 +337,41 @@ describe("useExperimentFile", () => {
       await capturedOnChange!(makeFileList(file));
       await flushMicrotasks();
 
-      const stored = await getSceneObjectModel(sceneObject.id);
+      const stored = await getSceneModel(sceneObject.id);
       expect(stored?.name).toBe("model.obj");
+      expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(bytes);
+    });
+
+    it("writes a probe's body model file before loading the experiment", async () => {
+      const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
+      const probeInterfaceProbe = makeProbeInterfaceProbe();
+      internProbeInterfaceProbe(experiment, probeInterfaceProbe);
+      const bodyModel = makeSceneModel();
+      experiment.probes = [
+        makeProbe({
+          bodyModel,
+          probeInterfaceIdentifier:
+            getProbeInterfaceIdentifier(probeInterfaceProbe)
+        })
+      ];
+      const bytes = new Uint8Array([5, 6, 7, 8]);
+      const file = new File(
+        [
+          zipExperiment(
+            experiment,
+            new Map([[bodyModel.id, { fileName: "body.glb", bytes }]])
+          ).slice()
+        ],
+        "e.zip",
+        { type: "application/zip" }
+      );
+      mountHarness();
+
+      await capturedOnChange!(makeFileList(file));
+      await flushMicrotasks();
+
+      const stored = await getSceneModel(bodyModel.id);
+      expect(stored?.name).toBe("body.glb");
       expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(bytes);
     });
   });

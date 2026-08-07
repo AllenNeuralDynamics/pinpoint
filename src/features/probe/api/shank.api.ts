@@ -139,6 +139,25 @@ export function getProbeAlignmentOffsetMillimeters(
 }
 
 /**
+ * Probe-local position of the aligned shank's base, where the default head
+ * stage begins, in mm.
+ * @param contour Probe contour whose height sets the base's depth.
+ * @param shanks Probe's shanks, left to right.
+ * @param shankAlignmentIndex Index of the shank the probe is aligned on, or null for the contour center.
+ */
+export function getProbeShankBasePositionMillimeters(
+  contour: ProbeContour,
+  shanks: ProbeShank[],
+  shankAlignmentIndex: number | null
+): [number, number, number] {
+  return [
+    getProbeAlignmentOffsetMillimeters(shanks, shankAlignmentIndex),
+    0,
+    contour.heightMillimeters
+  ];
+}
+
+/**
  * Build the fallback shank spanning a probe's whole contour, used both when
  * there's no per-shank grouping and when a split attempt turns out degenerate.
  * @param outlines Every contact outline on the probe.

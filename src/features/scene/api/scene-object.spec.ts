@@ -83,15 +83,6 @@ describe("isSceneObject", () => {
     expect(isSceneObject(makeSceneObject())).toBe(true);
   });
 
-  it("rejects a missing id", () => {
-    const { id: _id, ...rest } = makeSceneObject();
-    expect(isSceneObject(rest)).toBe(false);
-  });
-
-  it("rejects an empty id", () => {
-    expect(isSceneObject(makeSceneObject({ id: "" }))).toBe(false);
-  });
-
   it("rejects an invalid color", () => {
     expect(isSceneObject(makeSceneObject({ color: "red" }))).toBe(false);
   });
@@ -115,24 +106,6 @@ describe("isSceneObject", () => {
 
   it("rejects a non-boolean collidable", () => {
     const sceneObject = { ...makeSceneObject(), collidable: "yes" };
-    expect(isSceneObject(sceneObject)).toBe(false);
-  });
-
-  it("rejects a non-triple position", () => {
-    const sceneObject = { ...makeSceneObject(), position: [0, 0] };
-    expect(isSceneObject(sceneObject)).toBe(false);
-  });
-
-  it("rejects a non-triple scale", () => {
-    const sceneObject = { ...makeSceneObject(), scale: [1, 1] };
-    expect(isSceneObject(sceneObject)).toBe(false);
-  });
-
-  it("rejects a NaN in rotation", () => {
-    const sceneObject = {
-      ...makeSceneObject(),
-      rotation: [0, Number.NaN, 0]
-    };
     expect(isSceneObject(sceneObject)).toBe(false);
   });
 

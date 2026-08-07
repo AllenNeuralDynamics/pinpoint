@@ -28,14 +28,14 @@ const isCameraSelected = computed(
 </script>
 
 <template>
-  <div class="q-pa-md full-height column">
-    <ProbeInspector v-if="selectedProbe" :probe="selectedProbe" />
-    <SceneObjectInspector
-      v-else-if="selectedSceneObject"
-      :scene-object="selectedSceneObject"
-    />
-    <CameraInspector v-else-if="isCameraSelected" />
-    <div v-else class="col flex flex-center">
+  <ProbeInspector v-if="selectedProbe" :probe="selectedProbe" />
+  <SceneObjectInspector
+    v-else-if="selectedSceneObject"
+    :scene-object="selectedSceneObject"
+  />
+  <CameraInspector v-else-if="isCameraSelected" />
+  <div v-else class="full-height column">
+    <div class="col flex flex-center">
       <p class="text-weight-light">
         <i>{{ $t("inspector.emptyHint") }}</i>
       </p>

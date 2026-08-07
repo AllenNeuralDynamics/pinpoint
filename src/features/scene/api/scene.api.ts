@@ -12,6 +12,7 @@ import type { Inspectable } from "../models/inspectable.model";
 import { pickAxisGuideDirection } from "./axis-guide.api";
 import { orbitCameraTowards } from "./camera.api";
 import { attachProbeSelection, getProbeTransformNode } from "./probe.api";
+import { getProbeGizmoNode } from "./probe-body-model.api";
 import {
   attachSceneObjectSelection,
   getSceneObjectTransformNode
@@ -28,7 +29,8 @@ export function selectFromSelectedInspectableState(
   scene: Scene,
   gizmoManager: GizmoManager,
   selectionOutlineLayer: SelectionOutlineLayer,
-  selectedInspectable: Inspectable | null
+  selectedInspectable: Inspectable | null,
+  bodyModelGizmoProbeId: string | null
 ) {
   // Both branches result in clearing the selection outline layer at some point.
   selectionOutlineLayer.clearSelection();
@@ -48,7 +50,13 @@ export function selectFromSelectedInspectableState(
         gizmoManager,
         selectionOutlineLayer,
         selectedInspectable,
-        probeTransformNode
+        probeTransformNode,
+        getProbeGizmoNode(
+          scene,
+          selectedInspectable,
+          probeTransformNode,
+          bodyModelGizmoProbeId
+        )
       );
       return;
     }
