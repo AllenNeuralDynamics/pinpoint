@@ -98,7 +98,11 @@ useCameraPoseSync(
   runtime.camera,
   () => currentExperiment.atlas,
   () => currentExperiment.referenceCoordinate,
-  () => currentExperiment.experiment.cameraPose
+  () => currentExperiment.experiment.cameraPose,
+  () => {
+    currentExperiment.isCameraMoving = true;
+  },
+  () => currentExperiment.endCameraMove()
 );
 
 const canvas = useTemplateRef<HTMLCanvasElement>("canvas");

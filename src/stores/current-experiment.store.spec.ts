@@ -200,10 +200,11 @@ describe("useCurrentExperimentStore", () => {
       expect(store.atlas).toEqual(makeAtlas({ name: "allen_human" }));
     });
 
-    it("clears the selected inspectable and dragged probe id", () => {
+    it("clears the selected inspectable, dragged probe id, and camera-move flag", () => {
       const store = useCurrentExperimentStore();
       store.selectedInspectable = makeProbe();
       store.draggedProbeId = "some-id";
+      store.isCameraMoving = true;
 
       store.loadExperiment(
         buildExperiment("Loaded Experiment", makeAtlas(), [0, 0, 0])
@@ -211,6 +212,7 @@ describe("useCurrentExperimentStore", () => {
 
       expect(store.selectedInspectable).toBeNull();
       expect(store.draggedProbeId).toBeNull();
+      expect(store.isCameraMoving).toBe(false);
     });
 
     it("detaches the loaded experiment's probe interface definitions from reactivity", () => {
@@ -548,6 +550,49 @@ describe("useCurrentExperimentStore", () => {
       store.probes[0]!.tipPosition = [1, 0, 0];
       await nextTick();
       store.endProbeDrag();
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(store.name).toBe(defaultName);
+    });
+  });
+
+  describe("camera move history", () => {
+    it("collapses a camera movement into one history point", async () => {
+      const store = useCurrentExperimentStore();
+      const defaultAlpha = store.experiment.cameraPose.alpha;
+
+      store.isCameraMoving = true;
+      store.experiment.cameraPose.alpha = 1;
+      await nextTick();
+      store.experiment.cameraPose.alpha = 2;
+      await nextTick();
+      store.endCameraMove();
+
+      expect(store.experiment.cameraPose.alpha).toBe(2);
+
+      store.undo();
+      expect(store.experiment.cameraPose.alpha).toBe(defaultAlpha);
+    });
+
+    it("records nothing when the camera was not moving", () => {
+      const store = useCurrentExperimentStore();
+
+      store.endCameraMove();
+
+      expect(store.canUndo).toBe(false);
+    });
+
+    it("resumes recording once the movement ends", async () => {
+      const store = useCurrentExperimentStore();
+      const defaultName = store.name;
+
+      store.isCameraMoving = true;
+      store.experiment.cameraPose.alpha = 1;
+      await nextTick();
+      store.endCameraMove();
 
       store.experiment.name = "Renamed";
       await nextTick();

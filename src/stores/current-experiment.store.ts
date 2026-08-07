@@ -55,6 +55,9 @@ export const useCurrentExperimentStore = defineStore(
     /** ID of the scene object currently being dragged, or null. */
     const draggedSceneObjectId = ref<string | null>(null);
 
+    /** Is the camera mid-movement, streaming its pose into the experiment. */
+    const isCameraMoving = ref(false);
+
     /** Pending surface-move choice awaiting the user's pick, or null. */
     const probeSurfaceChoice = ref<ProbeSurfaceChoice | null>(null);
 
@@ -83,11 +86,18 @@ export const useCurrentExperimentStore = defineStore(
     } = useRefHistory(experiment, {
       deep: true,
       clone: cloneExperiment,
-      // A gizmo drag rewrites the pose every frame for either entity kind;
-      // drop those in-between states and let `endProbeDrag`/
-      // `endSceneObjectDrag` record the pose the drag was released at.
+      // A gizmo drag rewrites the pose every frame for either entity kind, and a
+      // camera movement streams its own pose the same way; drop those in-between
+      // states and let `endProbeDrag`/`endSceneObjectDrag`/`endCameraMove` record
+      // the pose the movement ended at.
       eventFilter: invoke => {
-        if (!draggedProbeId.value && !draggedSceneObjectId.value) invoke();
+        if (
+          !draggedProbeId.value &&
+          !draggedSceneObjectId.value &&
+          !isCameraMoving.value
+        ) {
+          invoke();
+        }
       }
     });
 
@@ -238,6 +248,19 @@ export const useCurrentExperimentStore = defineStore(
     }
 
     /**
+     * Finish the active camera movement, recording the pose it stopped at as a
+     * single history point.
+     * @remarks No-op when the camera was not moving, so a still camera's frame
+     * observer, or a camera replaced between movements, records nothing.
+     */
+    function endCameraMove() {
+      if (!isCameraMoving.value) return;
+
+      isCameraMoving.value = false;
+      commitHistory();
+    }
+
+    /**
      * Move the current experiment into recents and load in a new one.
      * @param newExperiment Experiment to load.
      */
@@ -250,6 +273,7 @@ export const useCurrentExperimentStore = defineStore(
       selectedInspectable.value = null;
       draggedProbeId.value = null;
       draggedSceneObjectId.value = null;
+      isCameraMoving.value = false;
     }
 
     const state = {
@@ -257,6 +281,7 @@ export const useCurrentExperimentStore = defineStore(
       selectedInspectable,
       draggedProbeId,
       draggedSceneObjectId,
+      isCameraMoving,
       probeSurfaceChoice,
       isTerminologyRowsEvaluating,
       areAxisGuidesVisible,
@@ -283,7 +308,8 @@ export const useCurrentExperimentStore = defineStore(
       redo,
       resetHistory,
       endProbeDrag,
-      endSceneObjectDrag
+      endSceneObjectDrag,
+      endCameraMove
     };
     return { ...state, ...getters, ...actions };
   },

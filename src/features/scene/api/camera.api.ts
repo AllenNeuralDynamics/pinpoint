@@ -146,13 +146,16 @@ export interface CameraPoseTracker {
 }
 
 /**
- * Report the camera's orbit and world target once it stops moving, so a drag,
- * a zoom, or a glide yields one update instead of one per frame.
+ * Report the camera's orbit and world target as it moves, and again once it
+ * stops, so a drag, a zoom, or a glide yields one report per moved frame plus
+ * one report when it settles.
  * @param camera Camera to track.
- * @param onSettle Called with the settled orbit and its world target.
+ * @param onMove Called with the orbit and world target on every frame the camera moved.
+ * @param onSettle Called with the orbit and world target on the first still frame after a movement.
  */
 export function trackCameraPose(
   camera: ArcRotateCamera,
+  onMove: (orbit: [number, number, number], worldTarget: Vector3) => void,
   onSettle: (orbit: [number, number, number], worldTarget: Vector3) => void
 ): CameraPoseTracker {
   /** Orbit and target seen on the previous frame, or null before the first. */
@@ -175,6 +178,7 @@ export function trackCameraPose(
 
     if (!isStill) {
       hasMoved = true;
+      onMove(orbit, camera.target.clone());
       return;
     }
     // Inertia and interpolation both keep changing the orbit frame to frame, so

@@ -78,30 +78,52 @@ describe("trackCameraPose", () => {
     camera.onAfterCheckInputsObservable.notifyObservers(undefined);
   }
 
-  it("settles once after a change followed by two still frames", () => {
+  it("a changed frame calls onMove with the new orbit and the camera's target and does not call onSettle", () => {
     const camera = makeStubCamera();
+    const onMove = vi.fn();
     const onSettle = vi.fn();
-    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+    trackCameraPose(camera as unknown as ArcRotateCamera, onMove, onSettle);
 
     camera.alpha = 1;
     notify(camera);
+
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledWith([1, 0, 1], camera.target);
     expect(onSettle).not.toHaveBeenCalled();
+  });
+
+  it("the following still frame calls onSettle once, and a third frame calls neither again", () => {
+    const camera = makeStubCamera();
+    const onMove = vi.fn();
+    const onSettle = vi.fn();
+    trackCameraPose(camera as unknown as ArcRotateCamera, onMove, onSettle);
+
+    camera.alpha = 1;
+    notify(camera);
+    onMove.mockClear();
 
     notify(camera);
+    expect(onMove).not.toHaveBeenCalled();
     expect(onSettle).toHaveBeenCalledTimes(1);
 
     notify(camera);
+    expect(onMove).not.toHaveBeenCalled();
     expect(onSettle).toHaveBeenCalledTimes(1);
   });
 
-  it("reports nothing while the camera is interpolating", () => {
+  it("reports moves while interpolating but settles only once isInterpolating clears", () => {
     const camera = makeStubCamera();
+    const onMove = vi.fn();
     const onSettle = vi.fn();
-    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+    trackCameraPose(camera as unknown as ArcRotateCamera, onMove, onSettle);
+    notify(camera);
+    onMove.mockClear();
 
     camera.alpha = 1;
     camera.isInterpolating = true;
     notify(camera);
+    expect(onMove).toHaveBeenCalledTimes(1);
+
     notify(camera);
     expect(onSettle).not.toHaveBeenCalled();
 
@@ -112,30 +134,38 @@ describe("trackCameraPose", () => {
 
   it("reports nothing on repeated still frames without a change", () => {
     const camera = makeStubCamera();
+    const onMove = vi.fn();
     const onSettle = vi.fn();
-    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+    trackCameraPose(camera as unknown as ArcRotateCamera, onMove, onSettle);
     notify(camera);
     notify(camera);
+    onMove.mockClear();
     onSettle.mockClear();
 
     notify(camera);
     notify(camera);
 
+    expect(onMove).not.toHaveBeenCalled();
     expect(onSettle).not.toHaveBeenCalled();
   });
 
-  it("also settles a target-only change", () => {
+  it("also settles a target-only change, reporting onMove then onSettle", () => {
     const camera = makeStubCamera();
+    const onMove = vi.fn();
     const onSettle = vi.fn();
-    trackCameraPose(camera as unknown as ArcRotateCamera, onSettle);
+    trackCameraPose(camera as unknown as ArcRotateCamera, onMove, onSettle);
     notify(camera);
     notify(camera);
+    onMove.mockClear();
     onSettle.mockClear();
 
     camera.target = new Vector3(1, 0, 0);
     notify(camera);
-    notify(camera);
+    expect(onMove).toHaveBeenCalledTimes(1);
+    expect(onMove).toHaveBeenCalledWith([0, 0, 1], camera.target);
+    expect(onSettle).not.toHaveBeenCalled();
 
+    notify(camera);
     expect(onSettle).toHaveBeenCalledTimes(1);
     expect(onSettle).toHaveBeenCalledWith([0, 0, 1], camera.target);
   });
@@ -144,6 +174,7 @@ describe("trackCameraPose", () => {
     const camera = makeStubCamera();
     const tracker = trackCameraPose(
       camera as unknown as ArcRotateCamera,
+      vi.fn(),
       vi.fn()
     );
 

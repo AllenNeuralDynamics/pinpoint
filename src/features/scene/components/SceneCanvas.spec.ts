@@ -922,6 +922,29 @@ describe("SceneCanvas", () => {
     expect(restoredProbe.tipPosition).toEqual([0, 0, 0]);
   });
 
+  it("streams the camera's pose live and collapses the movement into one undoable step", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    const alphaBefore = store.cameraPose.alpha;
+
+    const camera = runtime.camera.value!;
+    camera.alpha = 1.23;
+    camera.onAfterCheckInputsObservable.notifyObservers(camera);
+    await flushPromises();
+
+    expect(store.cameraPose.alpha).toBe(1.23);
+    expect(store.isCameraMoving).toBe(true);
+
+    camera.onAfterCheckInputsObservable.notifyObservers(camera);
+    await flushPromises();
+
+    expect(store.isCameraMoving).toBe(false);
+
+    store.undo();
+
+    expect(store.cameraPose.alpha).toBe(alphaBefore);
+  });
+
   it("keeps the position gizmo on the probe in global coordinates", async () => {
     const { wrapper, runtime } = await mountCanvas();
     const store = useCurrentExperimentStore();

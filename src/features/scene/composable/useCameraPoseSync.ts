@@ -23,17 +23,21 @@ interface SyncedPose {
 
 /**
  * Two-way bind a camera to an experiment's live camera pose: glide the camera
- * to the pose, and write the camera's orbit and target back once it stops.
+ * to the pose, and write the camera's orbit and target back as it moves.
  * @param camera Camera to bind.
  * @param atlas Getter for the atlas anchoring world space.
  * @param referenceCoordinate Getter for the reference coordinate, in atlas ASR mm.
  * @param pose Getter for the experiment's live camera pose, mutated in place.
+ * @param onPoseMoving Called after each live write of a moving camera's pose.
+ * @param onPoseSettled Called once the camera has stopped moving.
  */
 export function useCameraPoseSync(
   camera: Readonly<ShallowRef<ArcRotateCamera | null>>,
   atlas: () => Atlas,
   referenceCoordinate: () => [number, number, number],
-  pose: () => CameraPose
+  pose: () => CameraPose,
+  onPoseMoving: () => void,
+  onPoseSettled: () => void
 ): void {
   let synced: SyncedPose | null = null;
 
@@ -81,11 +85,26 @@ export function useCameraPoseSync(
   watch(camera, instance => {
     if (!instance) return;
 
-    const tracker = trackCameraPose(instance, (orbit, worldTarget) => {
+    /**
+     * Write the camera's orbit and target onto the pose, reporting whether it
+     * held anything the pose did not already have.
+     * @param orbit Camera's current alpha/beta/radius.
+     * @param worldTarget Camera's current target, in Babylon world space.
+     */
+    function applyCameraPose(
+      orbit: [number, number, number],
+      worldTarget: Vector3
+    ): boolean {
+      const isSameWorldTarget =
+        !!synced && worldTarget.equals(synced.worldTarget);
+      if (synced && isSameWorldTarget && isSameTriple(orbit, synced.orbit)) {
+        return false;
+      }
+
       // A camera that only landed where it was sent keeps the pose's own target
       // numbers, so re-deriving them can never drift the stored value.
       const target =
-        synced && worldTarget.equals(synced.worldTarget)
+        synced && isSameWorldTarget
           ? synced.target
           : worldToReferenceRelative(
               atlas(),
@@ -95,8 +114,29 @@ export function useCameraPoseSync(
 
       synced = { orbit, target, worldTarget };
       setCameraPose(pose(), orbit, target);
+      return true;
+    }
+
+    const tracker = trackCameraPose(
+      instance,
+      (orbit, worldTarget) => {
+        // A camera gliding to a pose the experiment already holds has nothing to
+        // report, and streaming its in-between frames back would overwrite the
+        // pose that sent it there.
+        if (instance.isInterpolating) return;
+        if (applyCameraPose(orbit, worldTarget)) onPoseMoving();
+      },
+      (orbit, worldTarget) => {
+        applyCameraPose(orbit, worldTarget);
+        onPoseSettled();
+      }
+    );
+    onWatcherCleanup(() => {
+      tracker.dispose();
+      // A camera swapped out mid-movement would otherwise leave the store's
+      // history suppressed for the rest of the session.
+      onPoseSettled();
     });
-    onWatcherCleanup(() => tracker.dispose());
   });
 }
 
