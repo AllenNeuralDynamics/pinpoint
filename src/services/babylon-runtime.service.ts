@@ -90,6 +90,12 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
     // Setup scene.
     const s = markRaw(new Scene(e));
 
+    // Babylon cancels the canvas `pointerdown` by default, which suppresses the
+    // compatibility `mousedown` the browser would fire next. Quasar dismisses
+    // its popups from a document-level `mousedown` listener, so cancelling it
+    // leaves an open menu stuck open when the canvas is clicked.
+    s.preventDefaultOnPointerDown = false;
+
     // Physics V2 drives probe collision detection only; gravity would serve no
     // purpose here and every probe body is animated, so keep the world at rest.
     const hk = new HavokPlugin(true, await initializeHavok());

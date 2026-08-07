@@ -782,7 +782,7 @@ onUnmounted(() => {
 
 <template>
   <div class="fit relative-position">
-    <canvas ref="canvas" class="fit" />
+    <canvas ref="canvas" class="fit non-selectable" />
     <q-linear-progress
       v-if="isLoadingStructures || currentExperiment.isLoadingRegionCenter"
       indeterminate
