@@ -58,6 +58,9 @@ export const useCurrentExperimentStore = defineStore(
     /** Are the atlas axis guides shown in the scene. */
     const areAxisGuidesVisible = ref(false);
 
+    /** Is a brain region's mesh being resolved for a region-center move. */
+    const isLoadingRegionCenter = ref(false);
+
     /**
      * Flag for when the terminology rows are being updated to match the new atlas.
      */
@@ -229,7 +232,8 @@ export const useCurrentExperimentStore = defineStore(
       draggedProbeId,
       probeSurfaceChoice,
       isTerminologyRowsEvaluating,
-      areAxisGuidesVisible
+      areAxisGuidesVisible,
+      isLoadingRegionCenter
     };
     const getters = {
       name,

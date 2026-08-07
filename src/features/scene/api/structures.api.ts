@@ -1,4 +1,9 @@
-import type { AbstractMesh, IndicesArray, Scene } from "@babylonjs/core";
+import type {
+  AbstractMesh,
+  FloatArray,
+  IndicesArray,
+  Scene
+} from "@babylonjs/core";
 import {
   DracoDecoder,
   Mesh,
@@ -196,6 +201,31 @@ export function removeAllStructures(scene: Scene) {
   )) {
     mesh.dispose(false, true);
   }
+}
+
+/**
+ * Read a structure's vertex positions in atlas-local mm (ML, DV, AP), reusing its
+ * in-scene mesh when that already has geometry and otherwise fetching and decoding
+ * its Draco mesh without adding anything drawable to the scene.
+ * @param scene Scene to decode into and to look for an existing mesh in.
+ * @param structure Entity information for the structure.
+ */
+export async function getStructureVertexPositions(
+  scene: Scene,
+  structure: StructureEntity
+): Promise<FloatArray> {
+  const existing = childStructureMeshes(buildAtlasRootNode(scene)).get(
+    structureMeshName(structure.identifier)
+  );
+  const present = existing?.getVerticesData(VertexBuffer.PositionKind);
+  if (present && present.length > 0) return present;
+
+  const decoded = await decodeMesh(
+    scene,
+    `${structure.identifier}_center_geometry`,
+    await fetchMeshData(structure.meshPath)
+  );
+  return decoded.positions;
 }
 
 /**

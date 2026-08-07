@@ -1,3 +1,5 @@
+import { atlasToReferenceRelative, setCameraPose } from "@/features/experiment";
+import { setProbeTipMillimeters } from "@/features/probe";
 import type { Inspectable } from "../models/inspectable.model";
 
 /**
@@ -11,4 +13,28 @@ export function isSameInspectable(a: Inspectable, b: Inspectable): boolean {
     return a.inspectableKind === b.inspectableKind;
   }
   return a.id === b.id;
+}
+
+/**
+ * Move an inspectable onto a point in atlas ASR mm: a probe's tip, or the camera's
+ * orbit target with its orbit left alone.
+ * @param inspectable Inspectable to move, mutated in place.
+ * @param atlasMillimeters Destination, in atlas ASR mm.
+ * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
+ */
+export function moveInspectableToMillimeters(
+  inspectable: Inspectable,
+  atlasMillimeters: [number, number, number],
+  referenceCoordinate: [number, number, number]
+): void {
+  if (inspectable.inspectableKind === "camera") {
+    setCameraPose(
+      inspectable,
+      [inspectable.alpha, inspectable.beta, inspectable.radius],
+      atlasToReferenceRelative(referenceCoordinate, atlasMillimeters)
+    );
+    return;
+  }
+
+  setProbeTipMillimeters(inspectable, atlasMillimeters, referenceCoordinate);
 }

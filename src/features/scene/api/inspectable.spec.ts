@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isSameInspectable } from "./inspectable.api";
+import {
+  isSameInspectable,
+  moveInspectableToMillimeters
+} from "./inspectable.api";
 import { makeCameraPose, makeProbe } from "@/test/fixtures";
 
 describe("isSameInspectable", () => {
@@ -30,5 +33,33 @@ describe("isSameInspectable", () => {
     const probe = makeProbe();
 
     expect(isSameInspectable(makeCameraPose(), probe)).toBe(false);
+  });
+});
+
+describe("moveInspectableToMillimeters", () => {
+  const atlasMillimeters: [number, number, number] = [10, 20, 30];
+  const referenceCoordinate: [number, number, number] = [1, 2, 3];
+
+  it("moves a probe's tip to the destination, relative to the reference coordinate", () => {
+    const probe = makeProbe();
+
+    moveInspectableToMillimeters(probe, atlasMillimeters, referenceCoordinate);
+
+    expect(probe.tipPosition).toEqual([9, 18, 27]);
+  });
+
+  it("moves a camera's target, leaving its orbit untouched", () => {
+    const cameraPose = makeCameraPose({ alpha: 1, beta: 2, radius: 3 });
+
+    moveInspectableToMillimeters(
+      cameraPose,
+      atlasMillimeters,
+      referenceCoordinate
+    );
+
+    expect(cameraPose.target).toEqual([9, 18, 27]);
+    expect(cameraPose.alpha).toBe(1);
+    expect(cameraPose.beta).toBe(2);
+    expect(cameraPose.radius).toBe(3);
   });
 });

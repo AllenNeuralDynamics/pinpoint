@@ -1,14 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, h } from "vue";
+import { defineComponent, h, shallowRef } from "vue";
 import { createPinia, setActivePinia } from "pinia";
-import { flushPromises } from "@vue/test-utils";
+import { flushPromises, type VueWrapper } from "@vue/test-utils";
+import type { Scene } from "@babylonjs/core";
+import { Mesh, TransformNode, VertexData } from "@babylonjs/core";
 import AtlasHierarchy from "./AtlasHierarchy.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import { makeTestScene, mountWithQuasar } from "@/test/mount-helper";
+import {
+  BabylonRuntimeServiceKey,
+  type BabylonRuntimeService
+} from "@/services/babylon-runtime.service";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { setStructureVisibility } from "@/features/experiment";
 import { getDefaultStructureIdentifiers } from "../api/hierarchy.api";
 import { getTerminologyRows } from "../api/source.api";
-import { makeTerminologyRow, makeTerminologyRows } from "@/test/fixtures";
+import {
+  makeProbe,
+  makeTerminologyRow,
+  makeTerminologyRows
+} from "@/test/fixtures";
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -39,12 +49,18 @@ vi.mock("../api/source.api", async () => {
   return { ...actual, getTerminologyRows: vi.fn() };
 });
 
-async function mountHierarchy() {
+async function mountHierarchy(scene: Scene | null = makeTestScene()) {
   const pinia = createPinia();
   setActivePinia(pinia);
+  const runtime = {
+    scene: shallowRef(scene)
+  } as unknown as BabylonRuntimeService;
   const wrapper = mountWithQuasar(AtlasHierarchy, {
     pinia,
-    global: { stubs: { QVirtualScroll: QVirtualScrollStub } }
+    global: {
+      provide: { [BabylonRuntimeServiceKey as symbol]: runtime },
+      stubs: { QVirtualScroll: QVirtualScrollStub }
+    }
   });
   // terminologyRows depends on manifest resolving first, so flush an extra
   // microtask round for that hop to settle.
@@ -52,6 +68,35 @@ async function mountHierarchy() {
   await flushPromises();
   await wrapper.vm.$nextTick();
   return wrapper;
+}
+
+/**
+ * Find the rendered row for a hierarchy identifier, using its position in
+ * the flattened, DFS-ordered item list the stubbed virtual scroll receives.
+ * @param wrapper Mounted `AtlasHierarchy` wrapper.
+ * @param identifier Hierarchy item identifier to find the row for.
+ */
+function findRow(wrapper: VueWrapper, identifier: number) {
+  const items = wrapper
+    .findComponent({ name: "QVirtualScrollStub" })
+    .props("items") as { identifier: number }[];
+  const index = items.findIndex(item => item.identifier === identifier);
+  return wrapper.findAll(".hierarchy-row")[index]!;
+}
+
+/**
+ * Put a structure mesh with known (ML, DV, AP) mm vertices under the scene's atlas root,
+ * so region centers resolve without any network or Draco decode.
+ */
+function seedStructureMesh(scene: Scene, identifier: number): void {
+  const atlasRoot =
+    scene.getTransformNodeByName("atlasRoot_node") ??
+    new TransformNode("atlasRoot_node", scene);
+  const mesh = new Mesh(`${identifier}_structure_mesh`, scene);
+  mesh.parent = atlasRoot;
+  const vertexData = new VertexData();
+  vertexData.positions = [7, 2, 4, 9, 4, 6, 3, 2, 4, 1, 4, 6];
+  vertexData.applyToMesh(mesh);
 }
 
 describe("AtlasHierarchy", () => {
@@ -214,16 +259,8 @@ describe("AtlasHierarchy", () => {
 
   it("renders no items when the fetch fails", async () => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
-    const pinia = createPinia();
-    setActivePinia(pinia);
-    const wrapper = mountWithQuasar(AtlasHierarchy, {
-      pinia,
-      global: { stubs: { QVirtualScroll: QVirtualScrollStub } }
-    });
 
-    await flushPromises();
-    await flushPromises();
-    await wrapper.vm.$nextTick();
+    const wrapper = await mountHierarchy();
 
     expect(
       wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items")
@@ -305,5 +342,134 @@ describe("AtlasHierarchy", () => {
     expect(
       wrapper.findComponent({ name: "QVirtualScrollStub" }).props("items")
     ).toEqual([]);
+  });
+
+  it("moves the selected camera's target between hemisphere centers on repeat clicks", async () => {
+    const scene = makeTestScene();
+    seedStructureMesh(scene, 8);
+    const wrapper = await mountHierarchy(scene);
+    const store = useCurrentExperimentStore();
+    store.experiment.referenceCoordinate = [0, 0, 0];
+    store.selectedInspectable = store.cameraPose;
+    const { alpha, beta, radius } = store.cameraPose;
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+    expect(store.cameraPose.target).toEqual([5, 3, 2]);
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+
+    expect(store.cameraPose.alpha).toBe(alpha);
+    expect(store.cameraPose.beta).toBe(beta);
+    expect(store.cameraPose.radius).toBe(radius);
+  });
+
+  it("restarts at the right hemisphere when the clicked region changes", async () => {
+    const scene = makeTestScene();
+    seedStructureMesh(scene, 8);
+    seedStructureMesh(scene, 567);
+    const wrapper = await mountHierarchy(scene);
+    const store = useCurrentExperimentStore();
+    store.experiment.referenceCoordinate = [0, 0, 0];
+    store.selectedInspectable = store.cameraPose;
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+
+    await findRow(wrapper, 567).trigger("click");
+    await flushPromises();
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+  });
+
+  it("moves a selected, unlocked probe's tip to the region center", async () => {
+    const scene = makeTestScene();
+    seedStructureMesh(scene, 8);
+    const wrapper = await mountHierarchy(scene);
+    const store = useCurrentExperimentStore();
+    store.experiment.referenceCoordinate = [0, 0, 0];
+    const probe = makeProbe({ tipPosition: [0, 0, 0] });
+    store.experiment.probes.push(probe);
+    store.selectedInspectable = probe;
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+
+    expect(probe.tipPosition).toEqual([5, 3, 8]);
+  });
+
+  it("leaves a locked probe's tip untouched and its row not clickable", async () => {
+    const scene = makeTestScene();
+    seedStructureMesh(scene, 8);
+    const wrapper = await mountHierarchy(scene);
+    const store = useCurrentExperimentStore();
+    store.experiment.referenceCoordinate = [0, 0, 0];
+    const probe = makeProbe({ tipPosition: [0, 0, 0], lock: true });
+    store.experiment.probes.push(probe);
+    store.selectedInspectable = probe;
+    await wrapper.vm.$nextTick();
+
+    expect(findRow(wrapper, 8).classes()).not.toContain(
+      "hierarchy-row--clickable"
+    );
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+
+    expect(probe.tipPosition).toEqual([0, 0, 0]);
+  });
+
+  it("gives no row the clickable class when nothing is selected", async () => {
+    const wrapper = await mountHierarchy();
+
+    expect(findRow(wrapper, 8).classes()).not.toContain(
+      "hierarchy-row--clickable"
+    );
+  });
+
+  it("does not move the selection when the row's checkbox is clicked", async () => {
+    const wrapper = await mountHierarchy();
+    const store = useCurrentExperimentStore();
+    store.experiment.referenceCoordinate = [0, 0, 0];
+    store.selectedInspectable = store.cameraPose;
+    store.cameraPose.target = [0, 0, 0];
+
+    await wrapper.findComponent({ name: "QCheckbox" }).trigger("click");
+
+    expect(store.experiment.visibleStructures).toContainEqual({
+      id: 8,
+      isTransparent: false
+    });
+    expect(store.cameraPose.target).toEqual([0, 0, 0]);
+  });
+
+  it("clears the region-center loading flag after a move, and drops a click made while one is in flight", async () => {
+    const scene = makeTestScene();
+    seedStructureMesh(scene, 8);
+    const wrapper = await mountHierarchy(scene);
+    const store = useCurrentExperimentStore();
+    store.experiment.referenceCoordinate = [0, 0, 0];
+    store.selectedInspectable = store.cameraPose;
+
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+    expect(store.isLoadingRegionCenter).toBe(false);
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+
+    store.isLoadingRegionCenter = true;
+    await findRow(wrapper, 8).trigger("click");
+    await flushPromises();
+
+    expect(store.cameraPose.target).toEqual([5, 3, 8]);
   });
 });

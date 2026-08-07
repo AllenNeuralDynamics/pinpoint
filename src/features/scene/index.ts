@@ -1,6 +1,11 @@
 export { default as SceneCanvas } from "./components/SceneCanvas.vue";
 export { default as SceneHierarchy } from "./components/SceneHierarchy.vue";
-export { isSameInspectable } from "./api/inspectable.api";
+export {
+  isSameInspectable,
+  moveInspectableToMillimeters
+} from "./api/inspectable.api";
+export { getStructureHemisphereCenters } from "./api/structure-center.api";
+export type { Hemisphere, HemisphereCenters } from "./api/structure-center.api";
 export { asrToVector3, vector3ToAsr } from "./api/coordinate-transforms.api";
 export { setGizmoControls } from "./api/gizmo.api";
 export { useBabylonRuntimeService } from "./composable/useBabylonRuntimeService";

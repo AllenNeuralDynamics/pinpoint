@@ -15,7 +15,12 @@ export default {
   atlasHierarchy: {
     search: "Search",
     enabledOnly: "Enabled only",
-    clear: "Clear"
+    clear: "Clear",
+    regionMeshUnavailable: "Could not load region mesh",
+    regionMeshUnavailableCaption: "Check your connection to the atlas source.",
+    regionCenterUnavailable: "No center in this hemisphere",
+    regionCenterUnavailableCaption:
+      "{name} has no geometry on that side of the midline."
   },
   currentExperiment: {
     defaultName: "My First Experiment"

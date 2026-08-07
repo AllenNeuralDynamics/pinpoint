@@ -1,11 +1,15 @@
 <script lang="ts" setup>
 import { computed, onMounted, ref, useTemplateRef } from "vue";
+import { useI18n } from "vue-i18n";
 import { useFuzzyFilter } from "@/composable/useFuzzyFilter";
+import { useNotify } from "@/composable/useNotify";
 import {
   flattenHierarchy,
   getDefaultStructureIdentifiers,
+  type HierarchyItem,
   widestHierarchyRowWidth
 } from "../api/hierarchy.api";
+import { structureEntitiesFromIdentifiers } from "../api/source.api";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
   getVisibleStructure,
@@ -13,6 +17,13 @@ import {
   resetStructureVisibility,
   setStructureVisibility
 } from "@/features/experiment";
+import {
+  getStructureHemisphereCenters,
+  type Hemisphere,
+  type HemisphereCenters,
+  moveInspectableToMillimeters,
+  useBabylonRuntimeService
+} from "@/features/scene";
 
 /** Width of one indent guide cell, matching `.guide`'s `flex: 0 0 1rem`. */
 const GUIDE_WIDTH = 16;
@@ -26,11 +37,24 @@ const ROW_CHROME_WIDTH = 56;
 const measurementContext = document.createElement("canvas").getContext("2d");
 
 const currentExperiment = useCurrentExperimentStore();
+const { t } = useI18n();
+const { notifyWarning } = useNotify();
+const runtime = useBabylonRuntimeService();
 
 const filter = ref<string | null>(null);
 const root = useTemplateRef<HTMLDivElement>("root");
 const fontsReady = ref(false);
 const enabledOnly = ref(false);
+
+/**
+ * Region the selection was last moved into, holding both hemisphere centers so the
+ * right/left toggle never refetches the mesh.
+ */
+const lastRegionMove = ref<{
+  identifier: number;
+  hemisphere: Hemisphere;
+  centers: HemisphereCenters;
+} | null>(null);
 
 const items = computed(() =>
   flattenHierarchy(currentExperiment.terminologyRows)
@@ -80,6 +104,16 @@ const hasStructureChanges = computed(
     )
 );
 
+/**
+ * Can a row click move the selection: something is selected, and a selected probe is
+ * not locked against pose edits.
+ */
+const canMoveToRegion = computed(() => {
+  const selected = currentExperiment.selectedInspectable;
+  if (!selected) return false;
+  return selected.inspectableKind === "camera" || !selected.lock;
+});
+
 const contentWidth = computed(() => {
   if (!fontsReady.value || !root.value) return 0;
   return widestHierarchyRowWidth(
@@ -91,6 +125,79 @@ const contentWidth = computed(() => {
     makeTextMeasurer(root.value)
   );
 });
+
+/**
+ * Move the selected inspectable to a region's geometric center, alternating right
+ * then left hemisphere across repeat clicks of the same region.
+ * @param item Hierarchy row that was clicked.
+ */
+async function moveToRegionCenter(item: HierarchyItem): Promise<void> {
+  if (!canMoveToRegion.value || currentExperiment.isLoadingRegionCenter) return;
+
+  const previous = lastRegionMove.value;
+  const isSameRegion = previous?.identifier === item.identifier;
+  const hemisphere: Hemisphere =
+    isSameRegion && previous.hemisphere === "right" ? "left" : "right";
+
+  let centers = isSameRegion ? previous.centers : null;
+  if (!centers) {
+    const scene = runtime.scene.value;
+    const structure = structureEntitiesFromIdentifiers(
+      currentExperiment.atlas,
+      currentExperiment.terminologyRows,
+      [item.identifier]
+    )[0];
+    if (!scene || !structure) return;
+
+    // Set before the first await so the scene canvas loading bar shows immediately.
+    currentExperiment.isLoadingRegionCenter = true;
+    try {
+      centers = await getStructureHemisphereCenters(
+        scene,
+        currentExperiment.atlas,
+        structure
+      );
+    } catch {
+      notifyWarning(
+        t("atlasHierarchy.regionMeshUnavailable"),
+        t("atlasHierarchy.regionMeshUnavailableCaption")
+      );
+      return;
+    } finally {
+      currentExperiment.isLoadingRegionCenter = false;
+    }
+  }
+
+  // Recorded even when that hemisphere is empty, so the next click tries the other one.
+  lastRegionMove.value = { identifier: item.identifier, hemisphere, centers };
+
+  const center = centers[hemisphere];
+  if (!center) {
+    notifyWarning(
+      t("atlasHierarchy.regionCenterUnavailable"),
+      t("atlasHierarchy.regionCenterUnavailableCaption", { name: item.name })
+    );
+    return;
+  }
+
+  // The selection can change while the mesh downloads, so re-read it here.
+  const selected = currentExperiment.selectedInspectable;
+  if (!selected || !canMoveToRegion.value) return;
+
+  moveInspectableToMillimeters(
+    selected,
+    center,
+    currentExperiment.referenceCoordinate
+  );
+}
+
+/**
+ * Handle a row click.
+ * @param item Hierarchy row that was clicked.
+ */
+function onRowClick(item: HierarchyItem): void {
+  void moveToRegionCenter(item);
+}
 
 /**
  * Checkbox state for a structure: checked when opaque, indeterminate when
@@ -151,7 +258,10 @@ onMounted(async () => {
       <template #default="{ item }">
         <div
           :key="item.identifier"
+          v-ripple="canMoveToRegion"
+          :class="{ 'hierarchy-row--clickable': canMoveToRegion }"
           class="hierarchy-row row items-center no-wrap"
+          @click="onRowClick(item)"
         >
           <template v-if="showGuides">
             <span
@@ -212,6 +322,14 @@ $guide-width: 2px
 .hierarchy-row
   height: 32px
 
+.hierarchy-row--clickable
+  position: relative
+  overflow: hidden
+  cursor: pointer
+
+  &:hover
+    background-color: rgba(0, 0, 0, 0.04)
+
 // Quasar's virtual-scroll content wrapper is `contain: content`, which
 // paint-clips rows wider than the panel. Sizing it to the widest row in the
 // whole list moves that overflow onto the scrolling root and keeps the
@@ -259,4 +377,7 @@ body.body--dark
 
   .guide--tee::after, .guide--elbow::after
     border-top-color: $separator-dark-color
+
+  .hierarchy-row--clickable:hover
+    background-color: rgba(255, 255, 255, 0.07)
 </style>

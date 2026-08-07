@@ -391,6 +391,28 @@ describe("SceneCanvas", () => {
     );
   });
 
+  it("shows the loading bar for a region-center load, with no delay", async () => {
+    const { wrapper } = await mountCanvas();
+
+    expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+      false
+    );
+
+    useCurrentExperimentStore().isLoadingRegionCenter = true;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+      true
+    );
+
+    useCurrentExperimentStore().isLoadingRegionCenter = false;
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+      false
+    );
+  });
+
   it("notifies a negative error and clears the loading bar when the sync fails", async () => {
     // Gate the sync on a deferred promise so the rejection lands only after
     // the wrapper (and its `$q`) is available to spy on -- an immediately
