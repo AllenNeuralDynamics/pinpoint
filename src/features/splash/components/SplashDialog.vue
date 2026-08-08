@@ -25,12 +25,16 @@ onOpened(onDialogOK);
     <q-card class="splash">
       <q-card-section class="column full-width items-center">
         <div class="column items-center q-gutter-y-sm">
-          <img
+          <q-img
             class="rounded-borders"
-            :src="`${BASE_URL}icons/favicon-96x96.png`"
-            alt=""
-            width="96"
-            height="96"
+            :src="`${BASE_URL}icons/favicon-128x128.png`"
+            :srcset="`${BASE_URL}icons/favicon-32x32.png 32w, ${BASE_URL}icons/favicon-96x96.png 96w, ${BASE_URL}icons/favicon-128x128.png 128w`"
+            sizes="64px"
+            width="64px"
+            height="64px"
+            loading="eager"
+            no-spinner
+            aria-hidden="true"
           />
           <p class="text-h2">{{ $t("splash.title") }}</p>
         </div>
