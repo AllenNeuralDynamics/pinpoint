@@ -23,7 +23,7 @@ import type { SceneModel } from "../models/scene-model.model";
 import type { TransformGizmos } from "../models/gizmo.model";
 import {
   buildCollisionBody,
-  buildHullMesh,
+  buildColliderMesh,
   disposeCollisionBody
 } from "./collision.api";
 import {
@@ -283,7 +283,7 @@ function buildProbeBodyModelCollisionBody(
   shankMesh: Mesh,
   bodyModelMeshes: Mesh[]
 ): void {
-  const hull = buildHullMesh(
+  const hull = buildColliderMesh(
     scene,
     probeNode,
     buildSceneEntityName(probeId, "probe", "body-model_hull"),
@@ -291,10 +291,12 @@ function buildProbeBodyModelCollisionBody(
     Vector3.One()
   );
   try {
-    buildCollisionBody(probeNode, probeId, "probe", () => [
-      { shape: new PhysicsShapeConvexHull(hull, scene), mesh: hull },
-      { shape: PhysicsShapeBox.FromMesh(shankMesh), mesh: shankMesh }
-    ]);
+    buildCollisionBody(probeNode, probeId, "probe", () => ({
+      children: [
+        { shape: new PhysicsShapeConvexHull(hull, scene), mesh: hull },
+        { shape: PhysicsShapeBox.FromMesh(shankMesh), mesh: shankMesh }
+      ]
+    }));
   } finally {
     hull.dispose();
   }

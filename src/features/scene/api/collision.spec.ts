@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { HighlightLayer, Vector3 } from "@babylonjs/core";
+import { HighlightLayer, MeshBuilder, Vector3 } from "@babylonjs/core";
 import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
 import type { Experiment } from "@/features/experiment";
 import {
@@ -409,6 +409,56 @@ describe("scene entity collision bodies", () => {
     for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
 
     const [expectedFirst, expectedSecond] = [probe.id, sceneObject.id].sort();
+    expect(changes).toEqual([
+      { kind: "entered", entityIds: [expectedFirst, expectedSecond] }
+    ]);
+    scene.dispose();
+  });
+
+  it("reports no collision for a body inside a scene object's concavity, and an entered change once it touches the surface", async () => {
+    const { scene, gizmoManager, havokPlugin } =
+      await makeTestSceneWithPhysics();
+
+    const torusObject = makeSceneObject();
+    const torusModelFile = await makeTestModelFile("torus.glb", s => {
+      MeshBuilder.CreateTorus(
+        "torus",
+        { diameter: 4, thickness: 1, tessellation: 24 },
+        s
+      );
+    });
+    const torusNode = (await buildSceneObjectNode(
+      scene,
+      torusObject,
+      torusModelFile,
+      gizmoManager
+    ))!.node;
+    torusNode.position = Vector3.Zero();
+
+    const boxObject = makeSceneObject();
+    const boxModelFile = await makeTestModelFile();
+    const boxNode = (await buildSceneObjectNode(
+      scene,
+      boxObject,
+      boxModelFile,
+      gizmoManager
+    ))!.node;
+
+    const state = createCollisionState();
+    const changes: CollisionChange[] = [];
+    trackCollisions(havokPlugin, state, change => changes.push(change));
+
+    boxNode.position = Vector3.Zero();
+    for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
+    expect(changes).toEqual([]);
+    expect(state.pairCounts.size).toBe(0);
+
+    boxNode.position = new Vector3(2, 0, 0);
+    for (let step = 0; step < 5; step++) stepPhysics(scene, 1 / 60);
+    const [expectedFirst, expectedSecond] = [
+      torusObject.id,
+      boxObject.id
+    ].sort();
     expect(changes).toEqual([
       { kind: "entered", entityIds: [expectedFirst, expectedSecond] }
     ]);

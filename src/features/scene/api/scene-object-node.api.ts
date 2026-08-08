@@ -17,7 +17,7 @@ import {
   Color3,
   ImportMeshAsync,
   Mesh,
-  PhysicsShapeConvexHull,
+  PhysicsShapeMesh,
   StandardMaterial,
   TransformNode
 } from "@babylonjs/core";
@@ -27,7 +27,7 @@ import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import {
   buildCollisionBody,
-  buildHullMesh,
+  buildColliderMesh,
   disposeCollisionBody
 } from "./collision.api";
 import {
@@ -134,12 +134,12 @@ export interface SceneObjectBuild {
 }
 
 /**
- * Cook the object's single convex-hull trigger collider from its parts.
+ * Cook the object's single triangle-mesh trigger collider from its parts.
  * @param scene Scene the object was built in.
  * @param node Object transform node to parent the collider to.
  * @param sceneObjectId Scene object id the collider belongs to.
- * @param meshes Part meshes to enclose.
- * @param scaling Scale to cook the hull at.
+ * @param meshes Part meshes to cook.
+ * @param scaling Scale to cook the collider at.
  */
 function buildSceneObjectCollider(
   scene: Scene,
@@ -148,26 +148,33 @@ function buildSceneObjectCollider(
   meshes: Mesh[],
   scaling: Vector3
 ): void {
-  const hull = buildHullMesh(
+  const colliderMesh = buildColliderMesh(
     scene,
     node,
-    buildSceneEntityName(sceneObjectId, "object", "hull"),
+    buildSceneEntityName(sceneObjectId, "object", "collider-mesh"),
     meshes,
     scaling
   );
   try {
-    buildCollisionBody(node, sceneObjectId, "object", () => [
-      { shape: new PhysicsShapeConvexHull(hull, scene), mesh: hull }
-    ]);
+    buildCollisionBody(node, sceneObjectId, "object", () => {
+      // Havok cooks a triangle-less mesh into a shape that silently never
+      // collides; fail instead so the caller reports it to the user.
+      if (colliderMesh.getTotalIndices() === 0) {
+        throw new Error(
+          "Scene object model has no triangles to cook a collider from."
+        );
+      }
+      return { root: new PhysicsShapeMesh(colliderMesh, scene) };
+    });
   } finally {
-    hull.dispose();
+    colliderMesh.dispose();
   }
 }
 
 /**
  * Build a scene object's visuals from its stored model file, or return its
- * existing transform node if already built. The collider is a convex hull
- * around its parts, or none when the object's `collidable` is off.
+ * existing transform node if already built. The collider is a triangle mesh
+ * matching its parts, or none when the object's `collidable` is off.
  * @param scene Scene to build the object in.
  * @param sceneObject Scene object to build.
  * @param modelFile Model file to import the object's geometry from, exactly as the user picked it.
@@ -224,10 +231,10 @@ export async function buildSceneObjectNode(
   for (const loaded of loadedMaterials) loaded.dispose(false, true);
 
   // No physics engine on the scene, or `collidable` turned off, keeps this
-  // feature additive: the hull is never cooked, so it never throws, and
-  // `colliderFailed` stays false. Some topologies (e.g. degenerate geometry)
-  // can't be cooked into a Havok hull; the object still gets placed, without
-  // a collider.
+  // feature additive: the collider is never cooked, so it never throws, and
+  // `colliderFailed` stays false. Some topologies can't be cooked into a
+  // Havok collision shape (e.g. a model with no triangles); the object
+  // still gets placed, without a collider.
   let colliderFailed = false;
   if (sceneObject.collidable) {
     try {
@@ -397,7 +404,7 @@ export async function syncSceneObjects(
     }
 
     // Skip pose and collider updates for the object being dragged: a
-    // scale-gizmo drag must not re-cook the hull every frame. Once
+    // scale-gizmo drag must not re-cook the collider every frame. Once
     // `endSceneObjectDrag` clears `draggedSceneObjectId`, this watcher
     // re-runs and the collider re-cooks once at the released scale.
     if (sceneObject.id === draggedSceneObjectId) continue;

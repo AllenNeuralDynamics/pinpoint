@@ -37,7 +37,15 @@ export interface CollisionChange {
   entityIds: [string, string];
 }
 
-/** Child shapes of an entity's container shape, kept for disposal. */
+/**
+ * Shapes for an entity's collision body: one root shape already expressed in the entity node's
+ * frame, or child shapes to compound at each one's local transform.
+ */
+export type CollisionShapes =
+  | { root: PhysicsShape }
+  | { children: { shape: PhysicsShape; mesh: Mesh }[] };
+
+/** Child shapes of an entity's container shape, kept for disposal. Empty when the body's shape is a single root shape. */
 interface ColliderMetadata {
   shapes: PhysicsShape[];
 }
@@ -56,7 +64,7 @@ export function buildCollisionBody(
   entityTransformNode: TransformNode,
   entityId: string,
   kind: SceneEntityKind,
-  buildShapes: () => { shape: PhysicsShape; mesh: Mesh }[]
+  buildShapes: () => CollisionShapes
 ): PhysicsBody | null {
   const scene = entityTransformNode.getScene();
   if (!scene.getPhysicsEngine()) return null;
@@ -67,21 +75,32 @@ export function buildCollisionBody(
   );
   colliderNode.parent = entityTransformNode;
 
-  const shapes = buildShapes();
-  const container = new PhysicsShapeContainer(scene);
-  for (const { shape, mesh } of shapes) {
-    shape.isTrigger = true;
-    container.addChild(
-      shape,
-      mesh.position,
-      mesh.rotationQuaternion ?? Quaternion.FromEulerVector(mesh.rotation),
-      mesh.scaling
-    );
+  const built = buildShapes();
+  let shape: PhysicsShape;
+  let childShapes: PhysicsShape[];
+  if ("root" in built) {
+    // A Havok triangle-mesh shape must be the body's own shape: as a
+    // `PhysicsShapeContainer` child it makes `HP_World_Step` loop forever the
+    // moment another body overlaps it, hanging the whole app unrecoverably.
+    built.root.isTrigger = true;
+    shape = built.root;
+    childShapes = [];
+  } else {
+    const container = new PhysicsShapeContainer(scene);
+    for (const { shape: child, mesh } of built.children) {
+      child.isTrigger = true;
+      container.addChild(
+        child,
+        mesh.position,
+        mesh.rotationQuaternion ?? Quaternion.FromEulerVector(mesh.rotation),
+        mesh.scaling
+      );
+    }
+    shape = container;
+    childShapes = built.children.map(({ shape: child }) => child);
   }
 
-  const metadata: ColliderMetadata = {
-    shapes: shapes.map(({ shape }) => shape)
-  };
+  const metadata: ColliderMetadata = { shapes: childShapes };
   colliderNode.metadata = metadata;
 
   const body = new PhysicsBody(
@@ -90,7 +109,7 @@ export function buildCollisionBody(
     false,
     scene
   );
-  body.shape = container;
+  body.shape = shape;
   // Entities move by gizmo drag and direct position setting, so the body must read its node's
   // transform every step; Babylon defaults this off.
   body.disablePreStep = false;
@@ -101,15 +120,15 @@ export function buildCollisionBody(
 }
 
 /**
- * Build one mesh holding every given mesh's vertices in a node's frame at the
- * given scale, for cooking a single convex hull. Caller disposes it.
+ * Build one mesh holding every given mesh's vertices and triangles in a node's frame at the
+ * given scale, for cooking a single collision shape. Caller disposes it.
  * @param scene Scene to build the mesh in.
  * @param node Node the positions are expressed relative to.
- * @param name Name for the hull mesh.
- * @param meshes Meshes whose vertices to collect.
+ * @param name Name for the collider mesh.
+ * @param meshes Meshes whose geometry to collect.
  * @param scaling Scale to bake into the positions.
  */
-export function buildHullMesh(
+export function buildColliderMesh(
   scene: Scene,
   node: TransformNode,
   name: string,
@@ -120,29 +139,35 @@ export function buildHullMesh(
   const scale = Matrix.Scaling(scaling.x, scaling.y, scaling.z);
 
   const positions: number[] = [];
+  const indices: number[] = [];
   const transformed = new Vector3();
   for (const mesh of meshes) {
-    const toHull = mesh
+    const toCollider = mesh
       .computeWorldMatrix(true)
       .multiply(worldToNode)
       .multiply(scale);
     const meshPositions = mesh.getVerticesData(VertexBuffer.PositionKind);
     if (!meshPositions) continue;
+    const vertexOffset = positions.length / 3;
     for (let i = 0; i < meshPositions.length; i += 3) {
       Vector3.TransformCoordinatesFromFloatsToRef(
         meshPositions[i]!,
         meshPositions[i + 1]!,
         meshPositions[i + 2]!,
-        toHull,
+        toCollider,
         transformed
       );
       positions.push(transformed.x, transformed.y, transformed.z);
     }
+    for (const index of mesh.getIndices() ?? []) {
+      indices.push(index + vertexOffset);
+    }
   }
 
-  const hull = new Mesh(name, scene);
-  hull.setVerticesData(VertexBuffer.PositionKind, positions);
-  return hull;
+  const collider = new Mesh(name, scene);
+  collider.setVerticesData(VertexBuffer.PositionKind, positions);
+  collider.setIndices(indices);
+  return collider;
 }
 
 /**

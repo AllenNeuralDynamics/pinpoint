@@ -552,7 +552,7 @@ async function syncSceneObjectsFromState() {
   }
 
   // Havok emits no TRIGGER_EXITED when a body is disposed while overlapping
-  // (e.g. `collidable` turned off, or a scale change re-cooked the hull), so
+  // (e.g. `collidable` turned off, or a scale change re-cooked the collider), so
   // force-drop any stale pair for these ids rather than leaving them
   // permanently highlighted/notified as colliding. Unlike a rebuilt probe -
   // whose old, highlighted mesh is disposed along with its collider - a

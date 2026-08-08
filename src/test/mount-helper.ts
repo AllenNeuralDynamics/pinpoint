@@ -53,14 +53,19 @@ export function makeTestScene(): Scene {
 }
 
 /**
- * Build a `.glb` model file for a 1 mm box, for tests that import a real
- * model without touching the network.
- * @param fileName Name the file is given, which decides its loader.
+ * Build a `File` holding a GLB of the given geometry, for tests that import a scene model.
+ * @param fileName Name the returned file carries.
+ * @param buildGeometry Builds the geometry to export; defaults to a unit box.
  */
-export async function makeTestModelFile(fileName = "box.glb"): Promise<File> {
+export async function makeTestModelFile(
+  fileName = "box.glb",
+  buildGeometry: (scene: Scene) => void = scene => {
+    MeshBuilder.CreateBox("box", { size: 1 }, scene);
+  }
+): Promise<File> {
   const scene = makeTestScene();
   try {
-    MeshBuilder.CreateBox("box", { size: 1 }, scene);
+    buildGeometry(scene);
     const data = await GLTF2Export.GLBAsync(scene, "box.glb", {
       exportWithoutWaitingForScene: true
     });

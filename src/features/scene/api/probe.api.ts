@@ -192,9 +192,13 @@ export function buildProbe(
     rodMesh.position.x += alignmentOffsetMillimeters;
 
     // Ignore the return value: no physics engine on the scene keeps this feature additive.
-    buildCollisionBody(node, probe.id, "probe", () =>
-      buildProbeCollisionShapes(scene, [rodMesh, headStageMesh], shankMesh)
-    );
+    buildCollisionBody(node, probe.id, "probe", () => ({
+      children: buildProbeCollisionShapes(
+        scene,
+        [rodMesh, headStageMesh],
+        shankMesh
+      )
+    }));
     gizmoManager.attachableMeshes.push(headStageMesh, rodMesh);
   }
 
