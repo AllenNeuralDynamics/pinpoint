@@ -16,6 +16,7 @@ import {
   internProbeInterfaceProbe
 } from "@/features/experiment";
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
+import { WORLD_INSPECTABLE } from "@/features/scene";
 import {
   makeAtlas,
   makeProbe,
@@ -390,6 +391,17 @@ describe("useCurrentExperimentStore", () => {
 
       expect(store.selectedInspectable).toBe(store.experiment.cameraPose);
       expect(store.selectedInspectable).not.toBe(preUndoCameraPose);
+    });
+
+    it("leaves the world selected after undo", async () => {
+      const store = useCurrentExperimentStore();
+      store.selectedInspectable = WORLD_INSPECTABLE;
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(store.selectedInspectable).toEqual(WORLD_INSPECTABLE);
     });
 
     it("clears the selection when undo removes the selected probe", async () => {

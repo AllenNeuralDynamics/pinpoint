@@ -3,6 +3,7 @@ import {
   isSameInspectable,
   moveInspectableToMillimeters
 } from "./inspectable.api";
+import { WORLD_INSPECTABLE } from "../models/inspectable.model";
 import { makeCameraPose, makeProbe, makeSceneObject } from "@/test/fixtures";
 
 describe("isSameInspectable", () => {
@@ -40,6 +41,14 @@ describe("isSameInspectable", () => {
     const probe = makeProbe();
 
     expect(isSameInspectable(makeCameraPose(), probe)).toBe(false);
+  });
+
+  it("returns true for two world inspectables", () => {
+    expect(isSameInspectable(WORLD_INSPECTABLE, WORLD_INSPECTABLE)).toBe(true);
+  });
+
+  it("returns false for the world and a probe", () => {
+    expect(isSameInspectable(WORLD_INSPECTABLE, makeProbe())).toBe(false);
   });
 });
 
@@ -81,5 +90,15 @@ describe("moveInspectableToMillimeters", () => {
     expect(cameraPose.alpha).toBe(1);
     expect(cameraPose.beta).toBe(2);
     expect(cameraPose.radius).toBe(3);
+  });
+
+  it("leaves the world unchanged", () => {
+    moveInspectableToMillimeters(
+      WORLD_INSPECTABLE,
+      atlasMillimeters,
+      referenceCoordinate
+    );
+
+    expect(WORLD_INSPECTABLE).toEqual({ inspectableKind: "world" });
   });
 });

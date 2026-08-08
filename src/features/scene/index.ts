@@ -12,6 +12,7 @@ export { useBabylonRuntimeService } from "./composable/useBabylonRuntimeService"
 export { useModelFileImport } from "./composable/useModelFileImport";
 export { STANDARD_COLORS } from "./models/standard-colors.model";
 export type { Inspectable, InspectableKind } from "./models/inspectable.model";
+export { WORLD_INSPECTABLE } from "./models/inspectable.model";
 export type {
   GizmoCoordinateSpace,
   GizmoMode,

@@ -110,7 +110,7 @@ const hasStructureChanges = computed(
  */
 const canMoveToRegion = computed(() => {
   const selected = currentExperiment.selectedInspectable;
-  if (!selected) return false;
+  if (!selected || selected.inspectableKind === "world") return false;
   return selected.inspectableKind === "camera" || !selected.lock;
 });
 

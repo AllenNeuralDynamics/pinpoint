@@ -1,13 +1,28 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ComponentMountingOptions, VueWrapper } from "@vue/test-utils";
 import PreferencesDialog from "./PreferencesDialog.vue";
 import {
   createWrapperRegistry,
   mountDialogWithQuasar
 } from "@/test/mount-helper";
+import { getTerminologyRows } from "@/features/atlas";
 import enUS from "@/i18n/en-US";
 
 const t = enUS.preferences;
+
+// `useCurrentExperimentStore`'s `terminologyRows` is a `computedAsync` and
+// fetches on store creation -- mock the leaf module (not the
+// `@/features/atlas` barrel) or mounting the scene tab triggers real network
+// calls.
+vi.mock("@/features/atlas/api/source.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/features/atlas/api/source.api")
+  >("@/features/atlas/api/source.api");
+  return {
+    ...actual,
+    getTerminologyRows: vi.fn()
+  };
+});
 
 type DialogWrapper = VueWrapper<
   InstanceType<typeof PreferencesDialog> & { show(): void }
@@ -24,6 +39,10 @@ async function mountDialog(
 }
 
 describe("PreferencesDialog", () => {
+  beforeEach(() => {
+    vi.mocked(getTerminologyRows).mockResolvedValue([]);
+  });
+
   afterEach(() => {
     wrappers.unmountAll();
   });
@@ -123,14 +142,14 @@ describe("PreferencesDialog", () => {
     expect(wrapper.emitted("ok")).toEqual([[undefined]]);
   });
 
-  it("emits ok with world-editor when Open Editor is clicked", async () => {
+  it("emits ok when the scene panel's Edit in Inspector button is clicked", async () => {
     const wrapper = await mountDialog({ props: { tab: "scene" } });
 
     await wrapper
       .findAllComponents({ name: "QBtn" })
-      .find(button => button.text() === t.openEditor)!
+      .find(button => button.text() === t.editInInspector)!
       .trigger("click");
 
-    expect(wrapper.emitted("ok")).toEqual([["world-editor"]]);
+    expect(wrapper.emitted("ok")).toEqual([[undefined]]);
   });
 });

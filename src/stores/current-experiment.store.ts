@@ -210,6 +210,9 @@ export const useCurrentExperimentStore = defineStore(
       const selected = selectedInspectable.value;
       if (!selected) return;
 
+      // The world lives outside the experiment, so history never invalidates it.
+      if (selected.inspectableKind === "world") return;
+
       if (selected.inspectableKind === "camera") {
         selectedInspectable.value = experiment.value.cameraPose;
         return;

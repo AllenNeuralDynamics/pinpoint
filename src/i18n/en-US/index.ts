@@ -253,6 +253,15 @@ export default {
     dragToReorder: "Drag to reorder",
     noPoses: "No saved camera poses yet."
   },
+  worldInspector: {
+    backgroundColor: "Background Color",
+    lightPower: "Light Power",
+    specularIntensity: "Specular Intensity",
+    specularPower: "Glossiness",
+    ambientOcclusion: "Ambient Occlusion",
+    hideStructureInteriors: "Hide Interior Surfaces",
+    backToPreferences: "Back to Preferences"
+  },
   slice: {
     zoom: "Zoom",
     center: "Center along probe",
@@ -284,7 +293,6 @@ export default {
     export: "Export",
     reset: "Reset",
     close: "Close",
-    done: "Done",
 
     camera: "Camera",
     projection: "Projection",
@@ -295,13 +303,7 @@ export default {
     inertiaSmooth: "Smooth",
 
     world: "World",
-    openEditor: "Open Editor",
-    backgroundColor: "Background Color",
-    lightPower: "Light Power",
-    specularIntensity: "Specular Intensity",
-    specularPower: "Glossiness",
-    hideStructureInteriors: "Hide Interior Surfaces",
-    ambientOcclusion: "Ambient Occlusion",
+    editInInspector: "Edit World in Inspector",
 
     appearanceTitle: "Appearance",
     theme: "Theme",

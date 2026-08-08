@@ -9,9 +9,14 @@ import type { Inspectable } from "../models/inspectable.model";
  */
 export function isSameInspectable(a: Inspectable, b: Inspectable): boolean {
   if (a.inspectableKind !== b.inspectableKind) return false;
-  // The scene has exactly one camera, so any two camera inspectables match.
+  // The scene has exactly one camera and one world, so any two of either match.
   // Checking both narrows `a` and `b` to `Probe | SceneObject` below.
-  if (a.inspectableKind === "camera" || b.inspectableKind === "camera") {
+  if (
+    a.inspectableKind === "camera" ||
+    a.inspectableKind === "world" ||
+    b.inspectableKind === "camera" ||
+    b.inspectableKind === "world"
+  ) {
     return true;
   }
   return a.id === b.id;
@@ -20,6 +25,7 @@ export function isSameInspectable(a: Inspectable, b: Inspectable): boolean {
 /**
  * Move an inspectable onto a point in atlas ASR mm: a probe's tip, a scene
  * object's origin, or the camera's orbit target with its orbit left alone.
+ * The world has no position, so it is left alone too.
  * @param inspectable Inspectable to move, mutated in place.
  * @param atlasMillimeters Destination, in atlas ASR mm.
  * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
@@ -29,6 +35,9 @@ export function moveInspectableToMillimeters(
   atlasMillimeters: [number, number, number],
   referenceCoordinate: [number, number, number]
 ): void {
+  // The world has no position to move.
+  if (inspectable.inspectableKind === "world") return;
+
   if (inspectable.inspectableKind === "camera") {
     setCameraPose(
       inspectable,

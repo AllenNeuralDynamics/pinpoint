@@ -38,6 +38,7 @@ export function selectFromSelectedInspectableState(
   switch (selectedInspectable?.inspectableKind) {
     case undefined:
     case "camera":
+    case "world":
       gizmoManager.attachToNode(null);
       return;
     case "probe": {

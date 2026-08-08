@@ -1,7 +1,17 @@
 <script lang="ts" setup>
 import CameraPreferences from "./CameraPreferences.vue";
+import { WORLD_INSPECTABLE } from "@/features/scene";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 
-const emit = defineEmits<{ openWorldEditor: [] }>();
+const emit = defineEmits<{ inspectWorld: [] }>();
+
+const currentExperiment = useCurrentExperimentStore();
+
+/** Select the world in the inspector and ask the host dialog to close. */
+function inspectWorld(): void {
+  currentExperiment.selectedInspectable = WORLD_INSPECTABLE;
+  emit("inspectWorld");
+}
 </script>
 
 <template>
@@ -13,8 +23,8 @@ const emit = defineEmits<{ openWorldEditor: [] }>();
       <q-btn
         class="q-mt-sm"
         color="primary"
-        :label="$t('preferences.openEditor')"
-        @click="emit('openWorldEditor')"
+        :label="$t('preferences.editInInspector')"
+        @click="inspectWorld"
       />
     </div>
   </div>

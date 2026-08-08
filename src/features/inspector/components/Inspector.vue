@@ -4,6 +4,7 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import ProbeInspector from "./ProbeInspector.vue";
 import CameraInspector from "./CameraInspector.vue";
 import SceneObjectInspector from "./SceneObjectInspector.vue";
+import WorldInspector from "./WorldInspector.vue";
 
 const currentExperiment = useCurrentExperimentStore();
 
@@ -25,6 +26,11 @@ const selectedSceneObject = computed(() =>
 const isCameraSelected = computed(
   () => currentExperiment.selectedInspectable?.inspectableKind === "camera"
 );
+
+/** Is the world the current selection. */
+const isWorldSelected = computed(
+  () => currentExperiment.selectedInspectable?.inspectableKind === "world"
+);
 </script>
 
 <template>
@@ -34,6 +40,7 @@ const isCameraSelected = computed(
     :scene-object="selectedSceneObject"
   />
   <CameraInspector v-else-if="isCameraSelected" />
+  <WorldInspector v-else-if="isWorldSelected" />
   <div v-else class="full-height column">
     <div class="col flex flex-center">
       <p class="text-weight-light">

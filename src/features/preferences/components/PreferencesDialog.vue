@@ -5,15 +5,11 @@ import ScenePreferences from "./ScenePreferences.vue";
 import ProbePreferences from "./ProbePreferences.vue";
 import ExportPreferences from "./ExportPreferences.vue";
 import ResetPreferences from "./ResetPreferences.vue";
-import type {
-  PreferencesDialogResult,
-  PreferencesTab
-} from "../models/preferences-dialog.model";
+import type { PreferencesTab } from "../models/preferences-dialog.model";
 
 defineEmits([...useDialogPluginComponent.emits]);
 const tab = defineModel<PreferencesTab>("tab", { default: "general" });
-const { dialogRef, onDialogHide, onDialogOK } =
-  useDialogPluginComponent<PreferencesDialogResult>();
+const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 </script>
 
 <template>
@@ -34,7 +30,7 @@ const { dialogRef, onDialogHide, onDialogOK } =
         <q-tab-panels v-model="tab" animated class="col preferences__panels">
           <q-tab-panel name="general"><GeneralPreferences /></q-tab-panel>
           <q-tab-panel name="scene">
-            <ScenePreferences @open-world-editor="onDialogOK('world-editor')" />
+            <ScenePreferences @inspect-world="onDialogOK()" />
           </q-tab-panel>
           <q-tab-panel name="probe"><ProbePreferences /></q-tab-panel>
           <q-tab-panel name="export"><ExportPreferences /></q-tab-panel>
