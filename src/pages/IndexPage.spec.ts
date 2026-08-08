@@ -1,14 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
+import { type VueWrapper } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import IndexPage from "./IndexPage.vue";
-import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
+import {
+  createWrapperRegistry,
+  flushMicrotasks,
+  mountWithQuasar
+} from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { makeProbe, makeSceneModel, makeSceneObject } from "@/test/fixtures";
-import { pruneSceneModels } from "@/features/scene";
+import { pruneSceneModels, SceneHierarchy } from "@/features/scene";
 import { SplashDialog } from "@/features/splash";
+import { ChannelMaps } from "@/features/slice";
 
 // The splash dialog opens in `onMounted`, before a mounted wrapper's
 // `$q.dialog` can be stubbed. Replace Quasar's `Dialog` plugin instead --
@@ -48,6 +54,7 @@ vi.mock("@/features/scene/api/scene-model.api", () => ({
 }));
 
 const wrappers = createWrapperRegistry();
+const menuBarWrappers = createWrapperRegistry<VueWrapper>();
 
 /**
  * Dispatch a physical Ctrl/Cmd+Z keydown on the given target, or `window` by
@@ -166,5 +173,90 @@ describe("IndexPage", () => {
         recentProbe.bodyModel!.id
       ])
     );
+  });
+});
+
+describe("IndexPage menu bar", () => {
+  /** Mount `IndexPage` with its heavy feature panels stubbed out. */
+  function mountIndexPage() {
+    return menuBarWrappers.track(
+      mountWithQuasar(IndexPage, {
+        attachTo: document.body,
+        global: {
+          stubs: {
+            SceneCanvas: true,
+            SceneHierarchy: true,
+            Inspector: true,
+            AtlasHierarchy: true,
+            ChannelMaps: true
+          }
+        }
+      })
+    );
+  }
+
+  /** Find a top-level toolbar button by its exact visible label. */
+  function toolbarButton(
+    wrapper: VueWrapper,
+    label: string
+  ): HTMLButtonElement {
+    const toolbar = wrapper.get(".q-toolbar").element;
+    return [...toolbar.querySelectorAll("button")].find(
+      button => button.textContent?.trim() === label
+    ) as HTMLButtonElement;
+  }
+
+  /** Dispatch a bubbling `mouseenter` on an element. */
+  function hover(element: HTMLElement) {
+    element.dispatchEvent(new MouseEvent("mouseenter", { bubbles: true }));
+  }
+
+  afterEach(() => {
+    menuBarWrappers.unmountAll();
+  });
+
+  it("shows the Scene panel by default", () => {
+    const wrapper = mountIndexPage();
+
+    expect(wrapper.findComponent(SceneHierarchy).exists()).toBe(true);
+    expect(wrapper.findComponent(ChannelMaps).exists()).toBe(false);
+  });
+
+  it("switches to the Edit menu when hovering it while the File menu is open", async () => {
+    const wrapper = mountIndexPage();
+
+    toolbarButton(wrapper, "File").click();
+    await flushMicrotasks();
+    expect(document.body.textContent).toContain("Open Recent");
+
+    hover(toolbarButton(wrapper, "Edit"));
+    await flushMicrotasks();
+
+    expect(document.body.textContent).not.toContain("Open Recent");
+    expect(document.body.textContent).toContain("Undo");
+  });
+
+  it("switches back to the File menu when hovering it while the Edit menu is open", async () => {
+    const wrapper = mountIndexPage();
+
+    toolbarButton(wrapper, "File").click();
+    await flushMicrotasks();
+    hover(toolbarButton(wrapper, "Edit"));
+    await flushMicrotasks();
+
+    hover(toolbarButton(wrapper, "File"));
+    await flushMicrotasks();
+
+    expect(document.body.textContent).toContain("Open Recent");
+    expect(document.body.textContent).not.toContain("Undo");
+  });
+
+  it("does not open a menu on hover while no menu is open", async () => {
+    const wrapper = mountIndexPage();
+
+    hover(toolbarButton(wrapper, "Edit"));
+    await flushMicrotasks();
+
+    expect(document.body.textContent).not.toContain("Undo");
   });
 });

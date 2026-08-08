@@ -147,6 +147,7 @@ const lockLabel = computed(() =>
     <CommittedInput
       v-model="name"
       :label="t('sceneObjectInspector.name')"
+      hide-bottom-space
       outlined
       :rules="nameRules"
     />
@@ -159,6 +160,7 @@ const lockLabel = computed(() =>
         :rules="numberRules"
         :suffix="positionSuffix"
         class="col"
+        hide-bottom-space
         outlined
       />
       <CommittedInput
@@ -168,6 +170,7 @@ const lockLabel = computed(() =>
         :rules="numberRules"
         :suffix="positionSuffix"
         class="col"
+        hide-bottom-space
         outlined
       />
       <CommittedInput
@@ -177,6 +180,7 @@ const lockLabel = computed(() =>
         :rules="numberRules"
         :suffix="positionSuffix"
         class="col"
+        hide-bottom-space
         outlined
       />
     </div>
@@ -189,6 +193,7 @@ const lockLabel = computed(() =>
         :rules="numberRules"
         :suffix="rotationSuffix"
         class="col"
+        hide-bottom-space
         outlined
       />
       <CommittedInput
@@ -198,6 +203,7 @@ const lockLabel = computed(() =>
         :rules="numberRules"
         :suffix="rotationSuffix"
         class="col"
+        hide-bottom-space
         outlined
       />
       <CommittedInput
@@ -207,6 +213,7 @@ const lockLabel = computed(() =>
         :rules="numberRules"
         :suffix="rotationSuffix"
         class="col"
+        hide-bottom-space
         outlined
       />
     </div>
@@ -219,6 +226,7 @@ const lockLabel = computed(() =>
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
+        hide-bottom-space
         outlined
       />
       <CommittedInput
@@ -228,6 +236,7 @@ const lockLabel = computed(() =>
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
+        hide-bottom-space
         outlined
       />
       <CommittedInput
@@ -237,6 +246,7 @@ const lockLabel = computed(() =>
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
+        hide-bottom-space
         outlined
       />
     </div>

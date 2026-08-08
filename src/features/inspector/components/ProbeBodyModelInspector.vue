@@ -128,123 +128,117 @@ function toggleGizmo() {
 </script>
 
 <template>
-  <div class="column probe-body-model">
-    <q-btn
-      :aria-label="gizmoButtonLabel"
-      :color="isGizmoAttached ? 'primary' : undefined"
-      :disable="disable"
-      icon="sym_o_drag_pan"
-      :label="gizmoButtonLabel"
-      @click="toggleGizmo"
-    />
-    <div class="row q-gutter-x-sm">
-      <CommittedInput
-        v-model="positionX"
-        class="col"
+  <!-- Plain wrapper: the parent inspector section is itself a `q-gutter-y-md`
+       container, and its `> *` rule would override this column's negative top
+       margin, doubling the gap above the first row. -->
+  <div>
+    <div class="column no-wrap q-gutter-y-md">
+      <q-btn
+        :aria-label="gizmoButtonLabel"
+        :color="isGizmoAttached ? 'primary' : undefined"
         :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelPosition', { axis: t('axis.x') })"
-        outlined
-        :rules="numberRules"
-        :suffix="positionSuffix"
+        icon="sym_o_drag_pan"
+        :label="gizmoButtonLabel"
+        @click="toggleGizmo"
       />
-      <CommittedInput
-        v-model="positionY"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelPosition', { axis: t('axis.y') })"
-        outlined
-        :rules="numberRules"
-        :suffix="positionSuffix"
-      />
-      <CommittedInput
-        v-model="positionZ"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelPosition', { axis: t('axis.z') })"
-        outlined
-        :rules="numberRules"
-        :suffix="positionSuffix"
-      />
-    </div>
+      <div class="row q-gutter-x-sm">
+        <CommittedInput
+          v-model="positionX"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelPosition', { axis: t('axis.x') })"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+        <CommittedInput
+          v-model="positionY"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelPosition', { axis: t('axis.y') })"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+        <CommittedInput
+          v-model="positionZ"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelPosition', { axis: t('axis.z') })"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+      </div>
 
-    <div class="row q-gutter-x-sm">
-      <CommittedInput
-        v-model="rotationX"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelRotation', { axis: t('axis.x') })"
-        outlined
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-      />
-      <CommittedInput
-        v-model="rotationY"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelRotation', { axis: t('axis.y') })"
-        outlined
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-      />
-      <CommittedInput
-        v-model="rotationZ"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelRotation', { axis: t('axis.z') })"
-        outlined
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-      />
-    </div>
+      <div class="row q-gutter-x-sm">
+        <CommittedInput
+          v-model="rotationX"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelRotation', { axis: t('axis.x') })"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+        <CommittedInput
+          v-model="rotationY"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelRotation', { axis: t('axis.y') })"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+        <CommittedInput
+          v-model="rotationZ"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelRotation', { axis: t('axis.z') })"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+      </div>
 
-    <div class="row q-gutter-x-sm">
-      <CommittedInput
-        v-model="scaleX"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelScale', { axis: t('axis.x') })"
-        outlined
-        :rules="scaleRules"
-        :suffix="t('probeInspector.scaleSuffix')"
-      />
-      <CommittedInput
-        v-model="scaleY"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelScale', { axis: t('axis.y') })"
-        outlined
-        :rules="scaleRules"
-        :suffix="t('probeInspector.scaleSuffix')"
-      />
-      <CommittedInput
-        v-model="scaleZ"
-        class="col"
-        :disable="disable"
-        hide-bottom-space
-        :label="t('probeInspector.bodyModelScale', { axis: t('axis.z') })"
-        outlined
-        :rules="scaleRules"
-        :suffix="t('probeInspector.scaleSuffix')"
-      />
+      <div class="row q-gutter-x-sm">
+        <CommittedInput
+          v-model="scaleX"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelScale', { axis: t('axis.x') })"
+          outlined
+          :rules="scaleRules"
+          :suffix="t('probeInspector.scaleSuffix')"
+        />
+        <CommittedInput
+          v-model="scaleY"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelScale', { axis: t('axis.y') })"
+          outlined
+          :rules="scaleRules"
+          :suffix="t('probeInspector.scaleSuffix')"
+        />
+        <CommittedInput
+          v-model="scaleZ"
+          class="col"
+          :disable="disable"
+          hide-bottom-space
+          :label="t('probeInspector.bodyModelScale', { axis: t('axis.z') })"
+          outlined
+          :rules="scaleRules"
+          :suffix="t('probeInspector.scaleSuffix')"
+        />
+      </div>
     </div>
   </div>
 </template>
-
-<style lang="sass" scoped>
-// `gap`, not `q-gutter-y-md`: the gutter class's negative top margin cancels
-// the parent inspector section's child spacing. `flex-wrap: nowrap` overrides
-// Quasar's `.column` utility default of `wrap`, which otherwise miscomputes
-// this auto-height column's height when combined with `gap` (see
-// ProbeInspector.vue's `&__section` for the same fix and full rationale).
-.probe-body-model
-  flex-wrap: nowrap
-  gap: 16px
-</style>

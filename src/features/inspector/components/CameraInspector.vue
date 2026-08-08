@@ -140,6 +140,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="alpha"
           class="col"
+          hide-bottom-space
           :label="t('cameraInspector.alpha')"
           outlined
           :rules="numberRules"
@@ -148,6 +149,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="beta"
           class="col"
+          hide-bottom-space
           :label="t('cameraInspector.beta')"
           outlined
           :rules="numberRules"
@@ -156,6 +158,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="radius"
           class="col"
+          hide-bottom-space
           :label="t('cameraInspector.radius')"
           outlined
           :rules="numberRules"
@@ -169,6 +172,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="targetAp"
           class="col"
+          hide-bottom-space
           :label="t('axis.ap')"
           outlined
           :rules="numberRules"
@@ -177,6 +181,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="targetDv"
           class="col"
+          hide-bottom-space
           :label="t('axis.dv')"
           outlined
           :rules="numberRules"
@@ -185,6 +190,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="targetMl"
           class="col"
+          hide-bottom-space
           :label="t('axis.ml')"
           outlined
           :rules="numberRules"
@@ -197,6 +203,7 @@ function applyPose(savedPose: CameraPose): void {
     <CommittedInput
       v-model="name"
       :label="t('cameraInspector.poseName')"
+      hide-bottom-space
       outlined
       :rules="nameRules"
     />

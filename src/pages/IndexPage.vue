@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, type Ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, type Ref } from "vue";
 import { onKeyStroke } from "@vueuse/core";
 import {
   pruneSceneModels,
@@ -30,6 +30,8 @@ const MAXIMUM_DRAWER_WIDTH_RATIO = 0.4;
 const BASE_URL = import.meta.env.BASE_URL;
 /** Is the platform macOS, where shortcut hints use symbol glyphs instead of word labels. */
 const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+/** Top-level menu bar entries, identified by which one is currently open. */
+type MenuName = "file" | "edit";
 
 const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
@@ -41,7 +43,23 @@ const leftDrawerOpen = ref(false);
 const rightDrawerOpen = ref(false);
 const leftDrawerWidth = ref(350);
 const rightDrawerWidth = ref(350);
-const tab = ref("channel-maps");
+const tab = ref("scene");
+const openMenu = ref<MenuName | null>(null);
+
+/** Is the file menu open, as a two-way binding shared with `openMenu`. */
+const isFileMenuOpen = computed({
+  get: () => openMenu.value === "file",
+  set: (value: boolean) => {
+    openMenu.value = value ? "file" : null;
+  }
+});
+/** Is the edit menu open, as a two-way binding shared with `openMenu`. */
+const isEditMenuOpen = computed({
+  get: () => openMenu.value === "edit",
+  set: (value: boolean) => {
+    openMenu.value = value ? "edit" : null;
+  }
+});
 
 /**
  * Toggle a drawer's open state.
@@ -81,6 +99,17 @@ function toggleRightDrawer() {
 
 const resizeLeftDrawer = makeResizeDrawer(leftDrawerWidth, 1);
 const resizeRightDrawer = makeResizeDrawer(rightDrawerWidth, -1);
+
+/**
+ * Switch the open top-level menu to `name` on hover, but only while another
+ * one is already open, matching desktop menu bar behavior.
+ * @param name Menu the pointer entered.
+ */
+function handleMenuHover(name: MenuName) {
+  if (openMenu.value !== null && openMenu.value !== name) {
+    openMenu.value = name;
+  }
+}
 
 /**
  * Force minHeight and height of QPage to be the same.
@@ -161,8 +190,12 @@ onUnmounted(() => {
           currentExperimentStore.name
         }}</q-toolbar-title>
 
-        <q-btn flat :label="$t('layout.file')">
-          <q-menu auto-close>
+        <q-btn
+          flat
+          :label="$t('layout.file')"
+          @mouseenter="handleMenuHover('file')"
+        >
+          <q-menu v-model="isFileMenuOpen" auto-close>
             <q-list>
               <q-item
                 clickable
@@ -186,8 +219,12 @@ onUnmounted(() => {
           </q-menu>
         </q-btn>
 
-        <q-btn flat :label="$t('layout.edit')">
-          <q-menu auto-close>
+        <q-btn
+          flat
+          :label="$t('layout.edit')"
+          @mouseenter="handleMenuHover('edit')"
+        >
+          <q-menu v-model="isEditMenuOpen" auto-close>
             <q-list>
               <q-item
                 clickable
