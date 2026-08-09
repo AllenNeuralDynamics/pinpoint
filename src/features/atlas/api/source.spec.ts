@@ -3,7 +3,7 @@ import axios from "axios";
 import Papa from "papaparse";
 import { Color3 } from "@babylonjs/core";
 import {
-  BRAINGLOBE_BASE_URL,
+  BUCKET_SOURCE_URLS,
   getAnnotationVolumeUrl,
   getAtlas,
   getAtlasCenter,
@@ -13,7 +13,7 @@ import {
   isAtlas,
   isEqualAtlas,
   isSameAtlas,
-  listAtlases,
+  listAtlasesBucket,
   listAtlasesHTTP,
   structureEntitiesFromIdentifiers
 } from "./source.api";
@@ -32,10 +32,16 @@ vi.mock("axios");
 // directly.
 vi.mock("papaparse", () => ({ default: { parse: vi.fn() } }));
 
+const BRAINGLOBE_BASE_URL = BUCKET_SOURCE_URLS.brainglobe;
+const ALLEN_INSTITUTE_BASE_URL = BUCKET_SOURCE_URLS.allenInstitute;
+
+/** Root URL of the brainglobe-atlasapi HTTP host used across these tests. */
+const HTTP_SOURCE = "http://localhost:3000";
+
 // Throughout this file, axios.get is only ever passed to vi.mocked() to
 // retrieve its mock, never called unbound.
 
-describe("listAtlases", () => {
+describe("listAtlasesBucket", () => {
   // oxlint-disable-next-line typescript/unbound-method
   const mockedGet = vi.mocked(axios.get);
 
@@ -49,12 +55,35 @@ describe("listAtlases", () => {
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></ListBucketResult>`
     });
 
-    await listAtlases();
+    await listAtlasesBucket(BRAINGLOBE_BASE_URL);
 
     expect(mockedGet).toHaveBeenCalledWith(
       "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas-rc2%2Fatlases%2F&delimiter=%2F",
       { responseType: "text" }
     );
+  });
+
+  it("derives the listing URL from any bucket source's own origin and prefix", async () => {
+    mockedGet.mockResolvedValue({
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <CommonPrefixes><Prefix>pinpoint-atlases/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
+</ListBucketResult>`
+    });
+
+    const result = await listAtlasesBucket(ALLEN_INSTITUTE_BASE_URL);
+
+    expect(mockedGet).toHaveBeenCalledWith(
+      "https://aind-scratch-data.s3.us-west-2.amazonaws.com/?list-type=2&prefix=pinpoint-atlases%2Fatlases%2F&delimiter=%2F",
+      { responseType: "text" }
+    );
+    expect(result).toEqual([
+      {
+        name: "allen_mouse",
+        source: ALLEN_INSTITUTE_BASE_URL,
+        variantDirectories: ["allen_mouse_25um"]
+      }
+    ]);
   });
 
   it("returns one listing per atlas, with the resolution suffix removed from its name and its directory recorded", async () => {
@@ -66,7 +95,7 @@ describe("listAtlases", () => {
 </ListBucketResult>`
     });
 
-    const result = await listAtlases();
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
 
     expect(result).toEqual([
       {
@@ -93,7 +122,7 @@ describe("listAtlases", () => {
 </ListBucketResult>`
     });
 
-    const result = await listAtlases();
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
 
     expect(result).toEqual([
       {
@@ -116,7 +145,7 @@ describe("listAtlases", () => {
   it("returns null when the request throws", async () => {
     mockedGet.mockRejectedValue(new Error("network error"));
 
-    const result = await listAtlases();
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
 
     expect(result).toBeNull();
   });
@@ -133,7 +162,7 @@ describe("listAtlasesHTTP", () => {
   it("requests the atlases directory on the given host", async () => {
     mockedGet.mockResolvedValue({ data: { files: [] } });
 
-    await listAtlasesHTTP("http://localhost:3000");
+    await listAtlasesHTTP(HTTP_SOURCE);
 
     expect(mockedGet).toHaveBeenCalledWith(
       "http://localhost:3000/brainglobe-atlasapi/atlases"
@@ -151,17 +180,17 @@ describe("listAtlasesHTTP", () => {
       }
     });
 
-    const result = await listAtlasesHTTP("http://localhost:3000");
+    const result = await listAtlasesHTTP(HTTP_SOURCE);
 
     expect(result).toEqual([
       {
         name: "allen_mouse",
-        source: "http://localhost:3000",
+        source: HTTP_SOURCE,
         variantDirectories: ["allen_mouse_25um"]
       },
       {
         name: "allen_human",
-        source: "http://localhost:3000",
+        source: HTTP_SOURCE,
         variantDirectories: ["allen_human_500um"]
       }
     ]);
@@ -178,17 +207,17 @@ describe("listAtlasesHTTP", () => {
       }
     });
 
-    const result = await listAtlasesHTTP("http://localhost:3000");
+    const result = await listAtlasesHTTP(HTTP_SOURCE);
 
     expect(result).toEqual([
       {
         name: "allen_mouse",
-        source: "http://localhost:3000",
+        source: HTTP_SOURCE,
         variantDirectories: ["allen_mouse_10um", "allen_mouse_25um"]
       },
       {
         name: "allen_mouse_bluebrain_barrels",
-        source: "http://localhost:3000",
+        source: HTTP_SOURCE,
         variantDirectories: ["allen_mouse_bluebrain_barrels_10um"]
       }
     ]);
@@ -197,7 +226,7 @@ describe("listAtlasesHTTP", () => {
   it("returns null when the request throws", async () => {
     mockedGet.mockRejectedValue(new Error("network error"));
 
-    const result = await listAtlasesHTTP("http://localhost:3000");
+    const result = await listAtlasesHTTP(HTTP_SOURCE);
 
     expect(result).toBeNull();
   });
@@ -326,18 +355,20 @@ describe("getTerminologyRows", () => {
   });
 });
 
-/** A raw manifest response body for a given size variant, terminology/annotation locations present. */
+/** A raw manifest response body for a given size variant, terminology/annotation locations and species present. */
 function rawManifest(overrides: {
   resolution: [number, number, number];
   shape: [number, number, number];
   atlas_link?: string;
+  species?: string | null;
   terminology?: { location: string } | null;
   annotation_set?: { location: string } | null;
 }) {
-  const { terminology, annotation_set, ...rest } = overrides;
+  const { terminology, annotation_set, species, ...rest } = overrides;
   return {
     name: "allen_mouse",
     ...rest,
+    ...(species !== null && { species: species ?? "Mus musculus" }),
     ...(terminology !== null && {
       terminology: terminology ?? {
         location: "/terminologies/allen_mouse-terminology/3_0"
@@ -421,6 +452,7 @@ describe("getAtlas", () => {
         manifest: {
           terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
           annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
+          species: "Mus musculus",
           atlasLink: "http://www.brain-map.org",
           resolutions: [
             [0.025, 0.025, 0.025],
@@ -548,6 +580,44 @@ describe("getAtlas", () => {
       expect(await getAtlas(listing)).toBeNull();
     });
 
+    it("omits species when the finest variant's manifest has none", async () => {
+      mockManifests({
+        [MANIFEST_URL_100]: rawManifest({
+          resolution: [100, 100, 100],
+          shape: [132, 80, 114]
+        }),
+        [MANIFEST_URL_25]: rawManifest({
+          resolution: [25, 25, 25],
+          shape: [528, 320, 456],
+          species: null
+        })
+      });
+
+      const result = await getAtlas(listing);
+
+      expect(result).not.toBeNull();
+      expect(result?.manifest).not.toHaveProperty("species");
+    });
+
+    it("takes species from the finest variant's manifest", async () => {
+      mockManifests({
+        [MANIFEST_URL_100]: rawManifest({
+          resolution: [100, 100, 100],
+          shape: [132, 80, 114],
+          species: "Ignored ignored"
+        }),
+        [MANIFEST_URL_25]: rawManifest({
+          resolution: [25, 25, 25],
+          shape: [528, 320, 456],
+          species: "Mus musculus"
+        })
+      });
+
+      const result = await getAtlas(listing);
+
+      expect(result?.manifest.species).toBe("Mus musculus");
+    });
+
     it("returns null when the request throws", async () => {
       mockedGet.mockRejectedValue(new Error("network error"));
 
@@ -561,7 +631,7 @@ describe("getAtlas", () => {
     const MANIFEST_URL_100 = `${ATLASES_URL}/allen_mouse_100um/3_0/manifest.json`;
 
     const listing = makeAtlasListing({
-      source: "http://localhost:3000",
+      source: HTTP_SOURCE,
       variantDirectories: ["allen_mouse_100um", "allen_mouse_25um"]
     });
 
@@ -632,6 +702,7 @@ describe("getAtlas", () => {
         manifest: {
           terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
           annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
+          species: "Mus musculus",
           atlasLink: null,
           resolutions: [
             [0.025, 0.025, 0.025],

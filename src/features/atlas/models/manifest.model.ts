@@ -17,6 +17,13 @@ export interface Manifest {
    */
   annotationSetLocation: string;
   /**
+   * Binomial species name the atlas covers, from the manifest JSON's
+   * `species` field, e.g. `Mus musculus`, or absent when the source omits
+   * it. Never displayed; searched so an atlas can be found by its
+   * scientific name.
+   */
+  species?: string;
+  /**
    * External page for the atlas, from the manifest JSON's `atlas_link` field
    * (e.g. `http://www.brain-map.org`), or null when the source omits it.
    */

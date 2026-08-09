@@ -1,33 +1,39 @@
 <script lang="ts" setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { computedAsync } from "@vueuse/core";
 import { useFavoriteAtlasesStore } from "@/stores/favorite-atlases.store";
 import { useFuzzyFilter } from "@/composable/useFuzzyFilter";
 import type { Atlas, AtlasIdentity, AtlasListing } from "../models/atlas.model";
 import { atlasDisplayName } from "../api/hierarchy.api";
 import {
-  BRAINGLOBE_BASE_URL,
+  BUCKET_SOURCE_URLS,
   getAtlas,
   isSameAtlas,
-  listAtlases,
+  listAtlasesBucket,
   listAtlasesHTTP
 } from "../api/source.api";
+import type { BucketSourceId } from "../api/source.api";
 import AtlasPickerItem from "./AtlasPickerItem.vue";
 
 /**
- * Atlas source the picker lists atlases from.
+ * Atlas source the picker lists atlases from: a built-in bucket, or a
+ * user-supplied brainglobe-atlasapi HTTP host.
  */
-type SourceToggle = "brainglobe" | "custom";
+type SourceToggle = BucketSourceId | "custom";
 
 /**
- * An atlas listing paired with its human-readable display name, for
- * sorting, fuzzy search and rendering. The underlying
- * {@link AtlasListing.name} stays snake_case, since it's what source URLs,
- * favorites and selection identity use.
+ * An atlas listing paired with the fields it is sorted and searched by. The
+ * underlying {@link AtlasListing.name} stays snake_case, since it's what
+ * source URLs, favorites and selection identity use.
  */
 interface AtlasOption {
   listing: AtlasListing;
   displayName: string;
+  /**
+   * Species from the resolved manifest, or `""` until it resolves. Searched
+   * but never rendered, so an atlas can be found by its scientific name.
+   */
+  species: string;
 }
 
 /** Row height, matching `q-item`'s default 48px min-height. */
@@ -51,15 +57,22 @@ const searchQuery = ref<string | null>(null);
 
 const atlasesEvaluating = ref(false);
 
+/** Root URL of the currently toggled atlas source. */
+const source = computed(() =>
+  sourceToggle.value === "custom"
+    ? (customHTTPHost.value ?? "")
+    : BUCKET_SOURCE_URLS[sourceToggle.value]
+);
+
 /** Full list of atlases from the source URL. */
 const atlases = computedAsync<AtlasListing[]>(
   async () => {
-    if (sourceToggle.value === "brainglobe") {
-      return (await listAtlases()) ?? [];
-    } else {
-      if (!customHTTPHost.value) return [];
-      return (await listAtlasesHTTP(customHTTPHost.value)) ?? [];
-    }
+    if (!source.value) return [];
+    const listings =
+      sourceToggle.value === "custom"
+        ? await listAtlasesHTTP(source.value)
+        : await listAtlasesBucket(source.value);
+    return listings ?? [];
   },
   [],
   atlasesEvaluating
@@ -74,13 +87,6 @@ const atlasRequests = new Map<string, Promise<Atlas | null>>();
 /** Selection generation, so a superseded pick can't win the race. */
 let selectionRequest = 0;
 
-/** Root URL of the currently toggled atlas source. */
-const source = computed(() =>
-  sourceToggle.value === "brainglobe"
-    ? BRAINGLOBE_BASE_URL
-    : (customHTTPHost.value ?? "")
-);
-
 /** Favorites for this source as a set for fast lookup. */
 const favoritesSet = computed(
   () => new Set(favoriteAtlasesStore.favorites[source.value])
@@ -93,11 +99,13 @@ const listedAtlases = computed(() =>
   )
 );
 
-/** Listed atlases paired with their human-readable display name. */
+/** Listed atlases paired with the fields they are sorted and searched by. */
 const atlasOptions = computed<AtlasOption[]>(() =>
   listedAtlases.value.map(listing => ({
     listing,
-    displayName: atlasDisplayName(listing.name)
+    displayName: atlasDisplayName(listing.name),
+    species:
+      resolvedAtlases.value.get(atlasKey(listing))?.manifest.species ?? ""
   }))
 );
 
@@ -105,7 +113,7 @@ const atlasOptions = computed<AtlasOption[]>(() =>
 const { filtered: filteredAtlases } = useFuzzyFilter(
   computed(() => searchQuery.value ?? ""),
   atlasOptions,
-  { keys: ["displayName"] },
+  { keys: ["displayName", "species"] },
   undefined,
   options =>
     [...options].sort((a, b) => a.displayName.localeCompare(b.displayName))
@@ -164,6 +172,13 @@ function toggleFavorite(listing: AtlasListing): void {
     favoriteAtlasesStore.add(listing);
   }
 }
+
+// Resolve every listing's manifest in the background so species search covers
+// atlases the virtual scroller has not rendered yet. Requests are cached, so
+// a row mounting later reuses these rather than refetching.
+watch(atlases, listings => {
+  for (const listing of listings) void requestAtlas(listing);
+});
 </script>
 
 <template>
@@ -174,6 +189,10 @@ function toggleFavorite(listing: AtlasListing): void {
       v-model="sourceToggle"
       :options="[
         { label: $t('atlasPicker.brainglobeHosted'), value: 'brainglobe' },
+        {
+          label: $t('atlasPicker.allenInstituteHosted'),
+          value: 'allenInstitute'
+        },
         { label: $t('atlasPicker.customHTTPHost'), value: 'custom' }
       ]"
       spread
@@ -186,6 +205,13 @@ function toggleFavorite(listing: AtlasListing): void {
       :label="$t('atlasPicker.sourceUrl')"
       class="col"
       clearable
+    />
+
+    <q-linear-progress
+      v-if="atlasesEvaluating"
+      indeterminate
+      color="primary"
+      size="sm"
     />
 
     <template v-if="!atlasesEvaluating">
