@@ -3,6 +3,23 @@ import { buildInitialReferenceCoordinate } from "./reference-coordinate.api";
 import { makeAtlas, makeManifest } from "@/test/fixtures";
 
 describe("buildInitialReferenceCoordinate", () => {
+  it("prefers the manifest's bregma over the override for a known atlas name", () => {
+    const atlas = makeAtlas({
+      name: "allen_mouse",
+      manifest: makeManifest({ bregma: [1, 2, 3] })
+    });
+
+    expect(buildInitialReferenceCoordinate(atlas)).toEqual([1, 2, 3]);
+  });
+
+  it("never returns the manifest's bregma array instance", () => {
+    const atlas = makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 3] }) });
+
+    const result = buildInitialReferenceCoordinate(atlas);
+
+    expect(result).not.toBe(atlas.manifest.bregma);
+  });
+
   it("uses the override for a known atlas name", () => {
     const atlas = makeAtlas({ name: "allen_mouse" });
 
