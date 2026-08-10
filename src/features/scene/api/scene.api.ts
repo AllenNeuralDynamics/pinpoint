@@ -6,6 +6,7 @@ import type {
   PointerInfo,
   Scene,
   SelectionOutlineLayer,
+  TransformNode,
   Vector3
 } from "@babylonjs/core";
 import type { Inspectable } from "../models/inspectable.model";
@@ -17,6 +18,40 @@ import {
   attachSceneObjectSelection,
   getSceneObjectTransformNode
 } from "./scene-object-node.api";
+
+/**
+ * Node the gizmo attaches to for an inspectable, or null when it has no gizmo or its node is not
+ * in the scene.
+ * @param scene Scene to resolve the node in.
+ * @param selectedInspectable Inspectable whose gizmo node to resolve.
+ * @param bodyModelGizmoProbeId Probe id whose body model holds the gizmo, or null.
+ */
+export function getSelectedInspectableGizmoNode(
+  scene: Scene,
+  selectedInspectable: Inspectable | null,
+  bodyModelGizmoProbeId: string | null
+): TransformNode | null {
+  switch (selectedInspectable?.inspectableKind) {
+    case "probe": {
+      const probeTransformNode = getProbeTransformNode(
+        scene,
+        selectedInspectable.id
+      );
+      return probeTransformNode
+        ? getProbeGizmoNode(
+            scene,
+            selectedInspectable,
+            probeTransformNode,
+            bodyModelGizmoProbeId
+          )
+        : null;
+    }
+    case "sceneObject":
+      return getSceneObjectTransformNode(scene, selectedInspectable.id);
+    default:
+      return null;
+  }
+}
 
 /**
  * Select the entity in the scene based on the selected inspectable.

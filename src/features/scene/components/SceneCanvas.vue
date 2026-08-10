@@ -18,7 +18,7 @@ import {
   setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "../api/structures.api";
-import type { AxisGuides } from "../api/axis-guide.api";
+import type { AxisGuideFrame, AxisGuides } from "../api/axis-guide.api";
 import {
   buildAxisGuides,
   clearAxisGuides,
@@ -94,6 +94,7 @@ import {
 } from "@/features/probe";
 import {
   deselectFromPointerDown,
+  getSelectedInspectableGizmoNode,
   orbitCameraFromAxisGuideDoubleTap,
   selectFromSelectedInspectableState,
   setHemisphericLightIntensity,
@@ -341,6 +342,29 @@ watch(
   { immediate: true }
 );
 
+/**
+ * Frame the axis guides are drawn in: the gizmo's own node while the gizmo toolbar is in local
+ * mode, otherwise the atlas.
+ * @param scene Scene the gizmo's node lives in.
+ */
+function axisGuideFrame(scene: Scene): AxisGuideFrame {
+  if (!isGizmoToolbarVisible.value || gizmoCoordinateSpace.value !== "local") {
+    return { kind: "global" };
+  }
+
+  // Resolved per frame by the guides themselves, off Vue's reactive graph, so a probe node
+  // rebuilt under the selection is picked up without redrawing the labels.
+  return {
+    kind: "local",
+    getNode: () =>
+      getSelectedInspectableGizmoNode(
+        scene,
+        currentExperiment.selectedInspectable,
+        currentExperiment.bodyModelGizmoProbeId
+      )
+  };
+}
+
 // Draw the atlas's axis guide labels while they are shown, and strip them
 // when hidden, keeping the loaded renderers for the next time.
 watchEffect(() => {
@@ -353,7 +377,12 @@ watchEffect(() => {
     return;
   }
 
-  buildAxisGuides(scene, guides, currentExperiment.atlas);
+  buildAxisGuides(
+    scene,
+    guides,
+    currentExperiment.atlas,
+    axisGuideFrame(scene)
+  );
 });
 
 watch([runtime.scene, runtime.camera], ([scene, camera]) => {

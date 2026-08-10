@@ -5,6 +5,7 @@ import {
   Matrix,
   PointerEventTypes,
   PointerInfo,
+  TransformNode,
   Vector3
 } from "@babylonjs/core";
 import {
@@ -18,7 +19,9 @@ import {
   makeCameraPose,
   makeProbe,
   makeProbeGeometry,
-  makeProbeInterfaceProbe
+  makeProbeInterfaceProbe,
+  makeSceneModel,
+  makeSceneObject
 } from "@/test/fixtures";
 import type { FakeTextRenderer } from "@/test/mount-helper";
 import {
@@ -31,8 +34,11 @@ import {
 import { buildProbe } from "./probe.api";
 import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
 import { buildAxisGuides } from "./axis-guide.api";
+import { buildSceneEntityName } from "./scene-entity.api";
+import { WORLD_INSPECTABLE } from "../models/inspectable.model";
 import {
   deselectFromPointerDown,
+  getSelectedInspectableGizmoNode,
   orbitCameraFromAxisGuideDoubleTap,
   selectFromSelectedInspectableState
 } from "./scene.api";
@@ -350,7 +356,9 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
       scene
     );
     scene.activeCamera = camera;
-    buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas());
+    buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas(), {
+      kind: "global"
+    });
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
     const onOrbit = vi.fn();
     orbitCameraFromAxisGuideDoubleTap(scene, camera, onOrbit);
@@ -417,5 +425,58 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     );
 
     expect(interpolateTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("getSelectedInspectableGizmoNode", () => {
+  it("resolves a selected probe's own transform node", () => {
+    const { scene, probe, node } = makeProbeInScene();
+
+    expect(getSelectedInspectableGizmoNode(scene, probe, null)).toBe(node);
+  });
+
+  it("resolves the body model node when bodyModelGizmoProbeId matches a probe with a body model", () => {
+    const { scene, probe } = makeProbeInScene();
+    probe.bodyModel = makeSceneModel();
+    const bodyModelNode = new TransformNode(
+      buildSceneEntityName(probe.id, "probe", "body-model_node"),
+      scene
+    );
+
+    expect(getSelectedInspectableGizmoNode(scene, probe, probe.id)).toBe(
+      bodyModelNode
+    );
+  });
+
+  it("resolves a selected scene object's own transform node", () => {
+    const scene = makeTestScene();
+    const sceneObject = makeSceneObject();
+    const node = new TransformNode(
+      buildSceneEntityName(sceneObject.id, "object", "node"),
+      scene
+    );
+
+    expect(getSelectedInspectableGizmoNode(scene, sceneObject, null)).toBe(
+      node
+    );
+  });
+
+  it("resolves null for no selection, the camera pose, and the world", () => {
+    const scene = makeTestScene();
+
+    expect(getSelectedInspectableGizmoNode(scene, null, null)).toBeNull();
+    expect(
+      getSelectedInspectableGizmoNode(scene, makeCameraPose(), null)
+    ).toBeNull();
+    expect(
+      getSelectedInspectableGizmoNode(scene, WORLD_INSPECTABLE, null)
+    ).toBeNull();
+  });
+
+  it("resolves null for a probe with no node in the scene", () => {
+    const scene = makeTestScene();
+    const probe = makeProbe({ id: "missing" });
+
+    expect(getSelectedInspectableGizmoNode(scene, probe, null)).toBeNull();
   });
 });
