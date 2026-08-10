@@ -45,13 +45,15 @@ export function atlasToReferenceRelative(
 }
 
 /**
- * Compute the initial reference coordinate for an atlas, using a known
- * override if one exists, otherwise falling back to the atlas center.
+ * Compute the initial reference coordinate for an atlas, preferring the
+ * manifest's bregma, then a known override, otherwise the atlas center.
  * @param atlas Atlas to build reference coordinate info from.
  */
 export function buildInitialReferenceCoordinate(
   atlas: Atlas
 ): [number, number, number] {
+  if (atlas.manifest.bregma) return [...atlas.manifest.bregma];
+
   const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[atlas.name];
   if (override) return [...override];
 

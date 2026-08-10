@@ -28,6 +28,12 @@ export interface Manifest {
    * (e.g. `http://www.brain-map.org`), or null when the source omits it.
    */
   atlasLink: string | null;
+  /**
+   * Location of bregma in atlas ASR mm, converted from the finest size
+   * variant's `bregma_index_ap_dv_ml` voxel index, or null when the source
+   * omits it.
+   */
+  bregma: [number, number, number] | null;
   resolutions: [number, number, number][];
   shape: [number, number, number][];
 }

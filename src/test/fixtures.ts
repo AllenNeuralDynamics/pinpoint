@@ -67,6 +67,7 @@ export function makeManifest(overrides: Partial<Manifest> = {}): Manifest {
     annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
     species: "Mus musculus",
     atlasLink: "http://www.brain-map.org",
+    bregma: null,
     resolutions: [[0.025, 0.025, 0.025]],
     shape: [[528, 320, 456]],
     ...overrides

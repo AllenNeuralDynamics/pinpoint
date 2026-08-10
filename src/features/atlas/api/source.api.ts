@@ -34,6 +34,7 @@ interface RawManifest {
   terminology: { location: string };
   annotation_set: { location: string };
   atlas_link?: string;
+  bregma_index_ap_dv_ml?: [number, number, number];
 }
 
 /** Raw terminology row as parsed from CSV, before numeric/array fields are converted. */
@@ -71,6 +72,7 @@ export const DEFAULT_ATLAS: Atlas = {
     annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
     species: "Mus musculus",
     atlasLink: "http://www.brain-map.org",
+    bregma: null,
     resolutions: [
       [0.01, 0.01, 0.01],
       [0.025, 0.025, 0.025],
@@ -271,6 +273,7 @@ export function isEqualAtlas(first: Atlas, second: Atlas): boolean {
     firstManifest.annotationSetLocation ===
       secondManifest.annotationSetLocation &&
     firstManifest.atlasLink === secondManifest.atlasLink &&
+    isEqualTriple(firstManifest.bregma, secondManifest.bregma) &&
     isEqualTripleList(firstManifest.resolutions, secondManifest.resolutions) &&
     isEqualTripleList(firstManifest.shape, secondManifest.shape)
   );
@@ -291,6 +294,19 @@ function isEqualTripleList(
       triple.every((value, axis) => value === second[index]![axis])
     )
   );
+}
+
+/**
+ * Are two optional numeric triples equal, treating null as equal only to null.
+ * @param first First triple to compare.
+ * @param second Second triple to compare.
+ */
+function isEqualTriple(
+  first: [number, number, number] | null,
+  second: [number, number, number] | null
+): boolean {
+  if (!first || !second) return first === second;
+  return first.every((value, axis) => value === second[axis]);
 }
 
 /**
@@ -341,12 +357,32 @@ async function buildManifest(manifestUrls: string[]): Promise<Manifest | null> {
     annotationSetLocation: finest.annotation_set.location,
     ...(finest.species && { species: finest.species }),
     atlasLink: finest.atlas_link || null,
+    bregma: bregmaMillimeters(finest),
     resolutions: variants.map(variant => {
       const [ap, dv, ml] = variant.resolution;
       return [ap / 1000, dv / 1000, ml / 1000];
     }),
     shape: variants.map(variant => variant.shape)
   };
+}
+
+/**
+ * Convert a variant manifest's bregma voxel index into atlas ASR mm, or null
+ * when the manifest omits it.
+ * @param manifest Variant manifest to read the bregma index from.
+ */
+function bregmaMillimeters(
+  manifest: RawManifest
+): [number, number, number] | null {
+  const index = manifest.bregma_index_ap_dv_ml;
+  if (!isFiniteTriple(index)) return null;
+
+  const [ap, dv, ml] = manifest.resolution;
+  return [
+    (index[0] * ap) / 1000,
+    (index[1] * dv) / 1000,
+    (index[2] * ml) / 1000
+  ];
 }
 
 /**
@@ -365,6 +401,7 @@ export function isAtlas(value: unknown): value is Atlas {
     typeof manifest.terminologyLocation === "string" &&
     typeof manifest.annotationSetLocation === "string" &&
     (manifest.atlasLink === null || typeof manifest.atlasLink === "string") &&
+    (manifest.bregma === null || isFiniteTriple(manifest.bregma)) &&
     Array.isArray(manifest.resolutions) &&
     manifest.resolutions.every(isFiniteTriple) &&
     Array.isArray(manifest.shape) &&

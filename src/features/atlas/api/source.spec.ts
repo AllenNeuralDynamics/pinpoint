@@ -360,6 +360,7 @@ function rawManifest(overrides: {
   resolution: [number, number, number];
   shape: [number, number, number];
   atlas_link?: string;
+  bregma_index_ap_dv_ml?: [number, number, number];
   species?: string | null;
   terminology?: { location: string } | null;
   annotation_set?: { location: string } | null;
@@ -454,6 +455,7 @@ describe("getAtlas", () => {
           annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
           species: "Mus musculus",
           atlasLink: "http://www.brain-map.org",
+          bregma: null,
           resolutions: [
             [0.025, 0.025, 0.025],
             [0.1, 0.1, 0.1]
@@ -535,6 +537,42 @@ describe("getAtlas", () => {
       const result = await getAtlas(listing);
 
       expect(result?.manifest.atlasLink).toBeNull();
+    });
+
+    it("converts the finest variant's bregma index into atlas ASR mm", async () => {
+      mockManifests({
+        [MANIFEST_URL_100]: rawManifest({
+          resolution: [100, 100, 100],
+          shape: [132, 80, 114],
+          bregma_index_ap_dv_ml: [1, 2, 3]
+        }),
+        [MANIFEST_URL_25]: rawManifest({
+          resolution: [25, 25, 25],
+          shape: [528, 320, 456],
+          bregma_index_ap_dv_ml: [200, 40, 220]
+        })
+      });
+
+      const result = await getAtlas(listing);
+
+      expect(result?.manifest.bregma).toEqual([5, 1, 5.5]);
+    });
+
+    it("is null when the finest variant's manifest omits bregma_index_ap_dv_ml", async () => {
+      mockManifests({
+        [MANIFEST_URL_100]: rawManifest({
+          resolution: [100, 100, 100],
+          shape: [132, 80, 114]
+        }),
+        [MANIFEST_URL_25]: rawManifest({
+          resolution: [25, 25, 25],
+          shape: [528, 320, 456]
+        })
+      });
+
+      const result = await getAtlas(listing);
+
+      expect(result?.manifest.bregma).toBeNull();
     });
 
     it("returns null when one of the manifest requests rejects", async () => {
@@ -704,6 +742,7 @@ describe("getAtlas", () => {
           annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
           species: "Mus musculus",
           atlasLink: null,
+          bregma: null,
           resolutions: [
             [0.025, 0.025, 0.025],
             [0.1, 0.1, 0.1]
@@ -757,6 +796,19 @@ describe("isAtlas", () => {
   it("rejects a manifest whose atlasLink is a number", () => {
     const atlas = makeAtlas({ manifest: makeManifest() });
     (atlas.manifest as unknown as Record<string, unknown>).atlasLink = 42;
+
+    expect(isAtlas(atlas)).toBe(false);
+  });
+
+  it("accepts a manifest with a finite bregma triple", () => {
+    expect(
+      isAtlas(makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 3] }) }))
+    ).toBe(true);
+  });
+
+  it("rejects a manifest whose bregma is a two-element array", () => {
+    const atlas = makeAtlas({ manifest: makeManifest() });
+    (atlas.manifest as unknown as Record<string, unknown>).bregma = [1, 2];
 
     expect(isAtlas(atlas)).toBe(false);
   });
@@ -1104,6 +1156,27 @@ describe("isEqualAtlas", () => {
     });
 
     expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when manifest.bregma differs", () => {
+    const first = makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 3] }) });
+    const second = makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 4] }) });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns false when manifest.bregma is null on one side", () => {
+    const first = makeAtlas({ manifest: makeManifest({ bregma: null }) });
+    const second = makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 3] }) });
+
+    expect(isEqualAtlas(first, second)).toBe(false);
+  });
+
+  it("returns true when both manifests have an equal bregma", () => {
+    const first = makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 3] }) });
+    const second = makeAtlas({ manifest: makeManifest({ bregma: [1, 2, 3] }) });
+
+    expect(isEqualAtlas(first, second)).toBe(true);
   });
 
   it("returns false when a resolutions value differs", () => {
