@@ -367,7 +367,7 @@ describe("SceneHierarchy", () => {
       const [sceneObject] = currentExperiment.sceneObjects;
       expect(sceneObject!.name).toBe("Brain Model");
       expect(currentExperiment.selectedInspectable).toEqual(sceneObject);
-      expect(putSceneModel).toHaveBeenCalledWith(sceneObject!.id, file);
+      expect(putSceneModel).toHaveBeenCalledWith(sceneObject!.modelId, file);
     });
 
     it("notifies and adds nothing when the model file can't be imported", async () => {

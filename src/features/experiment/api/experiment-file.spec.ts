@@ -57,12 +57,12 @@ describe("zipExperiment / unzipExperiment", () => {
     const archive = unzipExperiment(
       zipExperiment(
         experiment,
-        new Map([[sceneObject.id, { fileName: "model.obj", bytes }]])
+        new Map([[sceneObject.modelId, { fileName: "model.obj", bytes }]])
       )
     );
 
     expect(archive?.experiment).toEqual(experiment);
-    expect(archive?.models.get(sceneObject.id)).toEqual({
+    expect(archive?.models.get(sceneObject.modelId)).toEqual({
       fileName: "model.obj",
       bytes
     });
@@ -77,12 +77,12 @@ describe("zipExperiment / unzipExperiment", () => {
     const archive = unzipExperiment(
       zipExperiment(
         experiment,
-        new Map([[bodyModel.id, { fileName: "body.glb", bytes }]])
+        new Map([[bodyModel.modelId, { fileName: "body.glb", bytes }]])
       )
     );
 
     expect(archive?.experiment).toEqual(experiment);
-    expect(archive?.models.get(bodyModel.id)).toEqual({
+    expect(archive?.models.get(bodyModel.modelId)).toEqual({
       fileName: "body.glb",
       bytes
     });
@@ -97,11 +97,11 @@ describe("zipExperiment / unzipExperiment", () => {
     const archive = unzipExperiment(
       zipExperiment(
         experiment,
-        new Map([[sceneObject.id, { fileName: "imagingWell.obj", bytes }]])
+        new Map([[sceneObject.modelId, { fileName: "imagingWell.obj", bytes }]])
       )
     );
 
-    expect(archive?.models.get(sceneObject.id)?.fileName).toBe(
+    expect(archive?.models.get(sceneObject.modelId)?.fileName).toBe(
       "imagingWell.obj"
     );
   });
@@ -352,6 +352,16 @@ describe("zipExperiment / unzipExperiment", () => {
     const sceneObject = makeSceneObject();
     experiment.sceneObjects = [sceneObject, { ...sceneObject, name: "Other" }];
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("accepts two scene objects that share a modelId but have distinct ids", () => {
+    const experiment = makeFullExperiment();
+    const a = makeSceneObject();
+    const b = makeSceneObject({ modelId: a.modelId, name: "Other" });
+    experiment.sceneObjects = [a, b];
+    expect(unzipExperiment(zipRawExperiment(experiment))?.experiment).toEqual(
+      experiment
+    );
   });
 
   it("returns null when cameraPose is missing", () => {

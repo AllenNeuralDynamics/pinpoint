@@ -22,6 +22,7 @@ export type { CameraProjection } from "./models/camera.model";
 export type { ProbeGeometry } from "./models/probe-geometry.model";
 export {
   buildSceneObject,
+  copySceneObject,
   isSceneObject,
   toggleSceneObjectCollidable,
   toggleSceneObjectLock,

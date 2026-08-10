@@ -326,7 +326,7 @@ describe("useExperimentFile", () => {
         [
           zipExperiment(
             experiment,
-            new Map([[sceneObject.id, { fileName: "model.obj", bytes }]])
+            new Map([[sceneObject.modelId, { fileName: "model.obj", bytes }]])
           ).slice()
         ],
         "e.zip",
@@ -337,7 +337,7 @@ describe("useExperimentFile", () => {
       await capturedOnChange!(makeFileList(file));
       await flushMicrotasks();
 
-      const stored = await getSceneModel(sceneObject.id);
+      const stored = await getSceneModel(sceneObject.modelId);
       expect(stored?.name).toBe("model.obj");
       expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(bytes);
     });
@@ -359,7 +359,7 @@ describe("useExperimentFile", () => {
         [
           zipExperiment(
             experiment,
-            new Map([[bodyModel.id, { fileName: "body.glb", bytes }]])
+            new Map([[bodyModel.modelId, { fileName: "body.glb", bytes }]])
           ).slice()
         ],
         "e.zip",
@@ -370,7 +370,7 @@ describe("useExperimentFile", () => {
       await capturedOnChange!(makeFileList(file));
       await flushMicrotasks();
 
-      const stored = await getSceneModel(bodyModel.id);
+      const stored = await getSceneModel(bodyModel.modelId);
       expect(stored?.name).toBe("body.glb");
       expect(new Uint8Array(await stored!.arrayBuffer())).toEqual(bytes);
     });

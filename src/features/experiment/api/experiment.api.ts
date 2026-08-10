@@ -390,16 +390,18 @@ export function reorderSceneObject(
 }
 
 /**
- * Every scene model id an experiment references: its scene objects and its
- * probes' body models.
+ * Every stored model id the experiment references, without duplicates: one per
+ * scene object plus one per probe body model.
  * @param experiment Experiment to collect model ids from.
  */
 export function getExperimentModelIds(experiment: Experiment): string[] {
   return [
-    ...experiment.sceneObjects.map(({ id }) => id),
-    ...experiment.probes.flatMap(probe =>
-      probe.bodyModel ? [probe.bodyModel.id] : []
-    )
+    ...new Set([
+      ...experiment.sceneObjects.map(({ modelId }) => modelId),
+      ...experiment.probes.flatMap(probe =>
+        probe.bodyModel ? [probe.bodyModel.modelId] : []
+      )
+    ])
   ];
 }
 

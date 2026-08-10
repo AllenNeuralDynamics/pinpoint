@@ -167,10 +167,10 @@ describe("IndexPage", () => {
     expect(pruneSceneModels).toHaveBeenCalledTimes(1);
     expect(new Set(vi.mocked(pruneSceneModels).mock.calls[0]![0])).toEqual(
       new Set([
-        currentSceneObject.id,
-        currentProbe.bodyModel!.id,
-        recentSceneObject.id,
-        recentProbe.bodyModel!.id
+        currentSceneObject.modelId,
+        currentProbe.bodyModel!.modelId,
+        recentSceneObject.modelId,
+        recentProbe.bodyModel!.modelId
       ])
     );
   });

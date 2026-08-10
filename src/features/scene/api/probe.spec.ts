@@ -655,7 +655,7 @@ describe("buildProbe", () => {
     expect(scene.getMeshByName(names.headStage)).toBeNull();
     expect(scene.getMeshByName(names.rod)).toBeNull();
     const metadata = node!.metadata as ProbeMetadata;
-    expect(metadata.bodyModelId).toBe(bodyModel.id);
+    expect(metadata.bodyModelId).toBe(bodyModel.modelId);
     expect(
       scene.getTransformNodeByName(`${probe.id}_probe_collider`)
     ).toBeNull();

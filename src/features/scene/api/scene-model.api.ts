@@ -31,10 +31,15 @@ function sceneModelStore(): UseStore {
 
 /**
  * Build a scene model placed at its own origin, unrotated and unscaled.
- * @param id Model id, also the key of its file in IndexedDB.
+ * @param modelId Model id, also the key of its file in IndexedDB.
  */
-export function buildSceneModel(id: string): SceneModel {
-  return { id, position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] };
+export function buildSceneModel(modelId: string): SceneModel {
+  return {
+    modelId,
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1]
+  };
 }
 
 /**
@@ -45,8 +50,8 @@ export function isSceneModel(value: unknown): value is SceneModel {
   if (!isRecord(value)) return false;
 
   return (
-    typeof value.id === "string" &&
-    value.id.length > 0 &&
+    typeof value.modelId === "string" &&
+    value.modelId.length > 0 &&
     isFiniteTriple(value.position) &&
     isFiniteTriple(value.rotation) &&
     isFiniteTriple(value.scale)

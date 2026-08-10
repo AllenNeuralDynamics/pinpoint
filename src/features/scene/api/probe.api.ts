@@ -143,7 +143,7 @@ export function buildProbe(
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     shankAlignmentIndex: probe.shankAlignmentIndex,
     geometry,
-    bodyModelId: probe.bodyModel?.id ?? null
+    bodyModelId: probe.bodyModel?.modelId ?? null
   };
 
   const node = new TransformNode(
@@ -266,7 +266,7 @@ export function syncProbes(
       probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier ||
       probe.shankAlignmentIndex !== metadata.shankAlignmentIndex ||
       !isSameProbeGeometry(metadata.geometry, geometry) ||
-      (probe.bodyModel?.id ?? null) !== metadata.bodyModelId
+      (probe.bodyModel?.modelId ?? null) !== metadata.bodyModelId
     ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);

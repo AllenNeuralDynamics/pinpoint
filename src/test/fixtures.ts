@@ -17,7 +17,7 @@ export function makeSceneModel(
   overrides: Partial<SceneModel> = {}
 ): SceneModel {
   return {
-    id: crypto.randomUUID(),
+    modelId: crypto.randomUUID(),
     position: [0, 0, 0],
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
@@ -34,6 +34,7 @@ export function makeSceneObject(
 ): SceneObject {
   return {
     ...makeSceneModel(),
+    id: crypto.randomUUID(),
     inspectableKind: "sceneObject",
     name: "Object abc123",
     color: "#ffffff",

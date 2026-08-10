@@ -373,7 +373,7 @@ export async function syncProbeBodyModels(
       }
       state.loadingIds.add(probe.id);
       try {
-        const modelFile = await loadModel(bodyModel.id);
+        const modelFile = await loadModel(bodyModel.modelId);
         node = modelFile
           ? await buildProbeBodyModelNode(scene, probe, modelFile, gizmoManager)
           : null;

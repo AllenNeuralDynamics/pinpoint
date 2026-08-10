@@ -1,10 +1,12 @@
 /**
- * An arbitrary 3D model's placement. Its `id` doubles as the key of the model's
- * file bytes in IndexedDB.
+ * An arbitrary 3D model's placement.
  */
 export interface SceneModel {
-  /** Internal unique identifier, and the IndexedDB key of the model's file. A UUID, not user facing. */
-  id: string;
+  /**
+   * IndexedDB key of the model's file bytes. A UUID, not user facing. Two scene
+   * entities may share one `modelId` and so one stored file.
+   */
+  modelId: string;
 
   /**
    * Internal position representation of the model's origin.

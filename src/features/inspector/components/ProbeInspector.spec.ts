@@ -912,7 +912,10 @@ describe("ProbeInspector", () => {
       await flushPromises();
 
       expect(probe.bodyModel).not.toBeNull();
-      expect(putSceneModel).toHaveBeenCalledWith(probe.bodyModel!.id, file);
+      expect(putSceneModel).toHaveBeenCalledWith(
+        probe.bodyModel!.modelId,
+        file
+      );
     });
 
     it("places a freshly uploaded body model at the base of the probe's shanks", async () => {

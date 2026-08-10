@@ -297,7 +297,7 @@ function isSameScale(
  * @param gizmoManager Gizmo manager to add fresh objects' meshes to.
  * @param state Load bookkeeping, mutated in place.
  * @param draggedSceneObjectId Scene object id currently under a gizmo drag, skipped for pose updates.
- * @param loadModel Loader for a scene object's stored model file.
+ * @param loadModel Loader for a scene object's stored model file, by model id.
  */
 export async function syncSceneObjects(
   scene: Scene,
@@ -305,7 +305,7 @@ export async function syncSceneObjects(
   gizmoManager: GizmoManager,
   state: SceneObjectSyncState,
   draggedSceneObjectId: string | null,
-  loadModel: (sceneObjectId: string) => Promise<File | null>
+  loadModel: (modelId: string) => Promise<File | null>
 ): Promise<{
   failedIds: string[];
   colliderFailedIds: string[];
@@ -354,7 +354,7 @@ export async function syncSceneObjects(
       }
       state.loadingIds.add(sceneObject.id);
       try {
-        const modelFile = await loadModel(sceneObject.id);
+        const modelFile = await loadModel(sceneObject.modelId);
         const built = modelFile
           ? await buildSceneObjectNode(
               scene,

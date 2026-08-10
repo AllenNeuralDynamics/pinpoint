@@ -5,6 +5,7 @@ import {
   addProbe,
   buildExperiment,
   cloneExperiment,
+  getExperimentModelIds,
   getInternedProbeInterfaceProbe,
   getVisibleStructure,
   internProbeInterfaceProbe,
@@ -32,7 +33,9 @@ import {
   makeCameraPose,
   makeManifest,
   makeProbe,
-  makeProbeInterfaceProbe
+  makeProbeInterfaceProbe,
+  makeSceneModel,
+  makeSceneObject
 } from "@/test/fixtures";
 
 describe("buildExperiment", () => {
@@ -569,6 +572,38 @@ describe("reorderProbe", () => {
     reorderProbe(experiment, 0, 3);
 
     expect(experiment.probes).toEqual(probes);
+  });
+});
+
+describe("getExperimentModelIds", () => {
+  it("returns each scene object's modelId plus each probe body model's modelId", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const sceneObject = makeSceneObject();
+    experiment.sceneObjects = [sceneObject];
+    const bodyModel = makeSceneModel();
+    experiment.probes = [makeProbe({ bodyModel })];
+
+    expect(getExperimentModelIds(experiment)).toEqual([
+      sceneObject.modelId,
+      bodyModel.modelId
+    ]);
+  });
+
+  it("returns one entry when two scene objects share a modelId", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const shared = makeSceneObject();
+    experiment.sceneObjects = [
+      shared,
+      makeSceneObject({ modelId: shared.modelId })
+    ];
+
+    expect(getExperimentModelIds(experiment)).toEqual([shared.modelId]);
+  });
+
+  it("returns an empty array for an experiment with no scene objects and no body models", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+
+    expect(getExperimentModelIds(experiment)).toEqual([]);
   });
 });
 

@@ -103,6 +103,21 @@ describe("SceneObjectInspector", () => {
     expect(sceneObject.lock).toBe(true);
   });
 
+  it("duplicates the scene object on duplicate click", async () => {
+    const { wrapper, store } = mountInspector(makeSceneObject({ name: "A" }));
+
+    await buttonByLabel(wrapper, t.copy).trigger("click");
+
+    expect(store.experiment.sceneObjects).toHaveLength(2);
+    expect(store.experiment.sceneObjects[1]!.name).toBe("A - copy");
+    expect(store.experiment.sceneObjects[1]!.id).not.toBe(
+      store.experiment.sceneObjects[0]!.id
+    );
+    expect(store.experiment.sceneObjects[1]!.modelId).toBe(
+      store.experiment.sceneObjects[0]!.modelId
+    );
+  });
+
   it("disables the position/rotation/scale fields while locked, leaving the name field editable", () => {
     const { wrapper } = mountInspector(makeSceneObject({ lock: true }));
 

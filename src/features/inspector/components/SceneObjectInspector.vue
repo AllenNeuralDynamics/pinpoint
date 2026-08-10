@@ -2,11 +2,13 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  copySceneObject,
   STANDARD_COLORS,
   type SceneObject,
   toggleSceneObjectCollidable,
   toggleSceneObjectLock
 } from "@/features/scene";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
@@ -23,6 +25,7 @@ const { sceneObject } = defineProps<{
   sceneObject: SceneObject;
 }>();
 
+const currentExperimentStore = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const {
@@ -127,16 +130,23 @@ const lockLabel = computed(() =>
 
 <template>
   <div class="column q-gutter-y-md">
-    <q-btn
-      :aria-label="lockLabel"
-      class="full-width"
-      :color="lockColor"
-      :icon="lockIcon"
-      :label="lockLabel"
-      @click="toggleSceneObjectLock(sceneObject)"
-    >
-      <q-tooltip>{{ lockLabel }}</q-tooltip>
-    </q-btn>
+    <q-btn-group spread>
+      <q-btn
+        :aria-label="t('sceneObjectInspector.copy')"
+        icon="content_copy"
+        @click="copySceneObject(currentExperimentStore.experiment, sceneObject)"
+      >
+        <q-tooltip>{{ t("sceneObjectInspector.copy") }}</q-tooltip>
+      </q-btn>
+      <q-btn
+        :aria-label="lockLabel"
+        :color="lockColor"
+        :icon="lockIcon"
+        @click="toggleSceneObjectLock(sceneObject)"
+      >
+        <q-tooltip>{{ lockLabel }}</q-tooltip>
+      </q-btn>
+    </q-btn-group>
 
     <q-toggle
       :label="t('sceneObjectInspector.collisionDetection')"
