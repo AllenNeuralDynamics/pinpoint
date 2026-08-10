@@ -95,21 +95,21 @@ const pitch = useNumericTupleModel(
   () => preferences.decimalPrecision
 );
 
-const scaleAp = useNumericTupleModel(
+const scaleZ = useNumericTupleModel(
   () => sceneObject.scale,
   0,
   value => value,
   value => value,
   () => preferences.decimalPrecision
 );
-const scaleDv = useNumericTupleModel(
+const scaleY = useNumericTupleModel(
   () => sceneObject.scale,
   1,
   value => value,
   value => value,
   () => preferences.decimalPrecision
 );
-const scaleMl = useNumericTupleModel(
+const scaleX = useNumericTupleModel(
   () => sceneObject.scale,
   2,
   value => value,
@@ -230,9 +230,9 @@ const lockLabel = computed(() =>
 
     <div class="row q-gutter-x-sm">
       <CommittedInput
-        v-model="scaleAp"
+        v-model="scaleZ"
         :disable="sceneObject.lock"
-        :label="t('axis.ap')"
+        :label="t('axis.z')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
@@ -240,9 +240,9 @@ const lockLabel = computed(() =>
         outlined
       />
       <CommittedInput
-        v-model="scaleDv"
+        v-model="scaleY"
         :disable="sceneObject.lock"
-        :label="t('axis.dv')"
+        :label="t('axis.y')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
@@ -250,9 +250,9 @@ const lockLabel = computed(() =>
         outlined
       />
       <CommittedInput
-        v-model="scaleMl"
+        v-model="scaleX"
         :disable="sceneObject.lock"
-        :label="t('axis.ml')"
+        :label="t('axis.x')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"

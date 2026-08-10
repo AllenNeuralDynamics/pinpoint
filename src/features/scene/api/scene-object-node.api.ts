@@ -10,8 +10,7 @@ import type {
   Nullable,
   Observer,
   Scene,
-  SelectionOutlineLayer,
-  Vector3
+  SelectionOutlineLayer
 } from "@babylonjs/core";
 import {
   Color3,
@@ -19,7 +18,8 @@ import {
   Mesh,
   PhysicsShapeMesh,
   StandardMaterial,
-  TransformNode
+  TransformNode,
+  Vector3
 } from "@babylonjs/core";
 import type { Experiment } from "@/features/experiment";
 import { setMaterialDiffuseColor } from "./material.api";
@@ -86,6 +86,43 @@ export function getSceneObjectTransformNode(
 }
 
 /**
+ * Get a scene object's scale node, the child carrying its scale, or null when
+ * it isn't built.
+ * @param scene Scene to search for the node.
+ * @param sceneObjectId Scene object id whose scale node to get.
+ */
+function getSceneObjectScaleNode(
+  scene: Scene,
+  sceneObjectId: string
+): TransformNode | null {
+  return scene.getTransformNodeByName(
+    buildSceneEntityName(sceneObjectId, "object", "scale")
+  );
+}
+
+/**
+ * Get or build a scene object's scale node, keeping the gizmo-attached object
+ * node unscaled so the rotation gizmo works in local space at any scale.
+ * @param sceneObjectNode Scene object transform node to parent the scale node to.
+ * @param sceneObjectId Scene object id to name the scale node after.
+ */
+function buildSceneObjectScaleNode(
+  sceneObjectNode: TransformNode,
+  sceneObjectId: string
+): TransformNode {
+  const scene = sceneObjectNode.getScene();
+  const existing = getSceneObjectScaleNode(scene, sceneObjectId);
+  if (existing) return existing;
+
+  const scaleNode = new TransformNode(
+    buildSceneEntityName(sceneObjectId, "object", "scale"),
+    scene
+  );
+  scaleNode.parent = sceneObjectNode;
+  return scaleNode;
+}
+
+/**
  * A scene object's part meshes, or an empty list when the object is not built.
  * @param scene Scene the object was built in.
  * @param sceneObjectId Scene object id whose meshes to get.
@@ -137,6 +174,7 @@ export interface SceneObjectBuild {
  * Cook the object's single triangle-mesh trigger collider from its parts.
  * @param scene Scene the object was built in.
  * @param node Object transform node to parent the collider to.
+ * @param scaleNode Scale node the collider geometry is baked in the frame of.
  * @param sceneObjectId Scene object id the collider belongs to.
  * @param meshes Part meshes to cook.
  * @param scaling Scale to cook the collider at.
@@ -144,13 +182,14 @@ export interface SceneObjectBuild {
 function buildSceneObjectCollider(
   scene: Scene,
   node: TransformNode,
+  scaleNode: TransformNode,
   sceneObjectId: string,
   meshes: Mesh[],
   scaling: Vector3
 ): void {
   const colliderMesh = buildColliderMesh(
     scene,
-    node,
+    scaleNode,
     buildSceneEntityName(sceneObjectId, "object", "collider-mesh"),
     meshes,
     scaling
@@ -194,6 +233,7 @@ export async function buildSceneObjectNode(
     scene
   );
   node.parent = buildReferenceCoordinateNode(scene);
+  const scaleNode = buildSceneObjectScaleNode(node, sceneObject.id);
 
   const result = await ImportMeshAsync(modelFile, scene, {});
   const meshes = result.meshes.filter(
@@ -214,7 +254,7 @@ export async function buildSceneObjectNode(
   for (const root of [...result.meshes, ...result.transformNodes]) {
     if (root.parent) continue;
     root.name = buildSceneEntityName(sceneObject.id, "object", "root");
-    root.parent = node;
+    root.parent = scaleNode;
   }
 
   // Name and skin every part with one shared material; the object's colour
@@ -241,6 +281,7 @@ export async function buildSceneObjectNode(
       buildSceneObjectCollider(
         scene,
         node,
+        scaleNode,
         sceneObject.id,
         meshes,
         asrToVector3(sceneObject.scale)
@@ -271,7 +312,11 @@ export function disposeSceneObjectNode(
     gizmoManager.attachToNode(null);
   }
 
-  if (node) stopNodePoseInterpolation(node);
+  if (node) {
+    stopNodePoseInterpolation(node);
+    const scaleNode = getSceneObjectScaleNode(scene, sceneObjectId);
+    if (scaleNode) stopNodePoseInterpolation(scaleNode);
+  }
   disposeCollisionBody(scene, sceneObjectId, "object");
   // `true` for `disposeMaterialAndTextures`, unlike probes: the flag propagates to every
   // child mesh, and the object's `StandardMaterial` belongs to it alone.
@@ -388,6 +433,7 @@ export async function syncSceneObjects(
     }
 
     const meshes = getSceneObjectMeshes(scene, sceneObject.id);
+    const scaleNode = buildSceneObjectScaleNode(node, sceneObject.id);
 
     const material = scene.getMaterialByName(
       buildSceneEntityName(sceneObject.id, "object", "material")
@@ -432,6 +478,7 @@ export async function syncSceneObjects(
         buildSceneObjectCollider(
           scene,
           node,
+          scaleNode,
           sceneObject.id,
           meshes,
           asrToVector3(sceneObject.scale)
@@ -449,19 +496,24 @@ export async function syncSceneObjects(
     if (isFresh) {
       node.position = goalPosition;
       node.rotation = goalRotation;
-      node.scaling = goalScaling;
+      scaleNode.scaling = goalScaling;
       continue;
     }
     if (
       node.position.equals(goalPosition) &&
       node.rotation.equals(goalRotation) &&
-      node.scaling.equals(goalScaling)
+      scaleNode.scaling.equals(goalScaling)
     ) {
       continue;
     }
     interpolateNodePose(scene, node, {
       position: goalPosition,
       rotation: goalRotation,
+      scaling: Vector3.One()
+    });
+    interpolateNodePose(scene, scaleNode, {
+      position: Vector3.Zero(),
+      rotation: Vector3.Zero(),
       scaling: goalScaling
     });
   }
@@ -608,8 +660,18 @@ export function setSceneObjectScaleFromGizmoDrag(
   return scaleGizmo.onDragObservable.add(() => {
     const attached = attachedSceneObjectFromGizmo(scaleGizmo, sceneObjects);
     if (!attached) return;
+    const scaleNode = buildSceneObjectScaleNode(
+      attached.node,
+      attached.sceneObject.id
+    );
     stopNodePoseInterpolation(attached.node);
-    attached.sceneObject.scale = vector3ToAsr(attached.node.scaling);
+    stopNodePoseInterpolation(scaleNode);
+    // The gizmo scales the node it is attached to; the scale belongs on the
+    // child so the object node stays unscaled and the rotation gizmo keeps
+    // working in local space.
+    scaleNode.scaling.multiplyInPlace(attached.node.scaling);
+    attached.node.scaling.setAll(1);
+    attached.sceneObject.scale = vector3ToAsr(scaleNode.scaling);
     onDrag(attached.sceneObject.id);
   });
 }

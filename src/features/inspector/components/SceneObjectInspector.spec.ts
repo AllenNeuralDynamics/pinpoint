@@ -30,17 +30,6 @@ function fieldByLabel(wrapper: VueWrapper, label: string) {
     .find(field => field.props("label") === label)!;
 }
 
-/** Finds a scale field by label, disambiguated from the position row by its `×` suffix. */
-function scaleFieldByLabel(wrapper: VueWrapper, label: string) {
-  return wrapper
-    .findAllComponents({ name: "QInput" })
-    .find(
-      field =>
-        field.props("label") === label &&
-        field.props("suffix") === t.scaleSuffix
-    )!;
-}
-
 function buttonByLabel(wrapper: VueWrapper, label: string) {
   return wrapper
     .findAll("button")
@@ -121,13 +110,32 @@ describe("SceneObjectInspector", () => {
   it("disables the position/rotation/scale fields while locked, leaving the name field editable", () => {
     const { wrapper } = mountInspector(makeSceneObject({ lock: true }));
 
-    for (const label of [axis.ap, axis.dv, axis.ml, t.roll, t.yaw, t.pitch]) {
+    for (const label of [
+      axis.ap,
+      axis.dv,
+      axis.ml,
+      t.roll,
+      t.yaw,
+      t.pitch,
+      axis.z,
+      axis.y,
+      axis.x
+    ]) {
       expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);
     }
-    for (const label of [axis.ap, axis.dv, axis.ml]) {
-      expect(scaleFieldByLabel(wrapper, label).props("disable")).toBe(true);
-    }
     expect(fieldByLabel(wrapper, t.name).props("disable")).toBeFalsy();
+  });
+
+  it("writes the scale row into scale[0] (Z) and scale[2] (X), not transposed", async () => {
+    const { wrapper, sceneObject } = mountInspector(
+      makeSceneObject({ scale: [1, 1, 1] })
+    );
+
+    await editAndBlur(fieldByLabel(wrapper, axis.z), "2");
+    expect(sceneObject.scale[0]).toBeCloseTo(2, 6);
+
+    await editAndBlur(fieldByLabel(wrapper, axis.x), "3");
+    expect(sceneObject.scale[2]).toBeCloseTo(3, 6);
   });
 
   it("toggles collidable when the collision detection toggle changes", async () => {

@@ -1121,6 +1121,47 @@ describe("SceneCanvas", () => {
     expect(modeToggle.props("modelValue")).toBe("position");
   });
 
+  it("forces local and disables global in scale mode, restoring the space on exit", async () => {
+    const { wrapper } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    store.selectedInspectable = makeSceneObject();
+    await flushPromises();
+
+    const modeToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "position")!;
+    const spaceToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "local")!;
+
+    await spaceToggle.vm.$emit("update:modelValue", "global");
+    await flushPromises();
+    await modeToggle.vm.$emit("update:modelValue", "scale");
+    await flushPromises();
+
+    expect(spaceToggle.props("modelValue")).toBe("local");
+    const scaleModeOptions = spaceToggle.props("options") as {
+      value: string;
+      disable?: boolean;
+    }[];
+    expect(
+      scaleModeOptions.find(option => option.value === "global")
+    ).toMatchObject({ disable: true });
+
+    await modeToggle.vm.$emit("update:modelValue", "rotation");
+    await flushPromises();
+
+    expect(spaceToggle.props("modelValue")).toBe("global");
+    const restoredOptions = spaceToggle.props("options") as {
+      value: string;
+      disable?: boolean;
+    }[];
+    expect(
+      restoredOptions.find(option => option.value === "global")?.disable
+    ).toBeFalsy();
+  });
+
   it("drags the body model gizmo without moving the probe, and undoes the release as one step", async () => {
     const { runtime } = await mountCanvas();
     const store = useCurrentExperimentStore();

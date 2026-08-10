@@ -27,7 +27,8 @@ export interface SceneModel {
 
   /**
    * Internal scale representation of the model.
-   * - Scene objects: AP, DV, ML order, ASR orientation.
+   * - Scene objects: AP, DV, ML order, ASR orientation. That triple maps to
+   *   the object node's Babylon local Z, Y, X respectively (via `asrToVector3`).
    * - Probe body models: Babylon local X, Y, Z.
    * - Unitless multiplier; 1 is the model's own size.
    */

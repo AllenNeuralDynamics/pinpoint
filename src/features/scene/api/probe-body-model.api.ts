@@ -77,6 +77,44 @@ export function getProbeBodyModelNode(
 }
 
 /**
+ * Get a probe's body-model scale node, the child carrying its scale, or null
+ * when it isn't built.
+ * @param scene Scene the probe was built in.
+ * @param probeId Probe id whose body-model scale node to get.
+ */
+function getProbeBodyModelScaleNode(
+  scene: Scene,
+  probeId: string
+): TransformNode | null {
+  return scene.getTransformNodeByName(
+    buildSceneEntityName(probeId, "probe", "body-model_scale")
+  );
+}
+
+/**
+ * Get or build a probe's body-model scale node, keeping the gizmo-attached
+ * body-model node unscaled so the rotation gizmo works in local space at any
+ * scale.
+ * @param bodyModelNode Body-model transform node to parent the scale node to.
+ * @param probeId Probe id to name the scale node after.
+ */
+function buildProbeBodyModelScaleNode(
+  bodyModelNode: TransformNode,
+  probeId: string
+): TransformNode {
+  const scene = bodyModelNode.getScene();
+  const existing = getProbeBodyModelScaleNode(scene, probeId);
+  if (existing) return existing;
+
+  const scaleNode = new TransformNode(
+    buildSceneEntityName(probeId, "probe", "body-model_scale"),
+    scene
+  );
+  scaleNode.parent = bodyModelNode;
+  return scaleNode;
+}
+
+/**
  * A probe's body model part meshes, or an empty list when it isn't built.
  * @param scene Scene the probe was built in.
  * @param probeId Probe id whose body model meshes to get.
@@ -162,7 +200,16 @@ export function setProbeBodyModelScaleFromGizmoDrag(
   return scaleGizmo.onDragObservable.add(() => {
     const attached = attachedProbeBodyModelFromGizmo(scaleGizmo, probes);
     if (!attached) return;
-    attached.bodyModel.scale = vector3ToTriple(attached.node.scaling);
+    // The gizmo scales the node it is attached to; the scale belongs on the
+    // child so the body-model node stays unscaled and the rotation gizmo
+    // keeps working in local space.
+    const scaleNode = buildProbeBodyModelScaleNode(
+      attached.node,
+      attached.probe.id
+    );
+    scaleNode.scaling.multiplyInPlace(attached.node.scaling);
+    attached.node.scaling.setAll(1);
+    attached.bodyModel.scale = vector3ToTriple(scaleNode.scaling);
     onDrag(attached.probe.id);
   });
 }
@@ -214,6 +261,7 @@ export async function buildProbeBodyModelNode(
     scene
   );
   node.parent = probeNode;
+  const scaleNode = buildProbeBodyModelScaleNode(node, probe.id);
 
   const result = await ImportMeshAsync(modelFile, scene, {});
   const meshes = result.meshes.filter(
@@ -234,7 +282,7 @@ export async function buildProbeBodyModelNode(
   for (const root of [...result.meshes, ...result.transformNodes]) {
     if (root.parent) continue;
     root.name = buildSceneEntityName(probe.id, "probe", "body-model_root");
-    root.parent = node;
+    root.parent = scaleNode;
   }
 
   // Skin every part with the probe's own frozen material -- always present
@@ -405,10 +453,13 @@ export async function syncProbeBodyModels(
 
     // Applied verbatim, not through `asrToVector3`: these are Babylon local
     // XYZ relative to the probe node, not ASR. Set before cooking the hull,
-    // which reads world matrices.
+    // which reads world matrices. The scale lives on the child scale node,
+    // keeping the body-model node the gizmo attaches to unscaled.
     node.position = new Vector3(...bodyModel.position);
     node.rotation = new Vector3(...bodyModel.rotation);
-    node.scaling = new Vector3(...bodyModel.scale);
+    buildProbeBodyModelScaleNode(node, probe.id).scaling = new Vector3(
+      ...bodyModel.scale
+    );
 
     const poseKey = buildBodyModelPoseKey(bodyModel);
     if (

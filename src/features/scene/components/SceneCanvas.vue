@@ -147,6 +147,8 @@ const probeBodyModelSyncState = createProbeBodyModelSyncState();
 
 const gizmoMode = ref<GizmoMode>("position");
 const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
+/** Coordinate space to restore when leaving scale mode, which is local-only. */
+const spaceBeforeScale = ref<GizmoCoordinateSpace | null>(null);
 
 /**
  * Terminology rows for the current atlas, empty while they resolve.
@@ -247,6 +249,21 @@ const gizmoModeOptions = computed(() => [
         }
       ]
     : [])
+]);
+
+/** Coordinate-space toggle options; global is disabled in scale mode, which is local-only. */
+const gizmoCoordinateSpaceOptions = computed(() => [
+  {
+    label: t("sceneCanvas.gizmoLocal"),
+    value: "local",
+    icon: "sym_o_nearby"
+  },
+  {
+    label: t("sceneCanvas.gizmoGlobal"),
+    value: "global",
+    icon: "sym_o_globe",
+    disable: gizmoMode.value === "scale"
+  }
 ]);
 
 /** Meshes of a colliding entity, whichever kind it is. */
@@ -841,6 +858,22 @@ watch(isScaleGizmoAvailable, available => {
   if (!available && gizmoMode.value === "scale") gizmoMode.value = "position";
 });
 
+// The scale gizmo always scales along the attached node's own axes, so a
+// global scale is meaningless: entering scale mode forces local and disables
+// the global option, and leaving it restores the space the user had.
+watch(gizmoMode, (mode, previousMode) => {
+  if (mode === "scale") {
+    spaceBeforeScale.value = gizmoCoordinateSpace.value;
+    gizmoCoordinateSpace.value = "local";
+    return;
+  }
+  if (previousMode !== "scale") return;
+  if (spaceBeforeScale.value) {
+    gizmoCoordinateSpace.value = spaceBeforeScale.value;
+  }
+  spaceBeforeScale.value = null;
+});
+
 // Configure the gizmos from the control bar and keep the probe and scene
 // object drag observers on them.
 watch(
@@ -1060,18 +1093,7 @@ onUnmounted(() => {
         <q-btn-toggle
           v-model="gizmoCoordinateSpace"
           :aria-label="$t('sceneCanvas.gizmoCoordinateSpace')"
-          :options="[
-            {
-              label: $t('sceneCanvas.gizmoLocal'),
-              value: 'local',
-              icon: 'sym_o_nearby'
-            },
-            {
-              label: $t('sceneCanvas.gizmoGlobal'),
-              value: 'global',
-              icon: 'sym_o_globe'
-            }
-          ]"
+          :options="gizmoCoordinateSpaceOptions"
           toggle-color="primary"
         />
       </q-card-section>
