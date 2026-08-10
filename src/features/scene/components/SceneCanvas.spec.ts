@@ -434,7 +434,7 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ color: "warning" })
+      expect.objectContaining({ type: "warning" })
     );
     expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
       false
@@ -733,7 +733,7 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(notifySpy).toHaveBeenCalledWith(
-      expect.objectContaining({ color: "warning" })
+      expect.objectContaining({ type: "warning" })
     );
     expect(
       runtime.scene.value!.getTransformNodeByName("axisGuideRoot_node")

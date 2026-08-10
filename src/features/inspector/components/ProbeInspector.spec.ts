@@ -643,8 +643,7 @@ describe("ProbeInspector", () => {
       expect(notifySpy).toHaveBeenCalledWith({
         message: t.noSurfaceFound,
         caption: t.noSurfaceFoundCaption,
-        color: "warning",
-        icon: "warning"
+        type: "warning"
       });
       expect(probe.tipPosition).toEqual([1, 2, 3]);
     });
@@ -663,8 +662,7 @@ describe("ProbeInspector", () => {
       expect(notifySpy).toHaveBeenCalledWith({
         message: t.surfaceUnavailable,
         caption: t.surfaceUnavailableCaption,
-        color: "warning",
-        icon: "warning"
+        type: "warning"
       });
       expect(probe.tipPosition).toEqual([1, 2, 3]);
     });

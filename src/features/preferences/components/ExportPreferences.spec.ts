@@ -229,7 +229,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.preferencesImported,
-          color: "positive"
+          type: "positive"
         })
       );
     });
@@ -249,7 +249,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionMajorBehind,
-          color: "negative"
+          type: "negative"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(300);
@@ -270,7 +270,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionMinorAhead,
-          color: "warning"
+          type: "warning"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(175);
@@ -291,7 +291,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionUnknown,
-          color: "warning"
+          type: "warning"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(175);
@@ -311,7 +311,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.invalidPreferencesFile,
-          color: "negative"
+          type: "negative"
         })
       );
     });
@@ -346,7 +346,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.invalidPreferencesFile,
-          color: "negative"
+          type: "negative"
         })
       );
       expect(store).toEqual(defaults);

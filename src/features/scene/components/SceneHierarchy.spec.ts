@@ -386,7 +386,7 @@ describe("SceneHierarchy", () => {
 
       expect(currentExperiment.sceneObjects).toEqual([]);
       expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
+        expect.objectContaining({ type: "negative" })
       );
     });
 

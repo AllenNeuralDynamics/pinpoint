@@ -199,7 +199,7 @@ describe("useExperimentFile", () => {
 
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
+        expect.objectContaining({ type: "negative" })
       );
       expect(store.name).toBe(originalName);
     });
@@ -215,7 +215,7 @@ describe("useExperimentFile", () => {
 
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
+        expect.objectContaining({ type: "negative" })
       );
     });
 
@@ -245,7 +245,7 @@ describe("useExperimentFile", () => {
 
       expect(notifySpy).toHaveBeenCalledTimes(1);
       expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
+        expect.objectContaining({ type: "negative" })
       );
     });
 
@@ -267,7 +267,7 @@ describe("useExperimentFile", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.experimentFile.versionMajorBehind,
-          color: "negative"
+          type: "negative"
         })
       );
     });
@@ -290,7 +290,7 @@ describe("useExperimentFile", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.experimentFile.versionMinorAhead,
-          color: "warning"
+          type: "warning"
         })
       );
     });
@@ -312,7 +312,7 @@ describe("useExperimentFile", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.experimentFile.versionUnknown,
-          color: "warning"
+          type: "warning"
         })
       );
     });
