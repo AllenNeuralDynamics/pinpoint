@@ -29,13 +29,29 @@ export function buildCameraPose(
     inspectableKind: "camera",
     id: crypto.randomUUID(),
     name: "",
-    alpha: INITIAL_ALPHA,
-    beta: INITIAL_BETA,
+    alpha: 0,
+    beta: 0,
     radius: 0,
     target: [0, 0, 0]
   };
-  frameCameraPoseOnAtlas(pose, atlas, referenceCoordinate);
+  resetCameraPose(pose, atlas, referenceCoordinate);
   return pose;
+}
+
+/**
+ * Reset a camera pose to an atlas's default view: the initial orbit angles, framed on the atlas.
+ * @param pose Camera pose to reset in place.
+ * @param atlas Atlas to frame the pose on.
+ * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
+ */
+export function resetCameraPose(
+  pose: CameraPose,
+  atlas: Atlas,
+  referenceCoordinate: [number, number, number]
+): void {
+  pose.alpha = INITIAL_ALPHA;
+  pose.beta = INITIAL_BETA;
+  frameCameraPoseOnAtlas(pose, atlas, referenceCoordinate);
 }
 
 /**

@@ -158,6 +158,29 @@ describe("CameraInspector", () => {
     expect(saved!.target).toEqual(pose.target);
   });
 
+  it("restores the atlas's default orbit, target, and radius on Reset Camera", async () => {
+    const { wrapper, store } = mountInspector();
+    const defaults = { ...store.experiment.cameraPose };
+    Object.assign(store.experiment.cameraPose, {
+      alpha: 1,
+      beta: 2,
+      radius: 3,
+      target: [9, 9, 9]
+    });
+    await wrapper.vm.$nextTick();
+
+    const resetButton = wrapper
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text().includes(t.resetCamera))!;
+    await resetButton.trigger("click");
+
+    const pose = store.experiment.cameraPose;
+    expect(pose.alpha).toBe(defaults.alpha);
+    expect(pose.beta).toBe(defaults.beta);
+    expect(pose.radius).toBe(defaults.radius);
+    expect(pose.target).toEqual(defaults.target);
+  });
+
   it("does not render a Copy from Current button", () => {
     const { wrapper } = mountInspector();
 

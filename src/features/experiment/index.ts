@@ -11,6 +11,7 @@ export {
   copyCameraPose,
   frameCameraPoseOnAtlas,
   isCameraPose,
+  resetCameraPose,
   setCameraPose
 } from "./api/camera-pose.api";
 export {

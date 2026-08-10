@@ -249,6 +249,7 @@ export default {
     projection: "Projection",
     perspective: "Perspective",
     orthographic: "Orthographic",
+    resetCamera: "Reset Camera",
     savePose: "Save Pose",
     applyPose: "Move camera to {name}",
     deletePose: "Delete pose",
