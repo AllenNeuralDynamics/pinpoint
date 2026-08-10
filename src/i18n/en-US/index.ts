@@ -1,8 +1,9 @@
 export default {
   atlasPicker: {
     title: "Atlas",
-    brainglobeHosted: "BrainGlobe Hosted",
-    customHTTPHost: "Custom HTTP Host",
+    brainglobeHosted: "BrainGlobe",
+    allenInstituteHosted: "Allen Institute",
+    customHTTPHost: "Custom",
     sourceUrl: "Source URL",
     search: "Search",
     atlasCount: "no atlases | one atlas | {count} atlases",

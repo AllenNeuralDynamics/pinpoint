@@ -7,7 +7,7 @@ import AtlasPicker from "./AtlasPicker.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useFavoriteAtlasesStore } from "@/stores/favorite-atlases.store";
 import { makeAtlas } from "@/test/fixtures";
-import { BRAINGLOBE_BASE_URL } from "../api/source.api";
+import { BUCKET_SOURCE_URLS } from "../api/source.api";
 
 vi.mock("axios");
 
@@ -27,8 +27,15 @@ const CUSTOM_SOURCE = "custom";
 const BRAINGLOBE_LISTING_URL =
   "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas-rc2%2Fatlases%2F&delimiter=%2F";
 
+/** URL of the Allen Institute bucket's atlases directory listing. */
+const ALLEN_INSTITUTE_LISTING_URL =
+  "https://aind-scratch-data.s3.us-west-2.amazonaws.com/?list-type=2&prefix=pinpoint-atlases%2Fatlases%2F&delimiter=%2F";
+
+/** Root URL of the custom HTTP host used across these tests. */
+const CUSTOM_SOURCE_ROOT = "http://localhost:3000";
+
 /** URL of a custom HTTP host's atlases directory listing. */
-const CUSTOM_ATLASES_URL = "http://localhost:3000/brainglobe-atlasapi/atlases";
+const CUSTOM_ATLASES_URL = `${CUSTOM_SOURCE_ROOT}/brainglobe-atlasapi/atlases`;
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -56,7 +63,7 @@ const QVirtualScrollStub = defineComponent({
  * @param directory `atlases/` directory name.
  */
 function brainglobeManifestUrl(directory: string): string {
-  return `${BRAINGLOBE_BASE_URL}atlases/${directory}/3_0/manifest.json`;
+  return `${BUCKET_SOURCE_URLS.brainglobe}atlases/${directory}/3_0/manifest.json`;
 }
 
 /**
@@ -72,11 +79,14 @@ function customManifestUrl(directory: string): string {
  * unless overridden.
  * @param overrides Fields to override on the default raw manifest.
  */
-function rawManifest(overrides: { atlas_link?: string } = {}) {
+function rawManifest(
+  overrides: { atlas_link?: string; species?: string } = {}
+) {
   return {
     name: "allen_mouse",
     resolution: [25, 25, 25],
     shape: [528, 320, 456],
+    species: "Mus musculus",
     terminology: { location: "/terminologies/allen_mouse-terminology/3_0" },
     annotation_set: {
       location: "/annotation-sets/allen_mouse-annotation/3_0"
@@ -182,6 +192,30 @@ describe("AtlasPicker", () => {
       expect(items[0]!.text()).toContain("Allen Mouse");
     });
 
+    it("loads atlases from the Allen Institute bucket when that source is toggled", async () => {
+      mockSource(
+        ALLEN_INSTITUTE_LISTING_URL,
+        `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <CommonPrefixes><Prefix>pinpoint-atlases/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
+</ListBucketResult>`,
+        {
+          [`${BUCKET_SOURCE_URLS.allenInstitute}atlases/allen_mouse_25um/3_0/manifest.json`]:
+            rawManifest()
+        }
+      );
+
+      const wrapper = mountPicker();
+      await wrapper
+        .findComponent({ name: "QBtnToggle" })
+        .vm.$emit("update:modelValue", "allenInstitute");
+      await settle();
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.text()).toContain("Allen Mouse");
+    });
+
     it("starts the custom host field empty, so switching to it fires no request", async () => {
       const wrapper = mountPicker();
       await settle();
@@ -195,6 +229,34 @@ describe("AtlasPicker", () => {
       const hostInput = wrapper.findComponent({ name: "QInput" });
       expect(hostInput.props("modelValue")).toBeNull();
       expect(mockedGet).not.toHaveBeenCalled();
+    });
+
+    it("shows the loading bar while a source listing is in flight, then hides it", async () => {
+      const { promise: listing, resolve: resolveListing } =
+        Promise.withResolvers<{ data: unknown }>();
+      mockedGet.mockImplementation((url: string) =>
+        url === BRAINGLOBE_LISTING_URL
+          ? listing
+          : Promise.reject(new Error(`unexpected request: ${url}`))
+      );
+
+      const wrapper = mountPicker();
+      await flushPromises();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        true
+      );
+
+      resolveListing({
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"></ListBucketResult>`
+      });
+      await settle();
+
+      expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
+        false
+      );
+      expect(wrapper.text()).toContain("No atlases found.");
     });
 
     it("loads atlases from the custom HTTP host once toggled and a URL is set", async () => {
@@ -343,6 +405,82 @@ describe("AtlasPicker", () => {
       expect(items).toHaveLength(1);
       expect(items[0]!.text()).toContain("Allen Human");
     });
+
+    it("matches on the manifest's species, which is never rendered", async () => {
+      mockSource(
+        CUSTOM_ATLASES_URL,
+        {
+          files: [
+            { name: "allen_mouse_25um", type: "folder" },
+            { name: "allen_human_500um", type: "folder" }
+          ]
+        },
+        {
+          [customManifestUrl("allen_mouse_25um")]: rawManifest({
+            species: "Mus musculus"
+          }),
+          [customManifestUrl("allen_human_500um")]: rawManifest({
+            species: "Homo sapiens"
+          })
+        }
+      );
+      const wrapper = await mountOnCustomSource();
+
+      // Neither species string is on screen; species is searched, not shown.
+      expect(wrapper.text()).not.toContain("Mus musculus");
+      expect(wrapper.text()).not.toContain("Homo sapiens");
+
+      const search = wrapper.findAllComponents({ name: "QInput" })[1]!;
+      await search.vm.$emit("update:modelValue", "Homo sapiens");
+      await wrapper.vm.$nextTick();
+
+      const items = wrapper.findAllComponents({ name: "QItem" });
+      expect(items).toHaveLength(1);
+      expect(items[0]!.text()).toContain("Allen Human");
+      expect(items[0]!.text()).not.toContain("Homo sapiens");
+    });
+
+    it("resolves species for atlases the virtual scroller never rendered", async () => {
+      mockSource(
+        CUSTOM_ATLASES_URL,
+        {
+          files: [
+            { name: "allen_mouse_25um", type: "folder" },
+            { name: "allen_human_500um", type: "folder" }
+          ]
+        },
+        {
+          [customManifestUrl("allen_mouse_25um")]: rawManifest({
+            species: "Mus musculus"
+          }),
+          [customManifestUrl("allen_human_500um")]: rawManifest({
+            species: "Homo sapiens"
+          })
+        }
+      );
+
+      // A scroller that renders no rows at all, so no AtlasPickerItem mounts
+      // and nothing requests a manifest on the row's behalf.
+      const wrapper = mountWithQuasar(AtlasPicker, {
+        pinia: createPinia(),
+        props: { modelValue: null, "onUpdate:modelValue": () => {} },
+        global: { stubs: { QVirtualScroll: { template: "<div />" } } }
+      });
+      await wrapper
+        .findComponent({ name: "QBtnToggle" })
+        .vm.$emit("update:modelValue", CUSTOM_SOURCE);
+      await wrapper
+        .findComponent({ name: "QInput" })
+        .vm.$emit("update:modelValue", "http://localhost:3000");
+      await settle();
+
+      expect(
+        wrapper.findAllComponents({ name: "AtlasPickerItem" })
+      ).toHaveLength(0);
+      expect(mockedGet).toHaveBeenCalledWith(
+        customManifestUrl("allen_human_500um")
+      );
+    });
   });
 
   describe("favorites partitioning", () => {
@@ -377,7 +515,7 @@ describe("AtlasPicker", () => {
       setActivePinia(pinia);
       const favoritesStore = useFavoriteAtlasesStore();
       favoritesStore.add(
-        makeAtlas({ source: "http://localhost:3000", name: "allen_human" })
+        makeAtlas({ source: CUSTOM_SOURCE_ROOT, name: "allen_human" })
       );
 
       const wrapper = await connectedWrapper(pinia);
@@ -402,7 +540,7 @@ describe("AtlasPicker", () => {
         .find(btn => btn.props("icon") === "favorite_border")!;
       await addBtn.trigger("click");
 
-      expect(favoritesStore.favorites["http://localhost:3000"]).toContain(
+      expect(favoritesStore.favorites[CUSTOM_SOURCE_ROOT]).toContain(
         "allen_human"
       );
     });
@@ -412,7 +550,7 @@ describe("AtlasPicker", () => {
       setActivePinia(pinia);
       const favoritesStore = useFavoriteAtlasesStore();
       favoritesStore.add(
-        makeAtlas({ source: "http://localhost:3000", name: "allen_human" })
+        makeAtlas({ source: CUSTOM_SOURCE_ROOT, name: "allen_human" })
       );
 
       const wrapper = await connectedWrapper(pinia);
@@ -422,7 +560,7 @@ describe("AtlasPicker", () => {
         .find(btn => btn.props("icon") === "favorite")!;
       await removeBtn.trigger("click");
 
-      expect(favoritesStore.favorites["http://localhost:3000"]).not.toContain(
+      expect(favoritesStore.favorites[CUSTOM_SOURCE_ROOT]).not.toContain(
         "allen_human"
       );
     });
@@ -444,11 +582,12 @@ describe("AtlasPicker", () => {
         [
           {
             name: "allen_mouse",
-            source: "http://localhost:3000",
+            source: CUSTOM_SOURCE_ROOT,
             manifest: {
               terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
               annotationSetLocation:
                 "/annotation-sets/allen_mouse-annotation/3_0",
+              species: "Mus musculus",
               atlasLink: "http://www.brain-map.org",
               resolutions: [[0.025, 0.025, 0.025]],
               shape: [[528, 320, 456]]

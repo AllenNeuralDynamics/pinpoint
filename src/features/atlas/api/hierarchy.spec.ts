@@ -92,6 +92,19 @@ describe("getDefaultStructureIdentifiers", () => {
     expect(result).toEqual(KNOWN_DEFAULT_STRUCTURES.allen_mouse);
   });
 
+  it.each([
+    "princeton_mouse",
+    "allen_mouse_bluebrain_barrels",
+    "qiu2018_mouse"
+  ])(
+    "gives %s the same defaults as allen_mouse, since it uses the CCF terminology",
+    atlasName => {
+      expect(getDefaultStructureIdentifiers(atlasName, [])).toEqual(
+        KNOWN_DEFAULT_STRUCTURES.allen_mouse
+      );
+    }
+  );
+
   it("falls back to root's direct children for an atlas with no known list", () => {
     const result = getDefaultStructureIdentifiers(
       "african_molerat",

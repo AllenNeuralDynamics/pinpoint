@@ -30,6 +30,7 @@ interface RawManifest {
   name: string;
   resolution: [number, number, number];
   shape: [number, number, number];
+  species?: string;
   terminology: { location: string };
   annotation_set: { location: string };
   atlas_link?: string;
@@ -38,8 +39,19 @@ interface RawManifest {
 /** Raw terminology row as parsed from CSV, before numeric/array fields are converted. */
 type RawTerminologyRow = Record<keyof TerminologyRow, string>;
 
-export const BRAINGLOBE_BASE_URL =
-  "https://brainglobe.s3.us-west-2.amazonaws.com/atlas-rc2/";
+/** Identifier of a built-in S3-backed atlas source. */
+export type BucketSourceId = "brainglobe" | "allenInstitute";
+
+/**
+ * Root URLs of the built-in S3-backed atlas sources, each ending in `/` so
+ * source-root-relative manifest locations resolve against it.
+ */
+export const BUCKET_SOURCE_URLS: Record<BucketSourceId, string> = {
+  brainglobe: "https://brainglobe.s3.us-west-2.amazonaws.com/atlas-rc2/",
+  allenInstitute:
+    "https://aind-scratch-data.s3.us-west-2.amazonaws.com/pinpoint-atlases/"
+};
+
 const ATLAS_VERSION_STRING = "3_0";
 
 const ATLASES_DIRECTORY = "atlases";
@@ -53,10 +65,11 @@ const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
  */
 export const DEFAULT_ATLAS: Atlas = {
   name: "allen_mouse",
-  source: BRAINGLOBE_BASE_URL,
+  source: BUCKET_SOURCE_URLS.brainglobe,
   manifest: {
     terminologyLocation: "/terminologies/allen_mouse-terminology/3_0",
     annotationSetLocation: "/annotation-sets/allen_mouse-annotation/3_0",
+    species: "Mus musculus",
     atlasLink: "http://www.brain-map.org",
     resolutions: [
       [0.01, 0.01, 0.01],
@@ -74,14 +87,18 @@ export const DEFAULT_ATLAS: Atlas = {
 };
 
 /**
- * Fetch the list of atlases in the BrainGlobe atlases bucket, or null if
+ * Fetch the list of atlases in an S3-backed atlases bucket, or null if
  * unreachable.
+ * @param source Root URL of the atlas source.
  */
-export async function listAtlases(): Promise<AtlasListing[] | null> {
+export async function listAtlasesBucket(
+  source: string
+): Promise<AtlasListing[] | null> {
   try {
-    const directoryNames =
-      await listBucketAtlasDirectories(BRAINGLOBE_BASE_URL);
-    return atlasListingsFromDirectories(directoryNames, BRAINGLOBE_BASE_URL);
+    return atlasListingsFromDirectories(
+      await listBucketAtlasDirectories(source),
+      source
+    );
   } catch {
     return null;
   }
@@ -140,7 +157,7 @@ export async function listAtlasesHTTP(
   source: string
 ): Promise<AtlasListing[] | null> {
   try {
-    const directoryNames = await listServerAtlasDirectories(atlasesUrl(source));
+    const directoryNames = await listServerAtlasDirectories(source);
     return atlasListingsFromDirectories(directoryNames, source);
   } catch {
     return null;
@@ -150,15 +167,22 @@ export async function listAtlasesHTTP(
 /**
  * List the folder names in the atlases directory of a BrainGlobe HTTP
  * server.
- * @param atlasesUrl URL of the server's atlases directory.
+ * @param source Root URL of the BrainGlobe HTTP server.
  */
-async function listServerAtlasDirectories(
-  atlasesUrl: string
-): Promise<string[]> {
-  const response = await axios.get<AtlasSourceResponse>(atlasesUrl);
+async function listServerAtlasDirectories(source: string): Promise<string[]> {
+  const response = await axios.get<AtlasSourceResponse>(atlasesUrl(source));
   return response.data.files
     .filter(item => item.type === "folder")
     .map(item => item.name);
+}
+
+/**
+ * Is a source one of the built-in buckets, which serve atlas paths at their
+ * root, rather than an HTTP server that serves them under a path prefix.
+ * @param source Root URL of the atlas source.
+ */
+function isBucketSource(source: string): boolean {
+  return Object.values(BUCKET_SOURCE_URLS).includes(source);
 }
 
 /**
@@ -166,7 +190,7 @@ async function listServerAtlasDirectories(
  * @param source Root URL of the atlas source.
  */
 function atlasesUrl(source: string): string {
-  return source === BRAINGLOBE_BASE_URL
+  return isBucketSource(source)
     ? new URL(ATLASES_DIRECTORY, source).toString()
     : `${source}/${HTTP_SOURCE_PREFIX}/${ATLASES_DIRECTORY}`;
 }
@@ -315,6 +339,7 @@ async function buildManifest(manifestUrls: string[]): Promise<Manifest | null> {
   return {
     terminologyLocation: finest.terminology.location,
     annotationSetLocation: finest.annotation_set.location,
+    ...(finest.species && { species: finest.species }),
     atlasLink: finest.atlas_link || null,
     resolutions: variants.map(variant => {
       const [ap, dv, ml] = variant.resolution;
@@ -406,7 +431,7 @@ export function getAnnotationVolumeUrl(atlas: Atlas): string {
  * @param path Source-root-relative path, starting with `/`.
  */
 function resolveSourcePath(source: string, path: string): string {
-  return source === BRAINGLOBE_BASE_URL
+  return isBucketSource(source)
     ? new URL(path.replace(/^\//, ""), source).toString()
     : `${source}/${HTTP_SOURCE_PREFIX}${path}`;
 }
