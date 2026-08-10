@@ -259,4 +259,16 @@ describe("IndexPage menu bar", () => {
 
     expect(document.body.textContent).not.toContain("Undo");
   });
+
+  it("opens the docs in a new tab from the Help button", () => {
+    const wrapper = mountIndexPage();
+
+    const help = [
+      ...wrapper.get(".q-toolbar").element.querySelectorAll("a")
+    ].find(anchor => anchor.textContent?.trim() === "Help");
+
+    expect(help?.getAttribute("href")).toBe(`${import.meta.env.BASE_URL}docs/`);
+    expect(help?.getAttribute("target")).toBe("_blank");
+    expect(help?.getAttribute("rel")).toBe("noopener noreferrer");
+  });
 });

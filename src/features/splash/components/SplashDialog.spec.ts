@@ -84,4 +84,18 @@ describe("SplashDialog", () => {
     expect(logo.attributes("srcset")).toContain("favicon-128x128.png 128w");
     expect(logo.attributes("sizes")).toBe("64px");
   });
+
+  it("opens the docs in a new tab from the user-guide button", async () => {
+    const wrapper = await mountDialog();
+
+    const userGuide = wrapper
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.attributes("href")?.endsWith("docs/"));
+
+    expect(userGuide?.attributes("href")).toBe(
+      `${import.meta.env.BASE_URL}docs/`
+    );
+    expect(userGuide?.attributes("target")).toBe("_blank");
+    expect(userGuide?.attributes("rel")).toBe("noopener noreferrer");
+  });
 });

@@ -9,7 +9,12 @@ export default defineConfig({
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: "Docs", link: "/" },
-      { text: "Launch", link: "https://kennethjyang.github.io/pinpoint-v/" }
+      {
+        text: "Launch",
+        link: "https://kennethjyang.github.io/pinpoint-v/",
+        target: "_blank",
+        rel: "noopener noreferrer"
+      }
     ],
 
     sidebar: [

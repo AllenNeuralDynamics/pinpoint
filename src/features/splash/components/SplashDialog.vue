@@ -69,8 +69,10 @@ onOpened(onDialogOK);
           <div class="row q-gutter-x-md justify-center">
             <q-btn
               :label="$t('splash.userGuide')"
-              :href="`${BASE_URL}docs`"
+              :href="`${BASE_URL}docs/`"
               icon="menu_book"
+              target="_blank"
+              rel="noopener noreferrer"
             />
             <q-btn
               :label="$t('splash.vblWebsite')"

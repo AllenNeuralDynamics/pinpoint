@@ -279,7 +279,13 @@ onUnmounted(() => {
           </q-menu>
         </q-btn>
 
-        <q-btn :label="$t('layout.help')" flat :href="`${BASE_URL}docs`" />
+        <q-btn
+          :label="$t('layout.help')"
+          flat
+          :href="`${BASE_URL}docs/`"
+          target="_blank"
+          rel="noopener noreferrer"
+        />
 
         <q-space />
 
