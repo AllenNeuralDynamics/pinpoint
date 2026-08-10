@@ -475,3 +475,13 @@ export function getAtlasCenter(atlas: Atlas): [number, number, number] {
 export function getAtlasLongestDimensionMillimeters(atlas: Atlas): number {
   return Math.max(...getAtlasDimensionsMillimeters(atlas));
 }
+
+/**
+ * Compute the mean edge length of the atlas volume's bounding box, in mm, or
+ * 0 if unknown.
+ * @param atlas Atlas to compute the average dimension for.
+ */
+export function getAtlasAverageDimensionMillimeters(atlas: Atlas): number {
+  const [ap, dv, ml] = getAtlasDimensionsMillimeters(atlas);
+  return (ap + dv + ml) / 3;
+}

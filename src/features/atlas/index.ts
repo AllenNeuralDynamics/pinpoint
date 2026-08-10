@@ -9,6 +9,7 @@ export {
   isSameAtlas,
   structureEntitiesFromIdentifiers,
   getAtlasCenter,
+  getAtlasAverageDimensionMillimeters,
   getAtlasDimensionsMillimeters,
   getAtlasLongestDimensionMillimeters,
   getAnnotationVolumeUrl

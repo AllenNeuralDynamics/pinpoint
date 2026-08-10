@@ -6,6 +6,7 @@ import {
   BUCKET_SOURCE_URLS,
   getAnnotationVolumeUrl,
   getAtlas,
+  getAtlasAverageDimensionMillimeters,
   getAtlasCenter,
   getAtlasDimensionsMillimeters,
   getAtlasLongestDimensionMillimeters,
@@ -1011,6 +1012,28 @@ describe("getAtlasLongestDimensionMillimeters", () => {
     });
 
     expect(getAtlasLongestDimensionMillimeters(atlas)).toBe(0);
+  });
+});
+
+describe("getAtlasAverageDimensionMillimeters", () => {
+  it("averages resolution * shape across axes", () => {
+    const atlas = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [[0.01, 0.02, 0.03]],
+        shape: [[200, 400, 600]]
+      })
+    });
+
+    // AP: 2, DV: 8, ML: 18 - a float mean, not an exact power of two.
+    expect(getAtlasAverageDimensionMillimeters(atlas)).toBeCloseTo(28 / 3);
+  });
+
+  it("falls back to 0 when the manifest has no resolutions", () => {
+    const atlas = makeAtlas({
+      manifest: makeManifest({ resolutions: [], shape: [[100, 200, 300]] })
+    });
+
+    expect(getAtlasAverageDimensionMillimeters(atlas)).toBe(0);
   });
 });
 

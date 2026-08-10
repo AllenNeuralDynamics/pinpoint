@@ -63,8 +63,8 @@ export interface Probe {
 
   /**
    * Edge length of the inspector's slice view, in mm. Null until the user
-   * picks a zoom, so the slice view can default it proportionally to the
-   * current atlas instead of a fixed value.
+   * picks a zoom, so the slice view can default it from the current
+   * atlas's average size.
    */
   sliceExtentMillimeters: number | null;
 
