@@ -246,6 +246,7 @@ describe("AtlasPicker", () => {
       expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
         true
       );
+      expect(wrapper.find(".atlas-picker__results").exists()).toBe(true);
 
       resolveListing({
         data: `<?xml version="1.0" encoding="UTF-8"?>
@@ -256,6 +257,7 @@ describe("AtlasPicker", () => {
       expect(wrapper.findComponent({ name: "QLinearProgress" }).exists()).toBe(
         false
       );
+      expect(wrapper.find(".atlas-picker__results").exists()).toBe(true);
       expect(wrapper.text()).toContain("No atlases found.");
     });
 

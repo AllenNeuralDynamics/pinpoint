@@ -58,12 +58,12 @@ async function create() {
 
 <template>
   <q-dialog ref="dialogRef" @hide="onDialogHide">
-    <q-card class="new-experiment">
+    <q-card class="new-experiment fixed-dialog-card">
       <q-card-section>
         <div class="text-h5">{{ $t("newExperiment.title") }}</div>
       </q-card-section>
       <q-card-section
-        class="q-gutter-y-md new-experiment__content q-mt-none q-pt-none"
+        class="q-gutter-y-md new-experiment__content column no-wrap q-mt-none q-pt-none"
       >
         <q-input
           ref="nameInput"
@@ -75,7 +75,7 @@ async function create() {
           @blur="nameInput?.validate()"
         />
 
-        <AtlasPicker v-model="atlas" />
+        <AtlasPicker v-model="atlas" class="col" fill-height />
       </q-card-section>
       <q-card-actions align="right">
         <q-btn v-close-popup :label="$t('newExperiment.cancel')" />
@@ -98,8 +98,7 @@ async function create() {
 
 <style lang="sass" scoped>
 .new-experiment
-  min-width: 25vw
-  width: fit-content
+  height: 80vh
   display: flex
   flex-direction: column
   overflow: hidden
@@ -107,5 +106,4 @@ async function create() {
 .new-experiment__content
   flex: 1 1 auto
   min-height: 0
-  overflow-y: auto
 </style>
