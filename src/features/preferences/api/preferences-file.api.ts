@@ -114,7 +114,8 @@ function isPreferences(value: unknown): value is Preferences {
     appearance,
     isSplashScreenSkipped,
     cameraProjection,
-    worldBackgroundColor,
+    worldBackgroundColorLightMode,
+    worldBackgroundColorDarkMode,
     isSsaoEnabled,
     areStructureInteriorsHidden,
     positionUnit,
@@ -128,11 +129,13 @@ function isPreferences(value: unknown): value is Preferences {
   ) {
     return false;
   }
-  if (
-    typeof worldBackgroundColor !== "string" ||
-    !HEX_COLOR_PATTERN.test(worldBackgroundColor)
-  ) {
-    return false;
+  for (const color of [
+    worldBackgroundColorLightMode,
+    worldBackgroundColorDarkMode
+  ]) {
+    if (typeof color !== "string" || !HEX_COLOR_PATTERN.test(color)) {
+      return false;
+    }
   }
   if (typeof areStructureInteriorsHidden !== "boolean") return false;
   if (typeof isSplashScreenSkipped !== "boolean") return false;
@@ -176,7 +179,8 @@ function pickPreferences(source: Preferences, version: string): Preferences {
     isSplashScreenSkipped: source.isSplashScreenSkipped,
     cameraProjection: source.cameraProjection,
     cameraInertia: source.cameraInertia,
-    worldBackgroundColor: source.worldBackgroundColor,
+    worldBackgroundColorLightMode: source.worldBackgroundColorLightMode,
+    worldBackgroundColorDarkMode: source.worldBackgroundColorDarkMode,
     worldLightIntensity: source.worldLightIntensity,
     materialSpecularIntensity: source.materialSpecularIntensity,
     materialSpecularPower: source.materialSpecularPower,

@@ -18,7 +18,8 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     isSplashScreenSkipped: false,
     cameraProjection: "perspective",
     cameraInertia: 0.9,
-    worldBackgroundColor: "#33334d",
+    worldBackgroundColorLightMode: "#33334d",
+    worldBackgroundColorDarkMode: "#33334d",
     worldLightIntensity: 1,
     materialSpecularIntensity: 1,
     materialSpecularPower: 64,
@@ -52,12 +53,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the twenty preference keys", () => {
+  it("writes only the twenty-one preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(20);
+    expect(keys).toHaveLength(21);
     expect(keys).not.toContain("junk");
   });
 });
@@ -100,8 +101,20 @@ describe("parsePreferencesFile", () => {
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
 
-  it("returns null for a malformed worldBackgroundColor", () => {
-    const fixture = { ...makePreferences(), worldBackgroundColor: "red" };
+  it("returns null for a malformed worldBackgroundColorLightMode", () => {
+    const fixture = {
+      ...makePreferences(),
+      worldBackgroundColorLightMode: "red"
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a malformed worldBackgroundColorDarkMode", () => {
+    const fixture = {
+      ...makePreferences(),
+      worldBackgroundColorDarkMode: "red"
+    };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
@@ -183,7 +196,8 @@ describe("applyPreferences", () => {
     const source = makePreferences({
       cameraProjection: "orthographic",
       cameraInertia: 0.1,
-      worldBackgroundColor: "#ff0000",
+      worldBackgroundColorLightMode: "#ff0000",
+      worldBackgroundColorDarkMode: "#00ff00",
       areStructureInteriorsHidden: false,
       isSsaoEnabled: false,
       ssaoRatio: 0.25,

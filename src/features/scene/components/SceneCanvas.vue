@@ -10,6 +10,7 @@ import {
   watch,
   watchEffect
 } from "vue";
+import { useQuasar } from "quasar";
 import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService";
 import { useCameraPoseSync } from "../composable/useCameraPoseSync";
 import {
@@ -106,6 +107,7 @@ import {
 } from "../api/ssao.api";
 import { useNotify } from "@/composable/useNotify";
 
+const $q = useQuasar();
 const { t } = useI18n();
 const { notifyError, notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
@@ -184,6 +186,13 @@ const surfaceMaterialSettings = computed<SurfaceMaterialSettings>(() => ({
   specularIntensity: preferences.materialSpecularIntensity,
   specularPower: preferences.materialSpecularPower
 }));
+
+/** Background color for the theme currently rendering; each theme has its own preference. */
+const worldBackgroundColor = computed(() =>
+  $q.dark.isActive
+    ? preferences.worldBackgroundColorDarkMode
+    : preferences.worldBackgroundColorLightMode
+);
 
 const probeGeometry = computed<ProbeGeometry>(() => ({
   shankThicknessMillimeters: preferences.probeShankThicknessMillimeters,
@@ -396,7 +405,7 @@ watchEffect(() => {
   const scene = runtime.scene.value;
   if (!scene) return;
 
-  setSceneBackgroundColor(scene, preferences.worldBackgroundColor);
+  setSceneBackgroundColor(scene, worldBackgroundColor.value);
 });
 
 watchEffect(() => {

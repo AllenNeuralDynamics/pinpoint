@@ -16,8 +16,10 @@ export interface Preferences {
   cameraProjection: CameraProjection;
   /** Camera movement damping; 0 is snappy, 1 is smooth. */
   cameraInertia: number;
-  /** Scene background color, as `#rrggbb`. */
-  worldBackgroundColor: string;
+  /** Scene background color while the app renders light, as `#rrggbb`. */
+  worldBackgroundColorLightMode: string;
+  /** Scene background color while the app renders dark, as `#rrggbb`. */
+  worldBackgroundColorDarkMode: string;
   /** Hemispheric light power. */
   worldLightIntensity: number;
   /** Specular reflection strength of every scene material, 0-1. */
@@ -48,6 +50,9 @@ export interface Preferences {
   probeRodLengthMillimeters: number;
 }
 
+/** Babylon's default scene clear color, the starting background for both themes. */
+export const DEFAULT_WORLD_BACKGROUND_COLOR = "#33334d";
+
 export const usePreferencesStore = defineStore(
   "preferences",
   () => {
@@ -56,7 +61,8 @@ export const usePreferencesStore = defineStore(
     const isSplashScreenSkipped = ref(false);
     const cameraProjection = ref<CameraProjection>("perspective");
     const cameraInertia = ref(0.9);
-    const worldBackgroundColor = ref("#33334d");
+    const worldBackgroundColorLightMode = ref(DEFAULT_WORLD_BACKGROUND_COLOR);
+    const worldBackgroundColorDarkMode = ref(DEFAULT_WORLD_BACKGROUND_COLOR);
     const worldLightIntensity = ref(1);
     const materialSpecularIntensity = ref(1);
     const materialSpecularPower = ref(64);
@@ -80,7 +86,8 @@ export const usePreferencesStore = defineStore(
       isSplashScreenSkipped,
       cameraProjection,
       cameraInertia,
-      worldBackgroundColor,
+      worldBackgroundColorLightMode,
+      worldBackgroundColorDarkMode,
       worldLightIntensity,
       materialSpecularIntensity,
       materialSpecularPower,
