@@ -47,6 +47,11 @@ function atlasKey(identity: AtlasIdentity): string {
   return `${identity.source}\n${identity.name}`;
 }
 
+const { fillHeight = false } = defineProps<{
+  /** Grow the results region to fill the parent's height instead of a fixed 30vh. */
+  fillHeight?: boolean;
+}>();
+
 const selectedAtlas = defineModel<Atlas | null>({ required: true });
 
 const favoriteAtlasesStore = useFavoriteAtlasesStore();
@@ -182,7 +187,7 @@ watch(atlases, listings => {
 </script>
 
 <template>
-  <q-form class="q-gutter-y-sm">
+  <q-form class="q-gutter-y-sm" :class="{ 'atlas-picker--fill': fillHeight }">
     <p class="text-h6">{{ $t("atlasPicker.title") }}</p>
 
     <q-btn-toggle
@@ -203,63 +208,81 @@ watch(atlases, listings => {
       v-if="sourceToggle === 'custom'"
       v-model="customHTTPHost"
       :label="$t('atlasPicker.sourceUrl')"
-      class="col"
       clearable
     />
 
-    <q-linear-progress
-      v-if="atlasesEvaluating"
-      indeterminate
-      color="primary"
-      size="sm"
-    />
+    <template v-if="!atlasesEvaluating && listedAtlases.length > 0">
+      <q-input
+        v-model="searchQuery"
+        :label="$t('atlasPicker.search')"
+        clearable
+      >
+        <template #prepend>
+          <q-icon name="search" />
+        </template>
+      </q-input>
+      <p>{{
+        $t(
+          "atlasPicker.atlasCount",
+          { count: filteredAtlases.length },
+          filteredAtlases.length
+        )
+      }}</p>
+    </template>
 
-    <template v-if="!atlasesEvaluating">
-      <template v-if="listedAtlases.length > 0">
-        <q-input
-          v-model="searchQuery"
-          :label="$t('atlasPicker.search')"
-          clearable
-        >
-          <template #prepend>
-            <q-icon name="search" />
-          </template>
-        </q-input>
-        <p>{{
-          $t(
-            "atlasPicker.atlasCount",
-            { count: filteredAtlases.length },
-            filteredAtlases.length
-          )
-        }}</p>
-
-        <q-virtual-scroll
-          :items="orderedAtlasOptions"
-          :virtual-scroll-item-size="ITEM_SIZE"
-          class="fixed-dialog-list"
-          separator
-        >
-          <template #default="{ item }">
-            <AtlasPickerItem
-              :key="`${item.listing.source}-${item.listing.name}`"
-              :atlas="resolvedAtlases.get(atlasKey(item.listing))"
-              :display-name="item.displayName"
-              :favorite="favoritesSet.has(item.listing.name)"
-              :listing="item.listing"
-              :selected="
-                !!selectedAtlas && isSameAtlas(selectedAtlas, item.listing)
-              "
-              @request="requestAtlas"
-              @select="selectAtlas"
-              @toggle-favorite="toggleFavorite"
-            />
-          </template>
-        </q-virtual-scroll>
-      </template>
+    <div class="atlas-picker__results">
+      <q-linear-progress
+        v-if="atlasesEvaluating"
+        indeterminate
+        color="primary"
+        size="sm"
+      />
+      <q-virtual-scroll
+        v-else-if="listedAtlases.length > 0"
+        :items="orderedAtlasOptions"
+        :virtual-scroll-item-size="ITEM_SIZE"
+        :class="fillHeight ? 'atlas-picker__list--fill' : 'fixed-dialog-list'"
+        separator
+      >
+        <template #default="{ item }">
+          <AtlasPickerItem
+            :key="`${item.listing.source}-${item.listing.name}`"
+            :atlas="resolvedAtlases.get(atlasKey(item.listing))"
+            :display-name="item.displayName"
+            :favorite="favoritesSet.has(item.listing.name)"
+            :listing="item.listing"
+            :selected="
+              !!selectedAtlas && isSameAtlas(selectedAtlas, item.listing)
+            "
+            @request="requestAtlas"
+            @select="selectAtlas"
+            @toggle-favorite="toggleFavorite"
+          />
+        </template>
+      </q-virtual-scroll>
       <template v-else>
         <p>{{ $t("atlasPicker.noAtlases") }}</p>
         <p class="text-caption">{{ $t("atlasPicker.noAtlasesCaption") }}</p>
       </template>
-    </template>
+    </div>
   </q-form>
 </template>
+
+<style lang="sass" scoped>
+.atlas-picker__results
+  display: flex
+  flex-direction: column
+  min-height: 0
+
+.atlas-picker--fill
+  display: flex
+  flex-direction: column
+  min-height: 0
+
+  .atlas-picker__results
+    flex: 1 1 auto
+
+.atlas-picker__list--fill
+  flex: 1 1 auto
+  min-height: 0
+</style>
