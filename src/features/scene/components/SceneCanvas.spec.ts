@@ -600,6 +600,30 @@ describe("SceneCanvas", () => {
     );
   });
 
+  it("scales the camera's clip planes to the atlas and rescales when the atlas changes", async () => {
+    const { runtime } = await mountCanvas();
+
+    // DEFAULT_ATLAS is 13.2 x 8 x 11.4 mm.
+    expect(runtime.camera.value!.minZ).toBeCloseTo(0.132);
+    expect(runtime.camera.value!.maxZ).toBeCloseTo(13200);
+
+    useCurrentExperimentStore().experiment = buildExperiment(
+      "New Experiment",
+      makeAtlas({
+        manifest: makeManifest({
+          resolutions: [[0.02, 0.02, 0.02]],
+          shape: [[100, 100, 100]]
+        })
+      }),
+      [0, 0, 0]
+    );
+    await flushPromises();
+    await flushPromises();
+
+    expect(runtime.camera.value!.minZ).toBeCloseTo(0.02);
+    expect(runtime.camera.value!.maxZ).toBeCloseTo(2000);
+  });
+
   it("re-derives the projection when the camera's view matrix changes", async () => {
     const { runtime } = await mountCanvas();
     vi.mocked(applyCameraProjection).mockClear();

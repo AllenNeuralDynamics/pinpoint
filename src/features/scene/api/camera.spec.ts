@@ -5,12 +5,15 @@ import {
   interpolateCameraToPose,
   isCameraAlignedWith,
   orbitCameraTowards,
+  scaleCameraClipPlanesToAtlas,
   snapCameraToPose,
   trackAxisViewProjection,
   trackCameraPose
 } from "./camera.api";
 import type { CameraProjection } from "../models/camera.model";
-import { makeCameraPose } from "@/test/fixtures";
+import { getAtlasLongestDimensionMillimeters } from "@/features/atlas";
+import { buildCameraPose } from "@/features/experiment";
+import { makeAtlas, makeCameraPose, makeManifest } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
 describe("snapCameraToPose", () => {
@@ -346,6 +349,66 @@ describe("applyCameraProjection", () => {
     expect(camera.orthoBottom).toBeNull();
     expect(camera.orthoLeft).toBeNull();
     expect(camera.orthoRight).toBeNull();
+  });
+});
+
+describe("scaleCameraClipPlanesToAtlas", () => {
+  function makeRealCamera(): ArcRotateCamera {
+    const scene = makeTestScene();
+    return new ArcRotateCamera(
+      "c",
+      -Math.PI / 2,
+      Math.PI / 8,
+      10,
+      Vector3.Zero(),
+      scene
+    );
+  }
+
+  it("sets the near plane to a hundredth and the far plane to a thousand times the atlas's longest dimension", () => {
+    const camera = makeRealCamera();
+
+    scaleCameraClipPlanesToAtlas(camera, 13.2);
+
+    expect(camera.minZ).toBeCloseTo(0.132);
+    expect(camera.maxZ).toBeCloseTo(13200);
+  });
+
+  it("scales both planes linearly with the atlas's size", () => {
+    const camera = makeRealCamera();
+
+    scaleCameraClipPlanesToAtlas(camera, 1.32);
+
+    expect(camera.minZ).toBeCloseTo(0.0132);
+    expect(camera.maxZ).toBeCloseTo(1320);
+  });
+
+  it("leaves a zero-sized atlas alone", () => {
+    const camera = makeRealCamera();
+
+    scaleCameraClipPlanesToAtlas(camera, 0);
+
+    expect(camera.minZ).toBe(1);
+    expect(camera.maxZ).toBe(10000);
+  });
+
+  it("keeps the near plane inside the framed radius of a sub-millimetre atlas", () => {
+    // Drosophila wing disc: 320 x 320 x 146 voxels at 2 um, framed at
+    // 0.96 mm -- inside Babylon's fixed 1 mm default near plane.
+    const atlas = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [[0.002, 0.002, 0.002]],
+        shape: [[320, 320, 146]]
+      })
+    });
+    const camera = makeRealCamera();
+
+    scaleCameraClipPlanesToAtlas(
+      camera,
+      getAtlasLongestDimensionMillimeters(atlas)
+    );
+
+    expect(camera.minZ).toBeLessThan(buildCameraPose(atlas, [0, 0, 0]).radius);
   });
 });
 
