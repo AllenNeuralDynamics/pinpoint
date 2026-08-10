@@ -587,6 +587,9 @@ function buildHeadStageMesh(
     },
     scene
   );
+  // This position resolves to probe-local -Y once parented under the
+  // pitched base mesh - that is the contact face, so the sign here is
+  // load-bearing.
   cutterMesh.position = new Vector3(
     0,
     geometry.headStageCutDepthMillimeters - geometry.headStageLengthMillimeters,

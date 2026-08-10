@@ -69,13 +69,13 @@ describe("getProbeSlicePlane", () => {
     expect(plane.heightPixels).toBe(32);
   });
 
-  it("carries the frame's right and up axes through unchanged", () => {
+  it("mirrors the frame's right axis and carries up through", () => {
     const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
     const frame = getProbeFrame(probe, [0, 0, 0]);
 
     const plane = getProbeSlicePlane(frame, 0, 1, 16);
 
-    expect(plane.rightMillimeters).toEqual(frame.rightMillimeters);
+    expect(plane.rightMillimeters).toEqual(frame.rightMillimeters.map(n => -n));
     expect(plane.upMillimeters).toEqual(frame.upMillimeters);
   });
 
@@ -88,6 +88,36 @@ describe("getProbeSlicePlane", () => {
     expect(plane.bands).toHaveLength(1);
     expect(plane.bands[0]!.columnOffset).toBe(0);
     expect(plane.bands[0]!.columnCount).toBe(32);
+  });
+
+  it("mirrors the image so its left edge is the probe's greatest-x edge", () => {
+    const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
+    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const centerHeightMillimeters = 3;
+    const extentMillimeters = 4;
+    const halfWidth = extentMillimeters / 2;
+
+    const plane = getProbeSlicePlane(
+      frame,
+      centerHeightMillimeters,
+      extentMillimeters,
+      16
+    );
+    const band = plane.bands[0]!;
+    const leftEdge: [number, number, number] = [
+      band.centerMillimeters[0] - halfWidth * plane.rightMillimeters[0],
+      band.centerMillimeters[1] - halfWidth * plane.rightMillimeters[1],
+      band.centerMillimeters[2] - halfWidth * plane.rightMillimeters[2]
+    ];
+
+    const expectedLeftEdge = toAtlasMillimeters(
+      frame,
+      halfWidth,
+      centerHeightMillimeters
+    );
+    expect(leftEdge[0]).toBeCloseTo(expectedLeftEdge[0], 6);
+    expect(leftEdge[1]).toBeCloseTo(expectedLeftEdge[1], 6);
+    expect(leftEdge[2]).toBeCloseTo(expectedLeftEdge[2], 6);
   });
 });
 
@@ -127,12 +157,12 @@ describe("getShankLayout", () => {
     )!;
 
     expect(layout.placements.map(p => p.columnCount)).toEqual([6, 6]);
-    expect(layout.placements.map(p => p.columnOffset)).toEqual([0, 7]);
+    expect(layout.placements.map(p => p.columnOffset)).toEqual([7, 0]);
     expect(layout.widthPixels).toBe(13);
     expect(layout.widthMillimeters).toBeCloseTo(0.225694, 5);
   });
 
-  it("offsets each shank's probe-local x into packed overlay space", () => {
+  it("mirrors each shank's probe-local x into packed image space", () => {
     const layout = getShankLayout(
       shanks,
       twoShankContour.heightMillimeters,
@@ -140,8 +170,8 @@ describe("getShankLayout", () => {
       1
     )!;
 
-    expect(layout.placements[0]!.offsetMillimeters).toBeCloseTo(1, 5);
-    expect(layout.placements[1]!.offsetMillimeters).toBeCloseTo(-0.778472, 5);
+    expect(layout.placements[0]!.offsetMillimeters).toBeCloseTo(-0.778472, 5);
+    expect(layout.placements[1]!.offsetMillimeters).toBeCloseTo(1, 5);
   });
 
   it("has no gap - and no gap-sized offset - for a single shank", () => {
@@ -270,7 +300,7 @@ describe("getShankSliceGeometry", () => {
     }
   });
 
-  it("carries the frame's right and up axes and the layout's pixel dimensions through", () => {
+  it("mirrors the frame's right axis and carries up and the layout's pixel dimensions through", () => {
     const layout = getShankLayout(
       shanks,
       twoShankContour.heightMillimeters,
@@ -285,7 +315,9 @@ describe("getShankSliceGeometry", () => {
       0
     );
 
-    expect(geometry.rightMillimeters).toEqual(frame.rightMillimeters);
+    expect(geometry.rightMillimeters).toEqual(
+      frame.rightMillimeters.map(n => -n)
+    );
     expect(geometry.upMillimeters).toEqual(frame.upMillimeters);
     expect(geometry.widthPixels).toBe(layout.widthPixels);
     expect(geometry.heightPixels).toBe(layout.heightPixels);
@@ -512,13 +544,13 @@ describe("getContourPolygonPoints", () => {
 
   it("re-origins points on the given center height", () => {
     expect(getContourPolygonPoints(contour, 0, 0)).toBe(
-      contour.points.map(({ x, y }) => `${x},${-y}`).join(" ")
+      contour.points.map(({ x, y }) => `${-x},${-y}`).join(" ")
     );
   });
 
   it("shifts every emitted x by the alignment offset and leaves y untouched", () => {
     expect(getContourPolygonPoints(contour, 0, 2.5)).toBe(
-      contour.points.map(({ x, y }) => `${x + 2.5},${-y}`).join(" ")
+      contour.points.map(({ x, y }) => `${-(x + 2.5)},${-y}`).join(" ")
     );
   });
 });
@@ -541,7 +573,7 @@ describe("getShankOutlinePath", () => {
       widthMillimeters: 2
     };
 
-    expect(getShankOutlinePath(shank, 0)).toBe("M-1,0L1,0L1,-10L-1,-10Z");
+    expect(getShankOutlinePath(shank, 0)).toBe("M1,0L-1,0L-1,-10L1,-10Z");
   });
 
   it("joins two rings' subpaths with a single space", () => {
@@ -563,7 +595,7 @@ describe("getShankOutlinePath", () => {
       widthMillimeters: 4
     };
 
-    expect(getShankOutlinePath(shank, 0)).toBe("M-1,0L1,0Z M2,0L3,0Z");
+    expect(getShankOutlinePath(shank, 0)).toBe("M1,0L-1,0Z M-2,0L-3,0Z");
   });
 });
 
@@ -585,7 +617,7 @@ describe("getContactOutlinePath", () => {
       0
     );
 
-    expect(path).toBe("M-1,-3L-1,-5L1,-5L1,-3Z");
+    expect(path).toBe("M1,-3L1,-5L-1,-5L-1,-3Z");
   });
 
   it("builds one closed circle subpath as two semicircular arcs", () => {
@@ -624,7 +656,7 @@ describe("getContactOutlinePath", () => {
     );
 
     expect(path).toBe(
-      "M-1,0A1,1 0 0,1 1,0A1,1 0 0,1 -1,0Z M1,0A1,1 0 0,1 3,0A1,1 0 0,1 1,0Z"
+      "M-1,0A1,1 0 0,1 1,0A1,1 0 0,1 -1,0Z M-3,0A1,1 0 0,1 -1,0A1,1 0 0,1 -3,0Z"
     );
   });
 
@@ -649,7 +681,7 @@ describe("getContactOutlinePath", () => {
       5
     );
 
-    expect(path.startsWith("M-1,2")).toBe(true);
+    expect(path.startsWith("M1,2")).toBe(true);
   });
 });
 

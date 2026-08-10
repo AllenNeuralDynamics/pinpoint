@@ -152,7 +152,7 @@ describe("ChannelMapCanvas", () => {
     const frame = getProbeFrame(probe, store.referenceCoordinate);
 
     expect(capturedGeometry).toEqual({
-      rightMillimeters: frame.rightMillimeters,
+      rightMillimeters: frame.rightMillimeters.map(n => -n),
       upMillimeters: frame.upMillimeters,
       halfHeightMillimeters: 5,
       widthPixels: 4,
@@ -198,7 +198,7 @@ describe("ChannelMapCanvas", () => {
 
     const outline = wrapper.find(".channel-map-canvas__contour");
     expect(outline.attributes("d")).toBe(
-      "M-0.035,5L0.035,5L0.035,-5L-0.035,-5Z"
+      "M0.035,5L-0.035,5L-0.035,-5L0.035,-5Z"
     );
 
     const contacts = wrapper.find(".channel-map-canvas__contacts");
@@ -224,7 +224,7 @@ describe("ChannelMapCanvas", () => {
 
     const outline = wrapper.find(".channel-map-canvas__contour");
     expect(outline.attributes("d")).toBe(
-      "M-0.035,3L0.035,3L0.035,-7L-0.035,-7Z"
+      "M0.035,3L-0.035,3L-0.035,-7L0.035,-7Z"
     );
   });
 
@@ -301,7 +301,7 @@ describe("ChannelMapCanvas", () => {
     expect(capturedGeometry!.heightPixels).toBe(576);
     expect(capturedGeometry!.bands).toHaveLength(2);
     expect(capturedGeometry!.bands.map(band => band.columnOffset)).toEqual([
-      0, 7
+      7, 0
     ]);
     expect(capturedGeometry!.bands.map(band => band.columnCount)).toEqual([
       6, 6
@@ -317,11 +317,14 @@ describe("ChannelMapCanvas", () => {
 
     const groups = wrapper.findAll(".channel-map-canvas__overlay > g");
     expect(groups).toHaveLength(2);
-    expect(groups[1]!.attributes("transform")).toContain("translate(");
+    const firstTranslateX = Number(
+      groups[0]!.attributes("transform")!.match(/translate\(([^ ]+) /)![1]
+    );
     const secondTranslateX = Number(
       groups[1]!.attributes("transform")!.match(/translate\(([^ ]+) /)![1]
     );
-    expect(secondTranslateX).toBeCloseTo(-0.778472, 5);
+    expect(firstTranslateX).toBeCloseTo(-0.778472, 5);
+    expect(secondTranslateX).toBeCloseTo(1, 5);
 
     const canvas = wrapper.find("canvas");
     expect(canvas.attributes("aria-label")).toBe(

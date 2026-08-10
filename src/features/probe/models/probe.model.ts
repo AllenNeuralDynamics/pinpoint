@@ -53,8 +53,9 @@ export interface Probe {
 
   /**
    * Internal orientation representation of the probe.
-   * - Roll, yaw, pitch order (aligned to AP, DV, ML order
-   * where zero is electrodes facing superior and tip facing anterior).
+   * - Roll, yaw, pitch order (aligned to AP, DV, ML order;
+   * at zero rotation the tip points along -AP and the head-stage cut-out,
+   * i.e. the contact face, is on the -DV side of the shanks).
    * - Pivot on tip.
    * - In radians.
    */

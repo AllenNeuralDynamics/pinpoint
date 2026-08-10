@@ -27,13 +27,13 @@ export interface ShankPlacement {
   columnOffset: number;
   /** Output columns this shank fills. */
   columnCount: number;
-  /** mm added to the shank's probe-local x to place it in packed overlay space. */
+  /** mm the shank's mirrored probe-local x is added to, to place it in packed image space: packed x = offsetMillimeters - probe-local x. */
   offsetMillimeters: number;
 }
 
 /** A packed multi-shank slice layout: one shared scale plus per-shank placements. */
 export interface ShankLayout {
-  /** Placements left to right, starting at columnOffset 0; consecutive placements may leave an unsampled gap between them. */
+  /** Placements in ascending probe-local x, i.e. right to left across the image; consecutive placements may leave an unsampled gap between them. */
   placements: ShankPlacement[];
   /** Total output width, in pixels. */
   widthPixels: number;
@@ -120,7 +120,7 @@ export function getProbeSlicePlane(
   sizePixels: number
 ): SampleGeometry {
   return {
-    rightMillimeters: frame.rightMillimeters,
+    rightMillimeters: getImageRightMillimeters(frame),
     upMillimeters: frame.upMillimeters,
     halfHeightMillimeters: extentMillimeters / 2,
     widthPixels: sizePixels,
@@ -141,11 +141,11 @@ export function getProbeSlicePlane(
 }
 
 /**
- * Pack a probe's shanks left to right into one output image, at the shanks'
- * true aspect ratio and a height quantized like every other slice canvas,
- * leaving a blank gap between adjacent shanks.
+ * Pack a probe's shanks right to left across probe-local x into one output
+ * image, at the shanks' true aspect ratio and a height quantized like every
+ * other slice canvas, leaving a blank gap between adjacent shanks.
  * Null while unmeasured or when there is nothing with width to draw.
- * @param shanks Shanks to pack, left to right.
+ * @param shanks Shanks to pack, ascending by probe-local x.
  * @param heightMillimeters Height of the probe's contour, spanned by every shank.
  * @param cssHeight Canvas height in CSS pixels; 0 while unmeasured.
  * @param pixelRatio Device pixel ratio.
@@ -183,25 +183,29 @@ export function getShankLayout(
       (MAXIMUM_SIZE_PIXELS - totalGapPixels) / totalWidthMillimeters;
   }
 
+  const columnCounts = shanks.map(shank =>
+    Math.max(1, Math.round(shank.widthMillimeters * pixelsPerMillimeter))
+  );
+  const widthPixels =
+    columnCounts.reduce((total, count) => total + count, 0) + totalGapPixels;
+
+  // Columns run right to left across probe-local x: the image's +x is probe-local -X, so the
+  // greatest-x shank fills the leftmost columns.
   const placements: ShankPlacement[] = [];
-  let columnOffset = 0;
+  let columnOffset = widthPixels;
   for (const [index, shank] of shanks.entries()) {
-    const columnCount = Math.max(
-      1,
-      Math.round(shank.widthMillimeters * pixelsPerMillimeter)
-    );
+    const columnCount = columnCounts[index]!;
+    columnOffset -= columnCount;
     placements.push({
       shank,
       columnOffset,
       columnCount,
       offsetMillimeters:
-        columnOffset / pixelsPerMillimeter - shank.minimumXMillimeters
+        columnOffset / pixelsPerMillimeter + shank.maximumXMillimeters
     });
-    columnOffset += columnCount;
-    if (index < shanks.length - 1) columnOffset += SHANK_GAP_PIXELS;
+    if (index < shanks.length - 1) columnOffset -= SHANK_GAP_PIXELS;
   }
 
-  const widthPixels = columnOffset;
   return {
     placements,
     widthPixels,
@@ -229,7 +233,7 @@ export function getShankSliceGeometry(
   const centerHeightMillimeters =
     (channelMapWindow.min + channelMapWindow.max) / 2;
   return {
-    rightMillimeters: frame.rightMillimeters,
+    rightMillimeters: getImageRightMillimeters(frame),
     upMillimeters: frame.upMillimeters,
     halfHeightMillimeters: (channelMapWindow.max - channelMapWindow.min) / 2,
     widthPixels: layout.widthPixels,
@@ -249,6 +253,20 @@ export function getShankSliceGeometry(
       columnCount: placement.columnCount
     }))
   };
+}
+
+/**
+ * Unit ASR direction of a rendered image's +x axis: probe-local -X, so the
+ * image looks along the contacts' outward normal (probe-local -Y, the
+ * head-stage cut side).
+ * @param frame Probe frame whose right axis to mirror.
+ */
+function getImageRightMillimeters(frame: ProbeFrame): [number, number, number] {
+  return [
+    -frame.rightMillimeters[0],
+    -frame.rightMillimeters[1],
+    -frame.rightMillimeters[2]
+  ];
 }
 
 /**
@@ -338,8 +356,9 @@ export function getQuantizedSizePixels(
 }
 
 /**
- * Build the SVG polygon `points` for a contour overlay, re-origined on the
- * slice center height.
+ * Build the SVG polygon `points` for a contour overlay, in image mm - x
+ * mirrored from probe-local x so the view looks along the contacts' outward
+ * normal, y flipped about the slice center height.
  * @param contour Probe contour to render.
  * @param centerHeightMillimeters Height the slice is currently centered on, in probe-local mm.
  * @param alignmentOffsetMillimeters Probe-local x the geometry is shifted by, from getProbeAlignmentOffsetMillimeters.
@@ -352,14 +371,16 @@ export function getContourPolygonPoints(
   return contour.points
     .map(
       ({ x, y }) =>
-        `${x + alignmentOffsetMillimeters},${centerHeightMillimeters - y}`
+        `${-(x + alignmentOffsetMillimeters)},${centerHeightMillimeters - y}`
     )
     .join(" ");
 }
 
 /**
- * Build the SVG path `d` for a shank's outline, re-origined on the slice
- * center height. Multiple rings become extra closed subpaths.
+ * Build the SVG path `d` for a shank's outline, in image mm - x mirrored
+ * from probe-local x so the view looks along the contacts' outward normal,
+ * y flipped about the slice center height. Multiple rings become extra
+ * closed subpaths.
  * @param shank Shank whose outline rings to render.
  * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
  */
@@ -373,8 +394,9 @@ export function getShankOutlinePath(
 }
 
 /**
- * Build the SVG path `d` for a contact overlay, re-origined on the slice
- * center height. Empty when there are no outlines.
+ * Build the SVG path `d` for a contact overlay, in image mm - x mirrored
+ * from probe-local x so the view looks along the contacts' outward normal,
+ * y flipped about the slice center height. Empty when there are no outlines.
  * @param outlines Contact outlines to render, in probe-local mm.
  * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
  */
@@ -396,7 +418,9 @@ export function getContactOutlinePath(
 }
 
 /**
- * Build one closed polygon subpath, y-flipped about the slice center height.
+ * Build one closed polygon subpath, in image mm - x mirrored from
+ * probe-local x so the view looks along the contacts' outward normal, y
+ * flipped about the slice center height.
  * @param points Polygon vertices, in probe-local mm.
  * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
  */
@@ -404,12 +428,13 @@ function getPolygonSubpath(
   points: { x: number; y: number }[],
   centerHeightMillimeters: number
 ): string {
-  return `M${points.map(({ x, y }) => `${x},${centerHeightMillimeters - y}`).join("L")}Z`;
+  return `M${points.map(({ x, y }) => `${-x},${centerHeightMillimeters - y}`).join("L")}Z`;
 }
 
 /**
- * Build one closed circle subpath as two semicircular arcs, y-flipped about
- * the slice center height.
+ * Build one closed circle subpath as two semicircular arcs, in image mm - x
+ * mirrored from probe-local x so the view looks along the contacts' outward
+ * normal, y flipped about the slice center height.
  * @param center Circle center, in probe-local mm.
  * @param radiusMillimeters Circle radius, in mm.
  * @param centerHeightMillimeters Height the slice is centered on, in probe-local mm.
@@ -420,8 +445,8 @@ function getCircleSubpath(
   centerHeightMillimeters: number
 ): string {
   const cy = centerHeightMillimeters - center.y;
-  const left = center.x - radiusMillimeters;
-  const right = center.x + radiusMillimeters;
+  const left = -center.x - radiusMillimeters;
+  const right = -center.x + radiusMillimeters;
   return `M${left},${cy}A${radiusMillimeters},${radiusMillimeters} 0 0,1 ${right},${cy}A${radiusMillimeters},${radiusMillimeters} 0 0,1 ${left},${cy}Z`;
 }
 

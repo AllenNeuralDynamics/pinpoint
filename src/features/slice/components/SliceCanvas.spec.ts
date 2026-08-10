@@ -152,10 +152,10 @@ describe("SliceCanvas", () => {
       .split(" ")
       .map(pair => pair.split(",").map(Number));
     expect(parsed).toEqual([
-      [-5, 2],
       [5, 2],
-      [5, -8],
-      [-5, -8]
+      [-5, 2],
+      [-5, -8],
+      [5, -8]
     ]);
   });
 

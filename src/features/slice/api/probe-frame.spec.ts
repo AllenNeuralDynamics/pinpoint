@@ -12,9 +12,8 @@ describe("getProbeFrame", () => {
   });
 
   it("resolves right and up for the default probe rotation", () => {
-    // Default probe rotation [0, 0, pi/2]: electrodes face superior, tip
-    // faces anterior. right = across the shanks (ML), up = from the tip (DV
-    // superior).
+    // Default probe rotation [0, 0, pi/2]: electrodes face -AP, tip points
+    // +DV. right = across the shanks (ML), up = from the tip (DV superior).
     const probe = makeProbe({
       tipPosition: [0, 0, 0],
       rotation: [0, 0, Math.PI / 2]
@@ -28,6 +27,22 @@ describe("getProbeFrame", () => {
 
     expect(frame.upMillimeters[0]).toBeCloseTo(0, 6);
     expect(frame.upMillimeters[1]).toBeCloseTo(-1, 6);
+    expect(frame.upMillimeters[2]).toBeCloseTo(0, 6);
+  });
+
+  it("resolves right and up for zero rotation", () => {
+    // Zero rotation: tip points -AP (requirement (a)); right = +ML, up =
+    // +AP, so the tip axis (-up) is -AP.
+    const probe = makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] });
+
+    const frame = getProbeFrame(probe, [0, 0, 0]);
+
+    expect(frame.rightMillimeters[0]).toBeCloseTo(0, 6);
+    expect(frame.rightMillimeters[1]).toBeCloseTo(0, 6);
+    expect(frame.rightMillimeters[2]).toBeCloseTo(1, 6);
+
+    expect(frame.upMillimeters[0]).toBeCloseTo(1, 6);
+    expect(frame.upMillimeters[1]).toBeCloseTo(0, 6);
     expect(frame.upMillimeters[2]).toBeCloseTo(0, 6);
   });
 

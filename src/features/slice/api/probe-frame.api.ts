@@ -2,7 +2,12 @@ import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Probe } from "@/features/probe";
 import { vector3ToAsr } from "@/features/scene";
 
-/** A probe's shank plane in atlas ASR millimeters. */
+/**
+ * A probe's shank plane in atlas ASR millimeters. The contacts sit on
+ * probe-local -Y (the head-stage cut side); a rendered image looks along
+ * that outward normal when its right is probe-local -X and its up is
+ * probe-local +Z.
+ */
 export interface ProbeFrame {
   /** Probe-local origin (the tip) in atlas ASR mm. */
   originMillimeters: [number, number, number];

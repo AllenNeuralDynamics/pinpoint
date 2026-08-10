@@ -265,6 +265,23 @@ describe("buildProbe", () => {
     expect(bounds.max).toEqual([4, 4, -10.209]);
   });
 
+  it("cuts the head-stage notch on the shank's -Y (contact) face", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
+
+    const mesh = scene.getMeshByName(probeMeshNames(probe.id).headStage)!;
+    const positions = mesh.getVerticesData("position")!;
+    const ys: number[] = [];
+    for (let i = 1; i < positions.length; i += 3) ys.push(positions[i]!);
+
+    expect(
+      ys.filter(y => Math.abs(y - -0.025) < 1e-6).length
+    ).toBeGreaterThanOrEqual(3);
+    expect(ys.some(y => Math.abs(y - 0.025) < 1e-6)).toBe(false);
+  });
+
   it("places the rod above the head stage", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
