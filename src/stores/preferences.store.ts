@@ -38,6 +38,8 @@ export interface Preferences {
   rotationUnit: RotationUnit;
   /** Decimal places numeric inputs show. */
   decimalPrecision: number;
+  /** Multiplier on how far a numeric input's value moves per pixel of horizontal drag. */
+  dragSensitivity: number;
   /** Thickness of a probe's extruded shank, in mm. */
   probeShankThicknessMillimeters: number;
   /** Length of a probe's head stage cone, in mm. */
@@ -72,6 +74,7 @@ export const usePreferencesStore = defineStore(
     const positionUnit = ref<PositionUnit>("millimeter");
     const rotationUnit = ref<RotationUnit>("degree");
     const decimalPrecision = ref(3);
+    const dragSensitivity = ref(1);
     const probeShankThicknessMillimeters = ref(0.05);
     const probeHeadStageLengthMillimeters = ref(20);
     const probeHeadStageCutDepthMillimeters = ref(17.5);
@@ -97,6 +100,7 @@ export const usePreferencesStore = defineStore(
       positionUnit,
       rotationUnit,
       decimalPrecision,
+      dragSensitivity,
       probeShankThicknessMillimeters,
       probeHeadStageLengthMillimeters,
       probeHeadStageCutDepthMillimeters,

@@ -28,8 +28,9 @@ import {
   TransformNode,
   Vector3
 } from "@babylonjs/core";
-import { shallowRef } from "vue";
+import { nextTick, shallowRef } from "vue";
 import SceneCanvas from "./SceneCanvas.vue";
+import CommittedInput from "@/components/CommittedInput.vue";
 import type { FakeTextRenderer } from "@/test/mount-helper";
 import type * as MountHelper from "@/test/mount-helper";
 import {
@@ -1491,6 +1492,70 @@ describe("SceneCanvas", () => {
 
       expect(probe.tipPosition).toEqual([5.7, 2.44, 5.4]);
       expect(store.probeSurfaceChoice).toBeNull();
+    });
+  });
+
+  describe("scrubbing a numeric input", () => {
+    it("snaps a probe's pose immediately while scrubbed, and glides again once released", async () => {
+      const { runtime } = await mountCanvas();
+      const store = useCurrentExperimentStore();
+
+      const contour = [
+        [-11, 9989],
+        [-11, -11],
+        [24, -220],
+        [59, -11],
+        [59, 9989]
+      ];
+      const probeInterfaceProbe = makeProbeInterfaceProbe({
+        probe_planar_contour: contour
+      });
+      internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+      const builtProbe = makeProbe({
+        probeInterfaceIdentifier:
+          getProbeInterfaceIdentifier(probeInterfaceProbe)
+      });
+      addProbe(store.experiment, builtProbe);
+      const probe = store.experiment.probes.find(p => p.id === builtProbe.id)!;
+      await flushPromises();
+
+      const scene = runtime.scene.value!;
+      const node = getProbeTransformNode(scene, probe.id)!;
+
+      const dragWrapper = mountWithQuasar(CommittedInput, {
+        attachTo: document.body,
+        props: { modelValue: "0", rules: [], dragStep: 0.01 }
+      });
+      // `useNumberDrag`'s listeners bind via `useEventListener`'s `flush: "post"`
+      // watcher, which runs after this synchronous mount returns.
+      await nextTick();
+
+      await dragWrapper.trigger("pointerdown", {
+        clientX: 0,
+        pointerId: 1,
+        button: 0
+      });
+      await dragWrapper.trigger("pointermove", {
+        clientX: 100,
+        pointerId: 1
+      });
+
+      probe.tipPosition = [5, 0, 0];
+      await nextTick();
+
+      expect(node.position.asArray()).toEqual(
+        asrToVector3([5, 0, 0]).asArray()
+      );
+
+      await dragWrapper.trigger("pointerup", { pointerId: 1 });
+      probe.tipPosition = [10, 0, 0];
+      await nextTick();
+
+      expect(node.position.asArray()).not.toEqual(
+        asrToVector3([10, 0, 0]).asArray()
+      );
+
+      dragWrapper.unmount();
     });
   });
 });

@@ -10,6 +10,7 @@ import {
 } from "@/features/scene";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
@@ -28,6 +29,7 @@ const { sceneObject } = defineProps<{
 const currentExperimentStore = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
+const { positionStep, rotationStep, unitlessStep } = useDragSteps();
 const {
   requiredName: nameRules,
   optionalNumber: numberRules,
@@ -166,6 +168,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="ap"
         :disable="sceneObject.lock"
+        :drag-step="positionStep"
         :label="t('axis.ap')"
         :rules="numberRules"
         :suffix="positionSuffix"
@@ -176,6 +179,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="dv"
         :disable="sceneObject.lock"
+        :drag-step="positionStep"
         :label="t('axis.dv')"
         :rules="numberRules"
         :suffix="positionSuffix"
@@ -186,6 +190,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="ml"
         :disable="sceneObject.lock"
+        :drag-step="positionStep"
         :label="t('axis.ml')"
         :rules="numberRules"
         :suffix="positionSuffix"
@@ -199,6 +204,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="roll"
         :disable="sceneObject.lock"
+        :drag-step="rotationStep"
         :label="t('sceneObjectInspector.roll')"
         :rules="numberRules"
         :suffix="rotationSuffix"
@@ -209,6 +215,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="yaw"
         :disable="sceneObject.lock"
+        :drag-step="rotationStep"
         :label="t('sceneObjectInspector.yaw')"
         :rules="numberRules"
         :suffix="rotationSuffix"
@@ -219,6 +226,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="pitch"
         :disable="sceneObject.lock"
+        :drag-step="rotationStep"
         :label="t('sceneObjectInspector.pitch')"
         :rules="numberRules"
         :suffix="rotationSuffix"
@@ -232,6 +240,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="scaleZ"
         :disable="sceneObject.lock"
+        :drag-step="unitlessStep"
         :label="t('axis.z')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
@@ -242,6 +251,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="scaleY"
         :disable="sceneObject.lock"
+        :drag-step="unitlessStep"
         :label="t('axis.y')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
@@ -252,6 +262,7 @@ const lockLabel = computed(() =>
       <CommittedInput
         v-model="scaleX"
         :disable="sceneObject.lock"
+        :drag-step="unitlessStep"
         :label="t('axis.x')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"

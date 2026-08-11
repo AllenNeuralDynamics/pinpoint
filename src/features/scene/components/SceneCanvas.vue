@@ -109,6 +109,7 @@ import {
   scaleSsaoToAtlas
 } from "../api/ssao.api";
 import { useNotify } from "@/composable/useNotify";
+import { isNumberDragActive } from "@/composable/useNumberDrag";
 
 const $q = useQuasar();
 const { t } = useI18n();
@@ -120,6 +121,7 @@ useCameraPoseSync(
   runtime.camera,
   () => currentExperiment.atlas,
   () => currentExperiment.experiment.cameraPose,
+  () => isNumberDragActive.value,
   () => {
     currentExperiment.isCameraMoving = true;
   },
@@ -543,7 +545,8 @@ watchEffect(() => {
     currentExperiment.experiment,
     gizmoManager,
     currentExperiment.draggedProbeId,
-    probeGeometry.value
+    probeGeometry.value,
+    isNumberDragActive.value
   );
 
   // A rebuilt probe loses its body model node, so the gizmo cannot stay on it.
@@ -614,7 +617,8 @@ async function syncSceneObjectsFromState() {
       gizmoManager,
       sceneObjectSyncState,
       currentExperiment.draggedSceneObjectId,
-      getSceneModel
+      getSceneModel,
+      isNumberDragActive.value
     );
   if (failedIds.length) {
     notifyError(

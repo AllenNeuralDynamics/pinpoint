@@ -17,7 +17,11 @@ import { makeTestScene } from "@/test/mount-helper";
  * @param pose Reactive camera pose the composable binds to.
  * @param atlas Reactive atlas the composable reads.
  */
-function mountSync(pose: CameraPose, atlas: Atlas) {
+function mountSync(
+  pose: CameraPose,
+  atlas: Atlas,
+  shouldSnap: () => boolean = () => false
+) {
   const cameraRef = shallowRef<ArcRotateCamera | null>(null);
   const state = reactive({ pose, atlas });
   const onPoseMoving = vi.fn();
@@ -30,6 +34,7 @@ function mountSync(pose: CameraPose, atlas: Atlas) {
           cameraRef,
           () => state.atlas,
           () => state.pose,
+          shouldSnap,
           onPoseMoving,
           onPoseSettled
         );
@@ -81,6 +86,27 @@ describe("useCameraPoseSync", () => {
 
     const expectedWorldTarget = atlasToWorld(atlas, [0, 0, 0]);
     expect(interpolateTo).toHaveBeenCalledWith(4, 2, 3, expectedWorldTarget);
+  });
+
+  it("snaps a later pose change immediately when shouldSnap returns true", async () => {
+    const pose = reactive(
+      makeCameraPose({ alpha: 1, beta: 2, radius: 3, target: [0, 0, 0] })
+    );
+    const atlas = makeAtlas();
+    const { cameraRef, state } = mountSync(pose, atlas, () => true);
+    const camera = makeCamera();
+    cameraRef.value = camera;
+    await nextTick();
+    const interpolateTo = vi.spyOn(camera, "interpolateTo");
+
+    state.pose.alpha = 4;
+    await nextTick();
+
+    expect(camera.alpha).toBe(4);
+    expect(camera.beta).toBe(2);
+    expect(camera.radius).toBe(3);
+    expect(camera.isInterpolating).toBe(false);
+    expect(interpolateTo).not.toHaveBeenCalled();
   });
 
   it("writes the settled orbit into the pose, and that readback does not move the camera again", async () => {

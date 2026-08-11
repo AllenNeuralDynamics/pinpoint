@@ -18,7 +18,7 @@ const { coordinateSystemValue, component, label, ariaLabel, disable } =
 const emit = defineEmits<{ commit: [] }>();
 
 const { optionalNumber: numberRules } = useValidationRules();
-const { value, suffix } = useCoordinateSystemValueModel(
+const { value, suffix, dragStep } = useCoordinateSystemValueModel(
   () => coordinateSystemValue,
   component
 );
@@ -42,6 +42,7 @@ function onCommit(next: string): void {
     :aria-label="ariaLabel"
     class="col"
     :disable="disable"
+    :drag-step="dragStep"
     hide-bottom-space
     :label="label"
     outlined

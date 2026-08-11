@@ -38,7 +38,7 @@ const axisIndex = defineModel<number>("axisIndex", { required: true });
 
 const { optionalNumber: numberRules } = useValidationRules();
 const { t } = useI18n();
-const { value, suffix } = useCoordinateSystemValueModel(
+const { value, suffix, dragStep } = useCoordinateSystemValueModel(
   () => coordinateSystemValue,
   component
 );
@@ -109,6 +109,7 @@ const modeOptions = computed<ModeOption[]>(() => [
       />
       <CommittedInput
         v-model="value"
+        :drag-step="dragStep"
         hide-bottom-space
         :label="t('coordinateSystemInspector.value')"
         outlined

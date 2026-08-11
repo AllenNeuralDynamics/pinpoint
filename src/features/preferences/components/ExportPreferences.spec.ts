@@ -85,6 +85,7 @@ function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
     positionUnit: "millimeter",
     rotationUnit: "degree",
     decimalPrecision: 3,
+    dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
     probeHeadStageLengthMillimeters: 20,
     probeHeadStageCutDepthMillimeters: 17.5,

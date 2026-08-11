@@ -29,6 +29,7 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     positionUnit: "millimeter",
     rotationUnit: "degree",
     decimalPrecision: 3,
+    dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
     probeHeadStageLengthMillimeters: 20,
     probeHeadStageCutDepthMillimeters: 17.5,
@@ -53,12 +54,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the twenty-one preference keys", () => {
+  it("writes only the twenty-two preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(21);
+    expect(keys).toHaveLength(22);
     expect(keys).not.toContain("junk");
   });
 });
@@ -161,6 +162,12 @@ describe("parsePreferencesFile", () => {
 
   it("returns null for a numeric field below its range", () => {
     const fixture = { ...makePreferences(), materialSpecularPower: 0 };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a dragSensitivity below the 0.25 floor", () => {
+    const fixture = { ...makePreferences(), dragSensitivity: 0 };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });

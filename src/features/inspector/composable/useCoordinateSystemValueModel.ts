@@ -3,6 +3,7 @@ import type {
   CoordinateSystemNodeComponent,
   CoordinateSystemValue
 } from "@/features/coordinate-system";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericModel } from "@/composable/useNumericModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -19,6 +20,7 @@ export interface CoordinateSystemValueModel {
   suffix: ComputedRef<string>;
   toDisplay: (storedValue: number) => number;
   fromDisplay: (displayValue: number) => number;
+  dragStep: ComputedRef<number>;
 }
 
 /**
@@ -32,6 +34,7 @@ export function useCoordinateSystemValueModel(
 ): CoordinateSystemValueModel {
   const preferences = usePreferencesStore();
   const unitLabels = useUnitLabels();
+  const { positionStep, rotationStep } = useDragSteps();
 
   /**
    * Convert a stored value into its display unit for this value's component.
@@ -58,6 +61,9 @@ export function useCoordinateSystemValueModel(
       ? unitLabels.position(preferences.positionUnit)
       : unitLabels.rotation(preferences.rotationUnit)
   );
+  const dragStep = computed(() =>
+    component === "position" ? positionStep.value : rotationStep.value
+  );
   const value = useNumericModel(
     () => getCoordinateSystemValue().value,
     next => (getCoordinateSystemValue().value = next),
@@ -66,5 +72,5 @@ export function useCoordinateSystemValueModel(
     () => preferences.decimalPrecision
   );
 
-  return { value, suffix, toDisplay, fromDisplay };
+  return { value, suffix, toDisplay, fromDisplay, dragStep };
 }

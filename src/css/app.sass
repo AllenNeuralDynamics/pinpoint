@@ -13,3 +13,20 @@
 .fixed-dialog-card
   width: 640px
   max-width: 100% !important
+
+// Numeric fields that scrub on horizontal drag. `pan-y` keeps touch scrolling
+// while the horizontal gesture edits the value.
+.drag-number
+  touch-action: pan-y
+
+// A disabled field cannot be dragged and a focused one is being typed into, so
+// both keep their own cursor.
+.drag-number:not(.q-field--disabled):not(.q-field--focused)
+  .q-field__control,
+  .q-field__native
+    cursor: ew-resize
+
+// A drag keeps running once the pointer leaves its field, so the resize cursor
+// has to survive whatever it passes over until the pointer is released.
+body.drag-number--active *
+  cursor: ew-resize !important

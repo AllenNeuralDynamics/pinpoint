@@ -239,13 +239,15 @@ export function disposeProbe(
  * @param gizmoManager Gizmo manager for controlling probes.
  * @param draggedProbeId ID of the probe being dragged (if any). Ignore transform updates for this probe.
  * @param geometry Probe body geometry to build meshes with.
+ * @param snapPoses Apply pose changes immediately instead of gliding to them, for a numeric input being scrubbed.
  */
 export function syncProbes(
   scene: Scene,
   experiment: Experiment,
   gizmoManager: GizmoManager,
   draggedProbeId: string | null,
-  geometry: ProbeGeometry
+  geometry: ProbeGeometry,
+  snapPoses = false
 ): string[] {
   const atlasRootNode = buildAtlasRootNode(scene);
   const experimentProbesById = new Map(
@@ -319,18 +321,21 @@ export function syncProbes(
 
     const goalPosition = asrToVector3(probe.tipPosition);
     const goalRotation = asrToVector3(probe.rotation);
-    // A freshly built probe snaps, so it doesn't fly in from the origin; an
-    // existing one glides to any new pose. A pose that already matches needs
-    // neither, e.g. the sync right after a gizmo drag ends.
-    if (!existingNode) {
-      node.position = goalPosition;
-      node.rotation = goalRotation;
-      continue;
-    }
+    // A pose that already matches needs no move, e.g. the sync right after a
+    // gizmo drag ends. Checked before anything else so an unrelated sync never
+    // cuts a glide short.
     if (
       node.position.equals(goalPosition) &&
       node.rotation.equals(goalRotation)
     ) {
+      continue;
+    }
+    // A freshly built probe snaps, so it doesn't fly in from the origin, and a
+    // scrubbed one snaps so it tracks the pointer. Anything else glides.
+    if (!existingNode || snapPoses) {
+      stopNodePoseInterpolation(node);
+      node.position = goalPosition;
+      node.rotation = goalRotation;
       continue;
     }
 

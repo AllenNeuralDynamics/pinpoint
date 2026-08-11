@@ -52,4 +52,15 @@ describe("GeneralPreferences", () => {
 
     expect(preferences.isSplashScreenSkipped).toBe(true);
   });
+
+  it("the drag-sensitivity slider starts at 1 and writes what it is moved to", async () => {
+    const wrapper = mountWithQuasar(GeneralPreferences);
+    const preferences = usePreferencesStore();
+    const slider = wrapper.findComponent({ name: "QSlider" });
+    expect(slider.props("modelValue")).toBe(1);
+
+    await slider.vm.$emit("update:modelValue", 2);
+
+    expect(preferences.dragSensitivity).toBe(2);
+  });
 });

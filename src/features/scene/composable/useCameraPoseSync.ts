@@ -24,6 +24,7 @@ interface SyncedPose {
  * @param camera Camera to bind.
  * @param atlas Getter for the atlas anchoring world space.
  * @param pose Getter for the experiment's live camera pose, mutated in place.
+ * @param shouldSnap Getter for whether a pose change should be applied immediately instead of glided to.
  * @param onPoseMoving Called after each live write of a moving camera's pose.
  * @param onPoseSettled Called once the camera has stopped moving.
  */
@@ -31,6 +32,7 @@ export function useCameraPoseSync(
   camera: Readonly<ShallowRef<ArcRotateCamera | null>>,
   atlas: () => Atlas,
   pose: () => CameraPose,
+  shouldSnap: () => boolean,
   onPoseMoving: () => void,
   onPoseSettled: () => void
 ): void {
@@ -70,7 +72,8 @@ export function useCameraPoseSync(
     }
 
     synced = { orbit, target, worldTarget };
-    interpolateCameraToPose(instance, current, worldTarget);
+    if (shouldSnap()) snapCameraToPose(instance, current, worldTarget);
+    else interpolateCameraToPose(instance, current, worldTarget);
   });
 
   watch(camera, instance => {

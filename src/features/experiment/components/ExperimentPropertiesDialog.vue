@@ -10,6 +10,7 @@ import {
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
@@ -30,6 +31,7 @@ const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: coordinateRules } =
   useValidationRules();
+const { positionStep } = useDragSteps();
 
 const nameInput = useTemplateRef<QInput>("nameInput");
 
@@ -155,6 +157,7 @@ watch(atlas, (newAtlas, oldAtlas) => {
             <CommittedInput
               v-model="ap"
               class="col"
+              :drag-step="positionStep"
               :label="$t('axis.ap')"
               :rules="coordinateRules"
               :suffix="positionSuffix"
@@ -162,6 +165,7 @@ watch(atlas, (newAtlas, oldAtlas) => {
             <CommittedInput
               v-model="dv"
               class="col"
+              :drag-step="positionStep"
               :label="$t('axis.dv')"
               :rules="coordinateRules"
               :suffix="positionSuffix"
@@ -169,6 +173,7 @@ watch(atlas, (newAtlas, oldAtlas) => {
             <CommittedInput
               v-model="ml"
               class="col"
+              :drag-step="positionStep"
               :label="$t('axis.ml')"
               :rules="coordinateRules"
               :suffix="positionSuffix"

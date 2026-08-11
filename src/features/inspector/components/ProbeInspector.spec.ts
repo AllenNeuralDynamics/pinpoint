@@ -754,6 +754,27 @@ describe("ProbeInspector", () => {
       expect(probe.rotation).toEqual([0, (3 * Math.PI) / 2, 0]);
     });
 
+    it("drags the ML field to move the probe live through the same commit path as typing", async () => {
+      const { wrapper, probe, pinia } = mountInspector(
+        makeProbe({ tipPosition: [7, 8, 9] })
+      );
+      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
+      await wrapper.vm.$nextTick();
+      const field = fieldByLabel(wrapper, node.position[0]!.name);
+      const before = Number(field.props("modelValue"));
+      const tipBeforeDrag = [...probe.tipPosition];
+
+      await field.trigger("pointerdown", {
+        clientX: 0,
+        pointerId: 1,
+        button: 0
+      });
+      await field.trigger("pointermove", { clientX: 40, pointerId: 1 });
+
+      expect(field.props("modelValue")).toBe((before + 0.4).toFixed(3));
+      expect(probe.tipPosition).not.toEqual(tipBeforeDrag);
+    });
+
     it("commits the ML field to the probe's tip, leaving AP and DV alone", async () => {
       const { wrapper, probe, pinia } = mountInspector(
         makeProbe({ tipPosition: [7, 8, 9] })

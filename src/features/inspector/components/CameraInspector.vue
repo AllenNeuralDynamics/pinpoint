@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useDragReorder } from "@/composable/useDragReorder";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericModel } from "@/composable/useNumericModel";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
@@ -31,6 +32,7 @@ const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: numberRules } =
   useValidationRules();
+const { positionStep, rotationStep } = useDragSteps();
 const {
   draggedIndex,
   dropTargetIndex,
@@ -148,6 +150,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="targetAp"
           class="col"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('axis.ap')"
           outlined
@@ -157,6 +160,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="targetDv"
           class="col"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('axis.dv')"
           outlined
@@ -166,6 +170,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="targetMl"
           class="col"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('axis.ml')"
           outlined
@@ -180,6 +185,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="alpha"
           class="col"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('cameraInspector.alpha')"
           outlined
@@ -189,6 +195,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="beta"
           class="col"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('cameraInspector.beta')"
           outlined
@@ -198,6 +205,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="radius"
           class="col"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('cameraInspector.radius')"
           outlined

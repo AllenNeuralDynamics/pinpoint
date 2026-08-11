@@ -232,6 +232,91 @@ describe("syncSceneObjects", () => {
     expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
   });
 
+  it("snaps a scene object's pose immediately when snapPoses is true, with no tick", async () => {
+    const { scene, gizmoManager } = await makeTestSceneWithPhysics();
+    const { experiment, sceneObject } = makeExperimentWithSceneObject();
+    const modelFile = await makeTestModelFile();
+    const state = createSceneObjectSyncState();
+    const loadModel = async () => modelFile;
+
+    await syncSceneObjects(
+      scene,
+      experiment,
+      gizmoManager,
+      state,
+      null,
+      loadModel
+    );
+    sceneObject.position = [5, 0, 0];
+    sceneObject.rotation = [0, 0, Math.PI / 2];
+    sceneObject.scale = [2, 2, 2];
+    await syncSceneObjects(
+      scene,
+      experiment,
+      gizmoManager,
+      state,
+      null,
+      loadModel,
+      true
+    );
+
+    const node = getSceneObjectTransformNode(scene, sceneObject.id)!;
+    const scaleNode = scene.getTransformNodeByName(
+      `${sceneObject.id}_object_scale`
+    )!;
+    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
+    expect(node.rotation.equals(asrToVector3(sceneObject.rotation))).toBe(true);
+    expect(scaleNode.scaling.equals(asrToVector3(sceneObject.scale))).toBe(
+      true
+    );
+  });
+
+  it("stops an in-flight glide and snaps to the new goal when snapPoses is true", async () => {
+    const { scene, gizmoManager } = await makeTestSceneWithPhysics();
+    const { experiment, sceneObject } = makeExperimentWithSceneObject();
+    const modelFile = await makeTestModelFile();
+    const state = createSceneObjectSyncState();
+    const loadModel = async () => modelFile;
+
+    await syncSceneObjects(
+      scene,
+      experiment,
+      gizmoManager,
+      state,
+      null,
+      loadModel
+    );
+    sceneObject.position = [5, 0, 0];
+    await syncSceneObjects(
+      scene,
+      experiment,
+      gizmoManager,
+      state,
+      null,
+      loadModel
+    );
+
+    const node = getSceneObjectTransformNode(scene, sceneObject.id)!;
+    tickScene(scene, 50);
+    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(
+      false
+    );
+
+    await syncSceneObjects(
+      scene,
+      experiment,
+      gizmoManager,
+      state,
+      null,
+      loadModel,
+      true
+    );
+    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
+
+    tickScene(scene, 1000);
+    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
+  });
+
   it("recolors the material when the object's color changes", async () => {
     const { scene, gizmoManager } = await makeTestSceneWithPhysics();
     const { experiment, sceneObject } = makeExperimentWithSceneObject({

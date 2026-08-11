@@ -363,6 +363,10 @@ export default {
     startupTitle: "Startup",
     skipSplashScreen: "Skip Splash Screen",
 
+    interactionTitle: "Interaction",
+    dragSensitivity: "Numeric Drag Sensitivity",
+    dragSensitivityValue: "{value}×",
+
     unitsTitle: "Units",
     positionUnit: "Position",
     rotationUnit: "Rotation",
