@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import {
   addCoordinateSystemTransform,
   type CoordinateSystem,
+  type CoordinateSystemNodeComponent,
   removeCoordinateSystemTransform,
   reorderCoordinateSystemTransform,
   setCoordinateSystemSurfaceNode
@@ -45,6 +46,19 @@ const name = computed({
 function reorderTransform(fromIndex: number, toIndex: number) {
   reorderCoordinateSystemTransform(coordinateSystem, fromIndex, toIndex);
   currentExperiment.focusedCoordinateSystemNodeIndex = null;
+}
+
+/**
+ * Mark a chain node as the one being edited, and which of its triples labels its gimbal axes.
+ * @param nodeIndex Chain index of the node.
+ * @param component Triple the user is editing.
+ */
+function focusNode(
+  nodeIndex: number,
+  component: CoordinateSystemNodeComponent
+): void {
+  currentExperiment.focusedCoordinateSystemNodeIndex = nodeIndex;
+  currentExperiment.focusedCoordinateSystemComponent = component;
 }
 
 /**
@@ -110,7 +124,7 @@ onUnmounted(() => {
         @drag-start="startDrag(index, $event)"
         @dragover="dragOverRow(index, $event)"
         @drop="dropRow(index)"
-        @focus="currentExperiment.focusedCoordinateSystemNodeIndex = index"
+        @focus="focusNode(index, $event)"
         @update:on-surface="
           setCoordinateSystemSurfaceNode(coordinateSystem, index, $event)
         "

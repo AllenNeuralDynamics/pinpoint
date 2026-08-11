@@ -21,6 +21,7 @@ import {
   type ProbeSurfaceChoice,
   type ProbeSurfaceMarker
 } from "@/features/probe";
+import type { CoordinateSystemNodeComponent } from "@/features/coordinate-system";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
@@ -65,6 +66,10 @@ export const useCurrentExperimentStore = defineStore(
 
     /** Chain index of the selected coordinate system's node the user is editing, or null. */
     const focusedCoordinateSystemNodeIndex = ref<number | null>(null);
+
+    /** Which of the focused node's triples labels its gimbal axes. */
+    const focusedCoordinateSystemComponent =
+      ref<CoordinateSystemNodeComponent>("position");
 
     /** Is the camera mid-movement, streaming its pose into the experiment. */
     const isCameraMoving = ref(false);
@@ -336,7 +341,8 @@ export const useCurrentExperimentStore = defineStore(
       isTerminologyRowsEvaluating,
       areAxisGuidesVisible,
       isLoadingRegionCenter,
-      focusedCoordinateSystemNodeIndex
+      focusedCoordinateSystemNodeIndex,
+      focusedCoordinateSystemComponent
     };
     const getters = {
       name,

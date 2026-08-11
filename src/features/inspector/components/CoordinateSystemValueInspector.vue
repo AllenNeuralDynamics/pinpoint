@@ -103,6 +103,7 @@ const modeOptions = computed<ModeOption[]>(() => [
             name: coordinateSystemValue.name
           })
         "
+        dense
         :options="axisOptions"
         spread
         toggle-color="primary"
@@ -123,6 +124,7 @@ const modeOptions = computed<ModeOption[]>(() => [
             name: coordinateSystemValue.name
           })
         "
+        dense
         :options="modeOptions"
         spread
         toggle-color="primary"

@@ -536,7 +536,7 @@ function buildProbeMaterial(scene: Scene, probe: Probe): StandardMaterial {
  * @param name Name for the mesh.
  * @param geometry Probe body geometry to build the mesh with.
  */
-function buildShankMesh(
+export function buildShankMesh(
   scene: Scene,
   contour: ProbeContour,
   name: string,
@@ -563,7 +563,7 @@ function buildShankMesh(
  * @param name Name for the mesh.
  * @param geometry Probe body geometry to build the mesh with.
  */
-function buildHeadStageMesh(
+export function buildHeadStageMesh(
   scene: Scene,
   contour: ProbeContour,
   name: string,
@@ -672,7 +672,10 @@ function buildRodMaterial(scene: Scene): StandardMaterial {
  * @param a First geometry to compare.
  * @param b Second geometry to compare.
  */
-function isSameProbeGeometry(a: ProbeGeometry, b: ProbeGeometry): boolean {
+export function isSameProbeGeometry(
+  a: ProbeGeometry,
+  b: ProbeGeometry
+): boolean {
   return (
     a.shankThicknessMillimeters === b.shankThicknessMillimeters &&
     a.headStageLengthMillimeters === b.headStageLengthMillimeters &&

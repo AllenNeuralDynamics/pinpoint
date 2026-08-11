@@ -309,7 +309,11 @@ export default {
     modeFixed: "Fixed",
     modeUser: "User",
     dragToReorder: "Drag to reorder",
-    deleteTransform: "Delete Transform"
+    deleteTransform: "Delete Transform",
+    valuesFor: "{label} values",
+    valueSummaryEntry: "{name} ({value})",
+    valueSummaryAllFixed: "all fixed",
+    closeValues: "Done"
   },
   slice: {
     zoom: "Zoom",

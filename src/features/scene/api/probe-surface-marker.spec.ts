@@ -1,20 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Color3, StandardMaterial } from "@babylonjs/core";
 import { makeProbe } from "@/test/fixtures";
-import { makeTestScene } from "@/test/mount-helper";
+import { makeTestSceneWithGizmo } from "@/test/mount-helper";
 import { asrToVector3 } from "./coordinate-transforms.api";
 import { syncProbeSurfaceMarker } from "./probe-surface-marker.api";
 
 describe("syncProbeSurfaceMarker", () => {
-  it("builds a shank-scaled sphere parented to the atlas root, unpickable, positioned, and colored with the probe's color", () => {
-    const scene = makeTestScene();
+  it("builds a shank-scaled sphere parented to the atlas root, unpickable, positioned, colored with the probe's color, and outlined", () => {
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe({ color: "#00ff00" });
     const marker = {
       probeId: probe.id,
       position: [5, 3, 5] as [number, number, number]
     };
 
-    syncProbeSurfaceMarker(scene, marker, [probe], 0.05);
+    syncProbeSurfaceMarker(scene, selectionOutlineLayer, marker, [probe], 0.05);
 
     const mesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
     expect(mesh).toBeTruthy();
@@ -27,6 +27,7 @@ describe("syncProbeSurfaceMarker", () => {
     expect(extendSize.x).toBeCloseTo(0.25);
     expect(extendSize.y).toBeCloseTo(0.25);
     expect(extendSize.z).toBeCloseTo(0.25);
+    expect(selectionOutlineLayer.hasMesh(mesh)).toBe(true);
 
     const material = scene.getMaterialByName("probeSurfaceMarker_material");
     expect(material).toBeInstanceOf(StandardMaterial);
@@ -38,11 +39,12 @@ describe("syncProbeSurfaceMarker", () => {
   });
 
   it("moves the same mesh on a second call instead of rebuilding it", () => {
-    const scene = makeTestScene();
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe();
 
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
@@ -51,6 +53,7 @@ describe("syncProbeSurfaceMarker", () => {
 
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [4, 5, 6] },
       [probe],
       0.05
@@ -63,12 +66,36 @@ describe("syncProbeSurfaceMarker", () => {
     );
   });
 
+  it("does not re-add the reused mesh to the outline layer on a second call", () => {
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
+    const probe = makeProbe();
+    const addSelection = vi.spyOn(selectionOutlineLayer, "addSelection");
+
+    syncProbeSurfaceMarker(
+      scene,
+      selectionOutlineLayer,
+      { probeId: probe.id, position: [1, 2, 3] },
+      [probe],
+      0.05
+    );
+    syncProbeSurfaceMarker(
+      scene,
+      selectionOutlineLayer,
+      { probeId: probe.id, position: [4, 5, 6] },
+      [probe],
+      0.05
+    );
+
+    expect(addSelection).toHaveBeenCalledTimes(1);
+  });
+
   it("rebuilds the sphere when the shank thickness changes, and reuses it when it repeats", () => {
-    const scene = makeTestScene();
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe();
 
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
@@ -77,6 +104,7 @@ describe("syncProbeSurfaceMarker", () => {
 
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.1
@@ -86,9 +114,11 @@ describe("syncProbeSurfaceMarker", () => {
     expect(secondMesh.getBoundingInfo().boundingBox.extendSize.x).toBeCloseTo(
       0.5
     );
+    expect(selectionOutlineLayer.hasMesh(secondMesh)).toBe(true);
 
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.1
@@ -98,10 +128,11 @@ describe("syncProbeSurfaceMarker", () => {
   });
 
   it("recolors the existing material when the probe's color changes", () => {
-    const scene = makeTestScene();
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe({ color: "#ff0000" });
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
@@ -110,6 +141,7 @@ describe("syncProbeSurfaceMarker", () => {
     probe.color = "#0000ff";
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
@@ -124,26 +156,28 @@ describe("syncProbeSurfaceMarker", () => {
   });
 
   it("disposes the mesh and material when the marker is null", () => {
-    const scene = makeTestScene();
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe();
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
     );
 
-    syncProbeSurfaceMarker(scene, null, [probe], 0.05);
+    syncProbeSurfaceMarker(scene, selectionOutlineLayer, null, [probe], 0.05);
 
     expect(scene.getMeshByName("probeSurfaceMarker_mesh")).toBeNull();
     expect(scene.getMaterialByName("probeSurfaceMarker_material")).toBeNull();
   });
 
   it("disposes the mesh and material when the marker's probe is absent from probes", () => {
-    const scene = makeTestScene();
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe();
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
@@ -151,6 +185,7 @@ describe("syncProbeSurfaceMarker", () => {
 
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: "missing-probe", position: [1, 2, 3] },
       [probe],
       0.05
@@ -161,10 +196,11 @@ describe("syncProbeSurfaceMarker", () => {
   });
 
   it("disposes the mesh and material when the probe's visibility is hidden", () => {
-    const scene = makeTestScene();
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const probe = makeProbe();
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05
@@ -173,6 +209,7 @@ describe("syncProbeSurfaceMarker", () => {
     probe.visibility = "hidden";
     syncProbeSurfaceMarker(
       scene,
+      selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
       0.05

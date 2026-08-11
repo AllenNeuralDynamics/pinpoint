@@ -14,24 +14,21 @@ import {
   rotationUnitToRadians
 } from "@/utils/math";
 
-/** A coordinate system value's display-unit string model, its unit suffix, and its converters. */
-export interface CoordinateSystemValueModel {
-  value: WritableComputedRef<string>;
-  suffix: ComputedRef<string>;
+/** Display-unit converters, unit suffix, and drag step for a coordinate system component. */
+export interface CoordinateSystemUnitModel {
   toDisplay: (storedValue: number) => number;
   fromDisplay: (displayValue: number) => number;
+  suffix: ComputedRef<string>;
   dragStep: ComputedRef<number>;
 }
 
 /**
- * Bind a coordinate system value to a display-unit string model for a numeric input.
- * @param getCoordinateSystemValue Getter for the value to bind.
- * @param component Whether the value is a position (millimeters) or a rotation (radians).
+ * Display-unit converters, unit suffix, and drag step for a coordinate system component.
+ * @param component Whether the values are positions (millimeters) or rotations (radians).
  */
-export function useCoordinateSystemValueModel(
-  getCoordinateSystemValue: () => CoordinateSystemValue,
+export function useCoordinateSystemUnits(
   component: CoordinateSystemNodeComponent
-): CoordinateSystemValueModel {
+): CoordinateSystemUnitModel {
   const preferences = usePreferencesStore();
   const unitLabels = useUnitLabels();
   const { positionStep, rotationStep } = useDragSteps();
@@ -64,13 +61,37 @@ export function useCoordinateSystemValueModel(
   const dragStep = computed(() =>
     component === "position" ? positionStep.value : rotationStep.value
   );
+
+  return { toDisplay, fromDisplay, suffix, dragStep };
+}
+
+/** A coordinate system value's display-unit string model, its unit suffix, and its converters. */
+export interface CoordinateSystemValueModel {
+  value: WritableComputedRef<string>;
+  suffix: ComputedRef<string>;
+  toDisplay: (storedValue: number) => number;
+  fromDisplay: (displayValue: number) => number;
+  dragStep: ComputedRef<number>;
+}
+
+/**
+ * Bind a coordinate system value to a display-unit string model for a numeric input.
+ * @param getCoordinateSystemValue Getter for the value to bind.
+ * @param component Whether the value is a position (millimeters) or a rotation (radians).
+ */
+export function useCoordinateSystemValueModel(
+  getCoordinateSystemValue: () => CoordinateSystemValue,
+  component: CoordinateSystemNodeComponent
+): CoordinateSystemValueModel {
+  const preferences = usePreferencesStore();
+  const units = useCoordinateSystemUnits(component);
   const value = useNumericModel(
     () => getCoordinateSystemValue().value,
     next => (getCoordinateSystemValue().value = next),
-    toDisplay,
-    fromDisplay,
+    units.toDisplay,
+    units.fromDisplay,
     () => preferences.decimalPrecision
   );
 
-  return { value, suffix, toDisplay, fromDisplay, dragStep };
+  return { value, ...units };
 }

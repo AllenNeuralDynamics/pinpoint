@@ -21,6 +21,12 @@ import { type Atlas, getAtlasDimensionsMillimeters } from "@/features/atlas";
 /** Atlas axis an axis guide marks. */
 export type AxisGuideAxis = "ap" | "dv" | "ml";
 
+/** Axis a guide's label text is keyed to: an atlas ASR axis, or a Babylon axis in the local frame. */
+export type AxisGuideLabelKey = AxisGuideAxis | "x" | "y" | "z";
+
+/** Label text per axis, sign excluded — the user's axis names for the atlas axes. */
+export type AxisGuideLabels = Record<AxisGuideLabelKey, string>;
+
 /** MSDF text renderer surface the axis guides drive. */
 export interface AxisGuideTextRenderer {
   parent: INodeLike | null;
@@ -54,7 +60,10 @@ interface AxisGuideSpec {
   axis: AxisGuideAxis;
   /** Unit direction, in the guide root's space, the guide sits along. */
   direction: Vector3;
-  text: string;
+  /** Which axis label the guide's text is built from. */
+  labelKey: AxisGuideLabelKey;
+  /** Sign prefixed to the label. */
+  sign: "+" | "-";
   /** Euler rotation in radians, in Babylon's yaw-pitch-roll order. */
   rotation: { pitch: number; yaw: number; roll: number };
 }
@@ -92,37 +101,43 @@ const AXIS_GUIDE_GLOBAL_SPECS: AxisGuideSpec[] = [
   {
     axis: "ap",
     direction: new Vector3(0, 0, -1),
-    text: "+AP",
+    labelKey: "ap",
+    sign: "+",
     rotation: { pitch: Math.PI / 2, yaw: Math.PI, roll: 0 }
   },
   {
     axis: "ap",
     direction: new Vector3(0, 0, 1),
-    text: "-AP",
+    labelKey: "ap",
+    sign: "-",
     rotation: { pitch: Math.PI / 2, yaw: 0, roll: 0 }
   },
   {
     axis: "dv",
     direction: new Vector3(0, -1, 0),
-    text: "+DV",
+    labelKey: "dv",
+    sign: "+",
     rotation: { pitch: 0, yaw: 0, roll: 0 }
   },
   {
     axis: "dv",
     direction: new Vector3(0, 1, 0),
-    text: "-DV",
+    labelKey: "dv",
+    sign: "-",
     rotation: { pitch: 0, yaw: 0, roll: 0 }
   },
   {
     axis: "ml",
     direction: new Vector3(1, 0, 0),
-    text: "+ML",
+    labelKey: "ml",
+    sign: "+",
     rotation: { pitch: Math.PI / 2, yaw: Math.PI / 2, roll: 0 }
   },
   {
     axis: "ml",
     direction: new Vector3(-1, 0, 0),
-    text: "-ML",
+    labelKey: "ml",
+    sign: "-",
     rotation: { pitch: Math.PI / 2, yaw: -Math.PI / 2, roll: 0 }
   }
 ];
@@ -139,37 +154,43 @@ const AXIS_GUIDE_LOCAL_SPECS: AxisGuideSpec[] = [
   {
     axis: "ml",
     direction: new Vector3(1, 0, 0),
-    text: "+X",
+    labelKey: "x",
+    sign: "+",
     rotation: { pitch: Math.PI, yaw: 0, roll: -Math.PI / 2 }
   },
   {
     axis: "ml",
     direction: new Vector3(-1, 0, 0),
-    text: "-X",
+    labelKey: "x",
+    sign: "-",
     rotation: { pitch: Math.PI, yaw: 0, roll: Math.PI / 2 }
   },
   {
     axis: "dv",
     direction: new Vector3(0, 1, 0),
-    text: "+Y",
+    labelKey: "y",
+    sign: "+",
     rotation: { pitch: 0, yaw: Math.PI, roll: 0 }
   },
   {
     axis: "dv",
     direction: new Vector3(0, -1, 0),
-    text: "-Y",
+    labelKey: "y",
+    sign: "-",
     rotation: { pitch: Math.PI, yaw: 0, roll: 0 }
   },
   {
     axis: "ap",
     direction: new Vector3(0, 0, 1),
-    text: "+Z",
+    labelKey: "z",
+    sign: "+",
     rotation: { pitch: Math.PI / 2, yaw: 0, roll: 0 }
   },
   {
     axis: "ap",
     direction: new Vector3(0, 0, -1),
-    text: "-Z",
+    labelKey: "z",
+    sign: "-",
     rotation: { pitch: Math.PI / 2, yaw: 0, roll: 0 }
   }
 ];
@@ -262,18 +283,29 @@ export async function createAxisGuides(scene: Scene): Promise<AxisGuides> {
 }
 
 /**
+ * Label text drawn for one guide: its sign followed by its axis's name.
+ * @param spec Axis guide to label.
+ * @param labels Label text per axis.
+ */
+function axisGuideText(spec: AxisGuideSpec, labels: AxisGuideLabels): string {
+  return `${spec.sign}${labels[spec.labelKey]}`;
+}
+
+/**
  * Rebuild the atlas's six axis guide labels, their arrows, and their pick meshes, replacing any
  * existing ones.
  * @param scene Scene holding the axis guide root node.
  * @param guides Text renderers and font asset to draw the labels with.
  * @param atlas Atlas supplying the atlas's dimensions.
  * @param frame Frame to draw the guides in: the atlas's own axes, or a node's Babylon axes.
+ * @param labels Label text per axis, from the user's axis-name preferences.
  */
 export function buildAxisGuides(
   scene: Scene,
   guides: AxisGuides,
   atlas: Atlas,
-  frame: AxisGuideFrame
+  frame: AxisGuideFrame,
+  labels: AxisGuideLabels
 ): void {
   clearAxisGuides(scene, guides);
 
@@ -283,15 +315,23 @@ export function buildAxisGuides(
   const mlLength = dimensions[AXIS_GUIDE_ASR_INDEX.ml];
   if (mlLength === 0) return;
 
+  const specTexts = specs.map(spec => ({
+    spec,
+    text: axisGuideText(spec, labels)
+  }));
   const labelSizes: Record<string, { width: number; height: number }> =
     Object.fromEntries(
-      specs.map(spec => [spec.text, labelSizeEm(spec.text, guides.fontAsset)])
+      specTexts.map(({ text }) => [text, labelSizeEm(text, guides.fontAsset)])
     );
 
   // `setAtlasCenterOffset` keeps the atlas center on the scene origin, so the
   // guides are placed straight in world space around that origin.
   const root = new TransformNode(AXIS_GUIDE_ROOT_NODE_NAME, scene);
-  const fontSize = axisGuideFontSize(mlLength, guides.fontAsset);
+  const fontSize = axisGuideFontSize(
+    mlLength,
+    guides.fontAsset,
+    AXIS_GUIDE_GLOBAL_SPECS.map(spec => axisGuideText(spec, labels))
+  );
   const materials = buildAxisGuideArrowMaterials(scene);
   if (frame.kind === "local")
     trackAxisGuideLocalFrame(scene, root, frame.getNode);
@@ -300,8 +340,8 @@ export function buildAxisGuides(
   // inside the atlas once rotated; anchoring every local guide at the longest atlas dimension
   // keeps them outside the atlas at any orientation.
   const localAnchor = Math.max(...dimensions);
-  for (const spec of specs) {
-    const labelSize = labelSizes[spec.text]!;
+  for (const { spec, text } of specTexts) {
+    const labelSize = labelSizes[text]!;
     const anchor =
       frame.kind === "local"
         ? localAnchor
@@ -313,15 +353,24 @@ export function buildAxisGuides(
     const renderer = guides.renderers[spec.axis];
     renderer.parent = root;
     renderer.addParagraph(
-      spec.text,
+      text,
       undefined,
       axisGuideMatrix(spec, labelCenter, fontSize)
     );
-    buildAxisGuidePickMesh(scene, root, spec, labelCenter, fontSize, labelSize);
+    buildAxisGuidePickMesh(
+      scene,
+      root,
+      spec,
+      text,
+      labelCenter,
+      fontSize,
+      labelSize
+    );
     buildAxisGuideArrow(
       scene,
       root,
       spec,
+      text,
       anchor,
       fontSize,
       materials[spec.axis]
@@ -397,6 +446,7 @@ function axisGuideMatrix(
  * @param scene Scene to create the mesh in.
  * @param root Axis guide root node to parent the mesh to.
  * @param spec Axis guide the mesh stands in for.
+ * @param text Resolved label text, from the user's axis-name preferences.
  * @param labelCenter Label's centre position, in the guide root's space.
  * @param fontSize Label em size in mm.
  * @param labelSize Label's measured width and height in em.
@@ -405,13 +455,14 @@ function buildAxisGuidePickMesh(
   scene: Scene,
   root: TransformNode,
   spec: AxisGuideSpec,
+  text: string,
   labelCenter: Vector3,
   fontSize: number,
   labelSize: { width: number; height: number }
 ): void {
   const { width, height } = labelSize;
   const mesh = MeshBuilder.CreatePlane(
-    `${AXIS_GUIDE_PICK_MESH_NAME_PREFIX}${spec.text}`,
+    `${AXIS_GUIDE_PICK_MESH_NAME_PREFIX}${text}`,
     { width: width * fontSize, height: height * fontSize },
     scene
   );
@@ -436,6 +487,7 @@ function buildAxisGuidePickMesh(
  * @param scene Scene to create the meshes in.
  * @param root Axis guide root node to parent the arrow meshes to.
  * @param spec Axis guide the arrow marks.
+ * @param text Resolved label text, from the user's axis-name preferences.
  * @param anchor Distance from the origin the arrow's tip sits at, in mm.
  * @param fontSize Label em size in mm.
  * @param material Emissive material shared with the axis's other arrow.
@@ -444,11 +496,12 @@ function buildAxisGuideArrow(
   scene: Scene,
   root: TransformNode,
   spec: AxisGuideSpec,
+  text: string,
   anchor: number,
   fontSize: number,
   material: StandardMaterial
 ): void {
-  const shaftName = `${AXIS_GUIDE_ARROW_MESH_NAME_PREFIX}${spec.text}`;
+  const shaftName = `${AXIS_GUIDE_ARROW_MESH_NAME_PREFIX}${text}`;
 
   const shaft = MeshBuilder.CreateCylinder(
     shaftName,
@@ -577,12 +630,15 @@ export function pickAxisGuideDirection(
  * both guide sets.
  * @param mlLength Atlas ML extent in mm.
  * @param fontAsset Font asset the labels are measured with.
+ * @param globalTexts Resolved global label texts, used to find the widest.
  */
-function axisGuideFontSize(mlLength: number, fontAsset: FontAsset): number {
+function axisGuideFontSize(
+  mlLength: number,
+  fontAsset: FontAsset,
+  globalTexts: string[]
+): number {
   const widest = Math.max(
-    ...AXIS_GUIDE_GLOBAL_SPECS.map(
-      spec => labelSizeEm(spec.text, fontAsset).width
-    )
+    ...globalTexts.map(text => labelSizeEm(text, fontAsset).width)
   );
   return (mlLength * AXIS_GUIDE_WIDTH_ML_FRACTION) / widest;
 }
@@ -593,7 +649,7 @@ function axisGuideFontSize(mlLength: number, fontAsset: FontAsset): number {
  * @param text Label text to measure.
  * @param fontAsset Font asset the label is laid out with.
  */
-function labelSizeEm(
+export function labelSizeEm(
   text: string,
   fontAsset: FontAsset
 ): { width: number; height: number } {

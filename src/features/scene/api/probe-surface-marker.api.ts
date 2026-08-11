@@ -1,4 +1,4 @@
-import type { Mesh, Scene } from "@babylonjs/core";
+import type { Mesh, Scene, SelectionOutlineLayer } from "@babylonjs/core";
 import { Color3, MeshBuilder, StandardMaterial } from "@babylonjs/core";
 import type { Probe, ProbeSurfaceMarker } from "@/features/probe";
 import { asrToVector3 } from "./coordinate-transforms.api";
@@ -17,12 +17,14 @@ const PROBE_SURFACE_MARKER_SEGMENTS = 12;
 /**
  * Draw or move the on-surface node's marker sphere, or strip it when there is no marker.
  * @param scene Scene to draw the marker in.
+ * @param selectionOutlineLayer Selection outline layer to add the marker sphere to.
  * @param marker Marker to draw, or null to remove it.
  * @param probes Probes in the experiment, to resolve the marker's own color and visibility.
  * @param shankThicknessMillimeters Probe shank thickness the marker's diameter is scaled from.
  */
 export function syncProbeSurfaceMarker(
   scene: Scene,
+  selectionOutlineLayer: SelectionOutlineLayer,
   marker: ProbeSurfaceMarker | null,
   probes: Probe[],
   shankThicknessMillimeters: number
@@ -53,6 +55,12 @@ export function syncProbeSurfaceMarker(
   mesh.material = material;
 
   mesh.position = asrToVector3(marker.position);
+
+  // The sphere is a fresh mesh after a rebuild, and outlining is per-mesh
+  // reference, so a reused mesh across ticks must not be re-added.
+  if (!selectionOutlineLayer.hasMesh(mesh)) {
+    selectionOutlineLayer.addSelection(mesh);
+  }
 }
 
 /**
