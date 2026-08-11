@@ -61,7 +61,11 @@ const {
 
 const { isImporting: isImportingModel, open: openModelFile } =
   useModelFileImport((modelId, file) => {
-    const sceneObject = buildSceneObject(modelId, file.name);
+    const sceneObject = buildSceneObject(
+      modelId,
+      file.name,
+      currentExperiment.referenceCoordinate
+    );
     addSceneObject(currentExperiment.experiment, sceneObject);
     currentExperiment.selectedInspectable = sceneObject;
   });

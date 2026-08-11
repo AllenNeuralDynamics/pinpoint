@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   copySceneObject,
@@ -27,10 +27,20 @@ const { requiredName: nameRules, positiveNumber: scaleRules } =
   useValidationRules();
 const { t } = useI18n();
 
+/** Whether AP/DV/ML fields display the position offset by the reference coordinate. */
+const isPositionRelativeToReference = ref(false);
+
 const name = computed({
   get: () => sceneObject.name,
   set: (value: string) => (sceneObject.name = value.trim())
 });
+
+/** Reference coordinate to subtract from/add back to AP/DV/ML when the toggle is on, else zero. */
+const positionOffset = computed<[number, number, number]>(() =>
+  isPositionRelativeToReference.value
+    ? currentExperimentStore.referenceCoordinate
+    : [0, 0, 0]
+);
 
 const scaleZ = useNumericTupleModel(
   () => sceneObject.scale,
@@ -99,10 +109,16 @@ const lockLabel = computed(() =>
       :rules="nameRules"
     />
 
+    <q-toggle
+      v-model="isPositionRelativeToReference"
+      :label="t('sceneObjectInspector.relativeToReferenceCoordinate')"
+    />
+
     <AtlasAxisInputs
       :disable="sceneObject.lock"
       hide-bottom-space
       kind="position"
+      :offset="positionOffset"
       outlined
       :tuple="sceneObject.position"
     />

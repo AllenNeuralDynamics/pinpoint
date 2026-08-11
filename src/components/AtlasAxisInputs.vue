@@ -3,7 +3,7 @@ import { computed } from "vue";
 import type { AtlasAxisKind } from "@/composable/useAtlasAxes";
 import { useAtlasAxes } from "@/composable/useAtlasAxes";
 import { useDragSteps } from "@/composable/useDragSteps";
-import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
+import { useNumericModel } from "@/composable/useNumericModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import { usePreferencesStore } from "@/stores/preferences.store";
@@ -17,11 +17,13 @@ import CommittedInput from "./CommittedInput.vue";
 
 defineOptions({ inheritAttrs: false });
 
-const { tuple, kind } = defineProps<{
+const { tuple, kind, offset } = defineProps<{
   /** Triple to edit in place, in internal [AP, DV, ML] or [roll, yaw, pitch] order. */
   tuple: [number, number, number];
   /** Which atlas triple this row edits, selecting its unit and default labels. */
   kind: AtlasAxisKind;
+  /** Subtracted from each displayed value and added back on write; omit for none. */
+  offset?: [number, number, number];
 }>();
 
 const preferences = usePreferencesStore();
@@ -31,9 +33,9 @@ const { positionStep, rotationStep } = useDragSteps();
 const { optionalNumber: numberRules } = useValidationRules();
 
 const models = ([0, 1, 2] as const).map(axis =>
-  useNumericTupleModel(
-    () => tuple,
-    axis,
+  useNumericModel(
+    () => tuple[axis] - (offset?.[axis] ?? 0),
+    storedValue => (tuple[axis] = storedValue + (offset?.[axis] ?? 0)),
     stored =>
       kind === "position"
         ? millimetersToPositionUnit(stored, preferences.positionUnit)

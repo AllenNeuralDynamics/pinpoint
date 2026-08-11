@@ -16,14 +16,16 @@ const SCENE_OBJECT_VISIBILITIES: readonly string[] = [
 const SCENE_OBJECT_COPY_NAME_SUFFIX = " - copy";
 
 /**
- * Build a scene object for a stored GLB, named after its source file and given a
- * random color and a fresh scene id.
+ * Build a scene object for a stored GLB, named after its source file, placed
+ * at the given position, and given a random color and a fresh scene id.
  * @param modelId Model id of the object's GLB in IndexedDB.
  * @param fileName Name of the model file the object was imported from.
+ * @param position Spawn position, in atlas ASR mm as [ap, dv, ml].
  */
 export function buildSceneObject(
   modelId: string,
-  fileName: string
+  fileName: string,
+  position: [number, number, number]
 ): SceneObject {
   return {
     ...buildSceneModel(modelId),
@@ -33,7 +35,8 @@ export function buildSceneObject(
     color: STANDARD_COLORS[Math.floor(Math.random() * STANDARD_COLORS.length)]!,
     visibility: "visible",
     lock: false,
-    collidable: true
+    collidable: true,
+    position: [...position]
   };
 }
 

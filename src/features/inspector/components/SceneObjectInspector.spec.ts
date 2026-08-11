@@ -36,6 +36,12 @@ function buttonByLabel(wrapper: VueWrapper, label: string) {
     .find(button => button.attributes("aria-label") === label)!;
 }
 
+function toggleByLabel(wrapper: VueWrapper, label: string) {
+  return wrapper
+    .findAllComponents({ name: "QToggle" })
+    .find(toggle => toggle.props("label") === label)!;
+}
+
 /**
  * Focus, replace a field's text, and blur it -- the sequence a real user
  * produces, which `use-field`'s handlers require in this order.
@@ -146,5 +152,47 @@ describe("SceneObjectInspector", () => {
     await wrapper.findComponent({ name: "QToggle" }).setValue(false);
 
     expect(sceneObject.collidable).toBe(false);
+  });
+
+  it("shows the atlas-absolute AP/DV/ML values when relative mode is off", async () => {
+    const { wrapper, store } = mountInspector(
+      makeSceneObject({ position: [1, 2, 3] })
+    );
+    store.experiment.referenceCoordinate = [10, 20, 30];
+    await wrapper.vm.$nextTick();
+
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("1.000");
+    expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe("2.000");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("3.000");
+  });
+
+  it("offsets the displayed AP/DV/ML by the reference coordinate once relative mode is enabled, without touching the stored position", async () => {
+    const { wrapper, store, sceneObject } = mountInspector(
+      makeSceneObject({ position: [1, 2, 3] })
+    );
+    store.experiment.referenceCoordinate = [10, 20, 30];
+
+    await toggleByLabel(wrapper, t.relativeToReferenceCoordinate).setValue(
+      true
+    );
+
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("-9.000");
+    expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe("-18.000");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("-27.000");
+    expect(sceneObject.position).toEqual([1, 2, 3]);
+  });
+
+  it("writes back the atlas-absolute position when a field is edited in relative mode", async () => {
+    const { wrapper, store, sceneObject } = mountInspector(
+      makeSceneObject({ position: [1, 2, 3] })
+    );
+    store.experiment.referenceCoordinate = [10, 20, 30];
+    await toggleByLabel(wrapper, t.relativeToReferenceCoordinate).setValue(
+      true
+    );
+
+    await editAndBlur(fieldByLabel(wrapper, axis.ap), "5");
+
+    expect(sceneObject.position[0]).toBeCloseTo(15, 6);
   });
 });

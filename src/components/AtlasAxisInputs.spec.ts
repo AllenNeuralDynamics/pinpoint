@@ -108,4 +108,27 @@ describe("AtlasAxisInputs", () => {
       expect(field.props("outlined")).toBe(true);
     }
   });
+
+  it("subtracts an offset tuple from each displayed value", () => {
+    const wrapper = mountWithQuasar(AtlasAxisInputs, {
+      props: { tuple: [1, 2, 3], kind: "position", offset: [10, 20, 30] }
+    });
+
+    expect(fields(wrapper).map(field => field.props("modelValue"))).toEqual([
+      "-9.000",
+      "-18.000",
+      "-27.000"
+    ]);
+  });
+
+  it("adds the offset back on write, leaving the tuple absolute", async () => {
+    const tuple: [number, number, number] = [1, 2, 3];
+    const wrapper = mountWithQuasar(AtlasAxisInputs, {
+      props: { tuple, kind: "position", offset: [10, 20, 30] }
+    });
+
+    await editAndBlur(fields(wrapper)[0]!, "5");
+
+    expect(tuple[0]).toBeCloseTo(15, 6);
+  });
 });

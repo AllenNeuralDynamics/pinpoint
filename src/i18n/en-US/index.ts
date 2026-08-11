@@ -260,7 +260,8 @@ export default {
     copy: "Duplicate 3D object",
     lock: "Lock 3D object",
     unlock: "Unlock 3D object",
-    collisionDetection: "Collision detection"
+    collisionDetection: "Collision detection",
+    relativeToReferenceCoordinate: "Relative to reference coordinate"
   },
   cameraInspector: {
     poseName: "Pose name",
