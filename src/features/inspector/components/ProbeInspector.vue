@@ -75,6 +75,9 @@ type SolveReason = "preview" | "release" | "external";
 /** Pose difference, in mm and radians, below which the probe needs no correction. */
 const POSE_MATCH_TOLERANCE = 1e-4;
 
+/** Largest per-axis distance, in mm, at which an `onSurface` node counts as at the entry point. */
+const SURFACE_MATCH_TOLERANCE_MILLIMETERS = 1e-3;
+
 /**
  * Consecutive non-converged preview solves before the unreachable ghost is drawn, so one
  * spurious warm-seed miss during a drag does not flash it.
@@ -107,7 +110,7 @@ const { requiredName: nameRules } = useValidationRules();
 
 const { t } = useI18n();
 const { notifyError, notifyWarning } = useNotify();
-const { findTargets, isInsideBrain, isOnSurface } = useProbeSurface();
+const { findSurfaceEntry, findTargets } = useProbeSurface();
 const { solve: solveInverseKinematics } = useInverseKinematicsSolver();
 
 /** Is the surface sampling pass currently running. */
@@ -422,13 +425,9 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
   const id = ++solveId;
   isSolving = true;
   try {
-    let isTipInsideBrain = false;
     let surfacePosition: [number, number, number] | null = null;
     if (hasSurfaceNode.value) {
-      isTipInsideBrain = (await isInsideBrain(probe.tipPosition)) === true;
-      if (isTipInsideBrain) {
-        surfacePosition = (await findTargets(probe))?.insideMillimeters ?? null;
-      }
+      surfacePosition = await findSurfaceEntry(probe);
     }
     if (id !== solveId) return;
 
@@ -502,7 +501,7 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
     // A preview never writes the probe's pose, so the tip sampled before the solve is still the
     // final tip. A release or external solve can correct the pose, so re-sample it.
     if (reason === "preview") {
-      void checkSurfaceNodes(solution, reason, isTipInsideBrain);
+      checkSurfaceNodes(solution, reason, surfacePosition);
     } else {
       void verifySurfaceNodes(solution, reason);
     }
@@ -655,8 +654,8 @@ function applySolve(): void {
 }
 
 /**
- * Sample whether the probe's committed tip is inside the brain, then check the chain's
- * on-surface nodes against it.
+ * Sample the probe's committed brain entry point, then check the chain's on-surface nodes
+ * against it.
  * @param solution Solved chain the node positions come from.
  * @param reason Why the change that produced this check fired.
  */
@@ -669,43 +668,45 @@ async function verifySurfaceNodes(
     return;
   }
   const checkId = ++surfaceCheckId;
-  const isTipInsideBrain = (await isInsideBrain(probe.tipPosition)) === true;
+  const surfaceMillimeters = await findSurfaceEntry(probe);
   if (checkId !== surfaceCheckId) return;
-  void checkSurfaceNodes(solution, reason, isTipInsideBrain);
+  checkSurfaceNodes(solution, reason, surfaceMillimeters);
 }
 
 /**
- * Replace the off-surface warnings with the on-surface nodes the atlas rejects, once a preview's
- * rejection has held for `SUSTAINED_OFF_SURFACE_CHECKS` consecutive checks.
+ * Replace the off-surface warnings with the on-surface nodes that miss the probe's brain entry
+ * point, once a preview's miss has held for `SUSTAINED_OFF_SURFACE_CHECKS` consecutive checks.
  * @param solution Solved chain the node positions come from.
  * @param reason Why the solve that produced this check fired.
- * @param isTipInsideBrain Was the probe's tip inside the brain for this solve.
+ * @param surfaceMillimeters Probe's brain entry point in atlas ASR mm, or null when it has none.
  */
-async function checkSurfaceNodes(
+function checkSurfaceNodes(
   solution: CoordinateSystemSolution,
   reason: SolveReason,
-  isTipInsideBrain: boolean
-): Promise<void> {
+  surfaceMillimeters: [number, number, number] | null
+): void {
+  surfaceCheckId++;
   const indexes = chain.value.flatMap((node, index) =>
     node.onSurface ? [index] : []
   );
-  // Outside the brain the solver never got a surface goal, so there is nothing to verify.
-  if (!isTipInsideBrain || indexes.length === 0) {
+  // A probe that does not cross the brain has no entry point, so there is nothing to verify.
+  if (!surfaceMillimeters || indexes.length === 0) {
     clearOffSurfaceWarnings();
     return;
   }
 
-  const checkId = ++surfaceCheckId;
-  const results = await Promise.all(
-    indexes.map(index => isOnSurface(solution.nodePositions[index]!))
-  );
-  if (checkId !== surfaceCheckId) return;
-
   const warned: number[] = [];
-  indexes.forEach((index, position) => {
-    if (results[position] !== false) {
+  for (const index of indexes) {
+    const nodePosition = solution.nodePositions[index]!;
+    if (
+      surfaceMillimeters.every(
+        (value, axis) =>
+          Math.abs(value - nodePosition[axis]!) <=
+          SURFACE_MATCH_TOLERANCE_MILLIMETERS
+      )
+    ) {
       offSurfaceCheckCounts.delete(index);
-      return;
+      continue;
     }
     // A one-shot solve has no next check to wait for, so it warns at once and holds the warning
     // through the previews of any later drag.
@@ -716,7 +717,7 @@ async function checkSurfaceNodes(
         : Math.max(next, SUSTAINED_OFF_SURFACE_CHECKS);
     offSurfaceCheckCounts.set(index, count);
     if (count >= SUSTAINED_OFF_SURFACE_CHECKS) warned.push(index);
-  });
+  }
   offSurfaceNodeIndexes.value = warned;
 }
 

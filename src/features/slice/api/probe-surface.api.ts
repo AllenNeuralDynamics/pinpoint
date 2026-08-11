@@ -51,7 +51,7 @@ export async function findProbeSurfaceTargets(
   const origin = frame.originMillimeters;
   const up = frame.upMillimeters;
 
-  const inside = await findRayTarget(level, origin, up, "furthest", sampleRay);
+  const inside = await findProbeSurfaceEntry(frame, level, sampleRay);
   if (inside) {
     return {
       insideMillimeters: inside,
@@ -83,6 +83,27 @@ export async function findProbeSurfaceTargets(
   ]);
 
   return { insideMillimeters: null, axisMillimeters, dorsoventralMillimeters };
+}
+
+/**
+ * Resolve where a probe's own axis enters the brain, i.e. its surface coordinate, in atlas ASR mm.
+ * Null when the probe does not cross the brain or the volume can't be sampled.
+ * @param frame Probe's shank-plane frame, in atlas ASR mm.
+ * @param level Annotation level to march through.
+ * @param sampleRay Samples one ray geometry.
+ */
+export async function findProbeSurfaceEntry(
+  frame: ProbeFrame,
+  level: AnnotationLevel,
+  sampleRay: RaySampler
+): Promise<[number, number, number] | null> {
+  return findRayTarget(
+    level,
+    frame.originMillimeters,
+    frame.upMillimeters,
+    "furthest",
+    sampleRay
+  );
 }
 
 /** Build a ray's sampling geometry, clipped to a level's voxel bounds. Null when it misses. */
@@ -229,109 +250,4 @@ function pointOnRay(
     originMillimeters[1] + directionMillimeters[1] * distance,
     originMillimeters[2] + directionMillimeters[2] * distance
   ];
-}
-
-// Face neighbours of the center voxel (index 13) in the 3x3x3 sampling below,
-// where index = (1 - dDV) * 9 + (dAP + 1) * 3 + (dML + 1): -AP, +AP, +DV, -DV, -ML, +ML.
-const FACE_NEIGHBOR_INDEXES = [10, 16, 4, 22, 12, 14];
-
-/**
- * Is a point inside an annotated voxel that touches background on at least one
- * face, i.e. on the atlas's outer shell. Null when the volume can't be sampled.
- * @param level Annotation level to test against, finest first.
- * @param pointMillimeters Point to test, in atlas ASR mm.
- * @param sampleNeighborhood Samples the 3x3x3 voxel block around the point.
- */
-export async function isOnAnnotationSurface(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number],
-  sampleNeighborhood: RaySampler
-): Promise<boolean | null> {
-  const values = await sampleNeighborhood(
-    getVoxelNeighborhoodGeometry(level, pointMillimeters)
-  );
-  if (!values) return null;
-
-  return (
-    values[13] !== 0 && FACE_NEIGHBOR_INDEXES.some(index => values[index] === 0)
-  );
-}
-
-/**
- * Is a point inside an annotated voxel, i.e. inside the brain. Null when the volume can't be sampled.
- * @param level Annotation level to test against, finest first.
- * @param pointMillimeters Point to test, in atlas ASR mm.
- * @param sampleVoxel Samples the single voxel the point falls in.
- */
-export async function isInAnnotation(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number],
-  sampleVoxel: RaySampler
-): Promise<boolean | null> {
-  const values = await sampleVoxel(getVoxelGeometry(level, pointMillimeters));
-  return values ? values[0] !== 0 : null;
-}
-
-/** Center of the voxel a point falls in, in atlas ASR mm. */
-function getVoxelCenterMillimeters(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number]
-): [number, number, number] {
-  const scale = level.scaleMillimeters;
-  const center: [number, number, number] = [0, 0, 0];
-  for (let axis = 0; axis < 3; axis++) {
-    const voxel = Math.floor(
-      (pointMillimeters[axis]! - level.translationMillimeters[axis]!) /
-        scale[axis]!
-    );
-    center[axis] =
-      level.translationMillimeters[axis]! + (voxel + 0.5) * scale[axis]!;
-  }
-  return center;
-}
-
-/** Build the sampling geometry for the single voxel a point falls in. */
-function getVoxelGeometry(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number]
-): SampleGeometry {
-  const scale = level.scaleMillimeters;
-  return {
-    rightMillimeters: [0, 0, 1],
-    upMillimeters: [0, 1, 0],
-    halfHeightMillimeters: 0.5 * scale[1]!,
-    widthPixels: 1,
-    heightPixels: 1,
-    bands: [
-      {
-        centerMillimeters: getVoxelCenterMillimeters(level, pointMillimeters),
-        halfWidthMillimeters: 0.5 * scale[2]!,
-        columnOffset: 0,
-        columnCount: 1
-      }
-    ]
-  };
-}
-
-/** Build the sampling geometry for the 3x3x3 voxel neighborhood centered on a point's voxel. */
-function getVoxelNeighborhoodGeometry(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number]
-): SampleGeometry {
-  const scale = level.scaleMillimeters;
-  const center = getVoxelCenterMillimeters(level, pointMillimeters);
-
-  return {
-    rightMillimeters: [0, 0, 1],
-    upMillimeters: [0, 1, 0],
-    halfHeightMillimeters: 1.5 * scale[1]!,
-    widthPixels: 9,
-    heightPixels: 3,
-    bands: [-scale[0]!, 0, scale[0]!].map((offset, index) => ({
-      centerMillimeters: [center[0] + offset, center[1], center[2]],
-      halfWidthMillimeters: 1.5 * scale[2]!,
-      columnOffset: index * 3,
-      columnCount: 3
-    }))
-  };
 }
