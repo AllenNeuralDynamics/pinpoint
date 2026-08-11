@@ -4,12 +4,12 @@ import { defineConfig } from "vitepress";
 export default defineConfig({
   title: "Pinpoint V Documentation",
   description: "Documentation, guides, and design notes for Pinpoint V",
-  base: "/pinpoint-v/docs/",
+  base: "/v5/docs/",
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: "Docs", link: "/" },
-      { text: "Launch", link: "https://kennethjyang.github.io/pinpoint-v/" }
+      { text: "Launch", link: "https://pinpoint.allenneuraldynamics.org/v5/" }
     ],
 
     sidebar: [
@@ -24,7 +24,10 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: "github", link: "https://github.com/kennethjyang/pinpoint-v" }
+      {
+        icon: "github",
+        link: "https://github.com/AllenNeuralDynamics/pinpoint"
+      }
     ]
   }
 });

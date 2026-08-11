@@ -2,18 +2,16 @@ name: Deploy
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: true
+  group: "deploy"
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -28,12 +26,43 @@ jobs:
     runs-on: ubuntu-latest
 
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: production
+      url: https://pinpoint.allenneuraldynamics.org/v5/
 
     needs: build
 
     steps:
-      - name: 🚀 Deploy
-        id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128
+      - name: 🛎️ Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: ⬇️ Download build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: spa
+          path: dist/spa
+
+      - name: 🔑 Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy ~/.ssh/known_hosts
+
+      - name: 🚀 Deploy app
+        env:
+          SSH_TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+        run: |
+          rsync -rlptDz --delete \
+            -e "ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes" \
+            dist/spa/ "$SSH_TARGET:/var/www/html/v5/"
+
+      - name: 🚀 Deploy landing page
+        env:
+          SSH_TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+        run: |
+          rsync -rlptDz \
+            -e "ssh -i ~/.ssh/deploy -o IdentitiesOnly=yes" \
+            deploy/landing/index.html "$SSH_TARGET:/var/www/html/index.html"

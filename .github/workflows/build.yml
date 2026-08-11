@@ -4,13 +4,10 @@ on:
   pull_request:
     branches:
       - main
-  push:
-    branches:
-      - main
   workflow_call:
     inputs:
       upload-artifact:
-        description: "Upload the built app as a Pages artifact"
+        description: "Upload the built app as a workflow artifact for deployment"
         type: boolean
         default: false
 
@@ -51,6 +48,8 @@ jobs:
 
       - name: ⬆️ Upload artifact
         if: inputs.upload-artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
+          name: spa
           path: "dist/spa"
+          include-hidden-files: true

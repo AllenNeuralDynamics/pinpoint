@@ -52,7 +52,7 @@ export default defineConfig(ctx => {
       // vueRouterBase,
       // vueDevtools,
 
-      publicPath: "/pinpoint-v/",
+      publicPath: "/v5/",
       // define: {},
       defineEnv: {
         APP_VERSION: pkg.version
