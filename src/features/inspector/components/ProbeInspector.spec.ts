@@ -23,6 +23,7 @@ import {
   buildFixedCoordinateSystemValue,
   type CoordinateSystemSolution,
   isCoordinateSystemSolutionAtPose,
+  SETTLED_SOLVE_STARTS,
   solveCoordinateSystemChain,
   solveCoordinateSystemChainInverse
 } from "@/features/coordinate-system";
@@ -1787,6 +1788,55 @@ describe("ProbeInspector", () => {
         await flushPromises();
         expect(store.probeSurfaceMarker?.probeId).toBe(b.id);
       });
+    });
+  });
+
+  describe("solve pose button", () => {
+    it("does not show for the default coordinate system", () => {
+      const { wrapper } = mountInspector();
+
+      expect(buttonByLabel(wrapper, t.solvePose)).toBeUndefined();
+    });
+
+    it("shows once a coordinate system is selected", async () => {
+      const { wrapper, pinia } = mountInspector();
+      const surfaceAndDepth =
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
+
+      selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
+        "update:modelValue",
+        surfaceAndDepth.id
+      );
+      await wrapper.vm.$nextTick();
+
+      expect(buttonByLabel(wrapper, t.solvePose)).toBeDefined();
+    });
+
+    it("runs one settled solve for the probe's current pose, leaving it unmoved", async () => {
+      vi.mocked(useProbeSurface).mockReturnValue({
+        findTargets: findTargetsCrossingBrain(),
+        isOnSurface: vi.fn().mockResolvedValue(true)
+      });
+      const { wrapper, store, probe, pinia } = mountInspector(
+        makeProbe({ tipPosition: [7, 8, 9], rotation: [0.1, 0.2, 0.3] })
+      );
+      const surfaceAndDepth =
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
+      setProbeCoordinateSystem(store.experiment, probe, surfaceAndDepth);
+      await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockClear();
+
+      await buttonByLabel(wrapper, t.solvePose).trigger("click");
+      await flushPromises();
+
+      expect(solveCoordinateSystemChainInverse).toHaveBeenCalledTimes(1);
+      const [, target, , maximumStarts] = vi.mocked(
+        solveCoordinateSystemChainInverse
+      ).mock.calls[0]!;
+      expect(maximumStarts).toBe(SETTLED_SOLVE_STARTS);
+      expect(target.rotation).toEqual([0.1, 0.2, 0.3]);
+      expect(probe.tipPosition).toEqual([7, 8, 9]);
+      expect(probe.rotation).toEqual([0.1, 0.2, 0.3]);
     });
   });
 

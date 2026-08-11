@@ -738,6 +738,15 @@ function applySolve(): void {
 }
 
 /**
+ * One-shot inverse-kinematics solve for the probe's current pose, so a chain left in an FK
+ * pose that has drifted its surface node off the atlas resolves back onto it without moving
+ * the probe's position or orientation.
+ */
+function solvePose(): void {
+  void runInverseKinematics("external");
+}
+
+/**
  * March the probe's committed pose for its surface goal, then check the chain's on-surface nodes
  * against it.
  * @param solution Solved chain the node positions come from.
@@ -999,13 +1008,25 @@ onUnmounted(() => {
             outlined
           />
 
-          <ProbeTransformChain
-            v-if="selectedCoordinateSystem"
-            :chain="chain"
-            :disable="probe.lock"
-            :off-surface-node-indexes="offSurfaceNodeIndexes"
-            @commit="applySolve"
-          />
+          <template v-if="selectedCoordinateSystem">
+            <q-btn
+              :aria-label="t('probeInspector.solvePose')"
+              class="full-width"
+              color="primary"
+              :disable="probe.lock"
+              icon="restart_alt"
+              :label="t('probeInspector.solvePose')"
+              @click="solvePose"
+            >
+              <q-tooltip>{{ t("probeInspector.solvePoseCaption") }}</q-tooltip>
+            </q-btn>
+            <ProbeTransformChain
+              :chain="chain"
+              :disable="probe.lock"
+              :off-surface-node-indexes="offSurfaceNodeIndexes"
+              @commit="applySolve"
+            />
+          </template>
           <template v-else>
             <div>
               <div class="text-body2 q-pb-xs">{{

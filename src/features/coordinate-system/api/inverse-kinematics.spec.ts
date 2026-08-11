@@ -84,6 +84,67 @@ function buildInertNode(): CoordinateSystemNode {
   );
 }
 
+/** Build the NewScale-MIS-shaped fixture: two single-axis rotations, a free stage, then depth plus roll. */
+function buildNewScaleLikeChain(): CoordinateSystemNode[] {
+  return [
+    buildCoordinateSystemNode(
+      "Arc",
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue()
+      ],
+      [
+        buildCoordinateSystemValue("Arc Angle", 0.25),
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue()
+      ]
+    ),
+    buildCoordinateSystemNode(
+      "Module",
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue()
+      ],
+      [
+        buildFixedCoordinateSystemValue(),
+        buildCoordinateSystemValue("Module Angle", -0.4),
+        buildFixedCoordinateSystemValue()
+      ]
+    ),
+    buildCoordinateSystemNode(
+      "Stage",
+      [
+        buildCoordinateSystemValue("X", 3),
+        buildCoordinateSystemValue("Y", -2),
+        buildCoordinateSystemValue("Z", 5)
+      ],
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue()
+      ],
+      [0, 1, 2],
+      [0, 1, 2],
+      true
+    ),
+    buildCoordinateSystemNode(
+      "Depth",
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildCoordinateSystemValue("Depth", 7)
+      ],
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildCoordinateSystemValue("Roll", 0.6)
+      ]
+    )
+  ];
+}
+
 describe("solveCoordinateSystemChainInverse", () => {
   it("converges a chain of mixed fixed and free values back onto a target pose", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
@@ -356,5 +417,177 @@ describe("solveCoordinateSystemChainInverse", () => {
     expect(getCoordinateSystemAxisValue(node, "rotation", 0)).toBe(0.1);
     expect(getCoordinateSystemAxisValue(node, "rotation", 1)).toBe(0.2);
     expect(getCoordinateSystemAxisValue(node, "rotation", 2)).toBe(0.3);
+  });
+
+  it("leaves a later node's free value at zero when an earlier node can reach the pose alone", () => {
+    const chain = [buildFreeNode(), buildPartlyFreeNode()];
+    const target = solveCoordinateSystemChain(chain, null);
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    expect(getCoordinateSystemAxisValue(chain[1]!, "position", 2)).toBe(0);
+    const solved = solveCoordinateSystemChain(chain, null);
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solved,
+        target.tipPosition,
+        target.rotation,
+        1e-4
+      )
+    ).toBe(true);
+  });
+
+  it("spends a later node's free value when a surface goal pins the earlier node", () => {
+    const chain = [buildFreeNode(true), buildPartlyFreeNode()];
+    const target = solveCoordinateSystemChain(chain, null);
+    const surfacePosition = target.nodePositions[0]!;
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    expect(getCoordinateSystemAxisValue(chain[1]!, "position", 2)).toBeCloseTo(
+      7,
+      3
+    );
+  });
+
+  it("uses a later node when the earlier one cannot pose the chain alone", () => {
+    const chain = [buildPartlyFreeNode(), buildFreeNode()];
+    const target = solveCoordinateSystemChain(chain, null);
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    expect(getCoordinateSystemAxisValue(chain[1]!, "position", 0)).not.toBe(0);
+    const solved = solveCoordinateSystemChain(chain, null);
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solved,
+        target.tipPosition,
+        target.rotation,
+        1e-4
+      )
+    ).toBe(true);
+  });
+
+  it("folds a later depth value into the earlier stage axis it shares", () => {
+    const chain = buildNewScaleLikeChain();
+    const target = solveCoordinateSystemChain(chain, null);
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    expect(getCoordinateSystemAxisValue(chain[3]!, "position", 2)).toBe(0);
+    expect(getCoordinateSystemAxisValue(chain[3]!, "rotation", 2)).not.toBe(0);
+    expect(getCoordinateSystemAxisValue(chain[2]!, "position", 2)).toBeCloseTo(
+      12,
+      3
+    );
+    const solved = solveCoordinateSystemChain(chain, null);
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solved,
+        target.tipPosition,
+        target.rotation,
+        1e-4
+      )
+    ).toBe(true);
+  });
+
+  it("keeps a later depth value when the axis it shares is user-constrained", () => {
+    const chain = buildNewScaleLikeChain();
+    chain[2]!.position[2] = buildCoordinateSystemValue("Z", 5, "user");
+    const target = solveCoordinateSystemChain(chain, null);
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    expect(getCoordinateSystemAxisValue(chain[3]!, "position", 2)).toBeCloseTo(
+      7,
+      3
+    );
+  });
+
+  it("holds every free value of a redundant later node at zero", () => {
+    const chain = [buildFreeNode(), buildFreeNode()];
+    const target = solveCoordinateSystemChain(chain, null);
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    for (const axis of [0, 1, 2]) {
+      expect(getCoordinateSystemAxisValue(chain[1]!, "position", axis)).toBe(0);
+      expect(getCoordinateSystemAxisValue(chain[1]!, "rotation", axis)).toBe(0);
+    }
+    const solved = solveCoordinateSystemChain(chain, null);
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solved,
+        target.tipPosition,
+        target.rotation,
+        1e-4
+      )
+    ).toBe(true);
   });
 });

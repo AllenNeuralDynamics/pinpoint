@@ -212,6 +212,9 @@ export default {
     probeType: "Probe Type",
     coordinateSystem: "Coordinate System",
     defaultCoordinateSystem: "Default",
+    solvePose: "Solve pose",
+    solvePoseCaption:
+      "Re-solve the coordinate system for this pose, keeping its orientation and putting the surface node back on the atlas.",
     transformValue: "{transform} {name}",
     offSurface: "Not on the brain surface.",
     position: "Position",

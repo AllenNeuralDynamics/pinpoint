@@ -1,6 +1,5 @@
 # Pinpoint V
 
-![GitHub Release](https://img.shields.io/github/v/release/kennethjyang/pinpoint-v?label=Stable)
 ![GitHub Release](https://img.shields.io/github/v/release/kennethjyang/pinpoint-v?include_prereleases&label=Latest)
 
 Next-generation in vivo electrophysiology planning and automation tool.
