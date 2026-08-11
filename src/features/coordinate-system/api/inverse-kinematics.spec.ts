@@ -67,7 +67,7 @@ function buildPartlyFreeNode(): CoordinateSystemNode {
   );
 }
 
-/** Build the all-fixed node inserted between the round-trip fixtures, the `Module Radius` shape. */
+/** Build the all-fixed node inserted between the round-trip fixtures: a rigid offset with no free value. */
 function buildInertNode(): CoordinateSystemNode {
   return buildCoordinateSystemNode(
     "Inert",

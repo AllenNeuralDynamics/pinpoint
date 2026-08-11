@@ -154,20 +154,9 @@ describe("useCoordinateSystemLibraryStore", () => {
       ]);
     });
 
-    it("carries the fixed Radius value on the NewScale MIS Module Radius node", () => {
-      const store = useCoordinateSystemLibraryStore();
-
-      expect(store.library[2]!.chain[2]!.position[2]).toEqual({
-        name: "Radius",
-        value: 20,
-        fixed: true,
-        bounds: null
-      });
-    });
-
     it("bounds the X/Y/Z position values on the pre-depth NewScale MIS node to -7.5 to 7.5", () => {
       const store = useCoordinateSystemLibraryStore();
-      const position = store.library[2]!.chain[3]!.position;
+      const position = store.library[2]!.chain[2]!.position;
 
       expect(position.map(({ name }) => name)).toEqual(["X", "Y", "Z"]);
       for (const value of position) {
@@ -210,7 +199,6 @@ describe("useCoordinateSystemLibraryStore", () => {
       expect(chain.map(node => node.onSurface)).toEqual([
         false,
         false,
-        false,
         true,
         false
       ]);
@@ -222,13 +210,12 @@ describe("useCoordinateSystemLibraryStore", () => {
       expect(store.library[0]!.chain[0]!.onSurface).toBe(false);
     });
 
-    it("seeds the NewScale MIS chain in Arc -> Module -> Module Radius -> Stage -> Depth order", () => {
+    it("seeds the NewScale MIS chain in Arc -> Module -> Stage -> Depth order", () => {
       const store = useCoordinateSystemLibraryStore();
 
       expect(store.library[2]!.chain.map(({ name }) => name)).toEqual([
         "Arc",
         "Module",
-        "Module Radius",
         "Stage",
         "Depth"
       ]);
@@ -247,7 +234,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       for (const position of [
         store.library[1]!.chain[1]!.position,
-        store.library[2]!.chain[4]!.position
+        store.library[2]!.chain[3]!.position
       ]) {
         expect(position.map(({ name }) => name)).toEqual(["", "", "Depth"]);
         expect(position[2]!.fixed).toBe(false);

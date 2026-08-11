@@ -300,6 +300,25 @@ export function internCoordinateSystem(
 }
 
 /**
+ * Overwrite the experiment's interned copy of a coordinate system, leaving the experiment
+ * untouched when it interns nothing under that identifier or already holds this definition.
+ * @param experiment Experiment whose interned copy is updated.
+ * @param coordinateSystem Coordinate system definition to write.
+ */
+export function updateInternedCoordinateSystem(
+  experiment: Experiment,
+  coordinateSystem: CoordinateSystem
+): void {
+  const identifier = getCoordinateSystemIdentifier(coordinateSystem);
+  const interned = experiment.coordinateSystems[identifier];
+  if (!interned) return;
+
+  const next = structuredClone(toRaw(coordinateSystem));
+  if (JSON.stringify(interned) === JSON.stringify(next)) return;
+  experiment.coordinateSystems[identifier] = next;
+}
+
+/**
  * Remove an interned coordinate system by identifier, unless another probe
  * still references it.
  * @param experiment Experiment to remove an interned coordinate system from.

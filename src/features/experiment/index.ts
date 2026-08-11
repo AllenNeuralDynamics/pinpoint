@@ -26,6 +26,7 @@ export {
   internProbeInterfaceProbe,
   getInternedProbeInterfaceProbe,
   internCoordinateSystem,
+  updateInternedCoordinateSystem,
   setProbeCoordinateSystem,
   addProbe,
   removeProbe,

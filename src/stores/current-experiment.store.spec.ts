@@ -13,9 +13,12 @@ import type { TerminologyRow } from "@/features/atlas";
 import {
   addProbe,
   buildExperiment,
-  internProbeInterfaceProbe
+  internProbeInterfaceProbe,
+  setProbeCoordinateSystem
 } from "@/features/experiment";
+import { getCoordinateSystemIdentifier } from "@/features/coordinate-system";
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { WORLD_INSPECTABLE } from "@/features/scene";
 import {
   makeAtlas,
@@ -657,6 +660,71 @@ describe("useCurrentExperimentStore", () => {
       store.undo();
 
       expect(store.name).toBe(defaultName);
+    });
+  });
+
+  describe("coordinate system sync", () => {
+    it("follows a library edit onto the interned copy", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+      const probe = makeProbe();
+      addProbe(store.experiment, probe);
+      const identifier = getCoordinateSystemIdentifier(
+        coordinateSystemLibraryStore.library[1]!
+      );
+      setProbeCoordinateSystem(
+        store.experiment,
+        probe,
+        coordinateSystemLibraryStore.library[1]!
+      );
+
+      coordinateSystemLibraryStore.library[1]!.chain[0]!.name = "Edited";
+      await nextTick();
+
+      expect(
+        store.experiment.coordinateSystems[identifier]!.chain[0]!.name
+      ).toBe("Edited");
+    });
+
+    it("leaves a library system the experiment does not intern out of coordinateSystems", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+      const probe = makeProbe();
+      addProbe(store.experiment, probe);
+      setProbeCoordinateSystem(
+        store.experiment,
+        probe,
+        coordinateSystemLibraryStore.library[1]!
+      );
+      const keysBefore = Object.keys(store.experiment.coordinateSystems);
+
+      coordinateSystemLibraryStore.library[2]!.chain[0]!.name = "Edited";
+      await nextTick();
+
+      expect(Object.keys(store.experiment.coordinateSystems)).toEqual(
+        keysBefore
+      );
+    });
+
+    it("does not rewrite an interned copy on unrelated library churn", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+      const probe = makeProbe();
+      addProbe(store.experiment, probe);
+      const identifier = getCoordinateSystemIdentifier(
+        coordinateSystemLibraryStore.library[1]!
+      );
+      setProbeCoordinateSystem(
+        store.experiment,
+        probe,
+        coordinateSystemLibraryStore.library[1]!
+      );
+      const captured = store.experiment.coordinateSystems[identifier];
+
+      coordinateSystemLibraryStore.reorder(1, 2);
+      await nextTick();
+
+      expect(store.experiment.coordinateSystems[identifier]).toBe(captured);
     });
   });
 });

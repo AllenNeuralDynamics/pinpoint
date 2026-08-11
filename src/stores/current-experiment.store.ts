@@ -1,12 +1,13 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { computedAsync, useRefHistory } from "@vueuse/core";
 import { i18n } from "@/services/i18n.service";
 import {
   ALLEN_MOUSE_REFERENCE_COORDINATE,
   buildExperiment,
   cloneExperiment,
-  type Experiment
+  type Experiment,
+  updateInternedCoordinateSystem
 } from "@/features/experiment";
 import {
   DEFAULT_ATLAS,
@@ -22,6 +23,7 @@ import {
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 
 /** Store actions reachable through the hydration hook's untyped `context.store`. */
 interface HydratedCurrentExperimentStore {
@@ -32,6 +34,7 @@ export const useCurrentExperimentStore = defineStore(
   "current-experiment",
   () => {
     const recentExperimentsStore = useRecentExperimentsStore();
+    const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
 
     /**
      * Current experiment instance.
@@ -302,6 +305,18 @@ export const useCurrentExperimentStore = defineStore(
       bodyModelGizmoProbeId.value = null;
       isCameraMoving.value = false;
     }
+
+    // A coordinate system is edited in place in the library, but the experiment holds its own
+    // interned clone per identifier, so mirror every library edit onto the copies it interns.
+    watch(
+      () => coordinateSystemLibraryStore.library,
+      library => {
+        for (const coordinateSystem of library) {
+          updateInternedCoordinateSystem(experiment.value, coordinateSystem);
+        }
+      },
+      { deep: true }
+    );
 
     const state = {
       experiment,

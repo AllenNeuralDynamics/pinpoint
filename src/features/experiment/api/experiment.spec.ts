@@ -22,7 +22,8 @@ import {
   setExperimentProperties,
   setProbeCoordinateSystem,
   setProbeInterface,
-  setStructureVisibility
+  setStructureVisibility,
+  updateInternedCoordinateSystem
 } from "./experiment.api";
 import {
   copyCameraPose,
@@ -489,6 +490,54 @@ describe("internCoordinateSystem", () => {
     source.chain[0]!.name = "Mutated";
 
     expect(experiment.coordinateSystems[source.id]!.chain[0]!.name).toBe("Tip");
+  });
+});
+
+describe("updateInternedCoordinateSystem", () => {
+  it("rewrites the interned copy with the passed definition", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    internCoordinateSystem(experiment, makeCoordinateSystem());
+    const identifier = getCoordinateSystemIdentifier(makeCoordinateSystem());
+
+    updateInternedCoordinateSystem(
+      experiment,
+      makeCoordinateSystem({ name: "Renamed" })
+    );
+
+    expect(experiment.coordinateSystems[identifier]!.name).toBe("Renamed");
+  });
+
+  it("is a no-op when nothing is interned under that identifier", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+
+    updateInternedCoordinateSystem(experiment, makeCoordinateSystem());
+
+    expect(experiment.coordinateSystems).toEqual({});
+  });
+
+  it("keeps the same object when the definition is unchanged", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    internCoordinateSystem(experiment, makeCoordinateSystem());
+    const identifier = getCoordinateSystemIdentifier(makeCoordinateSystem());
+    const captured = experiment.coordinateSystems[identifier];
+
+    updateInternedCoordinateSystem(experiment, makeCoordinateSystem());
+
+    expect(experiment.coordinateSystems[identifier]).toBe(captured);
+  });
+
+  it("does not alias the source coordinate system", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    internCoordinateSystem(experiment, makeCoordinateSystem());
+    const identifier = getCoordinateSystemIdentifier(makeCoordinateSystem());
+    const source = makeCoordinateSystem({ name: "Renamed" });
+
+    updateInternedCoordinateSystem(experiment, source);
+    source.chain[0]!.name = "Mutated";
+
+    expect(experiment.coordinateSystems[identifier]!.chain[0]!.name).toBe(
+      "Tip"
+    );
   });
 });
 
