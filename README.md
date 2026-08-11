@@ -5,8 +5,10 @@
 
 Next-generation in vivo electrophysiology planning and automation tool.
 
-> [!WARNING]
-> Under active and early development. Feel free to poke around and contribute, but this is not a finished product yet.
+> [!IMPORTANT]
+> This is the original base repository for _Pinpoint V_. The live/production fork is deployed and maintained by the Allen Institute [here](https://github.com/AllenNeuralDynamics/pinpoint).
+>
+> This repo is kept for archival purposes.
 
 ## Install for development.
 
@@ -19,4 +21,5 @@ Next-generation in vivo electrophysiology planning and automation tool.
 Additional things:
 
 - Lefthook has enabled pre-commit hooks that run the formatter, linter, and type checker.
-- Skills was used to install agent skills. Symlink them for your agent (i.e. `pnpx skills add antfu/skills -a claude-code`)
+- Skills was used to install agent skills. Symlink them for your agent (i.e. `pnpx skills update` or `pnpx skills add antfu/skills -a claude-code`)
+- A Nix dev shell is available in `.nix/` that installs `pnpm` and Node.js 24. Update it using `nix flake update` in the `.nix/` directory
