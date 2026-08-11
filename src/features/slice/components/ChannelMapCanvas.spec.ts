@@ -4,7 +4,6 @@ import { createPinia, setActivePinia } from "pinia";
 import { flushPromises } from "@vue/test-utils";
 import ChannelMapCanvas from "./ChannelMapCanvas.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
-import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
   makeProbe,
   makeProbeInterfaceProbe,
@@ -111,7 +110,6 @@ describe("ChannelMapCanvas", () => {
 
     const pinia = createPinia();
     setActivePinia(pinia);
-    const store = useCurrentExperimentStore(pinia);
 
     const probeInterfaceProbe = makeProbeInterfaceProbe({
       si_units: "mm",
@@ -144,15 +142,15 @@ describe("ChannelMapCanvas", () => {
         alignmentOffsetMillimeters: 0
       }
     });
-    return { wrapper, store, probe, shanks, contour };
+    return { wrapper, probe, shanks, contour };
   }
 
   it("hands the sampler a geometry covering every shank's full extent at the measured size", () => {
-    const { store, probe, contour } = mountCanvas();
-    const frame = getProbeFrame(probe, store.referenceCoordinate);
+    const { probe, contour } = mountCanvas();
+    const frame = getProbeFrame(probe);
 
     expect(capturedGeometry).toEqual({
-      rightMillimeters: frame.rightMillimeters,
+      rightMillimeters: frame.rightMillimeters.map(n => -n),
       upMillimeters: frame.upMillimeters,
       halfHeightMillimeters: 5,
       widthPixels: 4,
@@ -198,7 +196,7 @@ describe("ChannelMapCanvas", () => {
 
     const outline = wrapper.find(".channel-map-canvas__contour");
     expect(outline.attributes("d")).toBe(
-      "M-0.035,5L0.035,5L0.035,-5L-0.035,-5Z"
+      "M0.035,5L-0.035,5L-0.035,-5L0.035,-5Z"
     );
 
     const contacts = wrapper.find(".channel-map-canvas__contacts");
@@ -209,8 +207,8 @@ describe("ChannelMapCanvas", () => {
   });
 
   it("crops the sampled geometry and overlay to the probe's channel map window", () => {
-    const { wrapper, store, probe } = mountCanvas({ min: 2, max: 4 });
-    const frame = getProbeFrame(probe, store.referenceCoordinate);
+    const { wrapper, probe } = mountCanvas({ min: 2, max: 4 });
+    const frame = getProbeFrame(probe);
 
     expect(capturedGeometry!.halfHeightMillimeters).toBe(1);
     expect(capturedGeometry!.bands[0]!.centerMillimeters).toEqual(
@@ -224,7 +222,7 @@ describe("ChannelMapCanvas", () => {
 
     const outline = wrapper.find(".channel-map-canvas__contour");
     expect(outline.attributes("d")).toBe(
-      "M-0.035,3L0.035,3L0.035,-7L-0.035,-7Z"
+      "M0.035,3L-0.035,3L-0.035,-7L0.035,-7Z"
     );
   });
 
@@ -265,7 +263,6 @@ describe("ChannelMapCanvas", () => {
 
     const pinia = createPinia();
     setActivePinia(pinia);
-    const store = useCurrentExperimentStore(pinia);
 
     const probeInterfaceProbe = makeProbeInterfaceProbe({
       si_units: "mm",
@@ -301,13 +298,13 @@ describe("ChannelMapCanvas", () => {
     expect(capturedGeometry!.heightPixels).toBe(576);
     expect(capturedGeometry!.bands).toHaveLength(2);
     expect(capturedGeometry!.bands.map(band => band.columnOffset)).toEqual([
-      0, 7
+      7, 0
     ]);
     expect(capturedGeometry!.bands.map(band => band.columnCount)).toEqual([
       6, 6
     ]);
 
-    const frame = getProbeFrame(probe, store.referenceCoordinate);
+    const frame = getProbeFrame(probe);
     expect(capturedGeometry!.bands[0]!.centerMillimeters).toEqual(
       toAtlasMillimeters(frame, -0.95, 5)
     );
@@ -317,11 +314,14 @@ describe("ChannelMapCanvas", () => {
 
     const groups = wrapper.findAll(".channel-map-canvas__overlay > g");
     expect(groups).toHaveLength(2);
-    expect(groups[1]!.attributes("transform")).toContain("translate(");
+    const firstTranslateX = Number(
+      groups[0]!.attributes("transform")!.match(/translate\(([^ ]+) /)![1]
+    );
     const secondTranslateX = Number(
       groups[1]!.attributes("transform")!.match(/translate\(([^ ]+) /)![1]
     );
-    expect(secondTranslateX).toBeCloseTo(-0.778472, 5);
+    expect(firstTranslateX).toBeCloseTo(-0.778472, 5);
+    expect(secondTranslateX).toBeCloseTo(1, 5);
 
     const canvas = wrapper.find("canvas");
     expect(canvas.attributes("aria-label")).toBe(

@@ -1,0 +1,222 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildCoordinateSystemNode,
+  buildCoordinateSystemValue
+} from "./coordinate-system.api";
+import {
+  isCoordinateSystemSolutionAtPose,
+  solveCoordinateSystemChain
+} from "./forward-kinematics.api";
+import type { CoordinateSystemNode } from "../model/coordinate-system.model";
+
+/** Build a node with the given axis-ordered position/rotation values under an identity order. */
+function makeIdentityNode(
+  position: [number, number, number],
+  rotation: [number, number, number]
+): CoordinateSystemNode {
+  return buildCoordinateSystemNode(
+    "Node",
+    [
+      buildCoordinateSystemValue("X", null, position[0]),
+      buildCoordinateSystemValue("Y", null, position[1]),
+      buildCoordinateSystemValue("Z", null, position[2])
+    ],
+    [
+      buildCoordinateSystemValue("Pitch", null, rotation[0]),
+      buildCoordinateSystemValue("Yaw", null, rotation[1]),
+      buildCoordinateSystemValue("Roll", null, rotation[2])
+    ]
+  );
+}
+
+describe("solveCoordinateSystemChain", () => {
+  it("behaves exactly like typing into state for a single identity node", () => {
+    const node = makeIdentityNode([1, 2, 3], [0.1, 0.2, 0.3]);
+
+    const solution = solveCoordinateSystemChain([node], null);
+
+    expect(solution.tipPosition[0]).toBeCloseTo(3);
+    expect(solution.tipPosition[1]).toBeCloseTo(2);
+    expect(solution.tipPosition[2]).toBeCloseTo(1);
+    expect(solution.rotation[0]).toBeCloseTo(0.3);
+    expect(solution.rotation[1]).toBeCloseTo(0.2);
+    expect(solution.rotation[2]).toBeCloseTo(0.1);
+    expect(solution.nodePositions).toHaveLength(1);
+    expect(solution.nodePositions[0]![0]).toBeCloseTo(3);
+    expect(solution.nodePositions[0]![1]).toBeCloseTo(2);
+    expect(solution.nodePositions[0]![2]).toBeCloseTo(1);
+  });
+
+  it("routes each value to its mapped axis under a non-identity display order", () => {
+    const node = buildCoordinateSystemNode(
+      "Node",
+      [
+        buildCoordinateSystemValue("A", null, 5),
+        buildCoordinateSystemValue("B", null, 6),
+        buildCoordinateSystemValue("C", null, 7)
+      ],
+      [
+        buildCoordinateSystemValue("Pitch", null, 0),
+        buildCoordinateSystemValue("Yaw", null, 0),
+        buildCoordinateSystemValue("Roll", null, 0)
+      ],
+      // order[axisIndex] = valueIndex: axis 0 (X/ML) <- value 1 (B), axis 1
+      // (Y/DV) <- value 2 (C), axis 2 (Z/AP) <- value 0 (A).
+      [1, 2, 0]
+    );
+
+    const solution = solveCoordinateSystemChain([node], null);
+
+    // tipPosition = [ap, dv, ml] = [axis2, axis1, axis0] = [A, C, B] = [5, 7, 6].
+    expect(solution.tipPosition[0]).toBeCloseTo(5);
+    expect(solution.tipPosition[1]).toBeCloseTo(7);
+    expect(solution.tipPosition[2]).toBeCloseTo(6);
+  });
+
+  it("composes a child's translation through its parent's rotation, in chain order", () => {
+    // Parent: yaw = pi/2, zero position. Child: translates 2 on axis 1 (DV),
+    // zero rotation. Babylon's RotationY maps (x, z) -> (x*cos + z*sin, -x*sin + z*cos),
+    // but this node only sets a DV (y) translation, which yaw does not rotate -
+    // so the child's DV move stays DV, and the tip is that DV offset.
+    const parent = makeIdentityNode([0, 0, 0], [0, Math.PI / 2, 0]);
+    const child = makeIdentityNode([0, 2, 0], [0, 0, 0]);
+
+    const solution = solveCoordinateSystemChain([parent, child], null);
+
+    expect(solution.nodePositions).toHaveLength(2);
+    expect(solution.nodePositions[0]![0]).toBeCloseTo(0);
+    expect(solution.nodePositions[0]![1]).toBeCloseTo(0);
+    expect(solution.nodePositions[0]![2]).toBeCloseTo(0);
+    expect(solution.tipPosition[0]).toBeCloseTo(0);
+    expect(solution.tipPosition[1]).toBeCloseTo(2);
+    expect(solution.tipPosition[2]).toBeCloseTo(0);
+  });
+
+  it("is the order guard: a parent's yaw rotates a child's AP translation onto ML", () => {
+    // node 0: rotation axis 1 (yaw) = pi/2, zero position.
+    // node 1: position axis 2 (AP) = 2, zero rotation.
+    const node0 = makeIdentityNode([0, 0, 0], [0, Math.PI / 2, 0]);
+    const node1 = makeIdentityNode([0, 0, 2], [0, 0, 0]);
+
+    const solution = solveCoordinateSystemChain([node0, node1], null);
+
+    expect(solution.tipPosition[0]).toBeCloseTo(0);
+    expect(solution.tipPosition[1]).toBeCloseTo(0);
+    expect(solution.tipPosition[2]).toBeCloseTo(2);
+    expect(solution.rotation[0]).toBeCloseTo(0);
+    expect(solution.rotation[1]).toBeCloseTo(Math.PI / 2);
+    expect(solution.rotation[2]).toBeCloseTo(0);
+  });
+
+  it("shifts every node position and the tip by the reference offset, leaving rotation untouched", () => {
+    const node = makeIdentityNode([1, 2, 3], [0.1, 0.2, 0.3]);
+
+    const solution = solveCoordinateSystemChain([node], [10, 20, 30]);
+
+    // Offset is atlas ASR [ap, dv, ml] = [10, 20, 30].
+    expect(solution.tipPosition[0]).toBeCloseTo(3 + 10);
+    expect(solution.tipPosition[1]).toBeCloseTo(2 + 20);
+    expect(solution.tipPosition[2]).toBeCloseTo(1 + 30);
+    expect(solution.nodePositions[0]![0]).toBeCloseTo(3 + 10);
+    expect(solution.nodePositions[0]![1]).toBeCloseTo(2 + 20);
+    expect(solution.nodePositions[0]![2]).toBeCloseTo(1 + 30);
+    expect(solution.rotation[0]).toBeCloseTo(0.3);
+    expect(solution.rotation[1]).toBeCloseTo(0.2);
+    expect(solution.rotation[2]).toBeCloseTo(0.1);
+  });
+
+  it("solves an empty chain to the reference offset with zero rotation and no node positions", () => {
+    const solution = solveCoordinateSystemChain([], [10, 20, 30]);
+
+    expect(solution.tipPosition).toEqual([10, 20, 30]);
+    expect(solution.rotation[0]).toBeCloseTo(0);
+    expect(solution.rotation[1]).toBeCloseTo(0);
+    expect(solution.rotation[2]).toBeCloseTo(0);
+    expect(solution.nodePositions).toEqual([]);
+  });
+
+  it("solves an empty chain with no offset to the atlas origin", () => {
+    const solution = solveCoordinateSystemChain([], null);
+
+    expect(solution.tipPosition[0]).toBeCloseTo(0);
+    expect(solution.tipPosition[1]).toBeCloseTo(0);
+    expect(solution.tipPosition[2]).toBeCloseTo(0);
+    expect(solution.rotation[0]).toBeCloseTo(0);
+    expect(solution.rotation[1]).toBeCloseTo(0);
+    expect(solution.rotation[2]).toBeCloseTo(0);
+    expect(solution.nodePositions).toEqual([]);
+  });
+});
+
+describe("isCoordinateSystemSolutionAtPose", () => {
+  it("is true for an exact match", () => {
+    const node = makeIdentityNode([1, 2, 3], [0.1, 0.2, 0.3]);
+    const solution = solveCoordinateSystemChain([node], null);
+
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solution,
+        solution.tipPosition,
+        solution.rotation,
+        1e-4
+      )
+    ).toBe(true);
+  });
+
+  it("is true for a rotation expressed in an equivalent Euler branch", () => {
+    const node = makeIdentityNode([1, 2, 3], [0.1, 0.2, 0.3]);
+    const solution = solveCoordinateSystemChain([node], null);
+    const equivalentRotation: [number, number, number] = [
+      solution.rotation[0] + 2 * Math.PI,
+      solution.rotation[1],
+      solution.rotation[2]
+    ];
+
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solution,
+        solution.tipPosition,
+        equivalentRotation,
+        1e-4
+      )
+    ).toBe(true);
+  });
+
+  it("is false for a position off by more than the tolerance", () => {
+    const node = makeIdentityNode([1, 2, 3], [0.1, 0.2, 0.3]);
+    const solution = solveCoordinateSystemChain([node], null);
+    const offPosition: [number, number, number] = [
+      solution.tipPosition[0] + 1,
+      solution.tipPosition[1],
+      solution.tipPosition[2]
+    ];
+
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solution,
+        offPosition,
+        solution.rotation,
+        1e-4
+      )
+    ).toBe(false);
+  });
+
+  it("is false for a rotation off by more than the tolerance", () => {
+    const node = makeIdentityNode([1, 2, 3], [0.1, 0.2, 0.3]);
+    const solution = solveCoordinateSystemChain([node], null);
+    const offRotation: [number, number, number] = [
+      solution.rotation[0] + 1,
+      solution.rotation[1],
+      solution.rotation[2]
+    ];
+
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solution,
+        solution.tipPosition,
+        offRotation,
+        1e-4
+      )
+    ).toBe(false);
+  });
+});

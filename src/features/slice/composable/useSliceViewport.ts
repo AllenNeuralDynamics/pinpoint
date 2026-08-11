@@ -39,7 +39,7 @@ export function useSliceViewport(
 
   const extentMillimeters = computed(() =>
     probe.value.sliceExtentMillimeters === null
-      ? getDefaultSliceExtentMillimeters(zoomRange.value)
+      ? getDefaultSliceExtentMillimeters(atlas.value, zoomRange.value)
       : clampSliceExtent(probe.value.sliceExtentMillimeters, zoomRange.value)
   );
 

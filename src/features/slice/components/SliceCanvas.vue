@@ -89,7 +89,6 @@ const motionKey = computed(() =>
     settledSizePixels.value,
     ...probe.tipPosition,
     ...probe.rotation,
-    ...currentExperiment.referenceCoordinate,
     centerHeightMillimeters.value,
     extentMillimeters.value
   ].join(",")
@@ -104,7 +103,7 @@ const sizePixels = computed(() =>
 
 const plane = computed(() => {
   if (!contour.value || sizePixels.value === 0) return null;
-  const frame = getProbeFrame(probe, currentExperiment.referenceCoordinate);
+  const frame = getProbeFrame(probe);
   return getProbeSlicePlane(
     frame,
     centerHeightMillimeters.value,

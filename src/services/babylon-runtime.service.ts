@@ -121,6 +121,7 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
     gm.positionGizmoEnabled = true;
     gm.rotationGizmoEnabled = true;
     gm.scaleGizmoEnabled = true;
+    gm.attachableMeshes = [];
 
     new HemisphericLight("main_light", Vector3.Up(), s);
 

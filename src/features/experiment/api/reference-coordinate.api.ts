@@ -57,5 +57,6 @@ export function buildInitialReferenceCoordinate(
   const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[atlas.name];
   if (override) return [...override];
 
-  return getAtlasCenter(atlas);
+  const [ap, , ml] = getAtlasCenter(atlas);
+  return [ap, 0, ml];
 }

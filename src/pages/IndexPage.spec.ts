@@ -167,10 +167,10 @@ describe("IndexPage", () => {
     expect(pruneSceneModels).toHaveBeenCalledTimes(1);
     expect(new Set(vi.mocked(pruneSceneModels).mock.calls[0]![0])).toEqual(
       new Set([
-        currentSceneObject.id,
-        currentProbe.bodyModel!.id,
-        recentSceneObject.id,
-        recentProbe.bodyModel!.id
+        currentSceneObject.modelId,
+        currentProbe.bodyModel!.modelId,
+        recentSceneObject.modelId,
+        recentProbe.bodyModel!.modelId
       ])
     );
   });
@@ -258,5 +258,17 @@ describe("IndexPage menu bar", () => {
     await flushMicrotasks();
 
     expect(document.body.textContent).not.toContain("Undo");
+  });
+
+  it("opens the docs in a new tab from the Help button", () => {
+    const wrapper = mountIndexPage();
+
+    const help = [
+      ...wrapper.get(".q-toolbar").element.querySelectorAll("a")
+    ].find(anchor => anchor.textContent?.trim() === "Help");
+
+    expect(help?.getAttribute("href")).toBe(`${import.meta.env.BASE_URL}docs/`);
+    expect(help?.getAttribute("target")).toBe("_blank");
+    expect(help?.getAttribute("rel")).toBe("noopener noreferrer");
   });
 });

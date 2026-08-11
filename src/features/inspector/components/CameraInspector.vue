@@ -13,6 +13,7 @@ import {
   copyCameraPose,
   removeCameraPose,
   reorderCameraPose,
+  resetCameraPose,
   setCameraPose
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -100,6 +101,13 @@ const positionSuffix = computed(() =>
 );
 
 /**
+ * Reset the live camera pose to the current atlas's default orbit, target, and radius.
+ */
+function resetCamera(): void {
+  resetCameraPose(pose.value, currentExperiment.atlas);
+}
+
+/**
  * Save the live camera pose to the library under the typed name.
  */
 function savePose(): void {
@@ -135,38 +143,6 @@ function applyPose(savedPose: CameraPose): void {
       toggle-color="primary"
     />
     <div>
-      <div class="text-body2 q-pb-xs">{{ t("cameraInspector.orbit") }}</div>
-      <div class="row q-gutter-x-sm">
-        <CommittedInput
-          v-model="alpha"
-          class="col"
-          hide-bottom-space
-          :label="t('cameraInspector.alpha')"
-          outlined
-          :rules="numberRules"
-          :suffix="rotationSuffix"
-        />
-        <CommittedInput
-          v-model="beta"
-          class="col"
-          hide-bottom-space
-          :label="t('cameraInspector.beta')"
-          outlined
-          :rules="numberRules"
-          :suffix="rotationSuffix"
-        />
-        <CommittedInput
-          v-model="radius"
-          class="col"
-          hide-bottom-space
-          :label="t('cameraInspector.radius')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-      </div>
-    </div>
-    <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
       <div class="row q-gutter-x-sm">
         <CommittedInput
@@ -198,6 +174,44 @@ function applyPose(savedPose: CameraPose): void {
         />
       </div>
     </div>
+    <div>
+      <div class="text-body2 q-pb-xs">{{ t("cameraInspector.orbit") }}</div>
+      <div class="row q-gutter-x-sm">
+        <CommittedInput
+          v-model="alpha"
+          class="col"
+          hide-bottom-space
+          :label="t('cameraInspector.alpha')"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+        <CommittedInput
+          v-model="beta"
+          class="col"
+          hide-bottom-space
+          :label="t('cameraInspector.beta')"
+          outlined
+          :rules="numberRules"
+          :suffix="rotationSuffix"
+        />
+        <CommittedInput
+          v-model="radius"
+          class="col"
+          hide-bottom-space
+          :label="t('cameraInspector.radius')"
+          outlined
+          :rules="numberRules"
+          :suffix="positionSuffix"
+        />
+      </div>
+    </div>
+    <q-btn
+      color="primary"
+      icon="restart_alt"
+      :label="t('cameraInspector.resetCamera')"
+      @click="resetCamera"
+    />
     <q-separator />
     <div class="text-body2">{{ t("cameraInspector.poses") }}</div>
     <CommittedInput

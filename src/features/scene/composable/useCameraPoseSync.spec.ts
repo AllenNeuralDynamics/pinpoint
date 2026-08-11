@@ -3,14 +3,11 @@ import { defineComponent, nextTick, reactive, shallowRef } from "vue";
 import { mount } from "@vue/test-utils";
 import { ArcRotateCamera, Vector3 } from "@babylonjs/core";
 import { useCameraPoseSync } from "./useCameraPoseSync";
-import { referenceRelativeToWorld } from "../api/reference-coordinate.api";
+import { atlasToWorld } from "../api/coordinate-transforms.api";
 import type { Atlas } from "@/features/atlas";
+import { getAtlasCenter } from "@/features/atlas";
 import type { CameraPose } from "@/features/experiment";
-import {
-  atlasToReferenceRelative,
-  referenceRelativeToAtlas
-} from "@/features/experiment";
-import { makeAtlas, makeCameraPose } from "@/test/fixtures";
+import { makeAtlas, makeCameraPose, makeManifest } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
 /**
@@ -19,15 +16,10 @@ import { makeTestScene } from "@/test/mount-helper";
  * runtime becoming available.
  * @param pose Reactive camera pose the composable binds to.
  * @param atlas Reactive atlas the composable reads.
- * @param referenceCoordinate Reactive reference coordinate the composable reads.
  */
-function mountSync(
-  pose: CameraPose,
-  atlas: Atlas,
-  referenceCoordinate: [number, number, number]
-) {
+function mountSync(pose: CameraPose, atlas: Atlas) {
   const cameraRef = shallowRef<ArcRotateCamera | null>(null);
-  const state = reactive({ pose, atlas, referenceCoordinate });
+  const state = reactive({ pose, atlas });
   const onPoseMoving = vi.fn();
   const onPoseSettled = vi.fn();
 
@@ -37,7 +29,6 @@ function mountSync(
         useCameraPoseSync(
           cameraRef,
           () => state.atlas,
-          () => state.referenceCoordinate,
           () => state.pose,
           onPoseMoving,
           onPoseSettled
@@ -61,7 +52,7 @@ describe("useCameraPoseSync", () => {
     const pose = reactive(
       makeCameraPose({ alpha: 1, beta: 2, radius: 3, target: [0, 0, 0] })
     );
-    const { cameraRef } = mountSync(pose, makeAtlas(), [0, 0, 0]);
+    const { cameraRef } = mountSync(pose, makeAtlas());
     const camera = makeCamera();
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
 
@@ -79,7 +70,7 @@ describe("useCameraPoseSync", () => {
       makeCameraPose({ alpha: 1, beta: 2, radius: 3, target: [0, 0, 0] })
     );
     const atlas = makeAtlas();
-    const { cameraRef, state } = mountSync(pose, atlas, [0, 0, 0]);
+    const { cameraRef, state } = mountSync(pose, atlas);
     const camera = makeCamera();
     cameraRef.value = camera;
     await nextTick();
@@ -88,11 +79,7 @@ describe("useCameraPoseSync", () => {
     state.pose.alpha = 4;
     await nextTick();
 
-    const expectedWorldTarget = referenceRelativeToWorld(
-      atlas,
-      [0, 0, 0],
-      [0, 0, 0]
-    );
+    const expectedWorldTarget = atlasToWorld(atlas, [0, 0, 0]);
     expect(interpolateTo).toHaveBeenCalledWith(4, 2, 3, expectedWorldTarget);
   });
 
@@ -102,8 +89,7 @@ describe("useCameraPoseSync", () => {
     );
     const { cameraRef, state, onPoseMoving, onPoseSettled } = mountSync(
       pose,
-      makeAtlas(),
-      [0, 0, 0]
+      makeAtlas()
     );
     const camera = makeCamera();
     cameraRef.value = camera;
@@ -132,8 +118,7 @@ describe("useCameraPoseSync", () => {
     );
     const { cameraRef, state, onPoseMoving, onPoseSettled } = mountSync(
       pose,
-      makeAtlas(),
-      [0, 0, 0]
+      makeAtlas()
     );
     const camera = makeCamera();
     cameraRef.value = camera;
@@ -168,11 +153,7 @@ describe("useCameraPoseSync", () => {
     const pose = reactive(
       makeCameraPose({ alpha: 1, beta: 2, radius: 3, target: [0, 0, 0] })
     );
-    const { cameraRef, onPoseSettled } = mountSync(
-      pose,
-      makeAtlas(),
-      [0, 0, 0]
-    );
+    const { cameraRef, onPoseSettled } = mountSync(pose, makeAtlas());
     const camera = makeCamera();
     cameraRef.value = camera;
     await nextTick();
@@ -187,32 +168,30 @@ describe("useCameraPoseSync", () => {
     expect(onPoseSettled).toHaveBeenCalledTimes(1);
   });
 
-  it("re-aims at the same world point when the reference coordinate moves, without changing the destination", async () => {
+  it("keeps the camera's world target fixed across an atlas change that shifts the origin", async () => {
     const atlas = makeAtlas();
     const pose = reactive(makeCameraPose({ target: [0, 0, 0] }));
-    const { cameraRef, state } = mountSync(pose, atlas, [0, 0, 0]);
+    const { cameraRef, state } = mountSync(pose, atlas);
     const camera = makeCamera();
     cameraRef.value = camera;
     await nextTick();
 
-    const originalWorldTarget = referenceRelativeToWorld(
-      atlas,
-      [0, 0, 0],
-      [0, 0, 0]
-    );
+    const originalWorldTarget = atlasToWorld(atlas, [0, 0, 0]);
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
 
-    // Mirrors setReferenceCoordinate's compensation: the target moves with
-    // the reference coordinate so both stay at the same atlas point.
-    const previousAtlasTarget = referenceRelativeToAtlas(
-      [0, 0, 0],
-      state.pose.target
+    // Mirrors `rebaseOntoAtlasOrigin`'s compensation: the target shifts by
+    // the atlas center delta so both stay at the same world point.
+    const newAtlas = makeAtlas({
+      name: "allen_human",
+      manifest: makeManifest({ shape: [[1000, 320, 456]] })
+    });
+    const delta = getAtlasCenter(newAtlas).map(
+      (value, index) => value - getAtlasCenter(atlas)[index]!
     );
-    state.referenceCoordinate = [1, 0, 0];
-    state.pose.target = atlasToReferenceRelative(
-      [1, 0, 0],
-      previousAtlasTarget
-    );
+    state.atlas = newAtlas;
+    state.pose.target = state.pose.target.map(
+      (value, index) => value + delta[index]!
+    ) as [number, number, number];
     await nextTick();
 
     expect(interpolateTo).toHaveBeenCalledTimes(1);

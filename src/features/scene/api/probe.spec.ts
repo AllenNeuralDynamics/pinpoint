@@ -212,7 +212,7 @@ describe("buildProbe", () => {
     );
   });
 
-  it("parents the probe node to the reference coordinate node under the atlas root", () => {
+  it("parents the probe node to the atlas root", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
@@ -224,8 +224,7 @@ describe("buildProbe", () => {
       makeProbeGeometry()
     );
 
-    expect(node!.parent!.name).toBe("referenceCoordinate_node");
-    expect(node!.parent!.parent!.name).toBe("atlasRoot_node");
+    expect(node!.parent!.name).toBe("atlasRoot_node");
   });
 
   it("registers the shank, head stage, and rod meshes as gizmo-attachable", () => {
@@ -263,6 +262,23 @@ describe("buildProbe", () => {
     const bounds = roundedBounds(scene, probeMeshNames(probe.id).headStage);
     expect(bounds.min).toEqual([-4, -4, -30.209]);
     expect(bounds.max).toEqual([4, 4, -10.209]);
+  });
+
+  it("cuts the head-stage notch on the shank's -Y (contact) face", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+
+    buildProbe(scene, probe, experiment, gizmoManager, makeProbeGeometry());
+
+    const mesh = scene.getMeshByName(probeMeshNames(probe.id).headStage)!;
+    const positions = mesh.getVerticesData("position")!;
+    const ys: number[] = [];
+    for (let i = 1; i < positions.length; i += 3) ys.push(positions[i]!);
+
+    expect(
+      ys.filter(y => Math.abs(y - -0.025) < 1e-6).length
+    ).toBeGreaterThanOrEqual(3);
+    expect(ys.some(y => Math.abs(y - 0.025) < 1e-6)).toBe(false);
   });
 
   it("places the rod above the head stage", () => {
@@ -655,7 +671,7 @@ describe("buildProbe", () => {
     expect(scene.getMeshByName(names.headStage)).toBeNull();
     expect(scene.getMeshByName(names.rod)).toBeNull();
     const metadata = node!.metadata as ProbeMetadata;
-    expect(metadata.bodyModelId).toBe(bodyModel.id);
+    expect(metadata.bodyModelId).toBe(bodyModel.modelId);
     expect(
       scene.getTransformNodeByName(`${probe.id}_probe_collider`)
     ).toBeNull();

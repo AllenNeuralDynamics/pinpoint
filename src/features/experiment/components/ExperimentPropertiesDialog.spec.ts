@@ -195,7 +195,7 @@ describe("ExperimentPropertiesDialog", () => {
 
     const coordinates = coordinateInputs(wrapper);
     expect(coordinates[0]!.find("input").element.value).toBe("1.000");
-    expect(coordinates[1]!.find("input").element.value).toBe("1.000");
+    expect(coordinates[1]!.find("input").element.value).toBe("0.000");
     expect(coordinates[2]!.find("input").element.value).toBe("1.000");
   });
 

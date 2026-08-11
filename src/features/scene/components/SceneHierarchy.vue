@@ -11,6 +11,7 @@ import {
   rotateProbeVisibility
 } from "@/features/probe";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDragReorder } from "@/composable/useDragReorder";
 import {
@@ -20,7 +21,8 @@ import {
   removeProbe,
   removeSceneObject,
   reorderProbe,
-  reorderSceneObject
+  reorderSceneObject,
+  setProbeCoordinateSystem
 } from "@/features/experiment";
 import {
   buildSceneObject,
@@ -32,6 +34,7 @@ import type { SceneObjectVisibility } from "../models/scene-object-visibility.mo
 
 const $q = useQuasar();
 const probeLibrary = useProbeLibraryStore();
+const coordinateSystemLibrary = useCoordinateSystemLibraryStore();
 const currentExperiment = useCurrentExperimentStore();
 
 const {
@@ -82,8 +85,18 @@ const SCENE_OBJECT_VISIBILITY_ICONS: Record<SceneObjectVisibility, string> = {
  */
 function addProbeAndSelect(probeInterfaceProbe: ProbeInterfaceProbe) {
   internProbeInterfaceProbe(currentExperiment.experiment, probeInterfaceProbe);
-  const probe = buildProbe(probeInterfaceProbe);
+  const coordinateSystem = coordinateSystemLibrary.library[0]!;
+  const probe = buildProbe(
+    probeInterfaceProbe,
+    currentExperiment.referenceCoordinate,
+    coordinateSystem
+  );
   addProbe(currentExperiment.experiment, probe);
+  setProbeCoordinateSystem(
+    currentExperiment.experiment,
+    probe,
+    coordinateSystem
+  );
   currentExperiment.selectedInspectable = probe;
 }
 
@@ -111,14 +124,15 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
 </script>
 
 <template>
-  <q-list>
+  <q-list class="hierarchy-list">
     <q-expansion-item
+      class="probes-item"
       default-opened
       header-class="text-weight-bold"
       icon="sym_o_acupuncture"
       :label="$t('sceneHierarchy.probes')"
     >
-      <div class="column q-gutter-y-sm">
+      <div class="probes-panel column q-gutter-y-sm">
         <q-btn-dropdown
           color="primary"
           dropdown-icon="add"
@@ -352,6 +366,39 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
 </template>
 
 <style lang="sass" scoped>
+.hierarchy-list
+  display: flex
+  flex-direction: column
+  flex-wrap: nowrap
+  height: 100%
+
+.probes-item
+  display: flex
+  flex: 1 1 0%
+  flex-direction: column
+  min-height: 0
+
+  :deep(.q-expansion-item__container)
+    display: flex
+    flex: 1 1 auto
+    flex-direction: column
+    min-height: 0
+
+  :deep(.q-expansion-item__content)
+    display: flex
+    flex: 1 1 auto
+    flex-direction: column
+    min-height: 0
+
+.probes-panel
+  flex: 1 1 auto
+  min-height: 0
+
+.probe-list
+  flex: 1 1 auto
+  min-height: 0
+  overflow-y: auto
+
 .visibility-button
   font-variation-settings: 'FILL' 1
 

@@ -3,8 +3,10 @@ import type { PickingInfo, Scene } from "@babylonjs/core";
 import {
   ArcRotateCamera,
   Matrix,
+  MeshBuilder,
   PointerEventTypes,
   PointerInfo,
+  TransformNode,
   Vector3
 } from "@babylonjs/core";
 import {
@@ -16,9 +18,12 @@ import { getProbeInterfaceIdentifier } from "@/features/probe";
 import {
   makeAtlas,
   makeCameraPose,
+  makeCoordinateSystem,
   makeProbe,
   makeProbeGeometry,
-  makeProbeInterfaceProbe
+  makeProbeInterfaceProbe,
+  makeSceneModel,
+  makeSceneObject
 } from "@/test/fixtures";
 import type { FakeTextRenderer } from "@/test/mount-helper";
 import {
@@ -31,11 +36,16 @@ import {
 import { buildProbe } from "./probe.api";
 import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
 import { buildAxisGuides } from "./axis-guide.api";
+import { buildSceneEntityName } from "./scene-entity.api";
+import { WORLD_INSPECTABLE } from "../models/inspectable.model";
 import {
   deselectFromPointerDown,
+  getSelectedInspectableGizmoNode,
   orbitCameraFromAxisGuideDoubleTap,
-  selectFromSelectedInspectableState
+  selectFromSelectedInspectableState,
+  setSceneEntitiesHidden
 } from "./scene.api";
+import { buildAtlasRootNode } from "./structures.api";
 
 // buildProbe's head stage is CSG2-subtracted.
 beforeAll(async () => {
@@ -113,6 +123,26 @@ describe("selectFromSelectedInspectableState", () => {
       gizmoManager,
       selectionOutlineLayer,
       makeCameraPose(),
+      null
+    );
+
+    expect(gizmoManager.attachedNode).toBeNull();
+    for (const mesh of node.getChildMeshes()) {
+      expect(selectionOutlineLayer.hasMesh(mesh)).toBe(false);
+    }
+  });
+
+  it("detaches the gizmo and clears the outline when a coordinate system is selected", () => {
+    const { scene, gizmoManager, selectionOutlineLayer, node } =
+      makeProbeInScene();
+    gizmoManager.attachToNode(node);
+    selectionOutlineLayer.addSelection(node.getChildMeshes());
+
+    selectFromSelectedInspectableState(
+      scene,
+      gizmoManager,
+      selectionOutlineLayer,
+      makeCoordinateSystem(),
       null
     );
 
@@ -350,7 +380,9 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
       scene
     );
     scene.activeCamera = camera;
-    buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas());
+    buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas(), {
+      kind: "global"
+    });
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
     const onOrbit = vi.fn();
     orbitCameraFromAxisGuideDoubleTap(scene, camera, onOrbit);
@@ -417,5 +449,94 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     );
 
     expect(interpolateTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("getSelectedInspectableGizmoNode", () => {
+  it("resolves a selected probe's own transform node", () => {
+    const { scene, probe, node } = makeProbeInScene();
+
+    expect(getSelectedInspectableGizmoNode(scene, probe, null)).toBe(node);
+  });
+
+  it("resolves the body model node when bodyModelGizmoProbeId matches a probe with a body model", () => {
+    const { scene, probe } = makeProbeInScene();
+    probe.bodyModel = makeSceneModel();
+    const bodyModelNode = new TransformNode(
+      buildSceneEntityName(probe.id, "probe", "body-model_node"),
+      scene
+    );
+
+    expect(getSelectedInspectableGizmoNode(scene, probe, probe.id)).toBe(
+      bodyModelNode
+    );
+  });
+
+  it("resolves a selected scene object's own transform node", () => {
+    const scene = makeTestScene();
+    const sceneObject = makeSceneObject();
+    const node = new TransformNode(
+      buildSceneEntityName(sceneObject.id, "object", "node"),
+      scene
+    );
+
+    expect(getSelectedInspectableGizmoNode(scene, sceneObject, null)).toBe(
+      node
+    );
+  });
+
+  it("resolves null for no selection, the camera pose, and the world", () => {
+    const scene = makeTestScene();
+
+    expect(getSelectedInspectableGizmoNode(scene, null, null)).toBeNull();
+    expect(
+      getSelectedInspectableGizmoNode(scene, makeCameraPose(), null)
+    ).toBeNull();
+    expect(
+      getSelectedInspectableGizmoNode(scene, WORLD_INSPECTABLE, null)
+    ).toBeNull();
+  });
+
+  it("resolves null for a probe with no node in the scene", () => {
+    const scene = makeTestScene();
+    const probe = makeProbe({ id: "missing" });
+
+    expect(getSelectedInspectableGizmoNode(scene, probe, null)).toBeNull();
+  });
+});
+
+describe("setSceneEntitiesHidden", () => {
+  it("disables the probe's transform node so a re-enabled child mesh still reports isEnabled() false", () => {
+    const { scene, node } = makeProbeInScene();
+
+    setSceneEntitiesHidden(scene, true);
+
+    expect(node.isEnabled()).toBe(false);
+    const mesh = node.getChildMeshes()[0]!;
+    mesh.setEnabled(true);
+    expect(mesh.isEnabled()).toBe(false);
+  });
+
+  it("re-enables the probe's transform node and its meshes when unhidden", () => {
+    const { scene, node } = makeProbeInScene();
+    setSceneEntitiesHidden(scene, true);
+
+    setSceneEntitiesHidden(scene, false);
+
+    expect(node.isEnabled()).toBe(true);
+    for (const mesh of node.getChildMeshes()) {
+      expect(mesh.isEnabled()).toBe(true);
+    }
+  });
+
+  it("leaves atlas structure meshes untouched", () => {
+    const { scene } = makeProbeInScene();
+    const atlasRoot = buildAtlasRootNode(scene);
+    const structureMesh = MeshBuilder.CreateBox("1_structure_mesh", {}, scene);
+    structureMesh.parent = atlasRoot;
+
+    setSceneEntitiesHidden(scene, true);
+
+    expect(structureMesh.isEnabled()).toBe(true);
   });
 });

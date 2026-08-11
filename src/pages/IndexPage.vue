@@ -18,6 +18,7 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { AtlasHierarchy } from "@/features/atlas";
+import { CoordinateSystemLibraryDialog } from "@/features/coordinate-system";
 import { ProbeLibraryDialog } from "@/features/probe";
 import { openPreferencesDialog } from "@/features/preferences";
 import { Inspector } from "@/features/inspector";
@@ -272,6 +273,14 @@ onUnmounted(() => {
               >
                 <q-item-section>{{ $t("layout.probeLibrary") }}</q-item-section>
               </q-item>
+              <q-item
+                clickable
+                @click="$q.dialog({ component: CoordinateSystemLibraryDialog })"
+              >
+                <q-item-section>{{
+                  $t("layout.coordinateSystemLibrary")
+                }}</q-item-section>
+              </q-item>
               <q-item clickable @click="openPreferencesDialog($q)">
                 <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
               </q-item>
@@ -279,7 +288,13 @@ onUnmounted(() => {
           </q-menu>
         </q-btn>
 
-        <q-btn :label="$t('layout.help')" flat :href="`${BASE_URL}docs`" />
+        <q-btn
+          :label="$t('layout.help')"
+          flat
+          :href="`${BASE_URL}docs/`"
+          target="_blank"
+          rel="noopener noreferrer"
+        />
 
         <q-space />
 

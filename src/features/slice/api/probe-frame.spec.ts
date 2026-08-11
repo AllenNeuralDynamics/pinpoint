@@ -3,24 +3,23 @@ import { makeProbe } from "@/test/fixtures";
 import { getProbeFrame, toAtlasMillimeters } from "./probe-frame.api";
 
 describe("getProbeFrame", () => {
-  it("resolves the origin as referenceCoordinate + tipPosition elementwise", () => {
+  it("resolves the origin as the probe's tip position", () => {
     const probe = makeProbe({ tipPosition: [1, 2, 3], rotation: [0, 0, 0] });
 
-    const frame = getProbeFrame(probe, [10, 20, 30]);
+    const frame = getProbeFrame(probe);
 
-    expect(frame.originMillimeters).toEqual([11, 22, 33]);
+    expect(frame.originMillimeters).toEqual([1, 2, 3]);
   });
 
   it("resolves right and up for the default probe rotation", () => {
-    // Default probe rotation [0, 0, pi/2]: electrodes face superior, tip
-    // faces anterior. right = across the shanks (ML), up = from the tip (DV
-    // superior).
+    // Default probe rotation [0, 0, pi/2]: electrodes face -AP, tip points
+    // +DV. right = across the shanks (ML), up = from the tip (DV superior).
     const probe = makeProbe({
       tipPosition: [0, 0, 0],
       rotation: [0, 0, Math.PI / 2]
     });
 
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     expect(frame.rightMillimeters[0]).toBeCloseTo(0, 6);
     expect(frame.rightMillimeters[1]).toBeCloseTo(0, 6);
@@ -31,10 +30,26 @@ describe("getProbeFrame", () => {
     expect(frame.upMillimeters[2]).toBeCloseTo(0, 6);
   });
 
+  it("resolves right and up for zero rotation", () => {
+    // Zero rotation: tip points -AP (requirement (a)); right = +ML, up =
+    // +AP, so the tip axis (-up) is -AP.
+    const probe = makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] });
+
+    const frame = getProbeFrame(probe);
+
+    expect(frame.rightMillimeters[0]).toBeCloseTo(0, 6);
+    expect(frame.rightMillimeters[1]).toBeCloseTo(0, 6);
+    expect(frame.rightMillimeters[2]).toBeCloseTo(1, 6);
+
+    expect(frame.upMillimeters[0]).toBeCloseTo(1, 6);
+    expect(frame.upMillimeters[1]).toBeCloseTo(0, 6);
+    expect(frame.upMillimeters[2]).toBeCloseTo(0, 6);
+  });
+
   it("keeps the basis unit-length and orthogonal under an arbitrary rotation", () => {
     const probe = makeProbe({ rotation: [0.3, -0.7, 1.1] });
 
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
     const length = (v: [number, number, number]) => Math.hypot(...v);
     const dot = (a: [number, number, number], b: [number, number, number]) =>
       a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -48,7 +63,7 @@ describe("getProbeFrame", () => {
 describe("toAtlasMillimeters", () => {
   it("returns the frame's origin at (0, 0)", () => {
     const probe = makeProbe({ tipPosition: [1, 2, 3] });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     expect(toAtlasMillimeters(frame, 0, 0)).toEqual(frame.originMillimeters);
   });
@@ -58,7 +73,7 @@ describe("toAtlasMillimeters", () => {
       tipPosition: [0, 0, 0],
       rotation: [0, 0, Math.PI / 2]
     });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const result = toAtlasMillimeters(frame, 2, 3);
 

@@ -1,12 +1,13 @@
 import { toRaw } from "vue";
 import type { Atlas } from "@/features/atlas";
-import { isSameAtlas } from "@/features/atlas";
+import { getAtlasCenter, isSameAtlas } from "@/features/atlas";
+import type { CoordinateSystem } from "@/features/coordinate-system";
+import { getCoordinateSystemIdentifier } from "@/features/coordinate-system";
 import type { CameraPose } from "../models/camera-pose.model";
-import { buildCameraPose, frameCameraPoseOnAtlas } from "./camera-pose.api";
 import {
-  atlasToReferenceRelative,
-  referenceRelativeToAtlas
-} from "./reference-coordinate.api";
+  buildCameraPose,
+  getAtlasFramingRadiusMillimeters
+} from "./camera-pose.api";
 import type { VisibleStructure } from "../models/visible-structure.model";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
@@ -52,9 +53,10 @@ export function buildExperiment(
       defaultStructureIdentifiers
     ),
     probeInterfaceProbes: {},
+    coordinateSystems: {},
     probes: [],
     sceneObjects: [],
-    cameraPose: buildCameraPose(atlas, referenceCoordinate),
+    cameraPose: buildCameraPose(atlas),
     cameraPoses: []
   };
 }
@@ -72,7 +74,9 @@ export function cloneExperiment(experiment: Experiment): Experiment {
 
 /**
  * Commit edited properties onto an experiment in place, re-seeding the shown
- * structures when the atlas changed since their identifiers are atlas-specific.
+ * structures when the atlas changed since their identifiers are atlas-specific,
+ * and, on an atlas change, rebasing probes/scene objects/camera target onto the
+ * new atlas origin and re-framing the camera for the new atlas.
  * @param experiment Experiment to update.
  * @param properties Name, atlas, reference coordinate, and default structure
  * identifiers to commit.
@@ -89,49 +93,67 @@ export function setExperimentProperties(
   const { name, atlas, referenceCoordinate, defaultStructureIdentifiers } =
     properties;
   const isNewAtlas = !isSameAtlas(atlas, experiment.atlas);
+  const previousCenter = getAtlasCenter(experiment.atlas);
 
   if (isNewAtlas) {
     resetStructureVisibility(experiment, defaultStructureIdentifiers);
   }
 
   experiment.name = name.trim();
+  experiment.referenceCoordinate = [...referenceCoordinate];
   experiment.atlas = { ...atlas };
 
   if (isNewAtlas) {
-    // Probe tips and the camera target are offsets from the reference
-    // coordinate, and a new atlas brings its own landmark, so those offsets
-    // carry over untouched. Only the camera's framing is absolute to the
-    // volume, so it is rebuilt.
-    experiment.referenceCoordinate = [...referenceCoordinate];
-    frameCameraPoseOnAtlas(experiment.cameraPose, atlas, referenceCoordinate);
-    return;
+    rebaseOntoAtlasOrigin(experiment, previousCenter, getAtlasCenter(atlas));
+    experiment.cameraPose.radius = getAtlasFramingRadiusMillimeters(atlas);
   }
-
-  moveReferenceCoordinate(experiment, referenceCoordinate);
 }
 
 /**
- * Move an experiment's reference coordinate within one atlas, re-deriving every
- * probe tip and the camera target so they stay at the same atlas coordinate.
- * @param experiment Experiment to move the reference coordinate of.
- * @param referenceCoordinate New reference coordinate, in atlas ASR mm.
+ * Shift the probes, scene objects, and live camera target by how far the scene
+ * origin moved, so they do not change place in Babylon world space. Saved
+ * camera poses are deliberately left alone: they are user-set snapshots and
+ * keep the exact values they were saved with.
+ * @param experiment Experiment to rebase, mutated in place.
+ * @param previousCenter Center of the outgoing atlas, in its own ASR mm.
+ * @param center Center of the incoming atlas, in its own ASR mm.
  */
-function moveReferenceCoordinate(
+function rebaseOntoAtlasOrigin(
   experiment: Experiment,
-  referenceCoordinate: [number, number, number]
+  previousCenter: [number, number, number],
+  center: [number, number, number]
 ) {
-  const previous = experiment.referenceCoordinate;
+  const offset: [number, number, number] = [
+    center[0] - previousCenter[0],
+    center[1] - previousCenter[1],
+    center[2] - previousCenter[2]
+  ];
   for (const probe of experiment.probes) {
-    probe.tipPosition = atlasToReferenceRelative(
-      referenceCoordinate,
-      referenceRelativeToAtlas(previous, probe.tipPosition)
-    );
+    probe.tipPosition = shiftTriple(probe.tipPosition, offset);
   }
-  experiment.cameraPose.target = atlasToReferenceRelative(
-    referenceCoordinate,
-    referenceRelativeToAtlas(previous, experiment.cameraPose.target)
+  for (const sceneObject of experiment.sceneObjects) {
+    sceneObject.position = shiftTriple(sceneObject.position, offset);
+  }
+  experiment.cameraPose.target = shiftTriple(
+    experiment.cameraPose.target,
+    offset
   );
-  experiment.referenceCoordinate = [...referenceCoordinate];
+}
+
+/**
+ * Add a per-axis offset to a coordinate triple.
+ * @param coordinate Coordinate to shift.
+ * @param offset Offset to add, per axis.
+ */
+function shiftTriple(
+  coordinate: [number, number, number],
+  offset: [number, number, number]
+): [number, number, number] {
+  return [
+    coordinate[0] + offset[0],
+    coordinate[1] + offset[1],
+    coordinate[2] + offset[2]
+  ];
 }
 
 /**
@@ -260,6 +282,85 @@ export function setProbeInterface(
 }
 
 /**
+ * Intern a coordinate system into the experiment, keeping the existing
+ * definition if one is already interned under that identifier.
+ * @param experiment Experiment to intern a coordinate system into.
+ * @param coordinateSystem Coordinate system to intern.
+ */
+export function internCoordinateSystem(
+  experiment: Experiment,
+  coordinateSystem: CoordinateSystem
+) {
+  const identifier = getCoordinateSystemIdentifier(coordinateSystem);
+  if (!experiment.coordinateSystems[identifier]) {
+    experiment.coordinateSystems[identifier] = structuredClone(
+      toRaw(coordinateSystem)
+    );
+  }
+}
+
+/**
+ * Overwrite the experiment's interned copy of a coordinate system, leaving the experiment
+ * untouched when it interns nothing under that identifier or already holds this definition.
+ * @param experiment Experiment whose interned copy is updated.
+ * @param coordinateSystem Coordinate system definition to write.
+ */
+export function updateInternedCoordinateSystem(
+  experiment: Experiment,
+  coordinateSystem: CoordinateSystem
+): void {
+  const identifier = getCoordinateSystemIdentifier(coordinateSystem);
+  const interned = experiment.coordinateSystems[identifier];
+  if (!interned) return;
+
+  const next = structuredClone(toRaw(coordinateSystem));
+  if (JSON.stringify(interned) === JSON.stringify(next)) return;
+  experiment.coordinateSystems[identifier] = next;
+}
+
+/**
+ * Remove an interned coordinate system by identifier, unless another probe
+ * still references it.
+ * @param experiment Experiment to remove an interned coordinate system from.
+ * @param coordinateSystemIdentifier Coordinate system identifier.
+ */
+export function removeInternCoordinateSystem(
+  experiment: Experiment,
+  coordinateSystemIdentifier: string
+) {
+  const stillReferenced = experiment.probes.some(
+    experimentProbe =>
+      experimentProbe.coordinateSystemIdentifier === coordinateSystemIdentifier
+  );
+  if (stillReferenced) return;
+
+  delete experiment.coordinateSystems[coordinateSystemIdentifier];
+}
+
+/**
+ * Repoint a probe at a coordinate system, re-interning the passed definition so
+ * the probe follows the library's current chain, and dropping the old one if
+ * nothing else uses it.
+ * @param experiment Experiment the probe and definitions belong to.
+ * @param probe Probe to repoint.
+ * @param coordinateSystem New coordinate system for the probe.
+ */
+export function setProbeCoordinateSystem(
+  experiment: Experiment,
+  probe: Probe,
+  coordinateSystem: CoordinateSystem
+) {
+  const oldIdentifier = probe.coordinateSystemIdentifier;
+  const newIdentifier = getCoordinateSystemIdentifier(coordinateSystem);
+
+  experiment.coordinateSystems[newIdentifier] = structuredClone(
+    toRaw(coordinateSystem)
+  );
+  probe.coordinateSystemIdentifier = newIdentifier;
+  removeInternCoordinateSystem(experiment, oldIdentifier);
+}
+
+/**
  * Resolve a probe's interface definition, or null if it isn't interned.
  * @param experiment Experiment to extract the probe interface definition from.
  * @param probe Probe to resolve the definition of.
@@ -286,8 +387,8 @@ export function addProbe(experiment: Experiment, probe: Probe) {
 }
 
 /**
- * Remove a probe from the experiment, dropping its interface definition if
- * no other probe references it.
+ * Remove a probe from the experiment, dropping its interface definition and
+ * interned coordinate system if no other probe references them.
  * @param experiment Experiment to remove this probe from.
  * @param probe Probe to remove.
  */
@@ -302,6 +403,7 @@ export function removeProbe(experiment: Experiment, probe: Probe) {
     experiment,
     removed!.probeInterfaceIdentifier
   );
+  removeInternCoordinateSystem(experiment, removed!.coordinateSystemIdentifier);
 }
 
 /**
@@ -390,16 +492,18 @@ export function reorderSceneObject(
 }
 
 /**
- * Every scene model id an experiment references: its scene objects and its
- * probes' body models.
+ * Every stored model id the experiment references, without duplicates: one per
+ * scene object plus one per probe body model.
  * @param experiment Experiment to collect model ids from.
  */
 export function getExperimentModelIds(experiment: Experiment): string[] {
   return [
-    ...experiment.sceneObjects.map(({ id }) => id),
-    ...experiment.probes.flatMap(probe =>
-      probe.bodyModel ? [probe.bodyModel.id] : []
-    )
+    ...new Set([
+      ...experiment.sceneObjects.map(({ modelId }) => modelId),
+      ...experiment.probes.flatMap(probe =>
+        probe.bodyModel ? [probe.bodyModel.modelId] : []
+      )
+    ])
   ];
 }
 

@@ -74,7 +74,8 @@ function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
     isSplashScreenSkipped: false,
     cameraProjection: "perspective",
     cameraInertia: 0.9,
-    worldBackgroundColor: "#33334d",
+    worldBackgroundColorLightMode: "#33334d",
+    worldBackgroundColorDarkMode: "#33334d",
     worldLightIntensity: 1,
     materialSpecularIntensity: 1,
     materialSpecularPower: 64,
@@ -164,7 +165,8 @@ describe("ExportPreferences", () => {
       const uploaded = buildUploadedPreferences({
         cameraProjection: "orthographic",
         cameraInertia: 0.1,
-        worldBackgroundColor: "#ff0000",
+        worldBackgroundColorLightMode: "#ff0000",
+        worldBackgroundColorDarkMode: "#00ff00",
         worldLightIntensity: 1.5,
         materialSpecularIntensity: 0.5,
         materialSpecularPower: 32,
@@ -187,7 +189,12 @@ describe("ExportPreferences", () => {
 
       expect(store.cameraProjection).toBe(uploaded.cameraProjection);
       expect(store.cameraInertia).toBe(uploaded.cameraInertia);
-      expect(store.worldBackgroundColor).toBe(uploaded.worldBackgroundColor);
+      expect(store.worldBackgroundColorLightMode).toBe(
+        uploaded.worldBackgroundColorLightMode
+      );
+      expect(store.worldBackgroundColorDarkMode).toBe(
+        uploaded.worldBackgroundColorDarkMode
+      );
       expect(store.worldLightIntensity).toBe(uploaded.worldLightIntensity);
       expect(store.materialSpecularIntensity).toBe(
         uploaded.materialSpecularIntensity
@@ -222,7 +229,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.preferencesImported,
-          color: "positive"
+          type: "positive"
         })
       );
     });
@@ -242,7 +249,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionMajorBehind,
-          color: "negative"
+          type: "negative"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(300);
@@ -263,7 +270,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionMinorAhead,
-          color: "warning"
+          type: "warning"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(175);
@@ -284,7 +291,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionUnknown,
-          color: "warning"
+          type: "warning"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(175);
@@ -304,7 +311,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.invalidPreferencesFile,
-          color: "negative"
+          type: "negative"
         })
       );
     });
@@ -339,7 +346,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.invalidPreferencesFile,
-          color: "negative"
+          type: "negative"
         })
       );
       expect(store).toEqual(defaults);

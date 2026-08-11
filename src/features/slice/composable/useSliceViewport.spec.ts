@@ -18,7 +18,7 @@ function makeContour() {
 }
 
 describe("useSliceViewport", () => {
-  it("defaults the extent to the middle of the zoom range when unset", () => {
+  it("defaults the extent to a third of the atlas's average size, snapped to a tick", () => {
     const probe = ref(makeProbe({ sliceExtentMillimeters: null }));
     const { extentMillimeters } = useSliceViewport(
       probe,
@@ -26,7 +26,7 @@ describe("useSliceViewport", () => {
       ref(makeAtlas())
     );
 
-    expect(extentMillimeters.value).toBe(2);
+    expect(extentMillimeters.value).toBe(4);
   });
 
   it("clamps a persisted extent outside the current atlas's range", () => {

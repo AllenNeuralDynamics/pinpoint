@@ -34,7 +34,7 @@ describe("buildSceneModel", () => {
   it("builds a scene model with sensible defaults", () => {
     const sceneModel = buildSceneModel("id");
 
-    expect(sceneModel.id).toBe("id");
+    expect(sceneModel.modelId).toBe("id");
     expect(sceneModel.position).toEqual([0, 0, 0]);
     expect(sceneModel.rotation).toEqual([0, 0, 0]);
     expect(sceneModel.scale).toEqual([1, 1, 1]);
@@ -46,13 +46,13 @@ describe("isSceneModel", () => {
     expect(isSceneModel(buildSceneModel("id"))).toBe(true);
   });
 
-  it("rejects a missing id", () => {
-    const { id: _id, ...rest } = buildSceneModel("id");
+  it("rejects a missing modelId", () => {
+    const { modelId: _modelId, ...rest } = buildSceneModel("id");
     expect(isSceneModel(rest)).toBe(false);
   });
 
-  it("rejects an empty id", () => {
-    expect(isSceneModel({ ...buildSceneModel("id"), id: "" })).toBe(false);
+  it("rejects an empty modelId", () => {
+    expect(isSceneModel({ ...buildSceneModel("id"), modelId: "" })).toBe(false);
   });
 
   it("rejects a non-triple position", () => {

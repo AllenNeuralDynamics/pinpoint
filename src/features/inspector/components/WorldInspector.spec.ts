@@ -35,24 +35,40 @@ describe("WorldInspector", () => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 
-  it("picking a palette color writes it to worldBackgroundColor", async () => {
+  it("picking the light-mode picker's color writes it to worldBackgroundColorLightMode", async () => {
     const wrapper = mountWithQuasar(WorldInspector);
     const preferences = usePreferencesStore();
 
     await wrapper
-      .findComponent({ name: "QColor" })
+      .findAllComponents({ name: "QColor" })[0]!
       .vm.$emit("update:modelValue", "#123456");
 
-    expect(preferences.worldBackgroundColor).toBe("#123456");
+    expect(preferences.worldBackgroundColorLightMode).toBe("#123456");
+    expect(preferences.worldBackgroundColorDarkMode).toBe("#33334d");
   });
 
-  it("appends Babylon's default clear color to the standard palette", () => {
+  it("picking the dark-mode picker's color writes it to worldBackgroundColorDarkMode", async () => {
+    const wrapper = mountWithQuasar(WorldInspector);
+    const preferences = usePreferencesStore();
+
+    await wrapper
+      .findAllComponents({ name: "QColor" })[1]!
+      .vm.$emit("update:modelValue", "#654321");
+
+    expect(preferences.worldBackgroundColorDarkMode).toBe("#654321");
+    expect(preferences.worldBackgroundColorLightMode).toBe("#33334d");
+  });
+
+  it("appends Babylon's default clear color and pure white to the standard palette for both pickers", () => {
     const wrapper = mountWithQuasar(WorldInspector);
 
-    expect(wrapper.findComponent({ name: "QColor" }).props("palette")).toEqual([
-      ...STANDARD_COLORS,
-      "#33334d"
-    ]);
+    for (const picker of wrapper.findAllComponents({ name: "QColor" })) {
+      expect(picker.props("palette")).toEqual([
+        ...STANDARD_COLORS,
+        "#33334d",
+        "#ffffff"
+      ]);
+    }
   });
 
   it("the glossiness slider starts at 64", () => {

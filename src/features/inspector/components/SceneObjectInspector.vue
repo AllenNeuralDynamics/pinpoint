@@ -2,11 +2,13 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  copySceneObject,
   STANDARD_COLORS,
   type SceneObject,
   toggleSceneObjectCollidable,
   toggleSceneObjectLock
 } from "@/features/scene";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
@@ -23,6 +25,7 @@ const { sceneObject } = defineProps<{
   sceneObject: SceneObject;
 }>();
 
+const currentExperimentStore = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const {
@@ -92,21 +95,21 @@ const pitch = useNumericTupleModel(
   () => preferences.decimalPrecision
 );
 
-const scaleAp = useNumericTupleModel(
+const scaleZ = useNumericTupleModel(
   () => sceneObject.scale,
   0,
   value => value,
   value => value,
   () => preferences.decimalPrecision
 );
-const scaleDv = useNumericTupleModel(
+const scaleY = useNumericTupleModel(
   () => sceneObject.scale,
   1,
   value => value,
   value => value,
   () => preferences.decimalPrecision
 );
-const scaleMl = useNumericTupleModel(
+const scaleX = useNumericTupleModel(
   () => sceneObject.scale,
   2,
   value => value,
@@ -127,16 +130,23 @@ const lockLabel = computed(() =>
 
 <template>
   <div class="column q-gutter-y-md">
-    <q-btn
-      :aria-label="lockLabel"
-      class="full-width"
-      :color="lockColor"
-      :icon="lockIcon"
-      :label="lockLabel"
-      @click="toggleSceneObjectLock(sceneObject)"
-    >
-      <q-tooltip>{{ lockLabel }}</q-tooltip>
-    </q-btn>
+    <q-btn-group spread>
+      <q-btn
+        :aria-label="t('sceneObjectInspector.copy')"
+        icon="content_copy"
+        @click="copySceneObject(currentExperimentStore.experiment, sceneObject)"
+      >
+        <q-tooltip>{{ t("sceneObjectInspector.copy") }}</q-tooltip>
+      </q-btn>
+      <q-btn
+        :aria-label="lockLabel"
+        :color="lockColor"
+        :icon="lockIcon"
+        @click="toggleSceneObjectLock(sceneObject)"
+      >
+        <q-tooltip>{{ lockLabel }}</q-tooltip>
+      </q-btn>
+    </q-btn-group>
 
     <q-toggle
       :label="t('sceneObjectInspector.collisionDetection')"
@@ -220,9 +230,9 @@ const lockLabel = computed(() =>
 
     <div class="row q-gutter-x-sm">
       <CommittedInput
-        v-model="scaleAp"
+        v-model="scaleZ"
         :disable="sceneObject.lock"
-        :label="t('axis.ap')"
+        :label="t('axis.z')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
@@ -230,9 +240,9 @@ const lockLabel = computed(() =>
         outlined
       />
       <CommittedInput
-        v-model="scaleDv"
+        v-model="scaleY"
         :disable="sceneObject.lock"
-        :label="t('axis.dv')"
+        :label="t('axis.y')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
@@ -240,9 +250,9 @@ const lockLabel = computed(() =>
         outlined
       />
       <CommittedInput
-        v-model="scaleMl"
+        v-model="scaleX"
         :disable="sceneObject.lock"
-        :label="t('axis.ml')"
+        :label="t('axis.x')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"

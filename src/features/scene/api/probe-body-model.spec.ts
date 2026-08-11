@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DragEvent, DragStartEndEvent, Scene } from "@babylonjs/core";
-import { TransformNode } from "@babylonjs/core";
+import { TransformNode, Vector3 } from "@babylonjs/core";
 import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
 import {
   addProbe,
@@ -161,7 +161,15 @@ describe("syncProbeBodyModels", () => {
     expect([node.rotation.x, node.rotation.y, node.rotation.z]).toEqual([
       0.1, 0.2, 0.3
     ]);
-    expect([node.scaling.x, node.scaling.y, node.scaling.z]).toEqual([2, 3, 4]);
+    expect([node.scaling.x, node.scaling.y, node.scaling.z]).toEqual([1, 1, 1]);
+    const scaleNode = scene.getTransformNodeByName(
+      `${probe.id}_probe_body-model_scale`
+    )!;
+    expect([
+      scaleNode.scaling.x,
+      scaleNode.scaling.y,
+      scaleNode.scaling.z
+    ]).toEqual([2, 3, 4]);
   });
 
   it('hides the body model for "shanks" and "hidden" visibility', async () => {
@@ -505,6 +513,14 @@ describe("setProbeBodyModelScaleFromGizmoDrag", () => {
 
     expect(probe.bodyModel!.scale).toEqual([2, 3, 4]);
     expect(onDrag).toHaveBeenCalledWith(probe.id);
+
+    node.scaling.set(3, 1, 1);
+    gizmoManager.gizmos.scaleGizmo!.onDragObservable.notifyObservers(
+      {} as DragEvent
+    );
+
+    expect(probe.bodyModel!.scale).toEqual([6, 3, 4]);
+    expect(node.scaling.equals(Vector3.One())).toBe(true);
   });
 
   it("ignores a gizmo attached to the probe's own node", () => {

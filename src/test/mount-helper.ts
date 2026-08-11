@@ -304,20 +304,22 @@ export function makeFakeTextRenderer(): FakeTextRenderer {
  * @param scene Scene hosting the font's atlas texture.
  */
 export function makeTestFontAsset(scene: Scene): FontAsset {
-  const chars = ["+", "-", "A", "P", "D", "V", "M", "L"].map((char, index) => ({
-    id: char.charCodeAt(0),
-    index,
-    char,
-    width: 50,
-    height: 60,
-    xoffset: 0,
-    yoffset: 10,
-    xadvance: 50,
-    chnl: 15,
-    x: index * 50,
-    y: 0,
-    page: 0
-  }));
+  const chars = ["+", "-", "A", "P", "D", "V", "M", "L", "X", "Y", "Z"].map(
+    (char, index) => ({
+      id: char.charCodeAt(0),
+      index,
+      char,
+      width: 50,
+      height: 60,
+      xoffset: 0,
+      yoffset: 10,
+      xadvance: 50,
+      chnl: 15,
+      x: index * 50,
+      y: 0,
+      page: 0
+    })
+  );
 
   return new FontAsset(
     JSON.stringify({

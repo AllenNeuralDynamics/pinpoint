@@ -2,79 +2,97 @@ import { describe, expect, it } from "vitest";
 import {
   buildCameraPose,
   copyCameraPose,
-  frameCameraPoseOnAtlas,
+  getAtlasFramingRadiusMillimeters,
   isCameraPose,
+  resetCameraPose,
   setCameraPose
 } from "./camera-pose.api";
 import {
   getAtlasCenter,
   getAtlasDimensionsMillimeters
 } from "@/features/atlas";
-import { makeAtlas, makeCameraPose } from "@/test/fixtures";
+import { makeAtlas, makeCameraPose, makeManifest } from "@/test/fixtures";
+
+describe("getAtlasFramingRadiusMillimeters", () => {
+  it("frames the radius at 1.5x the atlas AP length", () => {
+    expect(getAtlasFramingRadiusMillimeters(makeAtlas())).toBe(19.8);
+  });
+
+  it("returns 0 when the manifest has no resolutions or shape", () => {
+    const atlas = makeAtlas({
+      manifest: makeManifest({ resolutions: [], shape: [] })
+    });
+
+    expect(getAtlasFramingRadiusMillimeters(atlas)).toBe(0);
+  });
+});
 
 describe("buildCameraPose", () => {
   it("frames the radius at 1.5x the atlas AP length", () => {
     const atlas = makeAtlas();
 
-    const pose = buildCameraPose(atlas, [0, 0, 0]);
+    const pose = buildCameraPose(atlas);
 
     expect(pose.radius).toBe(getAtlasDimensionsMillimeters(atlas)[0] * 1.5);
   });
 
-  it("sets the target to the atlas centre minus the reference coordinate", () => {
+  it("sets the target to the atlas centre", () => {
     const atlas = makeAtlas();
-    const referenceCoordinate: [number, number, number] = [1, 2, 3];
 
-    const pose = buildCameraPose(atlas, referenceCoordinate);
+    const pose = buildCameraPose(atlas);
 
-    const centre = getAtlasCenter(atlas);
-    expect(pose.target).toEqual([
-      centre[0] - referenceCoordinate[0],
-      centre[1] - referenceCoordinate[1],
-      centre[2] - referenceCoordinate[2]
-    ]);
+    expect(pose.target).toEqual(getAtlasCenter(atlas));
   });
 
   it("carries the camera inspectable kind and an empty name", () => {
-    const pose = buildCameraPose(makeAtlas(), [0, 0, 0]);
+    const pose = buildCameraPose(makeAtlas());
 
     expect(pose.inspectableKind).toBe("camera");
     expect(pose.name).toBe("");
   });
 
   it("mints a distinct id across calls", () => {
-    const a = buildCameraPose(makeAtlas(), [0, 0, 0]);
-    const b = buildCameraPose(makeAtlas(), [0, 0, 0]);
+    const a = buildCameraPose(makeAtlas());
+    const b = buildCameraPose(makeAtlas());
 
     expect(a.id).not.toBe(b.id);
   });
+
+  it("keeps the initial orbit angles fixed regardless of atlas, unlike radius and target", () => {
+    const a = buildCameraPose(makeAtlas());
+    const b = buildCameraPose(makeAtlas({ name: "allen_human" }));
+
+    expect(a.alpha).toBe(b.alpha);
+    expect(a.beta).toBe(b.beta);
+  });
 });
 
-describe("frameCameraPoseOnAtlas", () => {
-  it("overwrites radius and target from a new atlas", () => {
-    const pose = makeCameraPose({ radius: 1, target: [9, 9, 9] });
+describe("resetCameraPose", () => {
+  it("restores the initialized orbit and reframes on the atlas", () => {
     const atlas = makeAtlas();
-
-    frameCameraPoseOnAtlas(pose, atlas, [0, 0, 0]);
-
-    expect(pose.radius).toBe(getAtlasDimensionsMillimeters(atlas)[0] * 1.5);
-    expect(pose.target).toEqual(getAtlasCenter(atlas));
-  });
-
-  it("leaves alpha, beta, id, and name untouched", () => {
     const pose = makeCameraPose({
-      id: "kept-id",
-      name: "Kept",
       alpha: 1,
-      beta: 2
+      beta: 2,
+      radius: 3,
+      target: [9, 9, 9]
     });
 
-    frameCameraPoseOnAtlas(pose, makeAtlas(), [0, 0, 0]);
+    resetCameraPose(pose, atlas);
+
+    const initialized = buildCameraPose(atlas);
+    expect(pose.alpha).toBe(initialized.alpha);
+    expect(pose.beta).toBe(initialized.beta);
+    expect(pose.radius).toBe(initialized.radius);
+    expect(pose.target).toEqual(initialized.target);
+  });
+
+  it("keeps the pose's id and name", () => {
+    const pose = makeCameraPose({ id: "kept-id", name: "Kept" });
+
+    resetCameraPose(pose, makeAtlas());
 
     expect(pose.id).toBe("kept-id");
     expect(pose.name).toBe("Kept");
-    expect(pose.alpha).toBe(1);
-    expect(pose.beta).toBe(2);
   });
 });
 

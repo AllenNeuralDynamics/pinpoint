@@ -1,5 +1,7 @@
+import { toRaw } from "vue";
 import type { SceneObject } from "../models/scene-object.model";
 import type { SceneObjectVisibility } from "../models/scene-object-visibility.model";
+import type { Experiment } from "@/features/experiment";
 import { buildSceneModel, isSceneModel } from "./scene-model.api";
 import { STANDARD_COLORS } from "../models/standard-colors.model";
 import { isHexColor, isRecord } from "@/utils/type-guards";
@@ -10,15 +12,22 @@ const SCENE_OBJECT_VISIBILITIES: readonly string[] = [
   "hidden"
 ] satisfies readonly SceneObjectVisibility[];
 
+/** Appended to a copied scene object's name. */
+const SCENE_OBJECT_COPY_NAME_SUFFIX = " - copy";
+
 /**
  * Build a scene object for a stored GLB, named after its source file and given a
- * random color.
- * @param id Scene object id, also the key of its GLB in IndexedDB.
+ * random color and a fresh scene id.
+ * @param modelId Model id of the object's GLB in IndexedDB.
  * @param fileName Name of the model file the object was imported from.
  */
-export function buildSceneObject(id: string, fileName: string): SceneObject {
+export function buildSceneObject(
+  modelId: string,
+  fileName: string
+): SceneObject {
   return {
-    ...buildSceneModel(id),
+    ...buildSceneModel(modelId),
+    id: crypto.randomUUID(),
     inspectableKind: "sceneObject",
     name: fileName.replace(/\.[^./\\]+$/, "") || fileName,
     color: STANDARD_COLORS[Math.floor(Math.random() * STANDARD_COLORS.length)]!,
@@ -26,6 +35,30 @@ export function buildSceneObject(id: string, fileName: string): SceneObject {
     lock: false,
     collidable: true
   };
+}
+
+/**
+ * Duplicate a scene object's entry in the experiment with a fresh scene id and a
+ * copy-suffixed name, sharing the source's stored model file, returning the copy
+ * or null when the object isn't there.
+ * @param experiment Experiment holding the scene object entry to duplicate.
+ * @param sceneObject Scene object to duplicate.
+ */
+export function copySceneObject(
+  experiment: Experiment,
+  sceneObject: SceneObject
+): SceneObject | null {
+  const index = experiment.sceneObjects.findIndex(
+    ({ id }) => id === sceneObject.id
+  );
+  if (index === -1) return null;
+
+  const copy = structuredClone(toRaw(experiment.sceneObjects[index]!));
+  copy.id = crypto.randomUUID();
+  copy.name = `${copy.name}${SCENE_OBJECT_COPY_NAME_SUFFIX}`;
+  experiment.sceneObjects.splice(index + 1, 0, copy);
+
+  return copy;
 }
 
 /**
@@ -62,6 +95,8 @@ export function isSceneObject(value: unknown): value is SceneObject {
 
   return (
     value.inspectableKind === "sceneObject" &&
+    typeof value.id === "string" &&
+    value.id.length > 0 &&
     isSceneModel(value) &&
     typeof value.name === "string" &&
     isHexColor(value.color) &&

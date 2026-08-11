@@ -5,6 +5,7 @@ import ProbeInspector from "./ProbeInspector.vue";
 import CameraInspector from "./CameraInspector.vue";
 import SceneObjectInspector from "./SceneObjectInspector.vue";
 import WorldInspector from "./WorldInspector.vue";
+import CoordinateSystemInspector from "./CoordinateSystemInspector.vue";
 
 const currentExperiment = useCurrentExperimentStore();
 
@@ -31,6 +32,13 @@ const isCameraSelected = computed(
 const isWorldSelected = computed(
   () => currentExperiment.selectedInspectable?.inspectableKind === "world"
 );
+
+/** Selected coordinate system, or null when the selection is something else. */
+const selectedCoordinateSystem = computed(() =>
+  currentExperiment.selectedInspectable?.inspectableKind === "coordinateSystem"
+    ? currentExperiment.selectedInspectable
+    : null
+);
 </script>
 
 <template>
@@ -41,6 +49,10 @@ const isWorldSelected = computed(
   />
   <CameraInspector v-else-if="isCameraSelected" />
   <WorldInspector v-else-if="isWorldSelected" />
+  <CoordinateSystemInspector
+    v-else-if="selectedCoordinateSystem"
+    :coordinate-system="selectedCoordinateSystem"
+  />
   <div v-else class="full-height column">
     <div class="col flex flex-center">
       <p class="text-weight-light">

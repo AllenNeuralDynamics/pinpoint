@@ -1,15 +1,17 @@
 /**
- * An arbitrary 3D model's placement. Its `id` doubles as the key of the model's
- * file bytes in IndexedDB.
+ * An arbitrary 3D model's placement.
  */
 export interface SceneModel {
-  /** Internal unique identifier, and the IndexedDB key of the model's file. A UUID, not user facing. */
-  id: string;
+  /**
+   * IndexedDB key of the model's file bytes. A UUID, not user facing. Two scene
+   * entities may share one `modelId` and so one stored file.
+   */
+  modelId: string;
 
   /**
    * Internal position representation of the model's origin.
    * - Scene objects: AP, DV, ML order, ASR orientation, relative to the
-   *   experiment reference coordinate, in mm.
+   *   atlas origin, in mm.
    * - Probe body models: Babylon local X, Y, Z, relative to the probe's
    *   transform node, in mm.
    */
@@ -25,7 +27,8 @@ export interface SceneModel {
 
   /**
    * Internal scale representation of the model.
-   * - Scene objects: AP, DV, ML order, ASR orientation.
+   * - Scene objects: AP, DV, ML order, ASR orientation. That triple maps to
+   *   the object node's Babylon local Z, Y, X respectively (via `asrToVector3`).
    * - Probe body models: Babylon local X, Y, Z.
    * - Unitless multiplier; 1 is the model's own size.
    */

@@ -35,7 +35,7 @@ import {
   getProbeShanks
 } from "@/features/probe";
 import { setMaterialDiffuseColor } from "./material.api";
-import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
+import { buildAtlasRootNode } from "./structures.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import { buildCollisionBody, disposeCollisionBody } from "./collision.api";
 import {
@@ -143,7 +143,7 @@ export function buildProbe(
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     shankAlignmentIndex: probe.shankAlignmentIndex,
     geometry,
-    bodyModelId: probe.bodyModel?.id ?? null
+    bodyModelId: probe.bodyModel?.modelId ?? null
   };
 
   const node = new TransformNode(
@@ -151,7 +151,7 @@ export function buildProbe(
     scene
   );
   node.metadata = probeMetadata;
-  node.parent = buildReferenceCoordinateNode(scene);
+  node.parent = buildAtlasRootNode(scene);
 
   const material = buildProbeMaterial(scene, probe);
   const shankMesh = buildShankMesh(
@@ -247,14 +247,14 @@ export function syncProbes(
   draggedProbeId: string | null,
   geometry: ProbeGeometry
 ): string[] {
-  const referenceCoordinateNode = buildReferenceCoordinateNode(scene);
+  const atlasRootNode = buildAtlasRootNode(scene);
   const experimentProbesById = new Map(
     experiment.probes.map(probe => [probe.id, probe])
   );
 
   const nodesById = new Map<string, TransformNode>();
   const rebuiltProbeIds: string[] = [];
-  for (const node of referenceCoordinateNode.getChildren(child =>
+  for (const node of atlasRootNode.getChildren(child =>
     child.name.endsWith(PROBE_NODE_SUFFIX)
   ) as TransformNode[]) {
     const id = sceneEntityIdFromName(node.name, "probe");
@@ -266,7 +266,7 @@ export function syncProbes(
       probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier ||
       probe.shankAlignmentIndex !== metadata.shankAlignmentIndex ||
       !isSameProbeGeometry(metadata.geometry, geometry) ||
-      (probe.bodyModel?.id ?? null) !== metadata.bodyModelId
+      (probe.bodyModel?.modelId ?? null) !== metadata.bodyModelId
     ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);
@@ -587,6 +587,9 @@ function buildHeadStageMesh(
     },
     scene
   );
+  // This position resolves to probe-local -Y once parented under the
+  // pitched base mesh - that is the contact face, so the sign here is
+  // load-bearing.
   cutterMesh.position = new Vector3(
     0,
     geometry.headStageCutDepthMillimeters - geometry.headStageLengthMillimeters,

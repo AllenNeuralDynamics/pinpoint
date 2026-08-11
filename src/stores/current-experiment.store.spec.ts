@@ -13,12 +13,16 @@ import type { TerminologyRow } from "@/features/atlas";
 import {
   addProbe,
   buildExperiment,
-  internProbeInterfaceProbe
+  internProbeInterfaceProbe,
+  setProbeCoordinateSystem
 } from "@/features/experiment";
+import { getCoordinateSystemIdentifier } from "@/features/coordinate-system";
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { WORLD_INSPECTABLE } from "@/features/scene";
 import {
   makeAtlas,
+  makeCoordinateSystem,
   makeProbe,
   makeProbeInterfaceProbe,
   makeTerminologyRows
@@ -201,11 +205,16 @@ describe("useCurrentExperimentStore", () => {
       expect(store.atlas).toEqual(makeAtlas({ name: "allen_human" }));
     });
 
-    it("clears the selected inspectable, dragged probe id, and camera-move flag", () => {
+    it("clears the selected inspectable, dragged probe id, camera-move flag, and probe ghost", () => {
       const store = useCurrentExperimentStore();
       store.selectedInspectable = makeProbe();
       store.draggedProbeId = "some-id";
       store.isCameraMoving = true;
+      store.probeGhost = {
+        probeId: "some-id",
+        tipPosition: [1, 2, 3],
+        rotation: [0, 0, 0]
+      };
 
       store.loadExperiment(
         buildExperiment("Loaded Experiment", makeAtlas(), [0, 0, 0])
@@ -214,6 +223,7 @@ describe("useCurrentExperimentStore", () => {
       expect(store.selectedInspectable).toBeNull();
       expect(store.draggedProbeId).toBeNull();
       expect(store.isCameraMoving).toBe(false);
+      expect(store.probeGhost).toBeNull();
     });
 
     it("detaches the loaded experiment's probe interface definitions from reactivity", () => {
@@ -258,7 +268,10 @@ describe("useCurrentExperimentStore", () => {
       const spec = makeProbeInterfaceProbe();
       const identifier = getProbeInterfaceIdentifier(spec);
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       const persisted = JSON.parse(localStorage.getItem("current-experiment")!);
@@ -278,7 +291,10 @@ describe("useCurrentExperimentStore", () => {
       const spec = makeProbeInterfaceProbe();
       const identifier = getProbeInterfaceIdentifier(spec);
       internProbeInterfaceProbe(firstStore.experiment, spec);
-      addProbe(firstStore.experiment, buildProbe(spec));
+      addProbe(
+        firstStore.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       // A fresh store over the same storage simulates a page reload.
@@ -298,7 +314,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
 
       let visibilityChanges = 0;
       // `store.probes[0]` is the reactive proxy Pinia hands back, unlike the
@@ -355,7 +374,10 @@ describe("useCurrentExperimentStore", () => {
       const spec = makeProbeInterfaceProbe();
       const identifier = getProbeInterfaceIdentifier(spec);
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.experiment.name = "Renamed";
@@ -369,7 +391,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.selectedInspectable = store.probes[0]!;
@@ -404,11 +429,26 @@ describe("useCurrentExperimentStore", () => {
       expect(store.selectedInspectable).toEqual(WORLD_INSPECTABLE);
     });
 
+    it("leaves a coordinate system selected after undo", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystem = makeCoordinateSystem();
+      store.selectedInspectable = coordinateSystem;
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(store.selectedInspectable).toEqual(coordinateSystem);
+    });
+
     it("clears the selection when undo removes the selected probe", async () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.selectedInspectable = store.probes[0]!;
@@ -505,7 +545,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.draggedProbeId = store.probes[0]!.id;
@@ -525,7 +568,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.draggedProbeId = store.probes[0]!.id;
@@ -554,7 +600,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
       const defaultName = store.name;
 
@@ -611,6 +660,71 @@ describe("useCurrentExperimentStore", () => {
       store.undo();
 
       expect(store.name).toBe(defaultName);
+    });
+  });
+
+  describe("coordinate system sync", () => {
+    it("follows a library edit onto the interned copy", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+      const probe = makeProbe();
+      addProbe(store.experiment, probe);
+      const identifier = getCoordinateSystemIdentifier(
+        coordinateSystemLibraryStore.library[1]!
+      );
+      setProbeCoordinateSystem(
+        store.experiment,
+        probe,
+        coordinateSystemLibraryStore.library[1]!
+      );
+
+      coordinateSystemLibraryStore.library[1]!.chain[0]!.name = "Edited";
+      await nextTick();
+
+      expect(
+        store.experiment.coordinateSystems[identifier]!.chain[0]!.name
+      ).toBe("Edited");
+    });
+
+    it("leaves a library system the experiment does not intern out of coordinateSystems", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+      const probe = makeProbe();
+      addProbe(store.experiment, probe);
+      setProbeCoordinateSystem(
+        store.experiment,
+        probe,
+        coordinateSystemLibraryStore.library[1]!
+      );
+      const keysBefore = Object.keys(store.experiment.coordinateSystems);
+
+      coordinateSystemLibraryStore.library[2]!.chain[0]!.name = "Edited";
+      await nextTick();
+
+      expect(Object.keys(store.experiment.coordinateSystems)).toEqual(
+        keysBefore
+      );
+    });
+
+    it("does not rewrite an interned copy on unrelated library churn", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+      const probe = makeProbe();
+      addProbe(store.experiment, probe);
+      const identifier = getCoordinateSystemIdentifier(
+        coordinateSystemLibraryStore.library[1]!
+      );
+      setProbeCoordinateSystem(
+        store.experiment,
+        probe,
+        coordinateSystemLibraryStore.library[1]!
+      );
+      const captured = store.experiment.coordinateSystems[identifier];
+
+      coordinateSystemLibraryStore.reorder(1, 2);
+      await nextTick();
+
+      expect(store.experiment.coordinateSystems[identifier]).toBe(captured);
     });
   });
 });

@@ -37,7 +37,7 @@ describe("buildInitialReferenceCoordinate", () => {
     expect(first).not.toBe(second);
   });
 
-  it("computes the atlas center when no override exists", () => {
+  it("centres AP and ML at the top of the atlas when no override exists", () => {
     const atlas = makeAtlas({
       name: "allen_human",
       manifest: makeManifest({
@@ -46,7 +46,7 @@ describe("buildInitialReferenceCoordinate", () => {
       })
     });
 
-    expect(buildInitialReferenceCoordinate(atlas)).toEqual([1, 4, 9]);
+    expect(buildInitialReferenceCoordinate(atlas)).toEqual([1, 0, 9]);
   });
 
   it("falls back to [0, 0, 0] when the manifest has no resolutions or shape", () => {

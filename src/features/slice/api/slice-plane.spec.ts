@@ -41,7 +41,7 @@ const TWO_SHANK_CONTOUR = [
 describe("getProbeSlicePlane", () => {
   it("centers on the given height up the contour from the tip", () => {
     const probe = makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const tipPlane = getProbeSlicePlane(frame, 0, 1, 16);
     const raisedPlane = getProbeSlicePlane(frame, 5, 1, 16);
@@ -59,7 +59,7 @@ describe("getProbeSlicePlane", () => {
 
   it("sets the band's and plane's half-extents to half the given extent", () => {
     const probe = makeProbe();
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const plane = getProbeSlicePlane(frame, 0, 4, 32);
 
@@ -69,25 +69,55 @@ describe("getProbeSlicePlane", () => {
     expect(plane.heightPixels).toBe(32);
   });
 
-  it("carries the frame's right and up axes through unchanged", () => {
+  it("mirrors the frame's right axis and carries up through", () => {
     const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const plane = getProbeSlicePlane(frame, 0, 1, 16);
 
-    expect(plane.rightMillimeters).toEqual(frame.rightMillimeters);
+    expect(plane.rightMillimeters).toEqual(frame.rightMillimeters.map(n => -n));
     expect(plane.upMillimeters).toEqual(frame.upMillimeters);
   });
 
   it("emits exactly one band spanning the full output width", () => {
     const probe = makeProbe();
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const plane = getProbeSlicePlane(frame, 0, 4, 32);
 
     expect(plane.bands).toHaveLength(1);
     expect(plane.bands[0]!.columnOffset).toBe(0);
     expect(plane.bands[0]!.columnCount).toBe(32);
+  });
+
+  it("mirrors the image so its left edge is the probe's greatest-x edge", () => {
+    const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
+    const frame = getProbeFrame(probe);
+    const centerHeightMillimeters = 3;
+    const extentMillimeters = 4;
+    const halfWidth = extentMillimeters / 2;
+
+    const plane = getProbeSlicePlane(
+      frame,
+      centerHeightMillimeters,
+      extentMillimeters,
+      16
+    );
+    const band = plane.bands[0]!;
+    const leftEdge: [number, number, number] = [
+      band.centerMillimeters[0] - halfWidth * plane.rightMillimeters[0],
+      band.centerMillimeters[1] - halfWidth * plane.rightMillimeters[1],
+      band.centerMillimeters[2] - halfWidth * plane.rightMillimeters[2]
+    ];
+
+    const expectedLeftEdge = toAtlasMillimeters(
+      frame,
+      halfWidth,
+      centerHeightMillimeters
+    );
+    expect(leftEdge[0]).toBeCloseTo(expectedLeftEdge[0], 6);
+    expect(leftEdge[1]).toBeCloseTo(expectedLeftEdge[1], 6);
+    expect(leftEdge[2]).toBeCloseTo(expectedLeftEdge[2], 6);
   });
 });
 
@@ -127,12 +157,12 @@ describe("getShankLayout", () => {
     )!;
 
     expect(layout.placements.map(p => p.columnCount)).toEqual([6, 6]);
-    expect(layout.placements.map(p => p.columnOffset)).toEqual([0, 7]);
+    expect(layout.placements.map(p => p.columnOffset)).toEqual([7, 0]);
     expect(layout.widthPixels).toBe(13);
     expect(layout.widthMillimeters).toBeCloseTo(0.225694, 5);
   });
 
-  it("offsets each shank's probe-local x into packed overlay space", () => {
+  it("mirrors each shank's probe-local x into packed image space", () => {
     const layout = getShankLayout(
       shanks,
       twoShankContour.heightMillimeters,
@@ -140,8 +170,8 @@ describe("getShankLayout", () => {
       1
     )!;
 
-    expect(layout.placements[0]!.offsetMillimeters).toBeCloseTo(1, 5);
-    expect(layout.placements[1]!.offsetMillimeters).toBeCloseTo(-0.778472, 5);
+    expect(layout.placements[0]!.offsetMillimeters).toBeCloseTo(-0.778472, 5);
+    expect(layout.placements[1]!.offsetMillimeters).toBeCloseTo(1, 5);
   });
 
   it("has no gap - and no gap-sized offset - for a single shank", () => {
@@ -199,8 +229,7 @@ describe("getShankSliceGeometry", () => {
   const twoShankContour = getProbeContour(twoShankDefinition)!;
   const shanks = getProbeShanks(twoShankDefinition, twoShankContour);
   const frame = getProbeFrame(
-    makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] }),
-    [0, 0, 0]
+    makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] })
   );
 
   it("builds one band per shank, centered on its own x and the shared height", () => {
@@ -270,7 +299,7 @@ describe("getShankSliceGeometry", () => {
     }
   });
 
-  it("carries the frame's right and up axes and the layout's pixel dimensions through", () => {
+  it("mirrors the frame's right axis and carries up and the layout's pixel dimensions through", () => {
     const layout = getShankLayout(
       shanks,
       twoShankContour.heightMillimeters,
@@ -285,7 +314,9 @@ describe("getShankSliceGeometry", () => {
       0
     );
 
-    expect(geometry.rightMillimeters).toEqual(frame.rightMillimeters);
+    expect(geometry.rightMillimeters).toEqual(
+      frame.rightMillimeters.map(n => -n)
+    );
     expect(geometry.upMillimeters).toEqual(frame.upMillimeters);
     expect(geometry.widthPixels).toBe(layout.widthPixels);
     expect(geometry.heightPixels).toBe(layout.heightPixels);
@@ -460,22 +491,55 @@ describe("clampSliceExtent", () => {
 });
 
 describe("getDefaultSliceExtentMillimeters", () => {
-  it("reproduces the historical 2mm default for the Allen-mouse range", () => {
-    expect(getDefaultSliceExtentMillimeters({ minimum: -2, maximum: 4 })).toBe(
-      2
-    );
+  it("snaps a third of the atlas's average dimension to the nearest tick", () => {
+    const atlas = makeAtlas();
+    const range = { minimum: -2, maximum: 4 };
+
+    // Average of [13.2, 8, 11.4] is 10.8666...; a third is 3.622mm;
+    // log2(3.622) ~= 1.857, which rounds up to tick 2 (4mm).
+    expect(getDefaultSliceExtentMillimeters(atlas, range)).toBe(4);
   });
 
   it("scales up for a wider, human-scale range", () => {
-    expect(getDefaultSliceExtentMillimeters({ minimum: 2, maximum: 8 })).toBe(
-      32
-    );
+    const atlas = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [[0.5, 0.5, 0.5]],
+        shape: [[394, 394, 394]]
+      })
+    });
+    const range = { minimum: 2, maximum: 8 };
+
+    // Average dimension 197mm; a third is 65.67mm; log2(65.67) ~= 6.04,
+    // which rounds to tick 6 (64mm).
+    expect(getDefaultSliceExtentMillimeters(atlas, range)).toBe(64);
   });
 
-  it("scales down for a narrower, fly-scale range", () => {
-    expect(getDefaultSliceExtentMillimeters({ minimum: -7, maximum: -1 })).toBe(
-      0.0625
-    );
+  it("clamps a target above the range down to its maximum", () => {
+    const atlas = makeAtlas({
+      manifest: makeManifest({
+        resolutions: [[0.5, 0.5, 0.5]],
+        shape: [[394, 394, 394]]
+      })
+    });
+    const range = { minimum: 2, maximum: 4 };
+
+    // A third of 197mm rounds to tick 6, clamped down to the 4 maximum.
+    expect(getDefaultSliceExtentMillimeters(atlas, range)).toBe(16);
+  });
+
+  it("clamps a target below the range up to its minimum", () => {
+    const atlas = makeAtlas();
+    const range = { minimum: 4, maximum: 8 };
+
+    // A third of 10.8666...mm rounds to tick 2, clamped up to the 4 minimum.
+    expect(getDefaultSliceExtentMillimeters(atlas, range)).toBe(16);
+  });
+
+  it("falls back to the range midpoint when the atlas's dimensions are unknown", () => {
+    const atlas = makeAtlas({ manifest: makeManifest({ resolutions: [] }) });
+    const range = { minimum: -2, maximum: 4 };
+
+    expect(getDefaultSliceExtentMillimeters(atlas, range)).toBe(2);
   });
 });
 
@@ -512,13 +576,13 @@ describe("getContourPolygonPoints", () => {
 
   it("re-origins points on the given center height", () => {
     expect(getContourPolygonPoints(contour, 0, 0)).toBe(
-      contour.points.map(({ x, y }) => `${x},${-y}`).join(" ")
+      contour.points.map(({ x, y }) => `${-x},${-y}`).join(" ")
     );
   });
 
   it("shifts every emitted x by the alignment offset and leaves y untouched", () => {
     expect(getContourPolygonPoints(contour, 0, 2.5)).toBe(
-      contour.points.map(({ x, y }) => `${x + 2.5},${-y}`).join(" ")
+      contour.points.map(({ x, y }) => `${-(x + 2.5)},${-y}`).join(" ")
     );
   });
 });
@@ -541,7 +605,7 @@ describe("getShankOutlinePath", () => {
       widthMillimeters: 2
     };
 
-    expect(getShankOutlinePath(shank, 0)).toBe("M-1,0L1,0L1,-10L-1,-10Z");
+    expect(getShankOutlinePath(shank, 0)).toBe("M1,0L-1,0L-1,-10L1,-10Z");
   });
 
   it("joins two rings' subpaths with a single space", () => {
@@ -563,7 +627,7 @@ describe("getShankOutlinePath", () => {
       widthMillimeters: 4
     };
 
-    expect(getShankOutlinePath(shank, 0)).toBe("M-1,0L1,0Z M2,0L3,0Z");
+    expect(getShankOutlinePath(shank, 0)).toBe("M1,0L-1,0Z M-2,0L-3,0Z");
   });
 });
 
@@ -585,7 +649,7 @@ describe("getContactOutlinePath", () => {
       0
     );
 
-    expect(path).toBe("M-1,-3L-1,-5L1,-5L1,-3Z");
+    expect(path).toBe("M1,-3L1,-5L-1,-5L-1,-3Z");
   });
 
   it("builds one closed circle subpath as two semicircular arcs", () => {
@@ -624,7 +688,7 @@ describe("getContactOutlinePath", () => {
     );
 
     expect(path).toBe(
-      "M-1,0A1,1 0 0,1 1,0A1,1 0 0,1 -1,0Z M1,0A1,1 0 0,1 3,0A1,1 0 0,1 1,0Z"
+      "M-1,0A1,1 0 0,1 1,0A1,1 0 0,1 -1,0Z M-3,0A1,1 0 0,1 -1,0A1,1 0 0,1 -3,0Z"
     );
   });
 
@@ -649,7 +713,7 @@ describe("getContactOutlinePath", () => {
       5
     );
 
-    expect(path.startsWith("M-1,2")).toBe(true);
+    expect(path.startsWith("M1,2")).toBe(true);
   });
 });
 

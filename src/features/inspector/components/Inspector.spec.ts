@@ -3,7 +3,11 @@ import { createPinia, setActivePinia } from "pinia";
 import Inspector from "./Inspector.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { makeCameraPose, makeProbe } from "@/test/fixtures";
+import {
+  makeCameraPose,
+  makeCoordinateSystem,
+  makeProbe
+} from "@/test/fixtures";
 import { getTerminologyRows } from "@/features/atlas";
 import { WORLD_INSPECTABLE } from "@/features/scene";
 import enUS from "@/i18n/en-US";
@@ -35,7 +39,8 @@ function mountInspector() {
       stubs: {
         ProbeInspector: true,
         CameraInspector: true,
-        WorldInspector: true
+        WorldInspector: true,
+        CoordinateSystemInspector: true
       }
     }
   });
@@ -116,6 +121,20 @@ describe("Inspector", () => {
     expect(wrapper.findComponent({ name: "WorldInspector" }).exists()).toBe(
       true
     );
+    expect(wrapper.text()).not.toContain(t.emptyHint);
+  });
+
+  it("renders a CoordinateSystemInspector for the coordinate system selection and hides the hint", async () => {
+    const { wrapper, store } = mountInspector();
+    const coordinateSystem = makeCoordinateSystem();
+    store.selectedInspectable = coordinateSystem;
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper
+        .findComponent({ name: "CoordinateSystemInspector" })
+        .props("coordinateSystem")
+    ).toEqual(coordinateSystem);
     expect(wrapper.text()).not.toContain(t.emptyHint);
   });
 });
