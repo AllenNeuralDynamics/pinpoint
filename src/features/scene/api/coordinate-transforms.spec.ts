@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { Vector3 } from "@babylonjs/core";
+import { TransformNode, Vector3 } from "@babylonjs/core";
 import {
   asrToBabylon,
   asrToVector3,
+  atlasToWorld,
   babylonToAsr,
-  vector3ToAsr
+  vector3ToAsr,
+  worldToAtlas
 } from "./coordinate-transforms.api";
+import { buildAtlasRootNode, setAtlasCenterOffset } from "./structures.api";
+import { getAtlasCenter } from "@/features/atlas";
+import { makeAtlas } from "@/test/fixtures";
+import { makeTestScene } from "@/test/mount-helper";
 
 describe("asrToBabylon", () => {
   it("maps A -> -Z, S -> -Y, R -> +X", () => {
@@ -79,9 +85,9 @@ describe("asrToVector3 / vector3ToAsr round-trip", () => {
 });
 
 describe("asrToBabylon / babylonToAsr round-trip", () => {
-  // asrToBabylon is used to place probe tips, the reference coordinate node,
-  // and now camera poses; babylonToAsr must exactly invert it or a value
-  // written and read back through it would drift.
+  // asrToBabylon is used to place probe tips, scene objects, and camera
+  // poses; babylonToAsr must exactly invert it or a value written and read
+  // back through it would drift.
   const cases: [number, number, number][] = [
     [0, 0, 0],
     [1, 2, 3],
@@ -96,4 +102,36 @@ describe("asrToBabylon / babylonToAsr round-trip", () => {
       expect(roundTripped).toEqual(coordinate);
     }
   );
+});
+
+describe("atlasToWorld / worldToAtlas round-trip", () => {
+  const atlas = makeAtlas();
+
+  it("round-trips a relative coordinate through world space", () => {
+    const coordinate: [number, number, number] = [1, 2, 3];
+
+    const world = atlasToWorld(atlas, coordinate);
+    const roundTripped = worldToAtlas(atlas, world);
+
+    expect(roundTripped).toEqual(coordinate);
+  });
+
+  it("matches where the real scene hierarchy places the atlas coordinate", () => {
+    const scene = makeTestScene();
+    setAtlasCenterOffset(scene, getAtlasCenter(atlas));
+    const coordinate: [number, number, number] = [1, 2, 3];
+    const child = new TransformNode("child", scene);
+    child.parent = buildAtlasRootNode(scene);
+    child.position = asrToVector3(coordinate);
+    child.computeWorldMatrix(true);
+
+    const expectedWorld = atlasToWorld(atlas, coordinate);
+
+    // The arithmetic shortcut derives world position from the atlas centre
+    // directly; this pins it to the real node hierarchy `setAtlasCenterOffset`
+    // builds.
+    expect(
+      Vector3.Distance(child.absolutePosition, expectedWorld)
+    ).toBeLessThan(1e-6);
+  });
 });

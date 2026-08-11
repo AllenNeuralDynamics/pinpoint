@@ -408,7 +408,7 @@ describe("scaleCameraClipPlanesToAtlas", () => {
       getAtlasLongestDimensionMillimeters(atlas)
     );
 
-    expect(camera.minZ).toBeLessThan(buildCameraPose(atlas, [0, 0, 0]).radius);
+    expect(camera.minZ).toBeLessThan(buildCameraPose(atlas).radius);
   });
 });
 

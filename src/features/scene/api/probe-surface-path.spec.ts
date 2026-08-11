@@ -16,9 +16,8 @@ function makeChoice(
 ): ProbeSurfaceChoice {
   return {
     probeId: "probe-1",
-    tipPosition: [0, 0, 0],
+    tipPosition: [5, 3, 5],
     rotation: [0, 0, 0],
-    tipMillimeters: [5, 3, 5],
     axisTargetMillimeters: [5.1, 3.2, 5],
     dorsoventralTargetMillimeters: [5, 3.5, 5],
     ...overrides
@@ -57,7 +56,7 @@ describe("buildProbeSurfacePaths", () => {
     const scene = makeTestScene();
 
     buildProbeSurfacePaths(scene, makeChoice());
-    buildProbeSurfacePaths(scene, makeChoice({ tipMillimeters: [1, 2, 3] }));
+    buildProbeSurfacePaths(scene, makeChoice({ tipPosition: [1, 2, 3] }));
 
     expect(
       scene.meshes.filter(mesh => mesh.name.startsWith("probeSurfacePath_"))
@@ -95,7 +94,7 @@ describe("buildProbeSurfacePaths", () => {
     buildProbeSurfacePaths(scene, choice);
 
     const arrowhead = scene.getMeshByName("probeSurfacePath_axis_arrowhead")!;
-    const tip = asrToVector3(choice.tipMillimeters);
+    const tip = asrToVector3(choice.tipPosition);
     const target = asrToVector3(choice.axisTargetMillimeters);
     const direction = target.subtract(tip).normalize();
     const expectedPosition = target.add(direction.scale(0.375));

@@ -104,11 +104,7 @@ const positionSuffix = computed(() =>
  * Reset the live camera pose to the current atlas's default orbit, target, and radius.
  */
 function resetCamera(): void {
-  resetCameraPose(
-    pose.value,
-    currentExperiment.atlas,
-    currentExperiment.referenceCoordinate
-  );
+  resetCameraPose(pose.value, currentExperiment.atlas);
 }
 
 /**

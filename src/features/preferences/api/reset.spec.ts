@@ -25,6 +25,7 @@ describe("PERSISTED_STORES", () => {
       "current-experiment",
       "recent-experiments",
       "probe-library",
+      "coordinate-system-library",
       "favorite-atlases",
       "preferences"
     ]);

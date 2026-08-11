@@ -41,7 +41,7 @@ const TWO_SHANK_CONTOUR = [
 describe("getProbeSlicePlane", () => {
   it("centers on the given height up the contour from the tip", () => {
     const probe = makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const tipPlane = getProbeSlicePlane(frame, 0, 1, 16);
     const raisedPlane = getProbeSlicePlane(frame, 5, 1, 16);
@@ -59,7 +59,7 @@ describe("getProbeSlicePlane", () => {
 
   it("sets the band's and plane's half-extents to half the given extent", () => {
     const probe = makeProbe();
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const plane = getProbeSlicePlane(frame, 0, 4, 32);
 
@@ -71,7 +71,7 @@ describe("getProbeSlicePlane", () => {
 
   it("mirrors the frame's right axis and carries up through", () => {
     const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const plane = getProbeSlicePlane(frame, 0, 1, 16);
 
@@ -81,7 +81,7 @@ describe("getProbeSlicePlane", () => {
 
   it("emits exactly one band spanning the full output width", () => {
     const probe = makeProbe();
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
 
     const plane = getProbeSlicePlane(frame, 0, 4, 32);
 
@@ -92,7 +92,7 @@ describe("getProbeSlicePlane", () => {
 
   it("mirrors the image so its left edge is the probe's greatest-x edge", () => {
     const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
-    const frame = getProbeFrame(probe, [0, 0, 0]);
+    const frame = getProbeFrame(probe);
     const centerHeightMillimeters = 3;
     const extentMillimeters = 4;
     const halfWidth = extentMillimeters / 2;
@@ -229,8 +229,7 @@ describe("getShankSliceGeometry", () => {
   const twoShankContour = getProbeContour(twoShankDefinition)!;
   const shanks = getProbeShanks(twoShankDefinition, twoShankContour);
   const frame = getProbeFrame(
-    makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] }),
-    [0, 0, 0]
+    makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] })
   );
 
   it("builds one band per shank, centered on its own x and the shared height", () => {

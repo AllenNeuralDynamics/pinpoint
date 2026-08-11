@@ -11,6 +11,10 @@ export const PERSISTED_STORES: readonly PersistedStore[] = [
   { key: "current-experiment", labelKey: "preferences.storeCurrentExperiment" },
   { key: "recent-experiments", labelKey: "preferences.storeRecentExperiments" },
   { key: "probe-library", labelKey: "preferences.storeProbeLibrary" },
+  {
+    key: "coordinate-system-library",
+    labelKey: "preferences.storeCoordinateSystemLibrary"
+  },
   { key: "favorite-atlases", labelKey: "preferences.storeFavoriteAtlases" },
   { key: "preferences", labelKey: "preferences.storePreferences" }
 ];

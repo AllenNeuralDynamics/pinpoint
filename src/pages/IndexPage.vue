@@ -18,6 +18,7 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { AtlasHierarchy } from "@/features/atlas";
+import { CoordinateSystemLibraryDialog } from "@/features/coordinate-system";
 import { ProbeLibraryDialog } from "@/features/probe";
 import { openPreferencesDialog } from "@/features/preferences";
 import { Inspector } from "@/features/inspector";
@@ -271,6 +272,14 @@ onUnmounted(() => {
                 @click="$q.dialog({ component: ProbeLibraryDialog })"
               >
                 <q-item-section>{{ $t("layout.probeLibrary") }}</q-item-section>
+              </q-item>
+              <q-item
+                clickable
+                @click="$q.dialog({ component: CoordinateSystemLibraryDialog })"
+              >
+                <q-item-section>{{
+                  $t("layout.coordinateSystemLibrary")
+                }}</q-item-section>
               </q-item>
               <q-item clickable @click="openPreferencesDialog($q)">
                 <q-item-section>{{ $t("layout.preferences") }}</q-item-section>

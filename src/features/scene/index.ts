@@ -6,7 +6,7 @@ export {
 } from "./api/inspectable.api";
 export { getStructureHemisphereCenters } from "./api/structure-center.api";
 export type { Hemisphere, HemisphereCenters } from "./api/structure-center.api";
-export { asrToVector3, vector3ToAsr } from "./api/coordinate-transforms.api";
+export { vector3ToAsr } from "./api/coordinate-transforms.api";
 export { setGizmoControls } from "./api/gizmo.api";
 export { useBabylonRuntimeService } from "./composable/useBabylonRuntimeService";
 export { useModelFileImport } from "./composable/useModelFileImport";

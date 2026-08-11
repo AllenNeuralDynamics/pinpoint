@@ -212,7 +212,7 @@ describe("buildProbe", () => {
     );
   });
 
-  it("parents the probe node to the reference coordinate node under the atlas root", () => {
+  it("parents the probe node to the atlas root", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
 
@@ -224,8 +224,7 @@ describe("buildProbe", () => {
       makeProbeGeometry()
     );
 
-    expect(node!.parent!.name).toBe("referenceCoordinate_node");
-    expect(node!.parent!.parent!.name).toBe("atlasRoot_node");
+    expect(node!.parent!.name).toBe("atlasRoot_node");
   });
 
   it("registers the shank, head stage, and rod meshes as gizmo-attachable", () => {

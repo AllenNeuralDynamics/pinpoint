@@ -12,6 +12,7 @@ import {
 } from "@/test/mount-helper";
 import {
   makeAtlas,
+  makeCoordinateSystem,
   makeProbe,
   makeProbeInterfaceProbe,
   makeSceneModel,
@@ -20,6 +21,7 @@ import {
 import { zipExperiment } from "../api/experiment-file.api";
 import {
   buildExperiment,
+  internCoordinateSystem,
   internProbeInterfaceProbe
 } from "../api/experiment.api";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
@@ -346,6 +348,7 @@ describe("useExperimentFile", () => {
       const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
       const probeInterfaceProbe = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(experiment, probeInterfaceProbe);
+      internCoordinateSystem(experiment, makeCoordinateSystem());
       const bodyModel = makeSceneModel();
       experiment.probes = [
         makeProbe({

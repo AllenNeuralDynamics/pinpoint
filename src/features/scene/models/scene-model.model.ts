@@ -11,7 +11,7 @@ export interface SceneModel {
   /**
    * Internal position representation of the model's origin.
    * - Scene objects: AP, DV, ML order, ASR orientation, relative to the
-   *   experiment reference coordinate, in mm.
+   *   atlas origin, in mm.
    * - Probe body models: Babylon local X, Y, Z, relative to the probe's
    *   transform node, in mm.
    */

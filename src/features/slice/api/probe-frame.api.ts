@@ -26,21 +26,13 @@ const PROBE_LOCAL_UP = new Vector3(0, 0, 1);
 /**
  * Resolve a probe's shank-plane frame in atlas ASR millimeters.
  * @param probe Probe to resolve.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
  */
-export function getProbeFrame(
-  probe: Probe,
-  referenceCoordinate: [number, number, number]
-): ProbeFrame {
+export function getProbeFrame(probe: Probe): ProbeFrame {
   const [roll, yaw, pitch] = probe.rotation;
   const basis = Matrix.RotationYawPitchRoll(yaw, pitch, roll);
 
   return {
-    originMillimeters: [
-      referenceCoordinate[0] + probe.tipPosition[0],
-      referenceCoordinate[1] + probe.tipPosition[1],
-      referenceCoordinate[2] + probe.tipPosition[2]
-    ],
+    originMillimeters: [...probe.tipPosition],
     rightMillimeters: vector3ToAsr(
       Vector3.TransformNormal(PROBE_LOCAL_RIGHT, basis)
     ),

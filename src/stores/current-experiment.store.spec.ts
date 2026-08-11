@@ -19,6 +19,7 @@ import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
 import { WORLD_INSPECTABLE } from "@/features/scene";
 import {
   makeAtlas,
+  makeCoordinateSystem,
   makeProbe,
   makeProbeInterfaceProbe,
   makeTerminologyRows
@@ -201,11 +202,16 @@ describe("useCurrentExperimentStore", () => {
       expect(store.atlas).toEqual(makeAtlas({ name: "allen_human" }));
     });
 
-    it("clears the selected inspectable, dragged probe id, and camera-move flag", () => {
+    it("clears the selected inspectable, dragged probe id, camera-move flag, and probe ghost", () => {
       const store = useCurrentExperimentStore();
       store.selectedInspectable = makeProbe();
       store.draggedProbeId = "some-id";
       store.isCameraMoving = true;
+      store.probeGhost = {
+        probeId: "some-id",
+        tipPosition: [1, 2, 3],
+        rotation: [0, 0, 0]
+      };
 
       store.loadExperiment(
         buildExperiment("Loaded Experiment", makeAtlas(), [0, 0, 0])
@@ -214,6 +220,7 @@ describe("useCurrentExperimentStore", () => {
       expect(store.selectedInspectable).toBeNull();
       expect(store.draggedProbeId).toBeNull();
       expect(store.isCameraMoving).toBe(false);
+      expect(store.probeGhost).toBeNull();
     });
 
     it("detaches the loaded experiment's probe interface definitions from reactivity", () => {
@@ -258,7 +265,10 @@ describe("useCurrentExperimentStore", () => {
       const spec = makeProbeInterfaceProbe();
       const identifier = getProbeInterfaceIdentifier(spec);
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       const persisted = JSON.parse(localStorage.getItem("current-experiment")!);
@@ -278,7 +288,10 @@ describe("useCurrentExperimentStore", () => {
       const spec = makeProbeInterfaceProbe();
       const identifier = getProbeInterfaceIdentifier(spec);
       internProbeInterfaceProbe(firstStore.experiment, spec);
-      addProbe(firstStore.experiment, buildProbe(spec));
+      addProbe(
+        firstStore.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       // A fresh store over the same storage simulates a page reload.
@@ -298,7 +311,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
 
       let visibilityChanges = 0;
       // `store.probes[0]` is the reactive proxy Pinia hands back, unlike the
@@ -355,7 +371,10 @@ describe("useCurrentExperimentStore", () => {
       const spec = makeProbeInterfaceProbe();
       const identifier = getProbeInterfaceIdentifier(spec);
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.experiment.name = "Renamed";
@@ -369,7 +388,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.selectedInspectable = store.probes[0]!;
@@ -404,11 +426,26 @@ describe("useCurrentExperimentStore", () => {
       expect(store.selectedInspectable).toEqual(WORLD_INSPECTABLE);
     });
 
+    it("leaves a coordinate system selected after undo", async () => {
+      const store = useCurrentExperimentStore();
+      const coordinateSystem = makeCoordinateSystem();
+      store.selectedInspectable = coordinateSystem;
+
+      store.experiment.name = "Renamed";
+      await nextTick();
+      store.undo();
+
+      expect(store.selectedInspectable).toEqual(coordinateSystem);
+    });
+
     it("clears the selection when undo removes the selected probe", async () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.selectedInspectable = store.probes[0]!;
@@ -505,7 +542,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.draggedProbeId = store.probes[0]!.id;
@@ -525,7 +565,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
 
       store.draggedProbeId = store.probes[0]!.id;
@@ -554,7 +597,10 @@ describe("useCurrentExperimentStore", () => {
       const store = useCurrentExperimentStore();
       const spec = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(store.experiment, spec);
-      addProbe(store.experiment, buildProbe(spec));
+      addProbe(
+        store.experiment,
+        buildProbe(spec, [0, 0, 0], makeCoordinateSystem())
+      );
       await nextTick();
       const defaultName = store.name;
 

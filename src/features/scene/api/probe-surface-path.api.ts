@@ -62,7 +62,7 @@ export function buildProbeSurfacePaths(
     scene,
     atlasRoot,
     "axis",
-    choice.tipMillimeters,
+    choice.tipPosition,
     choice.axisTargetMillimeters,
     AXIS_PATH_COLOR
   );
@@ -70,7 +70,7 @@ export function buildProbeSurfacePaths(
     scene,
     atlasRoot,
     "dorsoventral",
-    choice.tipMillimeters,
+    choice.tipPosition,
     choice.dorsoventralTargetMillimeters,
     DORSOVENTRAL_PATH_COLOR
   );

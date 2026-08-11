@@ -13,47 +13,22 @@ const DEFAULT_REFERENCE_COORDINATE_OVERRIDES: Record<
 };
 
 /**
- * Resolve a coordinate stored relative to the reference coordinate into atlas ASR mm.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
- * @param relativeCoordinate Coordinate relative to the reference coordinate, in ASR mm.
- */
-export function referenceRelativeToAtlas(
-  referenceCoordinate: [number, number, number],
-  relativeCoordinate: [number, number, number]
-): [number, number, number] {
-  return [
-    referenceCoordinate[0] + relativeCoordinate[0],
-    referenceCoordinate[1] + relativeCoordinate[1],
-    referenceCoordinate[2] + relativeCoordinate[2]
-  ];
-}
-
-/**
- * Express an atlas ASR coordinate relative to the reference coordinate.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
- * @param atlasCoordinate Coordinate relative to the atlas origin, in ASR mm.
- */
-export function atlasToReferenceRelative(
-  referenceCoordinate: [number, number, number],
-  atlasCoordinate: [number, number, number]
-): [number, number, number] {
-  return [
-    atlasCoordinate[0] - referenceCoordinate[0],
-    atlasCoordinate[1] - referenceCoordinate[1],
-    atlasCoordinate[2] - referenceCoordinate[2]
-  ];
-}
-
-/**
  * Compute the initial reference coordinate for an atlas, using a known
- * override if one exists, otherwise falling back to the atlas center.
+ * override if one exists, otherwise the atlas centre in AP and ML at the top
+ * of the volume.
  * @param atlas Atlas to build reference coordinate info from.
  */
 export function buildInitialReferenceCoordinate(
   atlas: Atlas
 ): [number, number, number] {
-  const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[atlas.name];
+  const override = Object.hasOwn(
+    DEFAULT_REFERENCE_COORDINATE_OVERRIDES,
+    atlas.name
+  )
+    ? DEFAULT_REFERENCE_COORDINATE_OVERRIDES[atlas.name]
+    : undefined;
   if (override) return [...override];
 
-  return getAtlasCenter(atlas);
+  const [ap, , ml] = getAtlasCenter(atlas);
+  return [ap, 0, ml];
 }

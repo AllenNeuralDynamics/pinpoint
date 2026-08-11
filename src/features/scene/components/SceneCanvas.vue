@@ -54,6 +54,7 @@ import {
   setProbeRotationFromGizmoDrag,
   syncProbes
 } from "../api/probe.api";
+import { syncProbeGhost } from "../api/probe-ghost.api";
 import {
   createCollisionState,
   pruneCollisions,
@@ -82,7 +83,6 @@ import {
 import { getSceneModel } from "../api/scene-model.api";
 import { setGizmoControls } from "../api/gizmo.api";
 import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
-import { setReferenceCoordinateNodePosition } from "../api/reference-coordinate.api";
 import {
   buildProbeSurfacePaths,
   disposeProbeSurfacePaths,
@@ -98,8 +98,10 @@ import {
   orbitCameraFromAxisGuideDoubleTap,
   selectFromSelectedInspectableState,
   setHemisphericLightIntensity,
-  setSceneBackgroundColor
+  setSceneBackgroundColor,
+  setSceneEntitiesHidden
 } from "../api/scene.api";
+import { syncCoordinateSystemGimbals } from "../api/coordinate-system-gimbal.api";
 import {
   attachSsaoPipeline,
   detachSsaoPipeline,
@@ -117,7 +119,6 @@ const runtime = useBabylonRuntimeService();
 useCameraPoseSync(
   runtime.camera,
   () => currentExperiment.atlas,
-  () => currentExperiment.referenceCoordinate,
   () => currentExperiment.experiment.cameraPose,
   () => {
     currentExperiment.isCameraMoving = true;
@@ -205,16 +206,24 @@ const probeGeometry = computed<ProbeGeometry>(() => ({
   rodLengthMillimeters: preferences.probeRodLengthMillimeters
 }));
 
+/** Selected coordinate system, or null when the selection is something else. */
+const selectedCoordinateSystem = computed(() =>
+  currentExperiment.selectedInspectable?.inspectableKind === "coordinateSystem"
+    ? currentExperiment.selectedInspectable
+    : null
+);
+
 /**
- * Whether the gizmo toolbar is shown: the camera and the world have no
- * gizmo, and a locked probe or scene object gets none either.
+ * Whether the gizmo toolbar is shown: the camera, the world, and a coordinate
+ * system have no gizmo, and a locked probe or scene object gets none either.
  */
 const isGizmoToolbarVisible = computed(() => {
   const selected = currentExperiment.selectedInspectable;
   if (
     !selected ||
     selected.inspectableKind === "camera" ||
-    selected.inspectableKind === "world"
+    selected.inspectableKind === "world" ||
+    selected.inspectableKind === "coordinateSystem"
   ) {
     return false;
   }
@@ -522,15 +531,6 @@ watch(runtime.scene, scene => {
   onWatcherCleanup(() => observer.remove());
 });
 
-watchEffect(() => {
-  const scene = runtime.scene.value;
-  if (!scene) return;
-  setReferenceCoordinateNodePosition(
-    scene,
-    currentExperiment.referenceCoordinate
-  );
-});
-
 // Sync probes from state, reattaching selection to any rebuilt entity.
 watchEffect(() => {
   const scene = runtime.scene.value;
@@ -585,6 +585,17 @@ watchEffect(() => {
       );
     }
   }
+
+  syncProbeGhost(
+    scene,
+    currentExperiment.probeGhost,
+    currentExperiment.probes,
+    rebuiltProbeIds
+  );
+
+  // A rebuilt probe node starts enabled, so isolation has to be re-applied here: a
+  // geometry-preference change rebuilds probes without touching probe state.
+  setSceneEntitiesHidden(scene, selectedCoordinateSystem.value !== null);
 });
 
 /**
@@ -643,6 +654,10 @@ async function syncSceneObjectsFromState() {
       );
     }
   }
+
+  // The node this builds is created after an await, outside the flush the isolation
+  // effect observed, so re-apply isolation here.
+  setSceneEntitiesHidden(scene, selectedCoordinateSystem.value !== null);
 }
 
 // Re-run the sync when the scene/gizmo manager become ready or the dragged
@@ -844,8 +859,7 @@ watch(runtime.scene, scene => {
       probe,
       kind === "axis"
         ? choice.axisTargetMillimeters
-        : choice.dorsoventralTargetMillimeters,
-      currentExperiment.referenceCoordinate
+        : choice.dorsoventralTargetMillimeters
     );
   });
   onWatcherCleanup(() => observer.remove());
@@ -1047,6 +1061,40 @@ watchEffect(() => {
     selectionOutlineLayer,
     currentExperiment.selectedInspectable,
     currentExperiment.bodyModelGizmoProbeId
+  );
+});
+
+/**
+ * Show only the atlas while a coordinate system's chain is visualized. Hiding is
+ * applied to each entity's own node, which no re-sync writes to.
+ */
+function syncSceneEntityIsolation() {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+
+  setSceneEntitiesHidden(scene, selectedCoordinateSystem.value !== null);
+}
+
+// The probes-sync effect and `syncSceneObjectsFromState` re-apply isolation on their own
+// rebuilds, so only the scene/selection change needs its own watcher here.
+watch([runtime.scene, selectedCoordinateSystem], syncSceneEntityIsolation, {
+  immediate: true
+});
+
+// Draw the selected coordinate system's chain. Registered after the selection
+// effect above, so its outline for the focused node is applied last.
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  const selectionOutlineLayer = runtime.selectionOutlineLayer.value;
+  if (!scene || !selectionOutlineLayer) return;
+
+  syncCoordinateSystemGimbals(
+    scene,
+    selectionOutlineLayer,
+    selectedCoordinateSystem.value,
+    currentExperiment.referenceCoordinate,
+    getAtlasLongestDimensionMillimeters(currentExperiment.atlas),
+    currentExperiment.focusedCoordinateSystemNodeIndex
   );
 });
 

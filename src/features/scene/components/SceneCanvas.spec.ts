@@ -67,6 +67,7 @@ import type { BabylonRuntimeService } from "@/services/babylon-runtime.service";
 import { BabylonRuntimeServiceKey } from "@/services/babylon-runtime.service";
 import {
   makeAtlas,
+  makeCoordinateSystem,
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
@@ -1075,6 +1076,16 @@ describe("SceneCanvas", () => {
     expect(wrapper.findAllComponents({ name: "QBtnToggle" })).toHaveLength(0);
   });
 
+  it("hides the gizmo toolbar while a coordinate system is selected", async () => {
+    const { wrapper } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    store.selectedInspectable = makeCoordinateSystem();
+    await flushPromises();
+
+    expect(wrapper.findAllComponents({ name: "QBtnToggle" })).toHaveLength(0);
+  });
+
   it("shows the gizmo toolbar while a probe is selected and hides it again on deselect", async () => {
     const { wrapper } = await mountCanvas();
     const store = useCurrentExperimentStore();
@@ -1252,6 +1263,77 @@ describe("SceneCanvas", () => {
     expect(modeToggle.props("modelValue")).toBe("position");
   });
 
+  it("keeps a rebuilt probe hidden while a coordinate system is selected", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    const preferences = usePreferencesStore();
+
+    const probeInterfaceProbe = makeProbeInterfaceProbe({
+      probe_planar_contour: [
+        [-11, 9989],
+        [-11, -11],
+        [24, -220],
+        [59, -11],
+        [59, 9989]
+      ]
+    });
+    internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+    const builtProbe = makeProbe({
+      probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe)
+    });
+    addProbe(store.experiment, builtProbe);
+    await flushPromises();
+    const probe = store.experiment.probes.find(p => p.id === builtProbe.id)!;
+
+    store.selectedInspectable = makeCoordinateSystem();
+    await flushPromises();
+
+    const scene = runtime.scene.value!;
+    expect(getProbeTransformNode(scene, probe.id)!.isEnabled()).toBe(false);
+
+    preferences.probeRodLengthMillimeters = 250;
+    await flushPromises();
+
+    expect(getProbeTransformNode(scene, probe.id)!.isEnabled()).toBe(false);
+  });
+
+  it("draws the ghost node while probeGhost is set and removes it when cleared", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    const probeInterfaceProbe = makeProbeInterfaceProbe({
+      probe_planar_contour: [
+        [-11, 9989],
+        [-11, -11],
+        [24, -220],
+        [59, -11],
+        [59, 9989]
+      ]
+    });
+    internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+    const builtProbe = makeProbe({
+      probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe)
+    });
+    addProbe(store.experiment, builtProbe);
+    await flushPromises();
+    const probe = store.experiment.probes.find(p => p.id === builtProbe.id)!;
+
+    store.probeGhost = {
+      probeId: probe.id,
+      tipPosition: [5, 3, 5],
+      rotation: [0.1, 0.2, 0.3]
+    };
+    await flushPromises();
+
+    const scene = runtime.scene.value!;
+    expect(scene.getTransformNodeByName("probeGhost_node")).toBeTruthy();
+
+    store.probeGhost = null;
+    await flushPromises();
+
+    expect(scene.getTransformNodeByName("probeGhost_node")).toBeNull();
+  });
+
   describe("move to surface", () => {
     /** Add a probe with a real contour, so `syncProbes` builds its shank meshes. */
     async function addTestProbe(
@@ -1286,7 +1368,6 @@ describe("SceneCanvas", () => {
         probeId: probe.id,
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
-        tipMillimeters: [0, 0, 0],
         axisTargetMillimeters: [1, 0, 0],
         dorsoventralTargetMillimeters: [0, 1, 0]
       };
@@ -1313,7 +1394,6 @@ describe("SceneCanvas", () => {
         probeId: probe.id,
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
-        tipMillimeters: [0, 0, 0],
         axisTargetMillimeters: [1, 0, 0],
         dorsoventralTargetMillimeters: [0, 1, 0]
       };
@@ -1336,27 +1416,17 @@ describe("SceneCanvas", () => {
       const { runtime } = await mountCanvas();
       const store = useCurrentExperimentStore();
       const probe = await addTestProbe(store);
-      const referenceCoordinate = store.referenceCoordinate;
+      // Away from the camera's Vector3.Zero() look-at target, so the tubes
+      // and probe mesh aren't clustered exactly where the camera points.
+      probe.tipPosition = [5.7, 0.44, 5.4];
+      await flushPromises();
 
       store.probeSurfaceChoice = {
         probeId: probe.id,
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
-        tipMillimeters: [
-          referenceCoordinate[0] + probe.tipPosition[0],
-          referenceCoordinate[1] + probe.tipPosition[1],
-          referenceCoordinate[2] + probe.tipPosition[2]
-        ],
-        axisTargetMillimeters: [
-          referenceCoordinate[0] + 1,
-          referenceCoordinate[1],
-          referenceCoordinate[2]
-        ],
-        dorsoventralTargetMillimeters: [
-          referenceCoordinate[0],
-          referenceCoordinate[1] + 2,
-          referenceCoordinate[2]
-        ]
+        axisTargetMillimeters: [6.7, 0.44, 5.4],
+        dorsoventralTargetMillimeters: [5.7, 2.44, 5.4]
       };
       await flushPromises();
 
@@ -1386,13 +1456,13 @@ describe("SceneCanvas", () => {
       // midpoint through the atlas root's world matrix, not the raw ASR
       // millimeters or `mesh.absolutePosition` (just the mesh's origin).
       const midMillimeters: [number, number, number] = [
-        (store.probeSurfaceChoice!.tipMillimeters[0] +
+        (store.probeSurfaceChoice!.tipPosition[0] +
           store.probeSurfaceChoice!.dorsoventralTargetMillimeters[0]) /
           2,
-        (store.probeSurfaceChoice!.tipMillimeters[1] +
+        (store.probeSurfaceChoice!.tipPosition[1] +
           store.probeSurfaceChoice!.dorsoventralTargetMillimeters[1]) /
           2,
-        (store.probeSurfaceChoice!.tipMillimeters[2] +
+        (store.probeSurfaceChoice!.tipPosition[2] +
           store.probeSurfaceChoice!.dorsoventralTargetMillimeters[2]) /
           2
       ];
@@ -1419,7 +1489,7 @@ describe("SceneCanvas", () => {
       );
       await flushPromises();
 
-      expect(probe.tipPosition).toEqual([0, 2, 0]);
+      expect(probe.tipPosition).toEqual([5.7, 2.44, 5.4]);
       expect(store.probeSurfaceChoice).toBeNull();
     });
   });

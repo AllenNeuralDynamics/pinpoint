@@ -27,7 +27,7 @@ export interface CameraPose {
    * Point the camera orbits.
    * - AP, DV, ML order.
    * - ASR orientation.
-   * - Relative to the experiment's reference coordinate.
+   * - Relative to the atlas origin.
    * - In mm.
    */
   target: [number, number, number];
