@@ -36,7 +36,7 @@ function makeFullExperiment(): Experiment {
   internProbeInterfaceProbe(experiment, spec);
   const coordinateSystem = makeCoordinateSystem();
   internCoordinateSystem(experiment, coordinateSystem);
-  addProbe(experiment, buildProbe(spec, [0, 0, 0], coordinateSystem));
+  addProbe(experiment, buildProbe(spec, [0, 0, 0]));
   experiment.visibleStructures = [{ id: 5, isTransparent: false }];
   return experiment;
 }
@@ -273,9 +273,10 @@ describe("zipExperiment / unzipExperiment", () => {
 
   it("returns null when a probe's coordinateSystemIdentifier is absent from coordinateSystems", () => {
     const experiment = makeFullExperiment();
-    delete experiment.coordinateSystems[
-      experiment.probes[0]!.coordinateSystemIdentifier
-    ];
+    experiment.probes[0] = {
+      ...experiment.probes[0]!,
+      coordinateSystemIdentifier: "missing identifier"
+    };
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
   });
 
@@ -297,12 +298,14 @@ describe("zipExperiment / unzipExperiment", () => {
     expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
   });
 
-  it("returns null when coordinateSystems is empty", () => {
+  it("round-trips a probe with a null coordinateSystemIdentifier when coordinateSystems is empty", () => {
     const experiment = {
       ...makeFullExperiment(),
       coordinateSystems: {} as Experiment["coordinateSystems"]
     };
-    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+    expect(unzipExperiment(zipRawExperiment(experiment))?.experiment).toEqual(
+      experiment
+    );
   });
 
   it("returns null when a coordinate system node's positionDisplayOrder is not a permutation", () => {
@@ -374,7 +377,7 @@ describe("zipExperiment / unzipExperiment", () => {
         Object.keys(experiment.probeInterfaceProbes)[0]!
       ]!;
     const duplicate = {
-      ...buildProbe(spec, [0, 0, 0], makeCoordinateSystem()),
+      ...buildProbe(spec, [0, 0, 0]),
       id: experiment.probes[0]!.id
     };
     experiment.probes.push(duplicate);
@@ -488,7 +491,7 @@ describe("zipExperiment / unzipExperiment", () => {
     internProbeInterfaceProbe(experiment, spec);
     const coordinateSystem = makeCoordinateSystem();
     internCoordinateSystem(experiment, coordinateSystem);
-    addProbe(experiment, buildProbe(spec, [0, 0, 0], coordinateSystem));
+    addProbe(experiment, buildProbe(spec, [0, 0, 0]));
 
     // buildProbeContour (src/features/scene/api/probe.api.ts) already
     // degrades to `null` for missing contour geometry, so this is left

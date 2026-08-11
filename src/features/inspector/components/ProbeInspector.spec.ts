@@ -252,12 +252,6 @@ describe("ProbeInspector", () => {
     probeLibrary.add(makeProbeInterfaceProbe());
     const store = useCurrentExperimentStore(pinia);
     store.experiment.probes = [probe];
-    const coordinateSystemLibrary = useCoordinateSystemLibraryStore(pinia);
-    setProbeCoordinateSystem(
-      store.experiment,
-      store.experiment.probes[0]!,
-      coordinateSystemLibrary.library[0]!
-    );
 
     const wrapper = mountWithQuasar(ProbeInspector, {
       pinia,
@@ -354,12 +348,9 @@ describe("ProbeInspector", () => {
   });
 
   it("rejects a non-numeric value in a numeric field", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
+    const { wrapper } = mountInspector();
 
-    const field = fieldByLabel(wrapper, ml);
+    const field = fieldByLabel(wrapper, axis.ml);
     await editAndBlur(field, "abc");
 
     expect(field.find("[role='alert']").text()).toBe(validation.mustBeNumber);
@@ -370,48 +361,39 @@ describe("ProbeInspector", () => {
     // entry was never committed.
     usePreferencesStore().decimalPrecision = 1;
     await wrapper.vm.$nextTick();
-    expect(fieldByLabel(wrapper, ml).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
       (0 - ALLEN_MOUSE_REFERENCE_COORDINATE[2]).toFixed(1)
     );
   });
 
   it("rounds the display to the preferences store's decimal precision", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
+    const { wrapper } = mountInspector();
 
-    await editAndBlur(fieldByLabel(wrapper, ml), "1.2345");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "1.2345");
     usePreferencesStore().decimalPrecision = 1;
     await wrapper.vm.$nextTick();
 
-    expect(fieldByLabel(wrapper, ml).props("modelValue")).toBe("1.2");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("1.2");
   });
 
   it("displays positions and rotations in the preferences store's units", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
-    const ml = node.position[0]!.name;
-    const pitchName = node.rotation[0]!.name;
+    const { wrapper } = mountInspector();
 
-    await editAndBlur(fieldByLabel(wrapper, ml), "1");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "1");
     const preferences = usePreferencesStore();
     preferences.positionUnit = "micrometer";
     preferences.rotationUnit = "radian";
     await wrapper.vm.$nextTick();
 
-    const mlField = fieldByLabel(wrapper, ml);
+    const mlField = fieldByLabel(wrapper, axis.ml);
     expect(mlField.props("modelValue")).toBe("1000.000");
     expect(mlField.props("suffix")).toBe("µm");
-    expect(fieldByLabel(wrapper, pitchName).props("suffix")).toBe("rad");
+    expect(fieldByLabel(wrapper, axis.roll).props("suffix")).toBe("rad");
   });
 
   it("commits zero when a numeric field is left blank", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
-    const field = fieldByLabel(wrapper, ml);
+    const { wrapper } = mountInspector();
+    const field = fieldByLabel(wrapper, axis.ml);
 
     await editAndBlur(field, "5");
     await editAndBlur(field, "");
@@ -421,11 +403,8 @@ describe("ProbeInspector", () => {
   });
 
   it("accepts zero in a numeric field", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
-    const field = fieldByLabel(wrapper, ml);
+    const { wrapper } = mountInspector();
+    const field = fieldByLabel(wrapper, axis.ml);
 
     await editAndBlur(field, "5");
     await editAndBlur(field, "0");
@@ -441,22 +420,18 @@ describe("ProbeInspector", () => {
     const a = makeProbe({ name: "A" });
     const b = makeProbe({ name: "B" });
     store.experiment.probes = [a, b];
-    const coordinateSystem = useCoordinateSystemLibraryStore(pinia).library[0]!;
-    setProbeCoordinateSystem(store.experiment, a, coordinateSystem);
-    setProbeCoordinateSystem(store.experiment, b, coordinateSystem);
     const wrapper = mountWithQuasar(ProbeInspector, {
       pinia,
       props: { probe: a },
       global: { provide: babylonRuntimeProvide }
     });
-    const ml = coordinateSystem.chain[0]!.position[0]!.name;
 
-    await editAndBlur(fieldByLabel(wrapper, ml), "1");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "1");
     // Cast: `setProps`'s generic doesn't narrow to the SFC's declared props.
     await wrapper.setProps({ probe: b } as Record<string, unknown>);
 
     expect(fieldByLabel(wrapper, t.name).props("modelValue")).toBe("B");
-    expect(fieldByLabel(wrapper, ml).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
       (0 - ALLEN_MOUSE_REFERENCE_COORDINATE[2]).toFixed(3)
     );
   });
@@ -476,11 +451,11 @@ describe("ProbeInspector", () => {
     it("renders one transform group per node of the selected coordinate system", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
 
       expect(
         wrapper.findAll(".text-body2.text-weight-bold").map(node => node.text())
-      ).toEqual([store.library[0]!.chain[0]!.name]);
+      ).toEqual([]);
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -496,7 +471,7 @@ describe("ProbeInspector", () => {
     it("writes the probe's coordinateSystemIdentifier and interns the picked definition", async () => {
       const { wrapper, store, probe, pinia } = mountInspector();
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -513,7 +488,7 @@ describe("ProbeInspector", () => {
     it("restores the previously selected coordinate system after unmounting and remounting", async () => {
       const { wrapper, probe, pinia } = mountInspector();
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -538,7 +513,7 @@ describe("ProbeInspector", () => {
     it("hides a node's rotation row when every rotation value is fixed", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
       const depthNodeName = surfaceAndDepth.chain[1]!.name;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
         ({ mode }) => mode !== "fixed"
@@ -568,7 +543,7 @@ describe("ProbeInspector", () => {
     it("omits a fixed value instead of showing it as a disabled input", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
       const depthNodeName = surfaceAndDepth.chain[1]!.name;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -596,7 +571,7 @@ describe("ProbeInspector", () => {
     it("shows a user-constrained value as an editable input", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
       const depthPosition = surfaceAndDepth.chain[1]!.position;
       depthPosition[0]!.mode = "user";
       depthPosition[0]!.name = "Insertion";
@@ -659,61 +634,58 @@ describe("ProbeInspector", () => {
     });
 
     it("shows the probe's current tip and rotation, local to the reference coordinate", () => {
-      const { wrapper, pinia } = mountInspector(
+      const { wrapper } = mountInspector(
         makeProbe({
           tipPosition: [7, 8, 9],
           rotation: [Math.PI / 2, Math.PI, Math.PI / 4]
         })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [apRef, dvRef, mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
-      expect(
-        fieldByLabel(wrapper, node.position[0]!.name).props("modelValue")
-      ).toBe((9 - mlRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[1]!.name).props("modelValue")
-      ).toBe((8 - dvRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[2]!.name).props("modelValue")
-      ).toBe((7 - apRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.rotation[0]!.name).props("modelValue")
-      ).toBe("45.000");
-      expect(
-        fieldByLabel(wrapper, node.rotation[1]!.name).props("modelValue")
-      ).toBe("180.000");
-      expect(
-        fieldByLabel(wrapper, node.rotation[2]!.name).props("modelValue")
-      ).toBe("90.000");
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (7 - apRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe(
+        (8 - dvRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
+        (9 - mlRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.roll).props("modelValue")).toBe(
+        "90.000"
+      );
+      expect(fieldByLabel(wrapper, axis.yaw).props("modelValue")).toBe(
+        "180.000"
+      );
+      expect(fieldByLabel(wrapper, axis.pitch).props("modelValue")).toBe(
+        "45.000"
+      );
     });
 
     it("mirrors an external probe pose change into the default node's fields, local to the reference coordinate", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+      const { wrapper, probe } = mountInspector(
         makeProbe({ tipPosition: [0, 0, 0] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [apRef, dvRef, mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
       probe.tipPosition = [1, 2, 3];
       await wrapper.vm.$nextTick();
 
-      expect(
-        fieldByLabel(wrapper, node.position[0]!.name).props("modelValue")
-      ).toBe((3 - mlRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[1]!.name).props("modelValue")
-      ).toBe((2 - dvRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[2]!.name).props("modelValue")
-      ).toBe((1 - apRef).toFixed(3));
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (1 - apRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe(
+        (2 - dvRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
+        (3 - mlRef).toFixed(3)
+      );
     });
 
     it("tracks a gizmo drag frame by frame, only committing history on release", async () => {
-      const { wrapper, store, probe, pinia } = mountInspector(
+      const { wrapper, store, probe } = mountInspector(
         makeProbe({ tipPosition: [0, 0, 0] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [apRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
       const preDragTip = [...probe.tipPosition];
       // Mounting seeds the probe into the store, which commits its own history
@@ -727,9 +699,9 @@ describe("ProbeInspector", () => {
       await wrapper.vm.$nextTick();
 
       expect(store.canUndo).toBe(false);
-      expect(
-        fieldByLabel(wrapper, node.position[2]!.name).props("modelValue")
-      ).toBe((2 - apRef).toFixed(3));
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (2 - apRef).toFixed(3)
+      );
 
       store.endProbeDrag();
       expect(store.canUndo).toBe(true);
@@ -738,28 +710,26 @@ describe("ProbeInspector", () => {
     });
 
     it("does not renormalize rotation on commit, matching the old six-input system", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+      const { wrapper, probe } = mountInspector(
         makeProbe({
           tipPosition: [7, 8, 9],
           rotation: [0, (3 * Math.PI) / 2, 0]
         })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [, , mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
-      await editAndBlur(fieldByLabel(wrapper, node.position[0]!.name), "20");
+      await editAndBlur(fieldByLabel(wrapper, axis.ml), "20");
 
       expect(probe.tipPosition).toEqual([7, 8, 20 + mlRef]);
       expect(probe.rotation).toEqual([0, (3 * Math.PI) / 2, 0]);
     });
 
     it("drags the ML field to move the probe live through the same commit path as typing", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+      const { wrapper, probe } = mountInspector(
         makeProbe({ tipPosition: [7, 8, 9] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       await wrapper.vm.$nextTick();
-      const field = fieldByLabel(wrapper, node.position[0]!.name);
+      const field = fieldByLabel(wrapper, axis.ml);
       const before = Number(field.props("modelValue"));
       const tipBeforeDrag = [...probe.tipPosition];
 
@@ -775,13 +745,12 @@ describe("ProbeInspector", () => {
     });
 
     it("commits the ML field to the probe's tip, leaving AP and DV alone", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+      const { wrapper, probe } = mountInspector(
         makeProbe({ tipPosition: [7, 8, 9] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [, , mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
-      await editAndBlur(fieldByLabel(wrapper, node.position[0]!.name), "20");
+      await editAndBlur(fieldByLabel(wrapper, axis.ml), "20");
 
       expect(probe.tipPosition).toEqual([7, 8, 20 + mlRef]);
     });
@@ -791,7 +760,7 @@ describe("ProbeInspector", () => {
         makeProbe({ tipPosition: [7, 8, 9], rotation: [0.1, 0.2, 0.3] })
       );
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -816,7 +785,7 @@ describe("ProbeInspector", () => {
       pinia: Pinia
     ): CoordinateSystemSolution {
       const chain = structuredClone(
-        toRaw(useCoordinateSystemLibraryStore(pinia).library[1]!)
+        toRaw(useCoordinateSystemLibraryStore(pinia).library[0]!)
       ).chain;
       for (const node of chain) {
         for (const value of [...node.position, ...node.rotation]) {
@@ -841,7 +810,7 @@ describe("ProbeInspector", () => {
       pinia: Pinia
     ): Promise<void> {
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       usePreferencesStore().rotationUnit = "radian";
       usePreferencesStore().decimalPrecision = 6;
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -851,6 +820,17 @@ describe("ProbeInspector", () => {
       await wrapper.vm.$nextTick();
       await flushPromises();
     }
+
+    it("runs no solve and shows no toast when Default is selected", async () => {
+      const { wrapper } = mountInspector();
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+      await flushPromises();
+
+      expect(
+        vi.mocked(solveCoordinateSystemChainInverse)
+      ).not.toHaveBeenCalled();
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
 
     it("warns on a one-shot solve when the chain cannot put the surface node at the entry point", async () => {
       vi.mocked(useProbeSurface).mockReturnValue({
@@ -959,7 +939,7 @@ describe("ProbeInspector", () => {
       const callCountBeforeCommit = findSurfaceEntry.mock.calls.length;
 
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
         ({ mode }) => mode !== "fixed"
       )!.name;
@@ -993,7 +973,7 @@ describe("ProbeInspector", () => {
 
       entry = null;
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
         ({ mode }) => mode !== "fixed"
       )!.name;
@@ -1266,11 +1246,6 @@ describe("ProbeInspector", () => {
       setProbeCoordinateSystem(
         store.experiment,
         a,
-        coordinateSystemLibrary.library[1]!
-      );
-      setProbeCoordinateSystem(
-        store.experiment,
-        b,
         coordinateSystemLibrary.library[0]!
       );
 
@@ -1335,7 +1310,7 @@ describe("ProbeInspector", () => {
       expect(b.rotation).toEqual(bRotationBeforeSwap);
       expect(
         wrapper.findAll(".text-body2.text-weight-bold").map(node => node.text())
-      ).toEqual([coordinateSystemLibrary.library[0]!.chain[0]!.name]);
+      ).toEqual([]);
     });
 
     it("re-solves when the probe returns to the exact pose this inspector's own correction wrote", async () => {
@@ -1423,7 +1398,7 @@ describe("ProbeInspector", () => {
     it("does not rewrite the probe pose or drop the ghost when a field is re-committed with a different-text same-value edit", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       await selectMultiNodeSystem(wrapper, pinia);
 
       vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
@@ -1780,11 +1755,15 @@ describe("ProbeInspector", () => {
     });
 
     it("disables the pose fields and the home/pin buttons while locked, leaving name and copy editable", () => {
-      const { wrapper, pinia } = mountInspector(makeProbe({ lock: true }));
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
-      const valueNames = [...node.position, ...node.rotation].map(
-        ({ name }) => name
-      );
+      const { wrapper } = mountInspector(makeProbe({ lock: true }));
+      const valueNames = [
+        axis.ap,
+        axis.dv,
+        axis.ml,
+        axis.roll,
+        axis.yaw,
+        axis.pitch
+      ];
 
       for (const label of valueNames) {
         expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);

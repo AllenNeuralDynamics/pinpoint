@@ -11,32 +11,22 @@ describe("useCoordinateSystemLibraryStore", () => {
   describe("remove", () => {
     it("drops the matching seeded entry", () => {
       const store = useCoordinateSystemLibraryStore();
-      const target = store.library[1]!;
+      const target = store.library[0]!;
 
       store.remove(target);
 
-      expect(store.library).toHaveLength(2);
+      expect(store.library).toHaveLength(1);
       expect(store.library).not.toContain(target);
     });
 
     it("matches by id, not object identity", () => {
       const store = useCoordinateSystemLibraryStore();
-      const target = store.library[1]!;
+      const target = store.library[0]!;
 
       store.remove({ ...target, name: "Renamed" });
 
-      expect(store.library).toHaveLength(2);
+      expect(store.library).toHaveLength(1);
       expect(store.library).not.toContain(target);
-    });
-
-    it("does not remove the pinned default", () => {
-      const store = useCoordinateSystemLibraryStore();
-      const originalLibrary = [...store.library];
-
-      store.remove(store.library[0]!);
-
-      expect(store.library).toHaveLength(3);
-      expect(store.library).toEqual(originalLibrary);
     });
 
     it("is a no-op for an unknown id", () => {
@@ -44,19 +34,19 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       store.remove(makeCoordinateSystem());
 
-      expect(store.library).toHaveLength(3);
+      expect(store.library).toHaveLength(2);
     });
   });
 
   describe("add", () => {
-    it("appends after the three seeds", () => {
+    it("appends after the two seeds", () => {
       const store = useCoordinateSystemLibraryStore();
       const coordinateSystem = makeCoordinateSystem();
 
       store.add(coordinateSystem);
 
-      expect(store.library).toHaveLength(4);
-      expect(store.library[3]!.id).toBe(coordinateSystem.id);
+      expect(store.library).toHaveLength(3);
+      expect(store.library[2]!.id).toBe(coordinateSystem.id);
     });
 
     it("is a no-op when an entry with the same id is already present", () => {
@@ -65,30 +55,28 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       store.add(makeCoordinateSystem({ id: existingId }));
 
-      expect(store.library).toHaveLength(3);
+      expect(store.library).toHaveLength(2);
     });
   });
 
   describe("reorder", () => {
-    it("moves a system to a later index, leaving the default first", () => {
+    it("moves a system to a later index", () => {
       const store = useCoordinateSystemLibraryStore();
 
-      store.reorder(1, 2);
+      store.reorder(0, 1);
 
       expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
         "NewScale MIS",
         "Surface Coordinate & Depth"
       ]);
     });
 
-    it("moves a system to an earlier index, leaving the default first", () => {
+    it("moves a system to an earlier index", () => {
       const store = useCoordinateSystemLibraryStore();
 
-      store.reorder(2, 1);
+      store.reorder(1, 0);
 
       expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
         "NewScale MIS",
         "Surface Coordinate & Depth"
       ]);
@@ -100,7 +88,6 @@ describe("useCoordinateSystemLibraryStore", () => {
       store.reorder(1, 1);
 
       expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
         "Surface Coordinate & Depth",
         "NewScale MIS"
       ]);
@@ -112,43 +99,28 @@ describe("useCoordinateSystemLibraryStore", () => {
       store.reorder(1, 5);
 
       expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
         "Surface Coordinate & Depth",
         "NewScale MIS"
       ]);
     });
 
-    it("cannot move the default out of index 0", () => {
+    it("moves the entry at index 0, since it is no longer pinned", () => {
       const store = useCoordinateSystemLibraryStore();
 
-      store.reorder(0, 2);
+      store.reorder(0, 1);
 
       expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
-        "Surface Coordinate & Depth",
-        "NewScale MIS"
-      ]);
-    });
-
-    it("cannot displace the default at index 0", () => {
-      const store = useCoordinateSystemLibraryStore();
-
-      store.reorder(2, 0);
-
-      expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
-        "Surface Coordinate & Depth",
-        "NewScale MIS"
+        "NewScale MIS",
+        "Surface Coordinate & Depth"
       ]);
     });
   });
 
   describe("seeded library", () => {
-    it("recreates the three seeds by name, in order", () => {
+    it("recreates the two seeds by name, in order", () => {
       const store = useCoordinateSystemLibraryStore();
 
       expect(store.library.map(({ name }) => name)).toEqual([
-        "Default",
         "Surface Coordinate & Depth",
         "NewScale MIS"
       ]);
@@ -156,7 +128,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
     it("leaves the X/Y/Z position values on the pre-depth NewScale MIS node free", () => {
       const store = useCoordinateSystemLibraryStore();
-      const position = store.library[2]!.chain[2]!.position;
+      const position = store.library[1]!.chain[2]!.position;
 
       expect(position.map(({ name }) => name)).toEqual(["X", "Y", "Z"]);
       for (const value of position) {
@@ -177,7 +149,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
     it("marks only the first Surface Coordinate & Depth node onSurface", () => {
       const store = useCoordinateSystemLibraryStore();
-      const chain = store.library[1]!.chain;
+      const chain = store.library[0]!.chain;
 
       expect(chain[0]!.onSurface).toBe(true);
       expect(chain[1]!.onSurface).toBe(false);
@@ -185,7 +157,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
     it("marks only the second-to-last NewScale MIS node onSurface", () => {
       const store = useCoordinateSystemLibraryStore();
-      const chain = store.library[2]!.chain;
+      const chain = store.library[1]!.chain;
 
       expect(chain.map(node => node.onSurface)).toEqual([
         false,
@@ -195,16 +167,10 @@ describe("useCoordinateSystemLibraryStore", () => {
       ]);
     });
 
-    it("defaults the Default coordinate system's node to off-surface", () => {
-      const store = useCoordinateSystemLibraryStore();
-
-      expect(store.library[0]!.chain[0]!.onSurface).toBe(false);
-    });
-
     it("seeds the NewScale MIS chain in Arc -> Module -> Stage -> Depth order", () => {
       const store = useCoordinateSystemLibraryStore();
 
-      expect(store.library[2]!.chain.map(({ name }) => name)).toEqual([
+      expect(store.library[1]!.chain.map(({ name }) => name)).toEqual([
         "Arc",
         "Module",
         "Stage",
@@ -224,8 +190,8 @@ describe("useCoordinateSystemLibraryStore", () => {
       const store = useCoordinateSystemLibraryStore();
 
       for (const position of [
-        store.library[1]!.chain[1]!.position,
-        store.library[2]!.chain[3]!.position
+        store.library[0]!.chain[1]!.position,
+        store.library[1]!.chain[3]!.position
       ]) {
         expect(position.map(({ name }) => name)).toEqual(["", "", "Depth"]);
         expect(position[2]!.mode).toBe("free");

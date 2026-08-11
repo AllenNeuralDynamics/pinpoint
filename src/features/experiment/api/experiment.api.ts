@@ -326,8 +326,10 @@ export function updateInternedCoordinateSystem(
  */
 export function removeInternCoordinateSystem(
   experiment: Experiment,
-  coordinateSystemIdentifier: string
+  coordinateSystemIdentifier: string | null
 ) {
+  if (!coordinateSystemIdentifier) return;
+
   const stillReferenced = experiment.probes.some(
     experimentProbe =>
       experimentProbe.coordinateSystemIdentifier === coordinateSystemIdentifier
@@ -348,15 +350,19 @@ export function removeInternCoordinateSystem(
 export function setProbeCoordinateSystem(
   experiment: Experiment,
   probe: Probe,
-  coordinateSystem: CoordinateSystem
+  coordinateSystem: CoordinateSystem | null
 ) {
   const oldIdentifier = probe.coordinateSystemIdentifier;
-  const newIdentifier = getCoordinateSystemIdentifier(coordinateSystem);
 
-  experiment.coordinateSystems[newIdentifier] = structuredClone(
-    toRaw(coordinateSystem)
-  );
-  probe.coordinateSystemIdentifier = newIdentifier;
+  if (coordinateSystem) {
+    const newIdentifier = getCoordinateSystemIdentifier(coordinateSystem);
+    experiment.coordinateSystems[newIdentifier] = structuredClone(
+      toRaw(coordinateSystem)
+    );
+    probe.coordinateSystemIdentifier = newIdentifier;
+  } else {
+    probe.coordinateSystemIdentifier = null;
+  }
   removeInternCoordinateSystem(experiment, oldIdentifier);
 }
 

@@ -37,6 +37,26 @@ async function mountDialog(): Promise<DialogWrapper> {
   );
 }
 
+/**
+ * Stub the dialog's `$q.dialog`, resolving `onOk` immediately (as if the user
+ * confirmed) when `confirm` is true, or never (as if the dialog is still
+ * open) when it is false.
+ * @param wrapper Mounted dialog wrapper to stub `$q` on.
+ * @param confirm Whether `onOk`'s callback fires immediately.
+ */
+function stubConfirmDialog(wrapper: DialogWrapper, confirm: boolean) {
+  const chain = { onOk: vi.fn(), onCancel: vi.fn(), onDismiss: vi.fn() };
+  chain.onOk.mockImplementation((callback: () => void) => {
+    if (confirm) callback();
+    return chain;
+  });
+  chain.onCancel.mockReturnValue(chain);
+  chain.onDismiss.mockReturnValue(chain);
+  const dialog = vi.fn().mockReturnValue(chain);
+  wrapper.vm.$q.dialog = dialog;
+  return dialog;
+}
+
 describe("CoordinateSystemLibraryDialog", () => {
   afterEach(() => {
     wrappers.unmountAll();
@@ -58,16 +78,15 @@ describe("CoordinateSystemLibraryDialog", () => {
   it("does not remove the coordinate system immediately on delete", async () => {
     const wrapper = await mountDialog();
     const store = useCoordinateSystemLibraryStore();
-    const notify = vi.fn();
-    wrapper.vm.$q.notify = notify;
+    const dialog = stubConfirmDialog(wrapper, false);
 
-    const targetItem = wrapper.findAllComponents({ name: "QItem" })[1]!;
+    const targetItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
     await targetItem.findComponent({ name: "QBtn" }).trigger("click");
 
-    expect(store.library).toHaveLength(3);
-    expect(notify).toHaveBeenCalledWith(
+    expect(store.library).toHaveLength(2);
+    expect(dialog).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining(store.library[1]!.name)
+        message: expect.stringContaining(store.library[0]!.name)
       })
     );
   });
@@ -75,32 +94,25 @@ describe("CoordinateSystemLibraryDialog", () => {
   it("removes the coordinate system when the delete confirmation is accepted", async () => {
     const wrapper = await mountDialog();
     const store = useCoordinateSystemLibraryStore();
-    const notify = vi.fn();
-    wrapper.vm.$q.notify = notify;
-    const target = store.library[1]!.name;
+    stubConfirmDialog(wrapper, true);
+    const target = store.library[0]!.name;
 
-    const targetItem = wrapper.findAllComponents({ name: "QItem" })[1]!;
+    const targetItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
     await targetItem.findComponent({ name: "QBtn" }).trigger("click");
-    const options = notify.mock.calls[0]![0];
-    options.actions[1].handler();
 
-    expect(store.library).toHaveLength(2);
+    expect(store.library).toHaveLength(1);
     expect(store.library.map(({ name }) => name)).not.toContain(target);
-    expect(store.library.map(({ name }) => name)).toContain("Default");
   });
 
   it("clears the selection when the currently selected coordinate system is deleted", async () => {
     const wrapper = await mountDialog();
     const store = useCoordinateSystemLibraryStore();
     const currentExperimentStore = useCurrentExperimentStore();
-    const notify = vi.fn();
-    wrapper.vm.$q.notify = notify;
-    currentExperimentStore.selectedInspectable = store.library[1]!;
+    stubConfirmDialog(wrapper, true);
+    currentExperimentStore.selectedInspectable = store.library[0]!;
 
-    const targetItem = wrapper.findAllComponents({ name: "QItem" })[1]!;
+    const targetItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
     await targetItem.findComponent({ name: "QBtn" }).trigger("click");
-    const options = notify.mock.calls[0]![0];
-    options.actions[1].handler();
 
     expect(currentExperimentStore.selectedInspectable).toBeNull();
   });
@@ -110,44 +122,22 @@ describe("CoordinateSystemLibraryDialog", () => {
     const store = useCoordinateSystemLibraryStore();
     const currentExperimentStore = useCurrentExperimentStore();
 
-    const targetItem = wrapper.findAllComponents({ name: "QItem" })[1]!;
+    const targetItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
     await targetItem.trigger("click");
 
-    expect(currentExperimentStore.selectedInspectable).toBe(store.library[1]);
+    expect(currentExperimentStore.selectedInspectable).toBe(store.library[0]);
     expect(wrapper.emitted("ok")).toBeTruthy();
   });
 
-  it("does nothing when the pinned default row is clicked", async () => {
-    const wrapper = await mountDialog();
-    const currentExperimentStore = useCurrentExperimentStore();
-
-    const firstItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
-    await firstItem.trigger("click");
-
-    expect(currentExperimentStore.selectedInspectable).toBeNull();
-    expect(wrapper.emitted("ok")).toBeFalsy();
-  });
-
-  it("offers no delete button for the default coordinate system", async () => {
+  it("gives every row a drag handle and a delete button", async () => {
     const wrapper = await mountDialog();
 
     const items = wrapper.findAllComponents({ name: "QItem" });
 
-    expect(items[0]!.findAllComponents({ name: "QBtn" })).toHaveLength(0);
-    expect(items[1]!.findAllComponents({ name: "QBtn" })).toHaveLength(1);
-  });
-
-  it("offers no drag handle for the default coordinate system", async () => {
-    const wrapper = await mountDialog();
-
-    const items = wrapper.findAllComponents({ name: "QItem" });
-
-    expect(items[0]!.find(".coordinate-system-row__handle").exists()).toBe(
-      false
-    );
-    expect(items[1]!.find(".coordinate-system-row__handle").exists()).toBe(
-      true
-    );
+    for (const item of items) {
+      expect(item.find(".coordinate-system-row__handle").exists()).toBe(true);
+      expect(item.findAllComponents({ name: "QBtn" })).toHaveLength(1);
+    }
   });
 
   it("moves the dragged row to the dropped-on row's index", async () => {
@@ -155,28 +145,14 @@ describe("CoordinateSystemLibraryDialog", () => {
     const store = useCoordinateSystemLibraryStore();
 
     const items = wrapper.findAllComponents({ name: "QItem" });
-    await items[1]!.find(".coordinate-system-row__handle").trigger("dragstart");
-    await items[2]!.trigger("dragover");
-    await items[2]!.trigger("drop");
+    await items[0]!.find(".coordinate-system-row__handle").trigger("dragstart");
+    await items[1]!.trigger("dragover");
+    await items[1]!.trigger("drop");
 
     expect(store.library.map(({ name }) => name)).toEqual([
-      "Default",
       "NewScale MIS",
       "Surface Coordinate & Depth"
     ]);
-  });
-
-  it("does not let a drag displace the default coordinate system", async () => {
-    const wrapper = await mountDialog();
-    const store = useCoordinateSystemLibraryStore();
-    const before = store.library.map(({ name }) => name);
-
-    const items = wrapper.findAllComponents({ name: "QItem" });
-    await items[2]!.find(".coordinate-system-row__handle").trigger("dragstart");
-    await items[0]!.trigger("dragover");
-    await items[0]!.trigger("drop");
-
-    expect(store.library.map(({ name }) => name)).toEqual(before);
   });
 
   it("creates a coordinate system with one adjustable transform and opens it", async () => {
@@ -193,11 +169,11 @@ describe("CoordinateSystemLibraryDialog", () => {
       );
     await addButton!.trigger("click");
 
-    expect(store.library).toHaveLength(4);
-    expect(store.library[3]!.name).toBe("Coordinate System 4");
-    expect(store.library[3]!.chain).toHaveLength(1);
-    expect(store.library[3]!.chain[0]!.position[0]!.mode).toBe("free");
-    expect(currentExperimentStore.selectedInspectable).toBe(store.library[3]);
+    expect(store.library).toHaveLength(3);
+    expect(store.library[2]!.name).toBe("Coordinate System 3");
+    expect(store.library[2]!.chain).toHaveLength(1);
+    expect(store.library[2]!.chain[0]!.position[0]!.mode).toBe("free");
+    expect(currentExperimentStore.selectedInspectable).toBe(store.library[2]);
     expect(wrapper.emitted("ok")).toBeTruthy();
   });
 });

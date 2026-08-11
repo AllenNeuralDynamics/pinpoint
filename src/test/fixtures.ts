@@ -8,8 +8,7 @@ import type { CoordinateSystem } from "@/features/coordinate-system";
 import {
   buildCoordinateSystem,
   buildCoordinateSystemNode,
-  buildCoordinateSystemValue,
-  getCoordinateSystemIdentifier
+  buildCoordinateSystemValue
 } from "@/features/coordinate-system";
 import type { ProbeGeometry, SceneModel, SceneObject } from "@/features/scene";
 import type { CameraPose } from "@/features/experiment";
@@ -127,9 +126,7 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(
       makeProbeInterfaceProbe()
     ),
-    coordinateSystemIdentifier: getCoordinateSystemIdentifier(
-      makeCoordinateSystem()
-    ),
+    coordinateSystemIdentifier: null,
     tipPosition: [0, 0, 0],
     rotation: [0, 0, 0],
     sliceExtentMillimeters: 2,

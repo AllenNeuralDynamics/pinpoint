@@ -234,7 +234,8 @@ function isExperiment(value: unknown): value is Experiment {
   return probes.every(
     probe =>
       Object.hasOwn(probeInterfaceProbes, probe.probeInterfaceIdentifier) &&
-      Object.hasOwn(coordinateSystems, probe.coordinateSystemIdentifier)
+      (probe.coordinateSystemIdentifier === null ||
+        Object.hasOwn(coordinateSystems, probe.coordinateSystemIdentifier))
   );
 }
 
