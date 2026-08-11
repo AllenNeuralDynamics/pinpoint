@@ -154,22 +154,13 @@ describe("useCoordinateSystemLibraryStore", () => {
       ]);
     });
 
-    it("bounds the X/Y/Z position values on the pre-depth NewScale MIS node to -7.5 to 7.5", () => {
+    it("leaves the X/Y/Z position values on the pre-depth NewScale MIS node free", () => {
       const store = useCoordinateSystemLibraryStore();
       const position = store.library[2]!.chain[2]!.position;
 
       expect(position.map(({ name }) => name)).toEqual(["X", "Y", "Z"]);
       for (const value of position) {
-        expect(value.fixed).toBe(false);
-        expect(value.bounds).toEqual([-7.5, 7.5]);
-      }
-    });
-
-    it("leaves the Surface Coordinate & Depth rotations unbounded", () => {
-      const store = useCoordinateSystemLibraryStore();
-
-      for (const value of store.library[1]!.chain[0]!.rotation) {
-        expect(value.bounds).toBeNull();
+        expect(value.mode).toBe("free");
       }
     });
 
@@ -237,7 +228,7 @@ describe("useCoordinateSystemLibraryStore", () => {
         store.library[2]!.chain[3]!.position
       ]) {
         expect(position.map(({ name }) => name)).toEqual(["", "", "Depth"]);
-        expect(position[2]!.fixed).toBe(false);
+        expect(position[2]!.mode).toBe("free");
       }
     });
   });

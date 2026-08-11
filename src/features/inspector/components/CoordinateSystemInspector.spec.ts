@@ -6,7 +6,6 @@ import CoordinateSystemValueInspector from "./CoordinateSystemValueInspector.vue
 import CoordinateSystemValueList from "./CoordinateSystemValueList.vue";
 import { mountWithQuasar } from "@/test/mount-helper";
 import { makeCoordinateSystem } from "@/test/fixtures";
-import { usePreferencesStore } from "@/stores/preferences.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getTerminologyRows } from "@/features/atlas";
 import enUS from "@/i18n/en-US";
@@ -38,13 +37,6 @@ function findToggle(wrapper: VueWrapper, label: string) {
   return wrapper
     .findAllComponents({ name: "QToggle" })
     .find(toggle => toggle.props("label") === label)!;
-}
-
-/** The rendered validation message of a field, or "" when it is valid. */
-function errorText(field: VueWrapper) {
-  return field.find('[role="alert"]').exists()
-    ? field.find('[role="alert"]').text()
-    : "";
 }
 
 /**
@@ -220,75 +212,34 @@ describe("CoordinateSystemInspector", () => {
     expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([1, 0, 2]);
   });
 
-  it("toggling fixed on a bounded value clears its bounds and hides the bound fields", async () => {
-    const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
-    const { wrapper } = mountInspector(coordinateSystem);
-
-    await findToggle(wrapper, t.fixed).setValue(true);
-
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toBeNull();
-    expect(fieldByLabel(wrapper, t.minimum)).toBeUndefined();
-  });
-
-  it("toggling bounded seeds a range bracketing the value and writes the maximum field", async () => {
+  it("clicking the User constraint button marks the value user-constrained", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
 
-    await findToggle(wrapper, t.bounded).setValue(true);
+    const firstValue = wrapper.findAllComponents(
+      CoordinateSystemValueInspector
+    )[0]!;
+    await firstValue
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text() === t.modeUser)!
+      .trigger("click");
 
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
-
-    await wrapper.vm.$nextTick();
-    await editAndBlur(fieldByLabel(wrapper, t.maximum), "5");
-
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 5]);
+    expect(coordinateSystem.chain[0]!.position[0]!.mode).toBe("user");
   });
 
-  it("committing a Minimum above the current Maximum shows the ordering error and does not write it", async () => {
+  it("clicking the Free constraint button returns a fixed value to free", async () => {
     const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
+    coordinateSystem.chain[0]!.position[0]!.mode = "fixed";
     const { wrapper } = mountInspector(coordinateSystem);
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
 
-    await editAndBlur(fieldByLabel(wrapper, t.minimum), "5");
+    const firstValue = wrapper.findAllComponents(
+      CoordinateSystemValueInspector
+    )[0]!;
+    await firstValue
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text() === t.modeFree)!
+      .trigger("click");
 
-    expect(errorText(fieldByLabel(wrapper, t.minimum))).toBe(
-      enUS.validation.mustBeLessThanMaximum
-    );
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
-  });
-
-  it("committing a Maximum below the current Minimum shows the ordering error and does not write it", async () => {
-    const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
-    const { wrapper } = mountInspector(coordinateSystem);
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
-
-    await editAndBlur(fieldByLabel(wrapper, t.maximum), "-5");
-
-    expect(errorText(fieldByLabel(wrapper, t.maximum))).toBe(
-      enUS.validation.mustBeGreaterThanMinimum
-    );
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
-  });
-
-  it("clearing a bound field shows the required-number error", async () => {
-    const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
-    const { wrapper } = mountInspector(coordinateSystem);
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
-
-    await editAndBlur(fieldByLabel(wrapper, t.maximum), "");
-
-    expect(errorText(fieldByLabel(wrapper, t.maximum))).toBe(
-      enUS.validation.mustBeNumber
-    );
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
+    expect(coordinateSystem.chain[0]!.position[0]!.mode).toBe("free");
   });
 
   it("drag-reorders position values, keeping axis mapping stable", async () => {

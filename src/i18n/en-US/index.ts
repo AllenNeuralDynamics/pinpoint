@@ -29,9 +29,7 @@ export default {
   validation: {
     nameRequired: "Name is required.",
     mustBeNumber: "Must be a number.",
-    mustBePositiveNumber: "Must be greater than zero.",
-    mustBeLessThanMaximum: "Must be less than the maximum.",
-    mustBeGreaterThanMinimum: "Must be greater than the minimum."
+    mustBePositiveNumber: "Must be greater than zero."
   },
   axis: {
     ap: "AP",
@@ -216,7 +214,6 @@ export default {
     offSurface: "Not on the brain surface.",
     position: "Position",
     rotation: "Rotation",
-    outOfBounds: "Must be between {minimum} and {maximum} {unit}.",
     home: "Reset tip position",
     surface: "Move to surface",
     cancelSurface: "Cancel move to surface",
@@ -307,10 +304,10 @@ export default {
     value: "Value",
     axis: "Axis for {name}",
     mapToAxis: "Map to {axis}",
-    fixed: "Fixed",
-    bounded: "Bounded",
-    minimum: "Minimum",
-    maximum: "Maximum",
+    mode: "Constraint for {name}",
+    modeFree: "Free",
+    modeFixed: "Fixed",
+    modeUser: "User",
     dragToReorder: "Drag to reorder",
     deleteTransform: "Delete Transform"
   },

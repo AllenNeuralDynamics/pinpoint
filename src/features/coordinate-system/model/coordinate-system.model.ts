@@ -1,11 +1,17 @@
+/** How the inverse-kinematics solver treats a coordinate system value. */
+export type CoordinateSystemValueMode =
+  /** A solver degree of freedom. */
+  | "free"
+  /** A rigid constant, not editable. */
+  | "fixed"
+  /** A rigid constant the user edits in the inspector. */
+  | "user";
+
 /** One editable degree of freedom within a coordinate system node. */
 export interface CoordinateSystemValue {
   name: string;
   value: number;
-  fixed: boolean;
-
-  /** Ignored if `fixed` is true. Null means unbounded. */
-  bounds: [number, number] | null;
+  mode: CoordinateSystemValueMode;
 }
 /** One transform, position and rotation, in a coordinate system chain. */
 export interface CoordinateSystemNode {

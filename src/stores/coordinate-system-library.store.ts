@@ -77,7 +77,7 @@ export const useCoordinateSystemLibraryStore = defineStore(
               buildFixedCoordinateSystemValue()
             ],
             [
-              buildCoordinateSystemValue("Arc Angle", [0, Math.PI]),
+              buildCoordinateSystemValue("Arc Angle"),
               buildFixedCoordinateSystemValue(),
               buildFixedCoordinateSystemValue()
             ]
@@ -91,19 +91,16 @@ export const useCoordinateSystemLibraryStore = defineStore(
             ],
             [
               buildFixedCoordinateSystemValue(),
-              buildCoordinateSystemValue("Module Angle", [
-                -Math.PI / 4,
-                Math.PI / 4
-              ]),
+              buildCoordinateSystemValue("Module Angle"),
               buildFixedCoordinateSystemValue()
             ]
           ),
           buildCoordinateSystemNode(
             "Stage",
             [
-              buildCoordinateSystemValue("X", [-7.5, 7.5]),
-              buildCoordinateSystemValue("Y", [-7.5, 7.5]),
-              buildCoordinateSystemValue("Z", [-7.5, 7.5])
+              buildCoordinateSystemValue("X"),
+              buildCoordinateSystemValue("Y"),
+              buildCoordinateSystemValue("Z")
             ],
             [
               buildFixedCoordinateSystemValue(),

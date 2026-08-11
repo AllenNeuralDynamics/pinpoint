@@ -542,7 +542,7 @@ describe("ProbeInspector", () => {
       const surfaceAndDepth = store.library[1]!;
       const depthNodeName = surfaceAndDepth.chain[1]!.name;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -594,29 +594,23 @@ describe("ProbeInspector", () => {
       expect(fieldByLabel(wrapper, "Depth").props("disable")).toBeFalsy();
     });
 
-    it("writes an out-of-bounds value and shows the bounds error", async () => {
+    it("shows a user-constrained value as an editable input", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
       const surfaceAndDepth = store.library[1]!;
-      const pitchName = surfaceAndDepth.chain[0]!.rotation[0]!.name;
-
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
+      const depthPosition = surfaceAndDepth.chain[1]!.position;
+      depthPosition[0]!.mode = "user";
+      depthPosition[0]!.name = "Insertion";
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
         surfaceAndDepth.id
       );
       await wrapper.vm.$nextTick();
-      const field = fieldByLabel(wrapper, pitchName);
-      await editAndBlur(field, "200");
 
-      expect(field.props("modelValue")).toBe("200.000");
-      expect(field.find("[role='alert']").text()).toBe(
-        t.outOfBounds
-          .replace("{minimum}", "0.000")
-          .replace("{maximum}", "90.000")
-          .replace("{unit}", "°")
-      );
+      const field = fieldByLabel(wrapper, "Insertion");
+      expect(field.exists()).toBe(true);
+      expect(field.props("disable")).toBeFalsy();
     });
 
     it("omits a node whose every value is fixed", async () => {
@@ -806,7 +800,7 @@ describe("ProbeInspector", () => {
       ).chain;
       for (const node of chain) {
         for (const value of [...node.position, ...node.rotation]) {
-          if (value.fixed) continue;
+          if (value.mode !== "free") continue;
           value.value = Number(
             fieldByLabel(wrapper, value.name).props("modelValue")
           );
@@ -951,7 +945,7 @@ describe("ProbeInspector", () => {
       const surfaceAndDepth =
         useCoordinateSystemLibraryStore(pinia).library[1]!;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
       await editAndBlur(fieldByLabel(wrapper, depthValueName), "5");
       await flushPromises();
@@ -988,7 +982,7 @@ describe("ProbeInspector", () => {
       const surfaceAndDepth =
         useCoordinateSystemLibraryStore(pinia).library[1]!;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
       await editAndBlur(fieldByLabel(wrapper, depthValueName), "5");
       await flushPromises();
@@ -1021,25 +1015,29 @@ describe("ProbeInspector", () => {
       expect(useCurrentExperimentStore(pinia).probeGhost).toBeNull();
     });
 
-    it("draws a ghost at the closest reachable pose while an unreachable drag is out of bounds, and clears it once the drag is back in reach", async () => {
+    it("draws a ghost at the closest reachable pose while an unreachable drag cannot be solved, and clears it once the drag is back in reach", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
       store.draggedProbeId = probe.id;
       probe.tipPosition = [1, 2, 3];
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
 
       // A single warm-seed miss must not flash the ghost.
       expect(store.probeGhost).toBeNull();
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.01];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.02];
       await flushPromises();
 
@@ -1055,18 +1053,22 @@ describe("ProbeInspector", () => {
 
     it("snaps the probe onto the ghost's pose and clears the ghost when an unreachable drag is released", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
       store.draggedProbeId = probe.id;
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.01];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.02];
       await flushPromises();
       expect(store.probeGhost).not.toBeNull();
@@ -1186,13 +1188,11 @@ describe("ProbeInspector", () => {
 
     it("draws the ghost on the first unreachable external change, which has no next solve to wait for", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
 
@@ -1326,21 +1326,28 @@ describe("ProbeInspector", () => {
 
     it("re-solves when the probe returns to the exact pose this inspector's own correction wrote", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
       store.draggedProbeId = probe.id;
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.01];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.02];
       await flushPromises();
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       store.draggedProbeId = null;
       await flushPromises();
       const correctedRotation: [number, number, number] = [...probe.rotation];
@@ -1359,7 +1366,7 @@ describe("ProbeInspector", () => {
       ).toBeGreaterThan(solveCallsBeforeReturn);
     });
 
-    it("routes a bounded single-node chain through the solver instead of the direct fast path", async () => {
+    it("routes a single-node chain with a user-constrained value through the solver instead of the direct fast path", async () => {
       const { store, probe } = mountInspector();
       const bounded = makeCoordinateSystem({
         id: "bounded-tip",
@@ -1368,7 +1375,7 @@ describe("ProbeInspector", () => {
           buildCoordinateSystemNode(
             "Tip",
             [
-              buildCoordinateSystemValue("ML", [-1, 1]),
+              buildCoordinateSystemValue("ML", 0, "user"),
               buildCoordinateSystemValue("DV"),
               buildCoordinateSystemValue("AP")
             ],
@@ -1403,18 +1410,18 @@ describe("ProbeInspector", () => {
       const { wrapper, store, pinia, probe } = mountInspector();
       const surfaceAndDepth =
         useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
       expect(store.probeGhost?.probeId).toBe(probe.id);
       const rotationBeforeRecommit = [...probe.rotation];
 
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
       const field = fieldByLabel(wrapper, depthValueName);
       const currentText = field.props("modelValue") as string;

@@ -46,14 +46,14 @@ function makeNode(
   return buildCoordinateSystemNode(
     name,
     [
-      buildCoordinateSystemValue("X", null, position[0]),
-      buildCoordinateSystemValue("Y", null, position[1]),
-      buildCoordinateSystemValue("Z", null, position[2])
+      buildCoordinateSystemValue("X", position[0]),
+      buildCoordinateSystemValue("Y", position[1]),
+      buildCoordinateSystemValue("Z", position[2])
     ],
     [
-      buildCoordinateSystemValue("Pitch", null, rotation[0]),
-      buildCoordinateSystemValue("Yaw", null, rotation[1]),
-      buildCoordinateSystemValue("Roll", null, rotation[2])
+      buildCoordinateSystemValue("Pitch", rotation[0]),
+      buildCoordinateSystemValue("Yaw", rotation[1]),
+      buildCoordinateSystemValue("Roll", rotation[2])
     ]
   );
 }

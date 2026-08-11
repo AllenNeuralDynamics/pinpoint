@@ -17,12 +17,12 @@ import {
 import type { CoordinateSystemTarget } from "./inverse-kinematics.api";
 import type { CoordinateSystemNode } from "../model/coordinate-system.model";
 
-/** Reset every non-fixed value in a chain to zero, mutating it in place. */
+/** Reset every free value in a chain to zero, mutating it in place. */
 function resetFreeValues(chain: CoordinateSystemNode[]): void {
   for (const node of chain) {
     for (const values of [node.position, node.rotation]) {
       for (const value of values) {
-        if (!value.fixed) {
+        if (value.mode === "free") {
           value.value = 0;
         }
       }
@@ -30,19 +30,19 @@ function resetFreeValues(chain: CoordinateSystemNode[]): void {
   }
 }
 
-/** Build the six-free-value node shared by the round-trip fixtures, with Pitch bounded. */
+/** Build the six-free-value node shared by the round-trip fixtures. */
 function buildFreeNode(onSurface = false): CoordinateSystemNode {
   return buildCoordinateSystemNode(
     "Free",
     [
-      buildCoordinateSystemValue("X", null, 10),
-      buildCoordinateSystemValue("Y", null, -5),
-      buildCoordinateSystemValue("Z", null, 20)
+      buildCoordinateSystemValue("X", 10),
+      buildCoordinateSystemValue("Y", -5),
+      buildCoordinateSystemValue("Z", 20)
     ],
     [
-      buildCoordinateSystemValue("Pitch", [0, Math.PI / 2], 0.3),
-      buildCoordinateSystemValue("Yaw", null, 0.5),
-      buildCoordinateSystemValue("Roll", null, -0.2)
+      buildCoordinateSystemValue("Pitch", 0.3),
+      buildCoordinateSystemValue("Yaw", 0.5),
+      buildCoordinateSystemValue("Roll", -0.2)
     ],
     [0, 1, 2],
     [0, 1, 2],
@@ -57,7 +57,7 @@ function buildPartlyFreeNode(): CoordinateSystemNode {
     [
       buildFixedCoordinateSystemValue("X", 2),
       buildFixedCoordinateSystemValue("Y", 3),
-      buildCoordinateSystemValue("Z", null, 7)
+      buildCoordinateSystemValue("Z", 7)
     ],
     [
       buildFixedCoordinateSystemValue("Pitch", 0.1),
@@ -166,6 +166,69 @@ describe("solveCoordinateSystemChainInverse", () => {
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
   });
 
+  it("never moves a user value, treating it as a fixed constraint", () => {
+    const node = buildCoordinateSystemNode(
+      "User",
+      [
+        buildCoordinateSystemValue("X", 3, "user"),
+        buildCoordinateSystemValue("Y", 1),
+        buildCoordinateSystemValue("Z", 2)
+      ],
+      [
+        buildFixedCoordinateSystemValue("Pitch", 0),
+        buildFixedCoordinateSystemValue("Yaw", 0),
+        buildFixedCoordinateSystemValue("Roll", 0)
+      ]
+    );
+    const chain = [node];
+    const target = solveCoordinateSystemChain(chain, null);
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    expect(getCoordinateSystemAxisValue(node, "position", 0)).toBe(3);
+    const solved = solveCoordinateSystemChain(chain, null);
+    expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
+    expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
+    expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
+  });
+
+  it("reports noFreeValues for a chain whose every value is user-constrained", () => {
+    const node = buildCoordinateSystemNode(
+      "AllUser",
+      [
+        buildCoordinateSystemValue("X", 1, "user"),
+        buildCoordinateSystemValue("Y", 2, "user"),
+        buildCoordinateSystemValue("Z", 3, "user")
+      ],
+      [
+        buildCoordinateSystemValue("Pitch", 0.1, "user"),
+        buildCoordinateSystemValue("Yaw", 0.2, "user"),
+        buildCoordinateSystemValue("Roll", 0.3, "user")
+      ]
+    );
+    const chain = [node];
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      { tipPosition: [0, 0, 0], rotation: [0, 0, 0], surfacePosition: null },
+      null,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("noFreeValues");
+  });
+
   it("honours a non-null reference offset", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
     const offset: [number, number, number] = [4, -6, 9];
@@ -190,43 +253,13 @@ describe("solveCoordinateSystemChainInverse", () => {
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
   });
 
-  it("clamps a bounded value to its constrained optimum when the target is out of range", () => {
-    const node = buildCoordinateSystemNode(
-      "Bounded",
-      [
-        buildCoordinateSystemValue("X", [0, 0.5], 0),
-        buildFixedCoordinateSystemValue("Y", 0),
-        buildFixedCoordinateSystemValue("Z", 0)
-      ],
-      [
-        buildFixedCoordinateSystemValue("Pitch", 0),
-        buildFixedCoordinateSystemValue("Yaw", 0),
-        buildFixedCoordinateSystemValue("Roll", 0)
-      ]
-    );
-    const chain = [node];
-
-    const status = solveCoordinateSystemChainInverse(
-      chain,
-      { tipPosition: [0, 0, 1.2], rotation: [0, 0, 0], surfacePosition: null },
-      null,
-      SETTLED_SOLVE_STARTS
-    );
-
-    expect(status).not.toBe("converged");
-    expect(getCoordinateSystemAxisValue(node, "position", 0)).toBeCloseTo(
-      0.5,
-      4
-    );
-  });
-
   it("keeps the closest reachable tip position when the target orientation is unreachable", () => {
     const node = buildCoordinateSystemNode(
       "Unreachable",
       [
-        buildCoordinateSystemValue("X", null, 0),
-        buildCoordinateSystemValue("Y", null, 0),
-        buildCoordinateSystemValue("Z", null, 0)
+        buildCoordinateSystemValue("X"),
+        buildCoordinateSystemValue("Y"),
+        buildCoordinateSystemValue("Z")
       ],
       [
         buildFixedCoordinateSystemValue("Pitch", 0.4),

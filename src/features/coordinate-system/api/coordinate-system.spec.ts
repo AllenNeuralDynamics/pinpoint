@@ -14,15 +14,16 @@ import {
   reorderCoordinateSystemValue,
   setCoordinateSystemAxisValue,
   setCoordinateSystemSurfaceNode,
-  setCoordinateSystemValueAxis,
-  setCoordinateSystemValueBounded,
-  setCoordinateSystemValueFixed
+  setCoordinateSystemValueAxis
 } from "./coordinate-system.api";
-import type { CoordinateSystemValue } from "../model/coordinate-system.model";
+import type {
+  CoordinateSystemValue,
+  CoordinateSystemValueMode
+} from "../model/coordinate-system.model";
 import { makeCoordinateSystem } from "@/test/fixtures";
 
 describe("addCoordinateSystemTransform", () => {
-  it("appends an all-zero, unfixed, unbounded node to the chain", () => {
+  it("appends an all-zero, free node to the chain", () => {
     const coordinateSystem = makeCoordinateSystem();
 
     addCoordinateSystemTransform(coordinateSystem, "Tip");
@@ -37,8 +38,7 @@ describe("addCoordinateSystemTransform", () => {
     ]);
     for (const value of [...node.position, ...node.rotation]) {
       expect(value.value).toBe(0);
-      expect(value.fixed).toBe(false);
-      expect(value.bounds).toBeNull();
+      expect(value.mode).toBe("free");
     }
   });
 
@@ -299,32 +299,29 @@ describe("setCoordinateSystemSurfaceNode", () => {
 });
 
 describe("buildCoordinateSystemValue", () => {
-  it("defaults to unbounded, unfixed, zero", () => {
+  it("defaults to a free, zero value", () => {
     expect(buildCoordinateSystemValue("ML")).toEqual({
       name: "ML",
       value: 0,
-      fixed: false,
-      bounds: null
+      mode: "free"
     });
   });
 
-  it("carries an explicit bounds and value", () => {
-    expect(buildCoordinateSystemValue("Depth", [-7.5, 7.5], 20)).toEqual({
+  it("carries an explicit value and mode", () => {
+    expect(buildCoordinateSystemValue("Depth", 20, "user")).toEqual({
       name: "Depth",
       value: 20,
-      fixed: false,
-      bounds: [-7.5, 7.5]
+      mode: "user"
     });
   });
 });
 
 describe("buildFixedCoordinateSystemValue", () => {
-  it("defaults to an unnamed, unbounded, zero value", () => {
+  it("defaults to an unnamed, zero value", () => {
     expect(buildFixedCoordinateSystemValue()).toEqual({
       name: "",
       value: 0,
-      fixed: true,
-      bounds: null
+      mode: "fixed"
     });
   });
 
@@ -332,8 +329,7 @@ describe("buildFixedCoordinateSystemValue", () => {
     expect(buildFixedCoordinateSystemValue("Radius", 20)).toEqual({
       name: "Radius",
       value: 20,
-      fixed: true,
-      bounds: null
+      mode: "fixed"
     });
   });
 });
@@ -463,12 +459,12 @@ describe("isCoordinateSystem", () => {
     expect(isCoordinateSystem(coordinateSystem)).toBe(false);
   });
 
-  it("rejects a bounds array of length 3", () => {
+  it("rejects an unknown mode", () => {
     const coordinateSystem = buildCoordinateSystem("CCF", [
       makeNode([
         {
           ...buildCoordinateSystemValue("ML"),
-          bounds: [0, 1, 2] as unknown as [number, number]
+          mode: "locked" as unknown as CoordinateSystemValueMode
         },
         buildCoordinateSystemValue("DV"),
         buildCoordinateSystemValue("AP")
@@ -631,65 +627,19 @@ describe("reorderCoordinateSystemValue", () => {
   });
 });
 
-describe("setCoordinateSystemValueFixed", () => {
-  it("fixes a bounded value and clears its bounds", () => {
-    const value = buildCoordinateSystemValue("Depth", [-7.5, 7.5], 3);
-
-    setCoordinateSystemValueFixed(value, true);
-
-    expect(value.fixed).toBe(true);
-    expect(value.bounds).toBeNull();
-  });
-
-  it("unfixes a value and leaves its bounds null", () => {
-    const value = buildFixedCoordinateSystemValue("Radius", 20);
-
-    setCoordinateSystemValueFixed(value, false);
-
-    expect(value.fixed).toBe(false);
-    expect(value.bounds).toBeNull();
-  });
-});
-
-describe("setCoordinateSystemValueBounded", () => {
-  it("bounds a zero value with a range bracketing it", () => {
-    const value = buildCoordinateSystemValue("ML");
-
-    setCoordinateSystemValueBounded(value, true);
-
-    expect(value.bounds).toEqual([-1, 1]);
-  });
-
-  it("bounds a non-zero value with a range bracketing it", () => {
-    const value = buildCoordinateSystemValue("ML", null, 5);
-
-    setCoordinateSystemValueBounded(value, true);
-
-    expect(value.bounds).toEqual([4, 6]);
-  });
-
-  it("unbounds a bounded value", () => {
-    const value = buildCoordinateSystemValue("Depth", [-7.5, 7.5], 3);
-
-    setCoordinateSystemValueBounded(value, false);
-
-    expect(value.bounds).toBeNull();
-  });
-});
-
 describe("getCoordinateSystemAxisValue", () => {
   function makeNode() {
     return buildCoordinateSystemNode(
       "Tip",
       [
-        buildCoordinateSystemValue("ML", null, 1),
-        buildCoordinateSystemValue("DV", null, 2),
-        buildCoordinateSystemValue("AP", null, 3)
+        buildCoordinateSystemValue("ML", 1),
+        buildCoordinateSystemValue("DV", 2),
+        buildCoordinateSystemValue("AP", 3)
       ],
       [
-        buildCoordinateSystemValue("Pitch", null, 0.1),
-        buildCoordinateSystemValue("Yaw", null, 0.2),
-        buildCoordinateSystemValue("Roll", null, 0.3)
+        buildCoordinateSystemValue("Pitch", 0.1),
+        buildCoordinateSystemValue("Yaw", 0.2),
+        buildCoordinateSystemValue("Roll", 0.3)
       ],
       [2, 0, 1]
     );
@@ -719,9 +669,9 @@ describe("setCoordinateSystemAxisValue", () => {
     return buildCoordinateSystemNode(
       "Tip",
       [
-        buildCoordinateSystemValue("ML", null, 1),
-        buildCoordinateSystemValue("DV", null, 2),
-        buildCoordinateSystemValue("AP", null, 3)
+        buildCoordinateSystemValue("ML", 1),
+        buildCoordinateSystemValue("DV", 2),
+        buildCoordinateSystemValue("AP", 3)
       ],
       [
         buildCoordinateSystemValue("Pitch"),
@@ -750,12 +700,12 @@ describe("applyCoordinateSystemChainValues", () => {
     return buildCoordinateSystemNode(
       "Tip",
       [
-        buildCoordinateSystemValue("ML", null, mlValue),
+        buildCoordinateSystemValue("ML", mlValue),
         buildCoordinateSystemValue("DV"),
         buildCoordinateSystemValue("AP")
       ],
       [
-        buildCoordinateSystemValue("Pitch", null, pitchValue),
+        buildCoordinateSystemValue("Pitch", pitchValue),
         buildCoordinateSystemValue("Yaw"),
         buildCoordinateSystemValue("Roll")
       ]

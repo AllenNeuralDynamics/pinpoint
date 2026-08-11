@@ -41,7 +41,7 @@ export type CoordinateSystemSolveStatus =
   | "timeout"
   | "noFreeValues";
 
-/** One of a chain's non-fixed values, addressed by node index, component, and axis. */
+/** One of a chain's free values, addressed by node index, component, and axis. */
 interface FreeValueBinding {
   nodeIndex: number;
   component: CoordinateSystemNodeComponent;
@@ -64,7 +64,7 @@ interface SolverTree {
 /** Restarts for a live solve: the warm seed only, so an unreachable pose stays responsive. */
 export const PREVIEW_SOLVE_STARTS = 1;
 
-/** Restarts for a settled solve, enough to escape a bounded local minimum from a cold seed. */
+/** Restarts for a settled solve, enough to escape a local minimum from a cold seed. */
 export const SETTLED_SOLVE_STARTS = 6;
 
 /** Rotation axes in the order the chain's `RotationYawPitchRoll` composes them: Y, X, Z. */
@@ -76,11 +76,11 @@ const ROTATION_DOF = [DOF.EX, DOF.EY, DOF.EZ];
 /** `solve()` calls per start; each call clears the solver's per-solve DOF locks. */
 const SOLVE_CALLS_PER_START = 50;
 
-/** Spread of the random restart seed for an unbounded position value, in millimeters. */
-const UNBOUNDED_POSITION_SEED_SPREAD_MILLIMETERS = 10;
+/** Spread of the random restart seed for a position value, in millimeters. */
+const POSITION_SEED_SPREAD_MILLIMETERS = 10;
 
-/** Spread of the random restart seed for an unbounded rotation value, in radians. */
-const UNBOUNDED_ROTATION_SEED_SPREAD_RADIANS = Math.PI;
+/** Spread of the random restart seed for a rotation value, in radians. */
+const ROTATION_SEED_SPREAD_RADIANS = Math.PI;
 
 /** Linear-congruential seeding constants, so a failed solve is reproducible. */
 const SEED_INITIAL = 0x9e3779b9;
@@ -95,7 +95,7 @@ const FAILURE_STATUS_NAMES: Record<number, CoordinateSystemSolveStatus> = {
 };
 
 /**
- * Solve a transform chain's non-fixed values so forward kinematics reproduces a target pose.
+ * Solve a transform chain's free values so forward kinematics reproduces a target pose.
  * @param chain Transform chain to solve, mutated in place with the closest result the solver
  * reached even when it does not converge.
  * @param target Pose to solve for.
@@ -238,7 +238,7 @@ export function solveCoordinateSystemChainInverse(
 }
 
 /**
- * Collect every non-fixed value in a chain as a binding to its node, component, and axis.
+ * Collect every free value in a chain as a binding to its node, component, and axis.
  * @param chain Transform chain to scan.
  */
 function collectFreeValueBindings(
@@ -249,7 +249,9 @@ function collectFreeValueBindings(
     const node = chain[nodeIndex]!;
     for (const component of ["position", "rotation"] as const) {
       for (let axis = 0; axis < 3; axis++) {
-        if (!getCoordinateSystemAxisEntry(node, component, axis).fixed) {
+        if (
+          getCoordinateSystemAxisEntry(node, component, axis).mode === "free"
+        ) {
           bindings.push({ nodeIndex, component, axis });
         }
       }
@@ -259,15 +261,14 @@ function collectFreeValueBindings(
 }
 
 /**
- * Seed a chain's free values for one solve start: the incoming values restored, each bound's
- * midpoint (or zero when unbounded), or a random in-bounds value (or a random value centered on
- * the incoming one, scaled by a fixed spread, when unbounded).
+ * Seed a chain's free values for one solve start: the incoming values restored, zero, or a
+ * random value centered on the incoming one.
  * @param chain Transform chain to seed, mutated in place.
  * @param bindings Free value bindings to seed.
  * @param start Index of the solve start, selecting the seeding strategy.
- * @param random Seeded random source for restarts beyond the midpoint start.
+ * @param random Seeded random source for restarts beyond the zero start.
  * @param incomingValues Each binding's value before this solve began, restored at `start === 0`
- * and used as the unbounded restart center from `start >= 2`.
+ * and used as the restart center from `start >= 2`.
  */
 function seedFreeValues(
   chain: CoordinateSystemNode[],
@@ -279,25 +280,16 @@ function seedFreeValues(
   for (let index = 0; index < bindings.length; index++) {
     const binding = bindings[index]!;
     const node = chain[binding.nodeIndex]!;
-    const entry = getCoordinateSystemAxisEntry(
-      node,
-      binding.component,
-      binding.axis
-    );
     let value: number;
     if (start === 0) {
       value = incomingValues[index]!;
-    } else if (entry.bounds) {
-      const [lower, upper] = entry.bounds;
-      value =
-        start === 1 ? (lower + upper) / 2 : lower + random() * (upper - lower);
     } else if (start === 1) {
       value = 0;
     } else {
       const spread =
         binding.component === "position"
-          ? UNBOUNDED_POSITION_SEED_SPREAD_MILLIMETERS
-          : UNBOUNDED_ROTATION_SEED_SPREAD_RADIANS;
+          ? POSITION_SEED_SPREAD_MILLIMETERS
+          : ROTATION_SEED_SPREAD_RADIANS;
       value = incomingValues[index]! + (random() * 2 - 1) * spread;
     }
     setCoordinateSystemAxisValue(node, binding.component, binding.axis, value);
@@ -346,10 +338,10 @@ function buildSolverTree(
     const fixedPosition: [number, number, number] = [0, 0, 0];
     for (let axis = 0; axis < 3; axis++) {
       const entry = getCoordinateSystemAxisEntry(node, "position", axis);
-      if (entry.fixed) {
-        fixedPosition[axis] = entry.value;
-      } else {
+      if (entry.mode === "free") {
         freeTranslationAxes.push(axis);
+      } else {
+        fixedPosition[axis] = entry.value;
       }
     }
     translationJoint.setPosition(...fixedPosition);
@@ -361,11 +353,6 @@ function buildSolverTree(
         )
       );
       for (const axis of freeTranslationAxes) {
-        const entry = getCoordinateSystemAxisEntry(node, "position", axis);
-        if (entry.bounds) {
-          translationJoint.setMinLimit(axis, entry.bounds[0]);
-          translationJoint.setMaxLimit(axis, entry.bounds[1]);
-        }
         bindings.push({
           nodeIndex,
           component: "position",
@@ -382,7 +369,7 @@ function buildSolverTree(
     for (const axis of ROTATION_AXIS_ORDER) {
       const entry = getCoordinateSystemAxisEntry(node, "rotation", axis);
       const rotationJoint: IkJoint = new Joint();
-      if (entry.fixed) {
+      if (entry.mode !== "free") {
         const half = entry.value / 2;
         const quaternion: [number, number, number, number] = [
           0,
@@ -398,10 +385,6 @@ function buildSolverTree(
         rotationJoint.setDoFValues(
           getCoordinateSystemAxisValue(node, "rotation", axis)
         );
-        if (entry.bounds) {
-          rotationJoint.setMinLimit(dof, entry.bounds[0]);
-          rotationJoint.setMaxLimit(dof, entry.bounds[1]);
-        }
         bindings.push({
           nodeIndex,
           component: "rotation",

@@ -196,7 +196,7 @@ describe("CoordinateSystemLibraryDialog", () => {
     expect(store.library).toHaveLength(4);
     expect(store.library[3]!.name).toBe("Coordinate System 4");
     expect(store.library[3]!.chain).toHaveLength(1);
-    expect(store.library[3]!.chain[0]!.position[0]!.fixed).toBe(false);
+    expect(store.library[3]!.chain[0]!.position[0]!.mode).toBe("free");
     expect(currentExperimentStore.selectedInspectable).toBe(store.library[3]);
     expect(wrapper.emitted("ok")).toBeTruthy();
   });

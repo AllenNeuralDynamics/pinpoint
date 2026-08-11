@@ -3,7 +3,8 @@ export type {
   CoordinateSystem,
   CoordinateSystemNode,
   CoordinateSystemNodeComponent,
-  CoordinateSystemValue
+  CoordinateSystemValue,
+  CoordinateSystemValueMode
 } from "./model/coordinate-system.model";
 export type { CoordinateSystemSolution } from "./api/forward-kinematics.api";
 export {
@@ -32,9 +33,7 @@ export {
   reorderCoordinateSystemValue,
   setCoordinateSystemAxisValue,
   setCoordinateSystemSurfaceNode,
-  setCoordinateSystemValueAxis,
-  setCoordinateSystemValueBounded,
-  setCoordinateSystemValueFixed
+  setCoordinateSystemValueAxis
 } from "./api/coordinate-system.api";
 export type { InverseKinematicsSolveRequest } from "./composable/useInverseKinematicsSolver";
 export { useInverseKinematicsSolver } from "./composable/useInverseKinematicsSolver";

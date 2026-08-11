@@ -25,15 +25,17 @@ const values = computed(() =>
   component === "position" ? node.position : node.rotation
 );
 // Fixed values are never editable, so they are omitted rather than shown
-// disabled. `valueIndex` is kept from the original triple so axis-fallback
-// labelling and bounds stay correct.
+// disabled. Free and user values both are. `valueIndex` is kept from the
+// original triple so axis-fallback labelling stays correct.
 const adjustableValues = computed(() =>
   values.value
     .map((coordinateSystemValue, valueIndex) => ({
       coordinateSystemValue,
       valueIndex
     }))
-    .filter(({ coordinateSystemValue }) => !coordinateSystemValue.fixed)
+    .filter(
+      ({ coordinateSystemValue }) => coordinateSystemValue.mode !== "fixed"
+    )
 );
 
 /**

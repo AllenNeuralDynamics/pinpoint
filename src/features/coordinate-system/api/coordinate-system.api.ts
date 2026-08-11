@@ -2,26 +2,27 @@ import type {
   CoordinateSystem,
   CoordinateSystemNode,
   CoordinateSystemNodeComponent,
-  CoordinateSystemValue
+  CoordinateSystemValue,
+  CoordinateSystemValueMode
 } from "../model/coordinate-system.model";
 import { isFiniteNumber, isRecord, isSafeObjectKey } from "@/utils/type-guards";
 
 /**
- * Build an adjustable coordinate system value.
+ * Build a coordinate system value.
  * @param name Display name of the value.
- * @param bounds Inclusive range the value is limited to, or null for unbounded.
  * @param value Initial value.
+ * @param mode How the solver treats the value.
  */
 export function buildCoordinateSystemValue(
   name: string,
-  bounds: [number, number] | null = null,
-  value = 0
+  value = 0,
+  mode: CoordinateSystemValueMode = "free"
 ): CoordinateSystemValue {
-  return { name, value, fixed: false, bounds };
+  return { name, value, mode };
 }
 
 /**
- * Build a fixed coordinate system value, which is always unbounded.
+ * Build a fixed coordinate system value, which the solver treats as a rigid constant.
  * @param name Display name of the value.
  * @param value Fixed value.
  */
@@ -29,7 +30,7 @@ export function buildFixedCoordinateSystemValue(
   name = "",
   value = 0
 ): CoordinateSystemValue {
-  return { name, value, fixed: true, bounds: null };
+  return buildCoordinateSystemValue(name, value, "fixed");
 }
 
 /**
@@ -98,7 +99,7 @@ export function getCoordinateSystemIdentifier(
 }
 
 /**
- * Append an all-zero, unbounded, unfixed transform to a coordinate system's chain.
+ * Append an all-zero, all-free transform to a coordinate system's chain.
  * @param coordinateSystem Coordinate system to append to, mutated in place.
  * @param name Display name of the transform.
  */
@@ -200,7 +201,7 @@ export function getCoordinateSystemValueAxis(
 }
 
 /**
- * Value mapped to a node's axis, with its fixed flag and bounds.
+ * Value mapped to a node's axis, with its name and mode.
  * @param node Coordinate system node holding the value.
  * @param component Whether to read a position or a rotation value.
  * @param axisIndex Axis index (0 = X, 1 = Y, 2 = Z) to read.
@@ -345,39 +346,6 @@ export function reorderCoordinateSystemValue(
 }
 
 /**
- * Fix or unfix a coordinate system value; a fixed value is always unbounded.
- * @param coordinateSystemValue Coordinate system value to update.
- * @param fixed Whether the value should be fixed.
- */
-export function setCoordinateSystemValueFixed(
-  coordinateSystemValue: CoordinateSystemValue,
-  fixed: boolean
-): void {
-  coordinateSystemValue.fixed = fixed;
-  if (fixed) coordinateSystemValue.bounds = null;
-}
-
-/** Half-width of the range a newly bounded value is seeded with, in its stored unit (mm or radians). */
-const BOUNDS_SEED_HALF_WIDTH = 1;
-
-/**
- * Bound or unbound a coordinate system value, seeding a new bound that brackets its current value.
- * @param coordinateSystemValue Coordinate system value to update.
- * @param bounded Whether the value should be bounded.
- */
-export function setCoordinateSystemValueBounded(
-  coordinateSystemValue: CoordinateSystemValue,
-  bounded: boolean
-): void {
-  coordinateSystemValue.bounds = bounded
-    ? [
-        coordinateSystemValue.value - BOUNDS_SEED_HALF_WIDTH,
-        coordinateSystemValue.value + BOUNDS_SEED_HALF_WIDTH
-      ]
-    : null;
-}
-
-/**
  * Check that a value has the shape of a `CoordinateSystem`.
  * @param value Value to check.
  */
@@ -425,6 +393,13 @@ function isCoordinateSystemValueTriple(value: unknown): boolean {
   );
 }
 
+/** Every valid coordinate system value mode, for the type guard's membership check. */
+const COORDINATE_SYSTEM_VALUE_MODES: CoordinateSystemValueMode[] = [
+  "free",
+  "fixed",
+  "user"
+];
+
 /**
  * Check that a value has the shape of a `CoordinateSystemValue`.
  * @param value Value to check.
@@ -437,11 +412,9 @@ function isCoordinateSystemValue(
   return (
     typeof value.name === "string" &&
     isFiniteNumber(value.value) &&
-    typeof value.fixed === "boolean" &&
-    (value.bounds === null ||
-      (Array.isArray(value.bounds) &&
-        value.bounds.length === 2 &&
-        value.bounds.every(isFiniteNumber)))
+    COORDINATE_SYSTEM_VALUE_MODES.includes(
+      value.mode as CoordinateSystemValueMode
+    )
   );
 }
 

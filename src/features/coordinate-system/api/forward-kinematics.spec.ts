@@ -17,14 +17,14 @@ function makeIdentityNode(
   return buildCoordinateSystemNode(
     "Node",
     [
-      buildCoordinateSystemValue("X", null, position[0]),
-      buildCoordinateSystemValue("Y", null, position[1]),
-      buildCoordinateSystemValue("Z", null, position[2])
+      buildCoordinateSystemValue("X", position[0]),
+      buildCoordinateSystemValue("Y", position[1]),
+      buildCoordinateSystemValue("Z", position[2])
     ],
     [
-      buildCoordinateSystemValue("Pitch", null, rotation[0]),
-      buildCoordinateSystemValue("Yaw", null, rotation[1]),
-      buildCoordinateSystemValue("Roll", null, rotation[2])
+      buildCoordinateSystemValue("Pitch", rotation[0]),
+      buildCoordinateSystemValue("Yaw", rotation[1]),
+      buildCoordinateSystemValue("Roll", rotation[2])
     ]
   );
 }
@@ -51,14 +51,14 @@ describe("solveCoordinateSystemChain", () => {
     const node = buildCoordinateSystemNode(
       "Node",
       [
-        buildCoordinateSystemValue("A", null, 5),
-        buildCoordinateSystemValue("B", null, 6),
-        buildCoordinateSystemValue("C", null, 7)
+        buildCoordinateSystemValue("A", 5),
+        buildCoordinateSystemValue("B", 6),
+        buildCoordinateSystemValue("C", 7)
       ],
       [
-        buildCoordinateSystemValue("Pitch", null, 0),
-        buildCoordinateSystemValue("Yaw", null, 0),
-        buildCoordinateSystemValue("Roll", null, 0)
+        buildCoordinateSystemValue("Pitch", 0),
+        buildCoordinateSystemValue("Yaw", 0),
+        buildCoordinateSystemValue("Roll", 0)
       ],
       // order[axisIndex] = valueIndex: axis 0 (X/ML) <- value 1 (B), axis 1
       // (Y/DV) <- value 2 (C), axis 2 (Z/AP) <- value 0 (A).
