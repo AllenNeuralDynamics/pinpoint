@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { type Ref, ref } from "vue";
 import type { Appearance } from "@/features/preferences";
 import type { CameraProjection } from "@/features/scene";
+import { type AxisOrder, IDENTITY_AXIS_ORDER } from "@/utils/axis-order";
 import type { PositionUnit, RotationUnit } from "@/utils/math";
 
 /** Every preference value the store holds. */
@@ -36,6 +37,14 @@ export interface Preferences {
   positionUnit: PositionUnit;
   /** Unit numeric inputs display rotations in. */
   rotationUnit: RotationUnit;
+  /** User name per atlas position axis, indexed by the internal [AP, DV, ML] triple; empty uses the built-in label. */
+  positionAxisNames: [string, string, string];
+  /** User name per atlas rotation axis, indexed by the internal [roll, yaw, pitch] triple; empty uses the built-in label. */
+  rotationAxisNames: [string, string, string];
+  /** Order atlas position inputs are shown in, as display slot -> triple index. */
+  positionAxisOrder: AxisOrder;
+  /** Order atlas rotation inputs are shown in, as display slot -> triple index. */
+  rotationAxisOrder: AxisOrder;
   /** Decimal places numeric inputs show. */
   decimalPrecision: number;
   /** Multiplier on how far a numeric input's value moves per pixel of horizontal drag. */
@@ -73,6 +82,10 @@ export const usePreferencesStore = defineStore(
     const areStructureInteriorsHidden = ref(true);
     const positionUnit = ref<PositionUnit>("millimeter");
     const rotationUnit = ref<RotationUnit>("degree");
+    const positionAxisNames = ref<[string, string, string]>(["", "", ""]);
+    const rotationAxisNames = ref<[string, string, string]>(["", "", ""]);
+    const positionAxisOrder = ref<AxisOrder>([...IDENTITY_AXIS_ORDER]);
+    const rotationAxisOrder = ref<AxisOrder>([...IDENTITY_AXIS_ORDER]);
     const decimalPrecision = ref(3);
     const dragSensitivity = ref(1);
     const probeShankThicknessMillimeters = ref(0.05);
@@ -99,6 +112,10 @@ export const usePreferencesStore = defineStore(
       areStructureInteriorsHidden,
       positionUnit,
       rotationUnit,
+      positionAxisNames,
+      rotationAxisNames,
+      positionAxisOrder,
+      rotationAxisOrder,
       decimalPrecision,
       dragSensitivity,
       probeShankThicknessMillimeters,

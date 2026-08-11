@@ -9,17 +9,9 @@ import {
   isSameAtlas
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { usePreferencesStore } from "@/stores/preferences.store";
-import { useDragSteps } from "@/composable/useDragSteps";
-import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
-import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import { isFiniteTriple } from "@/utils/type-guards";
-import {
-  millimetersToPositionUnit,
-  positionUnitToMillimeters
-} from "@/utils/math";
-import CommittedInput from "@/components/CommittedInput.vue";
+import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 import { setExperimentProperties } from "../api/experiment.api";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
 
@@ -27,11 +19,7 @@ defineEmits([...useDialogPluginComponent.emits]);
 
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
-const preferences = usePreferencesStore();
-const unitLabels = useUnitLabels();
-const { requiredName: nameRules, optionalNumber: coordinateRules } =
-  useValidationRules();
-const { positionStep } = useDragSteps();
+const { requiredName: nameRules } = useValidationRules();
 
 const nameInput = useTemplateRef<QInput>("nameInput");
 
@@ -41,35 +29,6 @@ const referenceCoordinate = ref<[number, number, number]>([
   ...currentExperimentStore.referenceCoordinate
 ]);
 const isSaving = ref(false);
-
-const positionSuffix = computed(() =>
-  unitLabels.position(preferences.positionUnit)
-);
-
-const ap = useNumericTupleModel(
-  () => referenceCoordinate.value,
-  0,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const dv = useNumericTupleModel(
-  () => referenceCoordinate.value,
-  1,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const ml = useNumericTupleModel(
-  () => referenceCoordinate.value,
-  2,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
 
 /**
  * Whether the Save button should be disabled.
@@ -153,32 +112,7 @@ watch(atlas, (newAtlas, oldAtlas) => {
           <p class="text-h6">
             {{ $t("experimentProperties.referenceCoordinate") }}
           </p>
-          <div class="row q-gutter-x-sm">
-            <CommittedInput
-              v-model="ap"
-              class="col"
-              :drag-step="positionStep"
-              :label="$t('axis.ap')"
-              :rules="coordinateRules"
-              :suffix="positionSuffix"
-            />
-            <CommittedInput
-              v-model="dv"
-              class="col"
-              :drag-step="positionStep"
-              :label="$t('axis.dv')"
-              :rules="coordinateRules"
-              :suffix="positionSuffix"
-            />
-            <CommittedInput
-              v-model="ml"
-              class="col"
-              :drag-step="positionStep"
-              :label="$t('axis.ml')"
-              :rules="coordinateRules"
-              :suffix="positionSuffix"
-            />
-          </div>
+          <AtlasAxisInputs kind="position" :tuple="referenceCoordinate" />
         </div>
       </q-card-section>
       <q-card-actions align="right">

@@ -255,8 +255,17 @@ describe("CoordinateSystemInspector", () => {
 
     expect(
       coordinateSystem.chain[0]!.position.map(value => value.name)
+    ).toEqual(["ML", "DV", "AP"]);
+    expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([1, 2, 0]);
+    expect(
+      wrapper
+        .findAllComponents({ name: "CoordinateSystemValueInspector" })
+        .slice(0, 3)
+        .map(
+          component =>
+            (component.props("coordinateSystemValue") as { name: string }).name
+        )
     ).toEqual(["DV", "AP", "ML"]);
-    expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([2, 0, 1]);
   });
 
   it("clicking a second node's axis button focuses it, and unmounting resets the focus", async () => {

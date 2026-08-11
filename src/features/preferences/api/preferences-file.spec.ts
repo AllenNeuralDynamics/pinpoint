@@ -28,6 +28,10 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
+    positionAxisNames: ["", "", ""],
+    rotationAxisNames: ["", "", ""],
+    positionAxisOrder: [0, 1, 2],
+    rotationAxisOrder: [0, 1, 2],
     decimalPrecision: 3,
     dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
@@ -54,12 +58,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the twenty-two preference keys", () => {
+  it("writes only the twenty-six preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(22);
+    expect(keys).toHaveLength(26);
     expect(keys).not.toContain("junk");
   });
 });
@@ -98,6 +102,27 @@ describe("parsePreferencesFile", () => {
 
   it("returns null for an unrecognized appearance", () => {
     const fixture = { ...makePreferences(), appearance: "sepia" };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a non-permutation positionAxisOrder", () => {
+    const fixture = { ...makePreferences(), positionAxisOrder: [0, 0, 1] };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a non-string entry in rotationAxisNames", () => {
+    const fixture = {
+      ...makePreferences(),
+      rotationAxisNames: ["", 5, ""]
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a two-element positionAxisNames", () => {
+    const fixture = { ...makePreferences(), positionAxisNames: ["", ""] };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });

@@ -1,11 +1,11 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useDragReorder } from "@/composable/useDragReorder";
 import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericModel } from "@/composable/useNumericModel";
-import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import {
@@ -70,30 +70,6 @@ const radius = useNumericModel(
   value => positionUnitToMillimeters(value, preferences.positionUnit),
   () => preferences.decimalPrecision
 );
-const targetAp = useNumericTupleModel(
-  () => pose.value.target,
-  0,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetDv = useNumericTupleModel(
-  () => pose.value.target,
-  1,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetMl = useNumericTupleModel(
-  () => pose.value.target,
-  2,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
 
 const rotationSuffix = computed(() =>
   unitLabels.rotation(preferences.rotationUnit)
@@ -146,38 +122,12 @@ function applyPose(savedPose: CameraPose): void {
     />
     <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
-      <div class="row q-gutter-x-sm">
-        <CommittedInput
-          v-model="targetAp"
-          class="col"
-          :drag-step="positionStep"
-          hide-bottom-space
-          :label="t('axis.ap')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-        <CommittedInput
-          v-model="targetDv"
-          class="col"
-          :drag-step="positionStep"
-          hide-bottom-space
-          :label="t('axis.dv')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-        <CommittedInput
-          v-model="targetMl"
-          class="col"
-          :drag-step="positionStep"
-          hide-bottom-space
-          :label="t('axis.ml')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-      </div>
+      <AtlasAxisInputs
+        hide-bottom-space
+        kind="position"
+        outlined
+        :tuple="pose.target"
+      />
     </div>
     <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.orbit") }}</div>

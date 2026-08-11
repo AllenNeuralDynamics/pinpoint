@@ -5,6 +5,12 @@ import type {
   CoordinateSystemValue,
   CoordinateSystemValueMode
 } from "../model/coordinate-system.model";
+import {
+  type AxisIndex,
+  type AxisOrder,
+  isAxisOrder,
+  moveAxisSlot
+} from "@/utils/axis-order";
 import { isFiniteNumber, isRecord, isSafeObjectKey } from "@/utils/type-guards";
 
 /**
@@ -38,8 +44,8 @@ export function buildFixedCoordinateSystemValue(
  * @param name Display name of the transform.
  * @param position Position values.
  * @param rotation Rotation values.
- * @param positionDisplayOrder Mapping from XYZ index to position value index.
- * @param rotationDisplayOrder Mapping from XYZ index to rotation value index.
+ * @param positionDisplayOrder Display slot to axis index mapping.
+ * @param rotationDisplayOrder Display slot to axis index mapping.
  * @param onSurface Whether this node must reside on the surface of the brain.
  */
 export function buildCoordinateSystemNode(
@@ -54,8 +60,8 @@ export function buildCoordinateSystemNode(
     CoordinateSystemValue,
     CoordinateSystemValue
   ],
-  positionDisplayOrder: [number, number, number] = [0, 1, 2],
-  rotationDisplayOrder: [number, number, number] = [0, 1, 2],
+  positionDisplayOrder: AxisOrder = [0, 1, 2],
+  rotationDisplayOrder: AxisOrder = [0, 1, 2],
   onSurface = false
 ): CoordinateSystemNode {
   return {
@@ -186,18 +192,16 @@ export function setCoordinateSystemSurfaceNode(
 }
 
 /**
- * Axis index (0 = X, 1 = Y, 2 = Z) a node's value is mapped to, or -1 when absent.
- * @param node Coordinate system node holding the value.
- * @param component Whether the value is a position or a rotation value.
- * @param valueIndex Index of the value within its display-ordered triple.
+ * A node's values in display order, each paired with the axis it drives.
+ * @param node Coordinate system node to read.
+ * @param component Whether to read the position or the rotation triple.
  */
-export function getCoordinateSystemValueAxis(
+export function getCoordinateSystemSlots(
   node: CoordinateSystemNode,
-  component: CoordinateSystemNodeComponent,
-  valueIndex: number
-): number {
-  const { order } = getComponentPair(node, component);
-  return order.indexOf(valueIndex);
+  component: CoordinateSystemNodeComponent
+): { axis: AxisIndex; value: CoordinateSystemValue }[] {
+  const { values, order } = getComponentPair(node, component);
+  return order.map(axis => ({ axis, value: values[axis]! }));
 }
 
 /**
@@ -211,8 +215,7 @@ export function getCoordinateSystemAxisEntry(
   component: CoordinateSystemNodeComponent,
   axisIndex: number
 ): CoordinateSystemValue {
-  const { values, order } = getComponentPair(node, component);
-  return values[order[axisIndex]!]!;
+  return getComponentPair(node, component).values[axisIndex]!;
 }
 
 /**
@@ -275,7 +278,7 @@ function getComponentPair(
   component: CoordinateSystemNodeComponent
 ): {
   values: [CoordinateSystemValue, CoordinateSystemValue, CoordinateSystemValue];
-  order: [number, number, number];
+  order: AxisOrder;
 } {
   return component === "position"
     ? { values: node.position, order: node.positionDisplayOrder }
@@ -283,66 +286,54 @@ function getComponentPair(
 }
 
 /**
- * Map a node's value onto an axis, swapping with the value that held it so the
- * three axes stay distinct.
+ * Map a display slot onto an axis, swapping values with whichever slot held
+ * that axis, so each slot's own name and value stay with it rather than
+ * following the axis.
  * @param node Coordinate system node holding the value.
  * @param component Whether the value is a position or a rotation value.
- * @param valueIndex Index of the value within its display-ordered triple.
- * @param axisIndex Axis index (0 = X, 1 = Y, 2 = Z) to map the value onto.
+ * @param slotIndex Display slot to remap.
+ * @param axisIndex Axis index (0 = X, 1 = Y, 2 = Z) to map the slot onto.
  */
-export function setCoordinateSystemValueAxis(
+export function setCoordinateSystemSlotAxis(
   node: CoordinateSystemNode,
   component: CoordinateSystemNodeComponent,
-  valueIndex: number,
+  slotIndex: number,
   axisIndex: number
 ): void {
-  const { order } = getComponentPair(node, component);
-  const currentAxis = order.indexOf(valueIndex);
+  const { values, order } = getComponentPair(node, component);
+  const otherSlot = order.indexOf(axisIndex as AxisIndex);
   if (
-    currentAxis === -1 ||
-    currentAxis === axisIndex ||
-    axisIndex < 0 ||
-    axisIndex >= order.length
+    slotIndex < 0 ||
+    slotIndex > 2 ||
+    otherSlot === -1 ||
+    otherSlot === slotIndex
   ) {
     return;
   }
-  order[currentAxis] = order[axisIndex]!;
-  order[axisIndex] = valueIndex;
+  const currentAxis = order[slotIndex]!;
+  [values[currentAxis], values[axisIndex]] = [
+    values[axisIndex]!,
+    values[currentAxis]!
+  ];
+  order[slotIndex] = axisIndex as AxisIndex;
+  order[otherSlot] = currentAxis;
 }
 
 /**
- * Move a node's value within its display order, keeping every axis mapped to
+ * Move a display slot within a node's order, keeping every axis mapped to
  * the same value.
  * @param node Coordinate system node holding the value.
  * @param component Whether the value is a position or a rotation value.
- * @param fromIndex Index of the value to move.
- * @param toIndex Index to move it to.
+ * @param fromSlot Slot to move.
+ * @param toSlot Slot to move it to.
  */
-export function reorderCoordinateSystemValue(
+export function reorderCoordinateSystemSlot(
   node: CoordinateSystemNode,
   component: CoordinateSystemNodeComponent,
-  fromIndex: number,
-  toIndex: number
+  fromSlot: number,
+  toSlot: number
 ): void {
-  const { values, order } = getComponentPair(node, component);
-  if (
-    fromIndex === toIndex ||
-    fromIndex < 0 ||
-    toIndex < 0 ||
-    fromIndex >= values.length ||
-    toIndex >= values.length
-  ) {
-    return;
-  }
-
-  const newToOld = [0, 1, 2];
-  newToOld.splice(toIndex, 0, ...newToOld.splice(fromIndex, 1));
-  const oldToNew = [0, 0, 0];
-  newToOld.forEach((oldIndex, newIndex) => (oldToNew[oldIndex] = newIndex));
-  values.splice(toIndex, 0, ...values.splice(fromIndex, 1));
-  for (let axis = 0; axis < order.length; axis++) {
-    order[axis] = oldToNew[order[axis]!]!;
-  }
+  moveAxisSlot(getComponentPair(node, component).order, fromSlot, toSlot);
 }
 
 /**
@@ -415,18 +406,5 @@ function isCoordinateSystemValue(
     COORDINATE_SYSTEM_VALUE_MODES.includes(
       value.mode as CoordinateSystemValueMode
     )
-  );
-}
-
-/**
- * Check that a value is a permutation of the three axis indexes, which every
- * axis lookup indexes blindly.
- * @param value Value to check.
- */
-function isAxisOrder(value: unknown): value is [number, number, number] {
-  return (
-    Array.isArray(value) &&
-    value.length === 3 &&
-    [0, 1, 2].every(index => value.includes(index))
   );
 }

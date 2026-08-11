@@ -37,7 +37,10 @@ export default {
     ml: "ML",
     x: "X",
     y: "Y",
-    z: "Z"
+    z: "Z",
+    roll: "Roll",
+    yaw: "Yaw",
+    pitch: "Pitch"
   },
   newExperiment: {
     title: "New Experiment",
@@ -253,9 +256,6 @@ export default {
 
   sceneObjectInspector: {
     name: "Name",
-    roll: "Roll",
-    yaw: "Yaw",
-    pitch: "Pitch",
     scaleSuffix: "×",
     copy: "Duplicate 3D object",
     lock: "Lock 3D object",
@@ -371,6 +371,12 @@ export default {
     positionUnit: "Position",
     rotationUnit: "Rotation",
     decimalPrecision: "Decimal Places",
+
+    axesTitle: "Atlas Axes",
+    positionAxes: "Position Axes",
+    rotationAxes: "Rotation Axes",
+    axisName: "Name for {axis}",
+    dragToReorder: "Drag to reorder",
 
     probeShape: "Probe Shape",
     shankThickness: "Shank Thickness",

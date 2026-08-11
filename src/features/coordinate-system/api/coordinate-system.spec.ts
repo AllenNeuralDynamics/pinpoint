@@ -7,19 +7,20 @@ import {
   buildCoordinateSystemValue,
   buildFixedCoordinateSystemValue,
   getCoordinateSystemAxisValue,
-  getCoordinateSystemValueAxis,
+  getCoordinateSystemSlots,
   isCoordinateSystem,
   removeCoordinateSystemTransform,
+  reorderCoordinateSystemSlot,
   reorderCoordinateSystemTransform,
-  reorderCoordinateSystemValue,
   setCoordinateSystemAxisValue,
-  setCoordinateSystemSurfaceNode,
-  setCoordinateSystemValueAxis
+  setCoordinateSystemSlotAxis,
+  setCoordinateSystemSurfaceNode
 } from "./coordinate-system.api";
 import type {
   CoordinateSystemValue,
   CoordinateSystemValueMode
 } from "../model/coordinate-system.model";
+import type { AxisOrder } from "@/utils/axis-order";
 import { makeCoordinateSystem } from "@/test/fixtures";
 
 describe("addCoordinateSystemTransform", () => {
@@ -410,7 +411,7 @@ describe("isCoordinateSystem", () => {
       buildCoordinateSystemValue("DV"),
       buildCoordinateSystemValue("AP")
     ],
-    positionDisplayOrder: [number, number, number] = [0, 1, 2]
+    positionDisplayOrder: AxisOrder = [0, 1, 2]
   ) {
     return buildCoordinateSystemNode(
       "Tip",
@@ -484,7 +485,7 @@ describe("isCoordinateSystem", () => {
   });
 });
 
-describe("getCoordinateSystemValueAxis", () => {
+describe("getCoordinateSystemSlots", () => {
   function makeNode() {
     return buildCoordinateSystemNode(
       "Tip",
@@ -501,21 +502,29 @@ describe("getCoordinateSystemValueAxis", () => {
     );
   }
 
-  it("returns the axis a value index resolves to under the default order", () => {
+  it("returns the values in array order under the identity order", () => {
     const node = makeNode();
 
-    expect(getCoordinateSystemValueAxis(node, "position", 1)).toBe(1);
+    expect(getCoordinateSystemSlots(node, "position")).toEqual([
+      { axis: 0, value: node.position[0] },
+      { axis: 1, value: node.position[1] },
+      { axis: 2, value: node.position[2] }
+    ]);
   });
 
-  it("returns the axis a value index resolves to under a permuted order", () => {
+  it("returns the values permuted into the display order", () => {
     const node = makeNode();
     node.positionDisplayOrder = [2, 0, 1];
 
-    expect(getCoordinateSystemValueAxis(node, "position", 2)).toBe(0);
+    expect(getCoordinateSystemSlots(node, "position")).toEqual([
+      { axis: 2, value: node.position[2] },
+      { axis: 0, value: node.position[0] },
+      { axis: 1, value: node.position[1] }
+    ]);
   });
 });
 
-describe("setCoordinateSystemValueAxis", () => {
+describe("setCoordinateSystemSlotAxis", () => {
   function makeNode() {
     return buildCoordinateSystemNode(
       "Tip",
@@ -532,19 +541,19 @@ describe("setCoordinateSystemValueAxis", () => {
     );
   }
 
-  it("swaps the value onto the target axis with whichever value held it", () => {
+  it("swaps the slot onto the target axis with whichever slot held it", () => {
     const node = makeNode();
 
-    setCoordinateSystemValueAxis(node, "position", 1, 0);
+    setCoordinateSystemSlotAxis(node, "position", 1, 0);
 
     expect(node.positionDisplayOrder).toEqual([1, 0, 2]);
     expect(new Set(node.positionDisplayOrder).size).toBe(3);
   });
 
-  it("is a no-op when the value already owns the target axis", () => {
+  it("is a no-op when the slot already owns the target axis", () => {
     const node = makeNode();
 
-    setCoordinateSystemValueAxis(node, "position", 0, 0);
+    setCoordinateSystemSlotAxis(node, "position", 0, 0);
 
     expect(node.positionDisplayOrder).toEqual([0, 1, 2]);
   });
@@ -552,13 +561,28 @@ describe("setCoordinateSystemValueAxis", () => {
   it("leaves the other component's display order untouched", () => {
     const node = makeNode();
 
-    setCoordinateSystemValueAxis(node, "position", 1, 0);
+    setCoordinateSystemSlotAxis(node, "position", 1, 0);
 
     expect(node.rotationDisplayOrder).toEqual([0, 1, 2]);
   });
+
+  it("keeps each display slot showing its own name and value, only swapping axes", () => {
+    const node = makeNode();
+    const before = getCoordinateSystemSlots(node, "position").map(
+      slot => slot.value.name
+    );
+
+    setCoordinateSystemSlotAxis(node, "position", 1, 0);
+
+    const after = getCoordinateSystemSlots(node, "position").map(
+      slot => slot.value.name
+    );
+    expect(after).toEqual(before);
+    expect(node.positionDisplayOrder).toEqual([1, 0, 2]);
+  });
 });
 
-describe("reorderCoordinateSystemValue", () => {
+describe("reorderCoordinateSystemSlot", () => {
   function makeNode() {
     return buildCoordinateSystemNode(
       "Tip",
@@ -575,55 +599,42 @@ describe("reorderCoordinateSystemValue", () => {
     );
   }
 
-  it("moves a value while keeping every axis mapped to the same value", () => {
-    const node = makeNode();
-    const nameByAxisBefore = [0, 1, 2].map(
-      axis => node.position[node.positionDisplayOrder[axis]!]!.name
-    );
-
-    reorderCoordinateSystemValue(node, "position", 0, 2);
-
-    expect(node.position.map(value => value.name)).toEqual(["DV", "AP", "ML"]);
-    expect(node.positionDisplayOrder).toEqual([2, 0, 1]);
-    const nameByAxisAfter = [0, 1, 2].map(
-      axis => node.position[node.positionDisplayOrder[axis]!]!.name
-    );
-    expect(nameByAxisAfter).toEqual(nameByAxisBefore);
-  });
-
-  it("is a no-op when fromIndex equals toIndex", () => {
+  it("moves a slot, keeping every axis mapped to the same value", () => {
     const node = makeNode();
 
-    reorderCoordinateSystemValue(node, "position", 1, 1);
+    reorderCoordinateSystemSlot(node, "position", 0, 2);
 
     expect(node.position.map(value => value.name)).toEqual(["ML", "DV", "AP"]);
+    expect(node.positionDisplayOrder).toEqual([1, 2, 0]);
+  });
+
+  it("is a no-op when fromSlot equals toSlot", () => {
+    const node = makeNode();
+
+    reorderCoordinateSystemSlot(node, "position", 1, 1);
+
     expect(node.positionDisplayOrder).toEqual([0, 1, 2]);
   });
 
-  it("is a no-op for an out-of-range index", () => {
+  it("is a no-op for an out-of-range slot", () => {
     const node = makeNode();
 
-    reorderCoordinateSystemValue(node, "position", 0, 3);
-    reorderCoordinateSystemValue(node, "position", -1, 1);
+    reorderCoordinateSystemSlot(node, "position", 0, 3);
+    reorderCoordinateSystemSlot(node, "position", -1, 1);
 
-    expect(node.position.map(value => value.name)).toEqual(["ML", "DV", "AP"]);
     expect(node.positionDisplayOrder).toEqual([0, 1, 2]);
   });
 
   it("re-maps a non-identity display order, keeping every axis mapped to the same value", () => {
     const node = makeNode();
     node.positionDisplayOrder = [2, 0, 1];
-    const nameByAxisBefore = [0, 1, 2].map(
-      axis => node.position[node.positionDisplayOrder[axis]!]!.name
-    );
 
-    reorderCoordinateSystemValue(node, "position", 0, 2);
+    reorderCoordinateSystemSlot(node, "position", 0, 2);
 
-    expect(node.positionDisplayOrder).toEqual([1, 2, 0]);
-    const nameByAxisAfter = [0, 1, 2].map(
-      axis => node.position[node.positionDisplayOrder[axis]!]!.name
-    );
-    expect(nameByAxisAfter).toEqual(nameByAxisBefore);
+    expect(node.positionDisplayOrder).toEqual([0, 1, 2]);
+    expect(
+      getCoordinateSystemSlots(node, "position").map(slot => slot.value.name)
+    ).toEqual(["ML", "DV", "AP"]);
   });
 });
 
@@ -645,14 +656,13 @@ describe("getCoordinateSystemAxisValue", () => {
     );
   }
 
-  it("reads the value mapped onto the given axis under a non-identity order", () => {
+  it("reads the value at the given axis directly, ignoring display order", () => {
     const node = makeNode();
 
-    // positionDisplayOrder [2, 0, 1]: axis 0 <- value 2 (AP=3), axis 1 <- value 0 (ML=1),
-    // axis 2 <- value 1 (DV=2).
-    expect(getCoordinateSystemAxisValue(node, "position", 0)).toBe(3);
-    expect(getCoordinateSystemAxisValue(node, "position", 1)).toBe(1);
-    expect(getCoordinateSystemAxisValue(node, "position", 2)).toBe(2);
+    // Values are stored by axis; positionDisplayOrder never affects axis reads.
+    expect(getCoordinateSystemAxisValue(node, "position", 0)).toBe(1);
+    expect(getCoordinateSystemAxisValue(node, "position", 1)).toBe(2);
+    expect(getCoordinateSystemAxisValue(node, "position", 2)).toBe(3);
   });
 
   it("reads the value mapped onto the given axis under the default rotation order", () => {
@@ -682,15 +692,15 @@ describe("setCoordinateSystemAxisValue", () => {
     );
   }
 
-  it("writes the value mapped onto the given axis under a non-identity order", () => {
+  it("writes the value at the given axis directly, ignoring display order", () => {
     const node = makeNode();
 
     setCoordinateSystemAxisValue(node, "position", 0, 100);
 
-    // Axis 0 maps to value index 2 (AP) under order [2, 0, 1].
-    expect(node.position[2]!.value).toBe(100);
-    expect(node.position[0]!.value).toBe(1);
+    // Values are stored by axis; positionDisplayOrder never affects axis writes.
+    expect(node.position[0]!.value).toBe(100);
     expect(node.position[1]!.value).toBe(2);
+    expect(node.position[2]!.value).toBe(3);
     expect(getCoordinateSystemAxisValue(node, "position", 0)).toBe(100);
   });
 });

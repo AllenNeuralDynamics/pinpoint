@@ -114,9 +114,9 @@ describe("SceneObjectInspector", () => {
       axis.ap,
       axis.dv,
       axis.ml,
-      t.roll,
-      t.yaw,
-      t.pitch,
+      axis.roll,
+      axis.yaw,
+      axis.pitch,
       axis.z,
       axis.y,
       axis.x

@@ -26,14 +26,14 @@ export {
   buildFixedCoordinateSystemValue,
   getCoordinateSystemAxisValue,
   getCoordinateSystemIdentifier,
-  getCoordinateSystemValueAxis,
+  getCoordinateSystemSlots,
   isCoordinateSystem,
   removeCoordinateSystemTransform,
+  reorderCoordinateSystemSlot,
   reorderCoordinateSystemTransform,
-  reorderCoordinateSystemValue,
   setCoordinateSystemAxisValue,
-  setCoordinateSystemSurfaceNode,
-  setCoordinateSystemValueAxis
+  setCoordinateSystemSlotAxis,
+  setCoordinateSystemSurfaceNode
 } from "./api/coordinate-system.api";
 export type { InverseKinematicsSolveRequest } from "./composable/useInverseKinematicsSolver";
 export { useInverseKinematicsSolver } from "./composable/useInverseKinematicsSolver";

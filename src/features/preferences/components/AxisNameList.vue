@@ -1,20 +1,18 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import {
-  type CoordinateSystemNode,
-  type CoordinateSystemNodeComponent,
-  getCoordinateSystemSlots,
-  reorderCoordinateSystemSlot,
-  setCoordinateSystemSlotAxis
-} from "@/features/coordinate-system";
 import { useDragReorder } from "@/composable/useDragReorder";
-import CoordinateSystemValueInspector from "./CoordinateSystemValueInspector.vue";
+import { getAxisSlots, moveAxisSlot, type AxisOrder } from "@/utils/axis-order";
 
-const { node, component, label } = defineProps<{
-  node: CoordinateSystemNode;
-  component: CoordinateSystemNodeComponent;
+const { names, order, defaultNames } = defineProps<{
+  /** Heading shown above the list. */
   label: string;
+  /** Per-axis user names, indexed by axis, mutated in place. */
+  names: [string, string, string];
+  /** Display slot order, mutated in place. */
+  order: AxisOrder;
+  /** Per-axis built-in labels, indexed by axis. */
+  defaultNames: [string, string, string];
 }>();
 
 const { t } = useI18n();
@@ -26,10 +24,10 @@ const {
   dropRow,
   endDrag
 } = useDragReorder((fromIndex, toIndex) =>
-  reorderCoordinateSystemSlot(node, component, fromIndex, toIndex)
+  moveAxisSlot(order, fromIndex, toIndex)
 );
 
-const slots = computed(() => getCoordinateSystemSlots(node, component));
+const slots = computed(() => getAxisSlots(order, names, defaultNames));
 </script>
 
 <template>
@@ -38,7 +36,7 @@ const slots = computed(() => getCoordinateSystemSlots(node, component));
     <q-list separator>
       <q-item
         v-for="(slot, index) of slots"
-        :key="index"
+        :key="slot.axis"
         :class="{
           'value-row--dragging': draggedIndex === index,
           'value-row--drop-target':
@@ -51,7 +49,7 @@ const slots = computed(() => getCoordinateSystemSlots(node, component));
           <div
             class="value-row__handle"
             draggable="true"
-            :title="t('coordinateSystemInspector.dragToReorder')"
+            :title="t('preferences.dragToReorder')"
             @dragend="endDrag"
             @dragstart.stop="startDrag(index, $event)"
           >
@@ -59,13 +57,16 @@ const slots = computed(() => getCoordinateSystemSlots(node, component));
           </div>
         </q-item-section>
         <q-item-section>
-          <CoordinateSystemValueInspector
-            :axis-index="slot.axis"
-            :component="component"
-            :coordinate-system-value="slot.value"
-            @update:axis-index="
-              setCoordinateSystemSlotAxis(node, component, index, $event)
+          <q-input
+            :aria-label="
+              t('preferences.axisName', { axis: defaultNames[slot.axis] })
             "
+            dense
+            :label="defaultNames[slot.axis]"
+            :model-value="names[slot.axis]"
+            outlined
+            :rules="[]"
+            @update:model-value="names[slot.axis] = String($event).trim()"
           />
         </q-item-section>
       </q-item>

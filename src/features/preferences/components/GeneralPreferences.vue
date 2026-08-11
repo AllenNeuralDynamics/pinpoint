@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { usePreferencesStore } from "@/stores/preferences.store";
+import AxisPreferences from "./AxisPreferences.vue";
 import UnitPreferences from "./UnitPreferences.vue";
 
 const preferences = usePreferencesStore();
@@ -63,5 +64,7 @@ const preferences = usePreferencesStore();
     </div>
     <q-separator />
     <UnitPreferences />
+    <q-separator />
+    <AxisPreferences />
   </div>
 </template>

@@ -47,8 +47,21 @@ describe("solveCoordinateSystemChain", () => {
     expect(solution.nodePositions[0]![2]).toBeCloseTo(1);
   });
 
-  it("routes each value to its mapped axis under a non-identity display order", () => {
-    const node = buildCoordinateSystemNode(
+  it("solves independently of the display order, a pure UI concern under the axis-indexed model", () => {
+    const identityOrderNode = buildCoordinateSystemNode(
+      "Node",
+      [
+        buildCoordinateSystemValue("A", 5),
+        buildCoordinateSystemValue("B", 6),
+        buildCoordinateSystemValue("C", 7)
+      ],
+      [
+        buildCoordinateSystemValue("Pitch", 0),
+        buildCoordinateSystemValue("Yaw", 0),
+        buildCoordinateSystemValue("Roll", 0)
+      ]
+    );
+    const permutedOrderNode = buildCoordinateSystemNode(
       "Node",
       [
         buildCoordinateSystemValue("A", 5),
@@ -60,17 +73,23 @@ describe("solveCoordinateSystemChain", () => {
         buildCoordinateSystemValue("Yaw", 0),
         buildCoordinateSystemValue("Roll", 0)
       ],
-      // order[axisIndex] = valueIndex: axis 0 (X/ML) <- value 1 (B), axis 1
-      // (Y/DV) <- value 2 (C), axis 2 (Z/AP) <- value 0 (A).
       [1, 2, 0]
     );
 
-    const solution = solveCoordinateSystemChain([node], null);
+    const identitySolution = solveCoordinateSystemChain(
+      [identityOrderNode],
+      null
+    );
+    const permutedSolution = solveCoordinateSystemChain(
+      [permutedOrderNode],
+      null
+    );
 
-    // tipPosition = [ap, dv, ml] = [axis2, axis1, axis0] = [A, C, B] = [5, 7, 6].
-    expect(solution.tipPosition[0]).toBeCloseTo(5);
-    expect(solution.tipPosition[1]).toBeCloseTo(7);
-    expect(solution.tipPosition[2]).toBeCloseTo(6);
+    expect(permutedSolution.tipPosition).toEqual(identitySolution.tipPosition);
+    // tipPosition = [ap, dv, ml] = [axis2, axis1, axis0] = [C, B, A] = [7, 6, 5].
+    expect(identitySolution.tipPosition[0]).toBeCloseTo(7);
+    expect(identitySolution.tipPosition[1]).toBeCloseTo(6);
+    expect(identitySolution.tipPosition[2]).toBeCloseTo(5);
   });
 
   it("composes a child's translation through its parent's rotation, in chain order", () => {
