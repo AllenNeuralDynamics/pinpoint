@@ -1,5 +1,13 @@
 <script lang="ts" setup>
-import { computed, onUnmounted, ref, toRaw, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onUnmounted,
+  ref,
+  toRaw,
+  watch,
+  watchEffect
+} from "vue";
 import { useI18n } from "vue-i18n";
 import {
   copyProbe,
@@ -76,9 +84,6 @@ type SolveReason = "preview" | "release" | "external";
 /** Pose difference, in mm and radians, below which the probe needs no correction. */
 const POSE_MATCH_TOLERANCE = 1e-4;
 
-/** Largest per-axis distance, in mm, at which an `onSurface` node counts as at the entry point. */
-const SURFACE_MATCH_TOLERANCE_MILLIMETERS = 1e-3;
-
 /**
  * Consecutive non-converged preview solves before the unreachable ghost is drawn, so one
  * spurious warm-seed miss during a drag does not flash it.
@@ -111,7 +116,7 @@ const { requiredName: nameRules } = useValidationRules();
 
 const { t } = useI18n();
 const { notifyError, notifyWarning } = useNotify();
-const { findSurfaceEntry, findTargets } = useProbeSurface();
+const { findTargets, isOnSurface } = useProbeSurface();
 const { solve: solveInverseKinematics } = useInverseKinematicsSolver();
 
 /** Is the surface sampling pass currently running. */
@@ -125,6 +130,12 @@ const chain = ref<CoordinateSystemNode[]>([]);
 
 /** Indexes into `chain` of `onSurface` nodes whose off-surface reading has been sustained. */
 const offSurfaceNodeIndexes = ref<number[]>([]);
+
+/**
+ * Did the last surface march find a brain-surface point, so the solver pinned the chain's
+ * `onSurface` node to it and the marker has a surface to mark.
+ */
+const isSurfaceNodePinned = ref(false);
 
 /**
  * Aborts the in-flight surface sampling. Deliberately a plain `let`, not a ref:
@@ -272,8 +283,29 @@ const directNode = computed(() => {
     : node;
 });
 
+/** Chain index of the node constrained to the brain surface, or null when the chain has none. */
+const surfaceNodeIndex = computed(() => {
+  const index = chain.value.findIndex(node => node.onSurface);
+  return index === -1 ? null : index;
+});
+
 /** Does the working chain have any node constrained to the brain surface. */
-const hasSurfaceNode = computed(() => chain.value.some(node => node.onSurface));
+const hasSurfaceNode = computed(() => surfaceNodeIndex.value !== null);
+
+/**
+ * Forward-kinematics position of the chain's on-surface node, in atlas ASR mm, or null when the
+ * chain has none.
+ */
+const surfaceNodePosition = computed<[number, number, number] | null>(() => {
+  const index = surfaceNodeIndex.value;
+  if (index === null) return null;
+
+  const node = directNode.value;
+  const solution = node
+    ? solveDirectNode(node)
+    : solveCoordinateSystemChain(chain.value, referenceOffset.value);
+  return solution.nodePositions[index] ?? null;
+});
 
 /** This probe's interned interface definition, or null when the experiment has none. */
 const probeInterfaceProbe = computed(
@@ -425,6 +457,26 @@ function clearOffSurfaceWarnings(): void {
   offSurfaceCheckCounts.clear();
 }
 
+/** Drop this probe's surface marker, leaving another probe's alone. */
+function clearSurfaceMarker(): void {
+  if (currentExperimentStore.probeSurfaceMarker?.probeId === probe.id) {
+    currentExperimentStore.probeSurfaceMarker = null;
+  }
+}
+
+/**
+ * Brain-surface point a probe pose puts the chain's `onSurface` node at, or null when the shank
+ * misses the brain. Marches the same ray Move to surface does, so a tip pushed out the far side
+ * still resolves the entry point above it.
+ * @param probeAtPose Probe carrying the pose to march from.
+ */
+async function findSurfaceGoal(
+  probeAtPose: Probe
+): Promise<[number, number, number] | null> {
+  const targets = await findTargets(probeAtPose);
+  return targets?.insideMillimeters ?? null;
+}
+
 /**
  * Solve the working chain's free values onto the probe's pose, driving or clearing the
  * unreachable-pose ghost and toast based on the result.
@@ -437,20 +489,26 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
   if (reason !== "preview") hasPendingPreview = false;
   const id = ++solveId;
   isSolving = true;
+  // One pose for the whole run: the surface sample and the solve's goals must describe the same
+  // pose, or a drag frame landing during the sampling leaves the solver two goals it cannot
+  // satisfy at once, and its non-convergence flashes the unreachable ghost.
+  const tipPosition: [number, number, number] = [...probe.tipPosition];
+  const rotation: [number, number, number] = [...probe.rotation];
   try {
     let surfacePosition: [number, number, number] | null = null;
     if (hasSurfaceNode.value) {
-      surfacePosition = await findSurfaceEntry(probe);
+      surfacePosition = await findSurfaceGoal({
+        ...probe,
+        tipPosition,
+        rotation
+      });
+      if (id !== solveId) return;
+      isSurfaceNodePinned.value = surfacePosition !== null;
     }
-    if (id !== solveId) return;
 
     const result = await solveInverseKinematics({
       chain: toRaw(chain.value),
-      target: {
-        tipPosition: [...probe.tipPosition],
-        rotation: [...probe.rotation],
-        surfacePosition
-      },
+      target: { tipPosition, rotation, surfacePosition },
       referenceOffsetMillimeters: toRaw(referenceOffset.value),
       maximumStarts:
         reason === "preview" ? PREVIEW_SOLVE_STARTS : SETTLED_SOLVE_STARTS
@@ -482,8 +540,8 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
       if (
         !isCoordinateSystemSolutionAtPose(
           solution,
-          probe.tipPosition,
-          probe.rotation,
+          tipPosition,
+          rotation,
           POSE_MATCH_TOLERANCE
         )
       ) {
@@ -511,10 +569,10 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
       }
     }
 
-    // A preview never writes the probe's pose, so the tip sampled before the solve is still the
-    // final tip. A release or external solve can correct the pose, so re-sample it.
+    // A preview never writes the probe's pose, so the goal marched before the solve still
+    // describes the final pose. A release or external solve can correct the pose, so re-march it.
     if (reason === "preview") {
-      checkSurfaceNodes(solution, reason, surfacePosition);
+      void checkSurfaceNodes(solution, reason, surfacePosition !== null);
     } else {
       void verifySurfaceNodes(solution, reason);
     }
@@ -548,6 +606,9 @@ async function previewInverseKinematics(): Promise<void> {
   }
 }
 
+/** Set by `seedChain` so the pose watcher below skips the redundant march its own reseed already ran, when a coordinate-system switch changes `referenceOffset` in the same tick. */
+let chainJustSeeded = false;
+
 /** Re-clone the selected library coordinate system's chain into the working copy. */
 function seedChain(): void {
   // A solve still in flight was started for the previous probe or chain: retire its id so its
@@ -559,8 +620,17 @@ function seedChain(): void {
     ? structuredClone(toRaw(selectedCoordinateSystem.value)).chain
     : [];
   clearOffSurfaceWarnings();
+  // A new probe or chain has not been marched yet. Drop the marker outright rather than through
+  // `clearSurfaceMarker`, whose ownership guard no longer matches after a probe swap --
+  // `Inspector.vue`'s unkeyed `v-if` reuses this instance, so no unmount clears it.
+  isSurfaceNodePinned.value = false;
+  currentExperimentStore.probeSurfaceMarker = null;
   appliedPose = null;
   clearUnreachable();
+  chainJustSeeded = true;
+  void nextTick(() => {
+    chainJustSeeded = false;
+  });
   if (!selectedCoordinateSystem.value) return;
 
   // A single all-adjustable node is exactly invertible from the probe's pose, so
@@ -668,7 +738,7 @@ function applySolve(): void {
 }
 
 /**
- * Sample the probe's committed brain entry point, then check the chain's on-surface nodes
+ * March the probe's committed pose for its surface goal, then check the chain's on-surface nodes
  * against it.
  * @param solution Solved chain the node positions come from.
  * @param reason Why the change that produced this check fired.
@@ -682,45 +752,44 @@ async function verifySurfaceNodes(
     return;
   }
   const checkId = ++surfaceCheckId;
-  const surfaceMillimeters = await findSurfaceEntry(probe);
+  const surfacePosition = await findSurfaceGoal(probe);
   if (checkId !== surfaceCheckId) return;
-  checkSurfaceNodes(solution, reason, surfaceMillimeters);
+  isSurfaceNodePinned.value = surfacePosition !== null;
+  void checkSurfaceNodes(solution, reason, surfacePosition !== null);
 }
 
 /**
- * Replace the off-surface warnings with the on-surface nodes that miss the probe's brain entry
- * point, once a preview's miss has held for `SUSTAINED_OFF_SURFACE_CHECKS` consecutive checks.
+ * Replace the off-surface warnings with the on-surface nodes the atlas rejects, once a preview's
+ * rejection has held for `SUSTAINED_OFF_SURFACE_CHECKS` consecutive checks.
  * @param solution Solved chain the node positions come from.
  * @param reason Why the solve that produced this check fired.
- * @param surfaceMillimeters Probe's brain entry point in atlas ASR mm, or null when it has none.
+ * @param hasSurfaceGoal Did this pose's march find a surface point for the solver to pin to.
  */
-function checkSurfaceNodes(
+async function checkSurfaceNodes(
   solution: CoordinateSystemSolution,
   reason: SolveReason,
-  surfaceMillimeters: [number, number, number] | null
-): void {
-  surfaceCheckId++;
+  hasSurfaceGoal: boolean
+): Promise<void> {
   const indexes = chain.value.flatMap((node, index) =>
     node.onSurface ? [index] : []
   );
-  // A probe that does not cross the brain has no entry point, so there is nothing to verify.
-  if (!surfaceMillimeters || indexes.length === 0) {
+  // With no surface goal the solver left the node unconstrained, so there is nothing to verify.
+  if (!hasSurfaceGoal || indexes.length === 0) {
     clearOffSurfaceWarnings();
     return;
   }
 
+  const checkId = ++surfaceCheckId;
+  const results = await Promise.all(
+    indexes.map(index => isOnSurface(solution.nodePositions[index]!))
+  );
+  if (checkId !== surfaceCheckId) return;
+
   const warned: number[] = [];
-  for (const index of indexes) {
-    const nodePosition = solution.nodePositions[index]!;
-    if (
-      surfaceMillimeters.every(
-        (value, axis) =>
-          Math.abs(value - nodePosition[axis]!) <=
-          SURFACE_MATCH_TOLERANCE_MILLIMETERS
-      )
-    ) {
+  indexes.forEach((index, position) => {
+    if (results[position] !== false) {
       offSurfaceCheckCounts.delete(index);
-      continue;
+      return;
     }
     // A one-shot solve has no next check to wait for, so it warns at once and holds the warning
     // through the previews of any later drag.
@@ -731,7 +800,7 @@ function checkSurfaceNodes(
         : Math.max(next, SUSTAINED_OFF_SURFACE_CHECKS);
     offSurfaceCheckCounts.set(index, count);
     if (count >= SUSTAINED_OFF_SURFACE_CHECKS) warned.push(index);
-  }
+  });
   offSurfaceNodeIndexes.value = warned;
 }
 
@@ -754,6 +823,10 @@ watch(
     () => currentExperimentStore.draggedProbeId
   ],
   () => {
+    if (chainJustSeeded) {
+      chainJustSeeded = false;
+      return;
+    }
     if (!selectedCoordinateSystem.value) return;
     const node = directNode.value;
     if (node) {
@@ -794,9 +867,27 @@ watch(
   { deep: true }
 );
 
+// Publish the on-surface node's solved position for the scene's marker sphere. This reads `chain`,
+// so a manual edit moves the ball through forward kinematics and a drag moves it to wherever the
+// inverse-kinematics solve put the surface node. A chain with no surface node has nothing to mark,
+// and neither does one whose march found no surface: the solver left that node unconstrained, so
+// its solved position means nothing.
+watchEffect(() => {
+  const position = surfaceNodePosition.value;
+  if (!position || !isSurfaceNodePinned.value) {
+    clearSurfaceMarker();
+    return;
+  }
+  currentExperimentStore.probeSurfaceMarker = {
+    probeId: probe.id,
+    position: [...position]
+  };
+});
+
 onUnmounted(() => {
   cancelMoveToSurface();
   clearUnreachable();
+  clearSurfaceMarker();
 });
 </script>
 

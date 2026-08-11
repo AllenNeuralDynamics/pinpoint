@@ -1335,6 +1335,25 @@ describe("SceneCanvas", () => {
     expect(scene.getTransformNodeByName("probeGhost_node")).toBeNull();
   });
 
+  it("draws the surface marker sphere while probeSurfaceMarker is set and removes it when cleared", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    const probe = makeProbe();
+    store.experiment.probes = [probe];
+
+    store.probeSurfaceMarker = { probeId: probe.id, position: [5, 3, 5] };
+    await flushPromises();
+
+    const scene = runtime.scene.value!;
+    expect(scene.getMeshByName("probeSurfaceMarker_mesh")).toBeTruthy();
+
+    store.probeSurfaceMarker = null;
+    await flushPromises();
+
+    expect(scene.getMeshByName("probeSurfaceMarker_mesh")).toBeNull();
+  });
+
   describe("move to surface", () => {
     /** Add a probe with a real contour, so `syncProbes` builds its shank meshes. */
     async function addTestProbe(

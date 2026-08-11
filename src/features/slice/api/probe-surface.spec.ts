@@ -3,7 +3,11 @@ import type { Array as ZarrArray, DataType, Readable } from "zarrita";
 import type { AnnotationLevel } from "../models/annotation-level.model";
 import { planSamples } from "./sample-plan.api";
 import type { ProbeFrame } from "./probe-frame.api";
-import { findProbeSurfaceTargets, type RaySampler } from "./probe-surface.api";
+import {
+  findProbeSurfaceTargets,
+  isOnAnnotationSurface,
+  type RaySampler
+} from "./probe-surface.api";
 
 /**
  * Build a fake single-chunk multiscale level for surface-finding tests.
@@ -312,5 +316,139 @@ describe("findProbeSurfaceTargets", () => {
       expect(result.axisMillimeters).not.toBeNull();
       expect(result.dorsoventralMillimeters).not.toBeNull();
     });
+  });
+});
+
+describe("isOnAnnotationSurface", () => {
+  it("is true for an annotated voxel with a background face neighbor", async () => {
+    const level = makeLevel();
+    const grid = makeGrid(
+      level,
+      (ap, dv, ml) => !(ap === 1 && dv === 3 && ml === 2)
+    );
+    const point: [number, number, number] = [
+      voxelCenter(level, 0, 2),
+      voxelCenter(level, 1, 3),
+      voxelCenter(level, 2, 2)
+    ];
+
+    const result = await isOnAnnotationSurface(
+      level,
+      point,
+      makeSampleRay(level, grid)
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it("is false for an annotated voxel fully enclosed by other annotated voxels", async () => {
+    const level = makeLevel();
+    const grid = makeGrid(level, () => true);
+    const point: [number, number, number] = [
+      voxelCenter(level, 0, 2),
+      voxelCenter(level, 1, 3),
+      voxelCenter(level, 2, 2)
+    ];
+
+    const result = await isOnAnnotationSurface(
+      level,
+      point,
+      makeSampleRay(level, grid)
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it("is false for a background voxel, regardless of its neighbors", async () => {
+    const level = makeLevel();
+    const grid = makeGrid(
+      level,
+      (ap, dv, ml) => !(ap === 2 && dv === 3 && ml === 2)
+    );
+    const point: [number, number, number] = [
+      voxelCenter(level, 0, 2),
+      voxelCenter(level, 1, 3),
+      voxelCenter(level, 2, 2)
+    ];
+
+    const result = await isOnAnnotationSurface(
+      level,
+      point,
+      makeSampleRay(level, grid)
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it("is false for a background voxel diagonal to the center, which touches no face", async () => {
+    const level = makeLevel();
+    const grid = makeGrid(
+      level,
+      (ap, dv, ml) => !(ap === 3 && dv === 3 && ml === 3)
+    );
+    const point: [number, number, number] = [
+      voxelCenter(level, 0, 2),
+      voxelCenter(level, 1, 3),
+      voxelCenter(level, 2, 2)
+    ];
+
+    const result = await isOnAnnotationSurface(
+      level,
+      point,
+      makeSampleRay(level, grid)
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it("is true for an annotated voxel with a background +DV face neighbor (index 4)", async () => {
+    const level = makeLevel();
+    const grid = makeGrid(
+      level,
+      (ap, dv, ml) => !(ap === 2 && dv === 4 && ml === 2)
+    );
+    const point: [number, number, number] = [
+      voxelCenter(level, 0, 2),
+      voxelCenter(level, 1, 3),
+      voxelCenter(level, 2, 2)
+    ];
+
+    const result = await isOnAnnotationSurface(
+      level,
+      point,
+      makeSampleRay(level, grid)
+    );
+
+    expect(result).toBe(true);
+  });
+
+  it("is false for a point outside the volume, whose samples stay background", async () => {
+    const level = makeLevel();
+    const grid = makeGrid(level, () => true);
+
+    const result = await isOnAnnotationSurface(
+      level,
+      [-10, -10, -10],
+      makeSampleRay(level, grid)
+    );
+
+    expect(result).toBe(false);
+  });
+
+  it("is null when the sampler can't be read", async () => {
+    const level = makeLevel();
+    const sampleNeighborhood: RaySampler = async () => null;
+
+    const result = await isOnAnnotationSurface(
+      level,
+      [
+        voxelCenter(level, 0, 2),
+        voxelCenter(level, 1, 3),
+        voxelCenter(level, 2, 2)
+      ],
+      sampleNeighborhood
+    );
+
+    expect(result).toBeNull();
   });
 });
