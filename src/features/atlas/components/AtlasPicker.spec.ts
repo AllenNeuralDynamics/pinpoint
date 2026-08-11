@@ -25,17 +25,20 @@ const CUSTOM_SOURCE = "custom";
 
 /** URL of the BrainGlobe bucket's atlases directory listing. */
 const BRAINGLOBE_LISTING_URL =
-  "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas-rc2%2Fatlases%2F&delimiter=%2F";
+  "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas%2Fatlases%2F";
 
 /** URL of the Allen Institute bucket's atlases directory listing. */
 const ALLEN_INSTITUTE_LISTING_URL =
-  "https://aind-scratch-data.s3.us-west-2.amazonaws.com/?list-type=2&prefix=pinpoint-atlases%2Fatlases%2F&delimiter=%2F";
+  "https://aind-scratch-data.s3.us-west-2.amazonaws.com/?list-type=2&prefix=pinpoint-atlases%2Fatlases%2F";
 
 /** Root URL of the custom HTTP host used across these tests. */
 const CUSTOM_SOURCE_ROOT = "http://localhost:3000";
 
 /** URL of a custom HTTP host's atlases directory listing. */
 const CUSTOM_ATLASES_URL = `${CUSTOM_SOURCE_ROOT}/brainglobe-atlasapi/atlases`;
+
+/** Version listing for a custom-HTTP-host atlas directory, naming a single `3_0` version. */
+const VERSION_3_0_LISTING = { files: [{ base: "3_0/", type: "folder" }] };
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -179,7 +182,7 @@ describe("AtlasPicker", () => {
         BRAINGLOBE_LISTING_URL,
         `<?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
 </ListBucketResult>`,
         { [brainglobeManifestUrl("allen_mouse_25um")]: rawManifest() }
       );
@@ -197,7 +200,7 @@ describe("AtlasPicker", () => {
         ALLEN_INSTITUTE_LISTING_URL,
         `<?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-  <CommonPrefixes><Prefix>pinpoint-atlases/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
+  <Contents><Key>pinpoint-atlases/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
 </ListBucketResult>`,
         {
           [`${BUCKET_SOURCE_URLS.allenInstitute}atlases/allen_mouse_25um/3_0/manifest.json`]:
@@ -266,11 +269,14 @@ describe("AtlasPicker", () => {
         CUSTOM_ATLASES_URL,
         {
           files: [
-            { name: "allen_mouse_25um", type: "folder" },
-            { name: "readme.txt", type: "file" }
+            { base: "allen_mouse_25um/", type: "folder" },
+            { base: "readme.txt", type: "file" }
           ]
         },
-        { [customManifestUrl("allen_mouse_25um")]: rawManifest() }
+        {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [customManifestUrl("allen_mouse_25um")]: rawManifest()
+        }
       );
 
       const wrapper = await mountOnCustomSource();
@@ -303,8 +309,9 @@ describe("AtlasPicker", () => {
     it("renders a link button whose href is the resolved manifest's link value", async () => {
       mockSource(
         CUSTOM_ATLASES_URL,
-        { files: [{ name: "allen_mouse_25um", type: "folder" }] },
+        { files: [{ base: "allen_mouse_25um/", type: "folder" }] },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifest({
             atlas_link: "http://www.brain-map.org"
           })
@@ -322,8 +329,9 @@ describe("AtlasPicker", () => {
     it("renders no link button when the manifest omits a link value, while still rendering the favorite button", async () => {
       mockSource(
         CUSTOM_ATLASES_URL,
-        { files: [{ name: "allen_mouse_25um", type: "folder" }] },
+        { files: [{ base: "allen_mouse_25um/", type: "folder" }] },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifestWithoutLink()
         }
       );
@@ -342,11 +350,13 @@ describe("AtlasPicker", () => {
         CUSTOM_ATLASES_URL,
         {
           files: [
-            { name: "allen_mouse_25um", type: "folder" },
-            { name: "allen_human_500um", type: "folder" }
+            { base: "allen_mouse_25um/", type: "folder" },
+            { base: "allen_human_500um/", type: "folder" }
           ]
         },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [`${CUSTOM_ATLASES_URL}/allen_human_500um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifest(),
           [customManifestUrl("allen_human_500um")]: new Error("network error")
         }
@@ -363,8 +373,9 @@ describe("AtlasPicker", () => {
     it("shows the empty state once the only listed atlas's manifest request rejects", async () => {
       mockSource(
         CUSTOM_ATLASES_URL,
-        { files: [{ name: "allen_mouse_25um", type: "folder" }] },
+        { files: [{ base: "allen_mouse_25um/", type: "folder" }] },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: new Error("network error")
         }
       );
@@ -384,11 +395,13 @@ describe("AtlasPicker", () => {
         CUSTOM_ATLASES_URL,
         {
           files: [
-            { name: "allen_mouse_25um", type: "folder" },
-            { name: "allen_human_500um", type: "folder" }
+            { base: "allen_mouse_25um/", type: "folder" },
+            { base: "allen_human_500um/", type: "folder" }
           ]
         },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [`${CUSTOM_ATLASES_URL}/allen_human_500um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifest(),
           [customManifestUrl("allen_human_500um")]: rawManifest()
         }
@@ -413,11 +426,13 @@ describe("AtlasPicker", () => {
         CUSTOM_ATLASES_URL,
         {
           files: [
-            { name: "allen_mouse_25um", type: "folder" },
-            { name: "allen_human_500um", type: "folder" }
+            { base: "allen_mouse_25um/", type: "folder" },
+            { base: "allen_human_500um/", type: "folder" }
           ]
         },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [`${CUSTOM_ATLASES_URL}/allen_human_500um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifest({
             species: "Mus musculus"
           }),
@@ -447,11 +462,13 @@ describe("AtlasPicker", () => {
         CUSTOM_ATLASES_URL,
         {
           files: [
-            { name: "allen_mouse_25um", type: "folder" },
-            { name: "allen_human_500um", type: "folder" }
+            { base: "allen_mouse_25um/", type: "folder" },
+            { base: "allen_human_500um/", type: "folder" }
           ]
         },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [`${CUSTOM_ATLASES_URL}/allen_human_500um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifest({
             species: "Mus musculus"
           }),
@@ -491,11 +508,13 @@ describe("AtlasPicker", () => {
         CUSTOM_ATLASES_URL,
         {
           files: [
-            { name: "allen_mouse_25um", type: "folder" },
-            { name: "allen_human_500um", type: "folder" }
+            { base: "allen_mouse_25um/", type: "folder" },
+            { base: "allen_human_500um/", type: "folder" }
           ]
         },
         {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [`${CUSTOM_ATLASES_URL}/allen_human_500um`]: VERSION_3_0_LISTING,
           [customManifestUrl("allen_mouse_25um")]: rawManifest(),
           [customManifestUrl("allen_human_500um")]: rawManifest()
         }
@@ -572,8 +591,11 @@ describe("AtlasPicker", () => {
     it("emits update:modelValue with the fully-resolved atlas", async () => {
       mockSource(
         CUSTOM_ATLASES_URL,
-        { files: [{ name: "allen_mouse_25um", type: "folder" }] },
-        { [customManifestUrl("allen_mouse_25um")]: rawManifest() }
+        { files: [{ base: "allen_mouse_25um/", type: "folder" }] },
+        {
+          [`${CUSTOM_ATLASES_URL}/allen_mouse_25um`]: VERSION_3_0_LISTING,
+          [customManifestUrl("allen_mouse_25um")]: rawManifest()
+        }
       );
 
       const wrapper = await mountOnCustomSource();
@@ -606,8 +628,11 @@ describe("AtlasPicker", () => {
       mockedGet.mockImplementation((url: string) => {
         if (url === CUSTOM_ATLASES_URL) {
           return Promise.resolve({
-            data: { files: [{ name: "allen_mouse_25um", type: "folder" }] }
+            data: { files: [{ base: "allen_mouse_25um/", type: "folder" }] }
           });
+        }
+        if (url === `${CUSTOM_ATLASES_URL}/allen_mouse_25um`) {
+          return Promise.resolve({ data: VERSION_3_0_LISTING });
         }
         if (url === manifestUrl) return manifestPromise;
         return Promise.reject(new Error(`unexpected request: ${url}`));

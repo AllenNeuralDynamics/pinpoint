@@ -11,7 +11,7 @@ import type { StructureEntity } from "../models/structure-entity.model";
  * Atlas item in an atlas source's response structure.
  */
 interface AtlasItem {
-  name: string;
+  base: string;
   type: string;
 }
 
@@ -24,7 +24,7 @@ interface AtlasSourceResponse {
 
 /**
  * Manifest of a single size variant of an atlas, as stored at
- * `atlases/<atlas name>_<size>um/3_0/manifest.json`.
+ * `atlases/<atlas name>_<size>um/<version>/manifest.json`.
  */
 interface RawManifest {
   name: string;
@@ -47,17 +47,18 @@ export type BucketSourceId = "brainglobe" | "allenInstitute";
  * source-root-relative manifest locations resolve against it.
  */
 export const BUCKET_SOURCE_URLS: Record<BucketSourceId, string> = {
-  brainglobe: "https://brainglobe.s3.us-west-2.amazonaws.com/atlas-rc2/",
+  brainglobe: "https://brainglobe.s3.us-west-2.amazonaws.com/atlas/",
   allenInstitute:
     "https://aind-scratch-data.s3.us-west-2.amazonaws.com/pinpoint-atlases/"
 };
-
-const ATLAS_VERSION_STRING = "3_0";
 
 const ATLASES_DIRECTORY = "atlases";
 const MANIFEST_FILE = "manifest.json";
 const HTTP_SOURCE_PREFIX = "brainglobe-atlasapi";
 const ANNOTATION_VOLUME_DIRECTORY = "annotations_compressed.ome.zarr";
+
+/** Underscore-separated numeric atlas version directory, e.g. `3_0`. */
+const VERSION_DIRECTORY_PATTERN = /^\d+(?:_\d+)*$/;
 
 /**
  * Allen Mouse atlas as bundled, so a new experiment has a usable atlas
@@ -95,8 +96,8 @@ export async function listAtlasesBucket(
   source: string
 ): Promise<AtlasListing[] | null> {
   try {
-    return atlasListingsFromDirectories(
-      await listBucketAtlasDirectories(source),
+    return atlasListingsFromVariantPaths(
+      await listBucketVariantPaths(source),
       source
     );
   } catch {
@@ -105,47 +106,109 @@ export async function listAtlasesBucket(
 }
 
 /**
- * List the directory names directly under `atlases/` in an S3-backed
- * BrainGlobe bucket.
+ * List the `atlases/`-relative `<directory>/<version>` path of every atlas
+ * manifest in an S3-backed BrainGlobe bucket.
  * @param source Root URL of the bucket.
  */
-async function listBucketAtlasDirectories(source: string): Promise<string[]> {
+async function listBucketVariantPaths(source: string): Promise<string[]> {
   const bucket = new URL(source);
-  const params = new URLSearchParams({
-    "list-type": "2",
-    prefix: `${bucket.pathname.slice(1)}${ATLASES_DIRECTORY}/`,
-    delimiter: "/"
-  });
+  const prefix = `${bucket.pathname.slice(1)}${ATLASES_DIRECTORY}/`;
+  const paths: string[] = [];
+  let continuationToken: string | null = null;
 
-  const response = await axios.get<string>(`${bucket.origin}/?${params}`, {
-    responseType: "text"
-  });
+  do {
+    const params = new URLSearchParams({ "list-type": "2", prefix });
+    if (continuationToken) params.set("continuation-token", continuationToken);
 
-  const doc = new DOMParser().parseFromString(response.data, "application/xml");
-  return Array.from(doc.getElementsByTagName("CommonPrefixes"))
-    .map(el => el.getElementsByTagName("Prefix")[0]?.textContent ?? "")
-    .map(prefix => prefix.split("/").filter(Boolean).pop() ?? "");
+    const response = await axios.get<string>(`${bucket.origin}/?${params}`, {
+      responseType: "text"
+    });
+    const doc = new DOMParser().parseFromString(
+      response.data,
+      "application/xml"
+    );
+
+    for (const element of Array.from(doc.getElementsByTagName("Key"))) {
+      const path = variantPathFromKey(element.textContent ?? "", prefix);
+      if (path) paths.push(path);
+    }
+
+    continuationToken =
+      doc.getElementsByTagName("NextContinuationToken")[0]?.textContent ?? null;
+  } while (continuationToken);
+
+  return paths;
 }
 
 /**
- * Group `atlases/` directory names into one listing per atlas, stripping the
- * resolution suffix, e.g. `allen_mouse_25um` -> `allen_mouse`.
- * @param directoryNames Directory names listed under `atlases/`.
+ * Extract the `<directory>/<version>` path of a manifest key listed under an
+ * atlases prefix, or null for any other key.
+ * @param key Bucket key from the listing.
+ * @param prefix Atlases prefix the listing was made with.
+ */
+function variantPathFromKey(key: string, prefix: string): string | null {
+  const suffix = `/${MANIFEST_FILE}`;
+  if (!key.startsWith(prefix) || !key.endsWith(suffix)) return null;
+
+  const segments = key.slice(prefix.length, -suffix.length).split("/");
+  const [directory, version] = segments;
+  if (segments.length !== 2 || !directory || !version) return null;
+
+  return VERSION_DIRECTORY_PATTERN.test(version)
+    ? `${directory}/${version}`
+    : null;
+}
+
+/**
+ * Group `atlases/`-relative variant paths into one listing per atlas, keeping
+ * each variant directory's newest version and stripping the resolution
+ * suffix from the atlas name, e.g. `allen_mouse_25um/3_0` -> `allen_mouse`.
+ * @param variantPaths `atlases/`-relative `<directory>/<version>` paths.
  * @param source Root URL of the atlas source.
  */
-function atlasListingsFromDirectories(
-  directoryNames: string[],
+function atlasListingsFromVariantPaths(
+  variantPaths: string[],
   source: string
 ): AtlasListing[] {
+  const newestVersions = new Map<string, string>();
+  for (const path of variantPaths) {
+    const [directory, version] = path.split("/") as [string, string];
+    const current = newestVersions.get(directory);
+    if (!current || compareVersionDirectories(version, current) > 0) {
+      newestVersions.set(directory, version);
+    }
+  }
+
   const listings = new Map<string, AtlasListing>();
-  for (const directory of directoryNames.filter(Boolean)) {
+  for (const [directory, version] of newestVersions) {
     const index = directory.lastIndexOf("_");
     const name = index === -1 ? directory : directory.slice(0, index);
+    const variantPath = `${directory}/${version}`;
     const listing = listings.get(name);
-    if (listing) listing.variantDirectories.push(directory);
-    else listings.set(name, { name, source, variantDirectories: [directory] });
+    if (listing) listing.variantPaths.push(variantPath);
+    else listings.set(name, { name, source, variantPaths: [variantPath] });
   }
   return [...listings.values()];
+}
+
+/**
+ * Order two underscore-separated numeric version directory names, positive
+ * when the first is newer.
+ * @param first First version directory name.
+ * @param second Second version directory name.
+ */
+function compareVersionDirectories(first: string, second: string): number {
+  const firstParts = first.split("_").map(Number);
+  const secondParts = second.split("_").map(Number);
+  for (
+    let index = 0;
+    index < Math.max(firstParts.length, secondParts.length);
+    index++
+  ) {
+    const difference = (firstParts[index] ?? 0) - (secondParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
 }
 
 /**
@@ -157,23 +220,43 @@ export async function listAtlasesHTTP(
   source: string
 ): Promise<AtlasListing[] | null> {
   try {
-    const directoryNames = await listServerAtlasDirectories(source);
-    return atlasListingsFromDirectories(directoryNames, source);
+    return atlasListingsFromVariantPaths(
+      await listServerVariantPaths(source),
+      source
+    );
   } catch {
     return null;
   }
 }
 
 /**
- * List the folder names in the atlases directory of a BrainGlobe HTTP
- * server.
+ * List the `atlases/`-relative `<directory>/<version>` paths of every atlas
+ * on a BrainGlobe HTTP server, listing each atlas directory's versions.
  * @param source Root URL of the BrainGlobe HTTP server.
  */
-async function listServerAtlasDirectories(source: string): Promise<string[]> {
-  const response = await axios.get<AtlasSourceResponse>(atlasesUrl(source));
+async function listServerVariantPaths(source: string): Promise<string[]> {
+  const root = atlasesUrl(source);
+  const directories = await listServerFolders(root);
+  const versionsPerDirectory = await Promise.all(
+    directories.map(directory => listServerFolders(`${root}/${directory}`))
+  );
+
+  return directories.flatMap((directory, index) =>
+    versionsPerDirectory[index]!.filter(version =>
+      VERSION_DIRECTORY_PATTERN.test(version)
+    ).map(version => `${directory}/${version}`)
+  );
+}
+
+/**
+ * List the folder names in a directory on a BrainGlobe HTTP server.
+ * @param url URL of the directory to list.
+ */
+async function listServerFolders(url: string): Promise<string[]> {
+  const response = await axios.get<AtlasSourceResponse>(url);
   return response.data.files
     .filter(item => item.type === "folder")
-    .map(item => item.name);
+    .map(item => item.base.replace(/\/$/, ""));
 }
 
 /**
@@ -302,10 +385,7 @@ export async function getAtlas(listing: AtlasListing): Promise<Atlas | null> {
   try {
     const root = atlasesUrl(listing.source);
     const manifest = await buildManifest(
-      listing.variantDirectories.map(
-        directory =>
-          `${root}/${directory}/${ATLAS_VERSION_STRING}/${MANIFEST_FILE}`
-      )
+      listing.variantPaths.map(path => `${root}/${path}/${MANIFEST_FILE}`)
     );
     return manifest
       ? { name: listing.name, source: listing.source, manifest }

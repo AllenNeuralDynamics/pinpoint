@@ -91,7 +91,7 @@ export function makeAtlasListing(
   return {
     name: "allen_mouse",
     source: "http://localhost:3000",
-    variantDirectories: ["allen_mouse_25um"],
+    variantPaths: ["allen_mouse_25um/3_0"],
     ...overrides
   };
 }

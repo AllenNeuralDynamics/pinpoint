@@ -14,8 +14,8 @@ export interface AtlasIdentity {
  * Atlas as listed by a source, before its manifest has been fetched.
  */
 export interface AtlasListing extends AtlasIdentity {
-  /** `atlases/` directory names of this atlas's size variants. */
-  variantDirectories: string[];
+  /** `atlases/`-relative `<directory>/<version>` paths of this atlas's size variants. */
+  variantPaths: string[];
 }
 
 /**

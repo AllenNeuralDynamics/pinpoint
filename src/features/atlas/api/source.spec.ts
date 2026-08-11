@@ -59,7 +59,7 @@ describe("listAtlasesBucket", () => {
     await listAtlasesBucket(BRAINGLOBE_BASE_URL);
 
     expect(mockedGet).toHaveBeenCalledWith(
-      "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas-rc2%2Fatlases%2F&delimiter=%2F",
+      "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas%2Fatlases%2F",
       { responseType: "text" }
     );
   });
@@ -68,31 +68,31 @@ describe("listAtlasesBucket", () => {
     mockedGet.mockResolvedValue({
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-  <CommonPrefixes><Prefix>pinpoint-atlases/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
+  <Contents><Key>pinpoint-atlases/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
 </ListBucketResult>`
     });
 
     const result = await listAtlasesBucket(ALLEN_INSTITUTE_BASE_URL);
 
     expect(mockedGet).toHaveBeenCalledWith(
-      "https://aind-scratch-data.s3.us-west-2.amazonaws.com/?list-type=2&prefix=pinpoint-atlases%2Fatlases%2F&delimiter=%2F",
+      "https://aind-scratch-data.s3.us-west-2.amazonaws.com/?list-type=2&prefix=pinpoint-atlases%2Fatlases%2F",
       { responseType: "text" }
     );
     expect(result).toEqual([
       {
         name: "allen_mouse",
         source: ALLEN_INSTITUTE_BASE_URL,
-        variantDirectories: ["allen_mouse_25um"]
+        variantPaths: ["allen_mouse_25um/3_0"]
       }
     ]);
   });
 
-  it("returns one listing per atlas, with the resolution suffix removed from its name and its directory recorded", async () => {
+  it("returns one listing per atlas, with the resolution suffix removed from its name and its variant path recorded", async () => {
     mockedGet.mockResolvedValue({
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_human_500um/</Prefix></CommonPrefixes>
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_human_500um/3_0/manifest.json</Key></Contents>
 </ListBucketResult>`
     });
 
@@ -102,24 +102,24 @@ describe("listAtlasesBucket", () => {
       {
         name: "allen_mouse",
         source: BRAINGLOBE_BASE_URL,
-        variantDirectories: ["allen_mouse_25um"]
+        variantPaths: ["allen_mouse_25um/3_0"]
       },
       {
         name: "allen_human",
         source: BRAINGLOBE_BASE_URL,
-        variantDirectories: ["allen_human_500um"]
+        variantPaths: ["allen_human_500um/3_0"]
       }
     ]);
   });
 
-  it("collapses multiple size variants of the same atlas into one listing carrying every variant directory", async () => {
+  it("collapses multiple size variants of the same atlas into one listing carrying every variant path", async () => {
     mockedGet.mockResolvedValue({
       data: `<?xml version="1.0" encoding="UTF-8"?>
 <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_10um/</Prefix></CommonPrefixes>
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_25um/</Prefix></CommonPrefixes>
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_50um/</Prefix></CommonPrefixes>
-  <CommonPrefixes><Prefix>atlas-rc2/atlases/allen_mouse_bluebrain_barrels_10um/</Prefix></CommonPrefixes>
+  <Contents><Key>atlas/atlases/allen_mouse_10um/3_0/manifest.json</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_mouse_50um/3_0/manifest.json</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_mouse_bluebrain_barrels_10um/3_0/manifest.json</Key></Contents>
 </ListBucketResult>`
     });
 
@@ -129,18 +129,113 @@ describe("listAtlasesBucket", () => {
       {
         name: "allen_mouse",
         source: BRAINGLOBE_BASE_URL,
-        variantDirectories: [
-          "allen_mouse_10um",
-          "allen_mouse_25um",
-          "allen_mouse_50um"
+        variantPaths: [
+          "allen_mouse_10um/3_0",
+          "allen_mouse_25um/3_0",
+          "allen_mouse_50um/3_0"
         ]
       },
       {
         name: "allen_mouse_bluebrain_barrels",
         source: BRAINGLOBE_BASE_URL,
-        variantDirectories: ["allen_mouse_bluebrain_barrels_10um"]
+        variantPaths: ["allen_mouse_bluebrain_barrels_10um/3_0"]
       }
     ]);
+  });
+
+  it("keeps a variant that only exists at a newer version", async () => {
+    mockedGet.mockResolvedValue({
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Contents><Key>atlas/atlases/ccfv2_mouse_25um/3_1/manifest.json</Key></Contents>
+</ListBucketResult>`
+    });
+
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
+
+    expect(result).toEqual([
+      {
+        name: "ccfv2_mouse",
+        source: BRAINGLOBE_BASE_URL,
+        variantPaths: ["ccfv2_mouse_25um/3_1"]
+      }
+    ]);
+  });
+
+  it("picks the newest version when a variant directory has several", async () => {
+    mockedGet.mockResolvedValue({
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Contents><Key>atlas/atlases/hoops_tawny_dragon_50um/3_0/manifest.json</Key></Contents>
+  <Contents><Key>atlas/atlases/hoops_tawny_dragon_50um/3_1/manifest.json</Key></Contents>
+</ListBucketResult>`
+    });
+
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
+
+    expect(result).toEqual([
+      {
+        name: "hoops_tawny_dragon",
+        source: BRAINGLOBE_BASE_URL,
+        variantPaths: ["hoops_tawny_dragon_50um/3_1"]
+      }
+    ]);
+  });
+
+  it("ignores keys that are not variant manifests", async () => {
+    mockedGet.mockResolvedValue({
+      data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Contents><Key>atlas/atlases/last_versions.conf</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/annotation.json</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/extra/manifest.json</Key></Contents>
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
+</ListBucketResult>`
+    });
+
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
+
+    expect(result).toEqual([
+      {
+        name: "allen_mouse",
+        source: BRAINGLOBE_BASE_URL,
+        variantPaths: ["allen_mouse_25um/3_0"]
+      }
+    ]);
+  });
+
+  it("follows the continuation token", async () => {
+    mockedGet
+      .mockResolvedValueOnce({
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <IsTruncated>true</IsTruncated>
+  <NextContinuationToken>page2</NextContinuationToken>
+  <Contents><Key>atlas/atlases/allen_mouse_10um/3_0/manifest.json</Key></Contents>
+</ListBucketResult>`
+      })
+      .mockResolvedValueOnce({
+        data: `<?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Contents><Key>atlas/atlases/allen_mouse_25um/3_0/manifest.json</Key></Contents>
+</ListBucketResult>`
+      });
+
+    const result = await listAtlasesBucket(BRAINGLOBE_BASE_URL);
+
+    expect(result).toEqual([
+      {
+        name: "allen_mouse",
+        source: BRAINGLOBE_BASE_URL,
+        variantPaths: ["allen_mouse_10um/3_0", "allen_mouse_25um/3_0"]
+      }
+    ]);
+    expect(mockedGet).toHaveBeenCalledTimes(2);
+    expect(mockedGet).toHaveBeenNthCalledWith(
+      2,
+      "https://brainglobe.s3.us-west-2.amazonaws.com/?list-type=2&prefix=atlas%2Fatlases%2F&continuation-token=page2",
+      { responseType: "text" }
+    );
   });
 
   it("returns null when the request throws", async () => {
@@ -160,8 +255,23 @@ describe("listAtlasesHTTP", () => {
     mockedGet.mockReset();
   });
 
+  /**
+   * Mocks the atlases directory listing and each atlas directory's version
+   * listing, keyed by URL. Unknown URLs reject, which also asserts no
+   * stray request is issued.
+   */
+  function mockFolders(
+    folders: Record<string, { base: string; type: string }[]>
+  ) {
+    mockedGet.mockImplementation((url: string) =>
+      url in folders
+        ? Promise.resolve({ data: { files: folders[url] } })
+        : Promise.reject(new Error(`unexpected request: ${url}`))
+    );
+  }
+
   it("requests the atlases directory on the given host", async () => {
-    mockedGet.mockResolvedValue({ data: { files: [] } });
+    mockFolders({ "http://localhost:3000/brainglobe-atlasapi/atlases": [] });
 
     await listAtlasesHTTP(HTTP_SOURCE);
 
@@ -171,14 +281,18 @@ describe("listAtlasesHTTP", () => {
   });
 
   it("keeps only folder entries and strips the resolution suffix", async () => {
-    mockedGet.mockResolvedValue({
-      data: {
-        files: [
-          { name: "allen_mouse_25um", type: "folder" },
-          { name: "readme.txt", type: "file" },
-          { name: "allen_human_500um", type: "folder" }
-        ]
-      }
+    mockFolders({
+      "http://localhost:3000/brainglobe-atlasapi/atlases": [
+        { base: "allen_mouse_25um/", type: "folder" },
+        { base: "readme.txt", type: "file" },
+        { base: "allen_human_500um/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_mouse_25um": [
+        { base: "3_0/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_human_500um": [
+        { base: "3_0/", type: "folder" }
+      ]
     });
 
     const result = await listAtlasesHTTP(HTTP_SOURCE);
@@ -187,25 +301,31 @@ describe("listAtlasesHTTP", () => {
       {
         name: "allen_mouse",
         source: HTTP_SOURCE,
-        variantDirectories: ["allen_mouse_25um"]
+        variantPaths: ["allen_mouse_25um/3_0"]
       },
       {
         name: "allen_human",
         source: HTTP_SOURCE,
-        variantDirectories: ["allen_human_500um"]
+        variantPaths: ["allen_human_500um/3_0"]
       }
     ]);
   });
 
-  it("collapses multiple size variants of the same atlas into one listing carrying every variant directory", async () => {
-    mockedGet.mockResolvedValue({
-      data: {
-        files: [
-          { name: "allen_mouse_10um", type: "folder" },
-          { name: "allen_mouse_25um", type: "folder" },
-          { name: "allen_mouse_bluebrain_barrels_10um", type: "folder" }
-        ]
-      }
+  it("collapses multiple size variants of the same atlas into one listing carrying every variant path", async () => {
+    mockFolders({
+      "http://localhost:3000/brainglobe-atlasapi/atlases": [
+        { base: "allen_mouse_10um/", type: "folder" },
+        { base: "allen_mouse_25um/", type: "folder" },
+        { base: "allen_mouse_bluebrain_barrels_10um/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_mouse_10um": [
+        { base: "3_0/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_mouse_25um": [
+        { base: "3_0/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_mouse_bluebrain_barrels_10um":
+        [{ base: "3_0/", type: "folder" }]
     });
 
     const result = await listAtlasesHTTP(HTTP_SOURCE);
@@ -214,12 +334,79 @@ describe("listAtlasesHTTP", () => {
       {
         name: "allen_mouse",
         source: HTTP_SOURCE,
-        variantDirectories: ["allen_mouse_10um", "allen_mouse_25um"]
+        variantPaths: ["allen_mouse_10um/3_0", "allen_mouse_25um/3_0"]
       },
       {
         name: "allen_mouse_bluebrain_barrels",
         source: HTTP_SOURCE,
-        variantDirectories: ["allen_mouse_bluebrain_barrels_10um"]
+        variantPaths: ["allen_mouse_bluebrain_barrels_10um/3_0"]
+      }
+    ]);
+  });
+
+  it("reads the newest version directory per atlas", async () => {
+    mockFolders({
+      "http://localhost:3000/brainglobe-atlasapi/atlases": [
+        { base: "allen_mouse_25um/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_mouse_25um": [
+        { base: "3_0/", type: "folder" },
+        { base: "3_1/", type: "folder" }
+      ]
+    });
+
+    const result = await listAtlasesHTTP(HTTP_SOURCE);
+
+    expect(result).toEqual([
+      {
+        name: "allen_mouse",
+        source: HTTP_SOURCE,
+        variantPaths: ["allen_mouse_25um/3_1"]
+      }
+    ]);
+  });
+
+  it("keeps a directory name containing a dot intact", async () => {
+    mockFolders({
+      "http://localhost:3000/brainglobe-atlasapi/atlases": [
+        { base: "admba_3d_p14_mouse_16.752um/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/admba_3d_p14_mouse_16.752um":
+        [{ base: "3_0/", type: "folder" }]
+    });
+
+    const result = await listAtlasesHTTP(HTTP_SOURCE);
+
+    expect(result).toEqual([
+      {
+        name: "admba_3d_p14_mouse",
+        source: HTTP_SOURCE,
+        variantPaths: ["admba_3d_p14_mouse_16.752um/3_0"]
+      }
+    ]);
+  });
+
+  it("drops an atlas directory with no numeric version folder", async () => {
+    mockFolders({
+      "http://localhost:3000/brainglobe-atlasapi/atlases": [
+        { base: "allen_mouse_25um/", type: "folder" },
+        { base: "broken_atlas_10um/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/allen_mouse_25um": [
+        { base: "3_0/", type: "folder" }
+      ],
+      "http://localhost:3000/brainglobe-atlasapi/atlases/broken_atlas_10um": [
+        { base: "meshes/", type: "folder" }
+      ]
+    });
+
+    const result = await listAtlasesHTTP(HTTP_SOURCE);
+
+    expect(result).toEqual([
+      {
+        name: "allen_mouse",
+        source: HTTP_SOURCE,
+        variantPaths: ["allen_mouse_25um/3_0"]
       }
     ]);
   });
@@ -397,7 +584,7 @@ describe("getAtlas", () => {
 
     const listing = makeAtlasListing({
       source: BRAINGLOBE_BASE_URL,
-      variantDirectories: ["allen_mouse_100um", "allen_mouse_25um"]
+      variantPaths: ["allen_mouse_100um/3_0", "allen_mouse_25um/3_0"]
     });
 
     /**
@@ -467,7 +654,7 @@ describe("getAtlas", () => {
       });
     });
 
-    it("does not copy variantDirectories onto the resolved atlas", async () => {
+    it("does not copy variantPaths onto the resolved atlas", async () => {
       mockManifests({
         [MANIFEST_URL_100]: rawManifest({
           resolution: [100, 100, 100],
@@ -481,7 +668,7 @@ describe("getAtlas", () => {
 
       const result = await getAtlas(listing);
 
-      expect(result).not.toHaveProperty("variantDirectories");
+      expect(result).not.toHaveProperty("variantPaths");
     });
 
     it("takes atlasLink from the finest variant's manifest", async () => {
@@ -633,7 +820,7 @@ describe("getAtlas", () => {
 
     const listing = makeAtlasListing({
       source: HTTP_SOURCE,
-      variantDirectories: ["allen_mouse_100um", "allen_mouse_25um"]
+      variantPaths: ["allen_mouse_100um/3_0", "allen_mouse_25um/3_0"]
     });
 
     function mockManifests(manifests: Record<string, unknown>) {
@@ -725,7 +912,7 @@ describe("getAtlas", () => {
   });
 
   it("returns null when the listing has no variant directories, without issuing any request", async () => {
-    const result = await getAtlas(makeAtlasListing({ variantDirectories: [] }));
+    const result = await getAtlas(makeAtlasListing({ variantPaths: [] }));
 
     expect(result).toBeNull();
     expect(mockedGet).not.toHaveBeenCalled();
