@@ -1,10 +1,11 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useDragReorder } from "@/composable/useDragReorder";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericModel } from "@/composable/useNumericModel";
-import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import {
@@ -13,6 +14,7 @@ import {
   copyCameraPose,
   removeCameraPose,
   reorderCameraPose,
+  resetCameraPose,
   setCameraPose
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -30,6 +32,7 @@ const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: numberRules } =
   useValidationRules();
+const { positionStep, rotationStep } = useDragSteps();
 const {
   draggedIndex,
   dropTargetIndex,
@@ -67,30 +70,6 @@ const radius = useNumericModel(
   value => positionUnitToMillimeters(value, preferences.positionUnit),
   () => preferences.decimalPrecision
 );
-const targetAp = useNumericTupleModel(
-  () => pose.value.target,
-  0,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetDv = useNumericTupleModel(
-  () => pose.value.target,
-  1,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetMl = useNumericTupleModel(
-  () => pose.value.target,
-  2,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
 
 const rotationSuffix = computed(() =>
   unitLabels.rotation(preferences.rotationUnit)
@@ -98,6 +77,13 @@ const rotationSuffix = computed(() =>
 const positionSuffix = computed(() =>
   unitLabels.position(preferences.positionUnit)
 );
+
+/**
+ * Reset the live camera pose to the current atlas's default orbit, target, and radius.
+ */
+function resetCamera(): void {
+  resetCameraPose(pose.value, currentExperiment.atlas);
+}
 
 /**
  * Save the live camera pose to the library under the typed name.
@@ -135,11 +121,21 @@ function applyPose(savedPose: CameraPose): void {
       toggle-color="primary"
     />
     <div>
+      <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
+      <AtlasAxisInputs
+        hide-bottom-space
+        kind="position"
+        outlined
+        :tuple="pose.target"
+      />
+    </div>
+    <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.orbit") }}</div>
       <div class="row q-gutter-x-sm">
         <CommittedInput
           v-model="alpha"
           class="col"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('cameraInspector.alpha')"
           outlined
@@ -149,6 +145,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="beta"
           class="col"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('cameraInspector.beta')"
           outlined
@@ -158,6 +155,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="radius"
           class="col"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('cameraInspector.radius')"
           outlined
@@ -166,38 +164,12 @@ function applyPose(savedPose: CameraPose): void {
         />
       </div>
     </div>
-    <div>
-      <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
-      <div class="row q-gutter-x-sm">
-        <CommittedInput
-          v-model="targetAp"
-          class="col"
-          hide-bottom-space
-          :label="t('axis.ap')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-        <CommittedInput
-          v-model="targetDv"
-          class="col"
-          hide-bottom-space
-          :label="t('axis.dv')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-        <CommittedInput
-          v-model="targetMl"
-          class="col"
-          hide-bottom-space
-          :label="t('axis.ml')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-      </div>
-    </div>
+    <q-btn
+      color="primary"
+      icon="restart_alt"
+      :label="t('cameraInspector.resetCamera')"
+      @click="resetCamera"
+    />
     <q-separator />
     <div class="text-body2">{{ t("cameraInspector.poses") }}</div>
     <CommittedInput

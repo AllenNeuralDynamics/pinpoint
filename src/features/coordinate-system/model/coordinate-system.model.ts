@@ -1,0 +1,59 @@
+import type { AxisOrder } from "@/utils/axis-order";
+
+/** How the inverse-kinematics solver treats a coordinate system value. */
+export type CoordinateSystemValueMode =
+  /** A solver degree of freedom. */
+  | "free"
+  /** A rigid constant, not editable. */
+  | "fixed"
+  /** A rigid constant the user edits in the inspector. */
+  | "user";
+
+/** One editable degree of freedom within a coordinate system node. */
+export interface CoordinateSystemValue {
+  name: string;
+  value: number;
+  mode: CoordinateSystemValueMode;
+}
+/** One transform, position and rotation, in a coordinate system chain. */
+export interface CoordinateSystemNode {
+  /** User-facing label for this transform, e.g. `Depth`. */
+  name: string;
+
+  /** Values indexed by axis: X, Y, Z. */
+  position: [
+    CoordinateSystemValue,
+    CoordinateSystemValue,
+    CoordinateSystemValue
+  ];
+
+  /** Order the values are shown in, as display slot -> axis index. */
+  positionDisplayOrder: AxisOrder;
+
+  /** Values indexed by axis: X, Y, Z. */
+  rotation: [
+    CoordinateSystemValue,
+    CoordinateSystemValue,
+    CoordinateSystemValue
+  ];
+
+  /** Order the values are shown in, as display slot -> axis index. */
+  rotationDisplayOrder: AxisOrder;
+
+  /** If this node is on the surface of the brain. */
+  onSurface: boolean;
+}
+
+/** Which triple of a coordinate system node a value belongs to. */
+export type CoordinateSystemNodeComponent = "position" | "rotation";
+
+/** An ordered chain of transforms mapping a probe's degrees of freedom to its tip pose. */
+export interface CoordinateSystem {
+  inspectableKind: "coordinateSystem";
+  id: string;
+  name: string;
+
+  /** If the whole chain is offset by the experiment's reference coordinate. */
+  offsetByReferenceCoordinate: boolean;
+  chain: CoordinateSystemNode[];
+}

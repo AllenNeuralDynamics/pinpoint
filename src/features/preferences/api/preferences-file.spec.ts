@@ -18,16 +18,23 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     isSplashScreenSkipped: false,
     cameraProjection: "perspective",
     cameraInertia: 0.9,
-    worldBackgroundColor: "#33334d",
+    worldBackgroundColorLightMode: "#f3f0e8",
+    worldBackgroundColorDarkMode: "#1a1a1a",
     worldLightIntensity: 1,
     materialSpecularIntensity: 1,
     materialSpecularPower: 64,
     isSsaoEnabled: true,
     ssaoRatio: 0.5,
+    structureFadedAlpha: 0.2,
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
+    positionAxisNames: ["", "", ""],
+    rotationAxisNames: ["", "", ""],
+    positionAxisOrder: [0, 1, 2],
+    rotationAxisOrder: [0, 1, 2],
     decimalPrecision: 3,
+    dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
     probeHeadStageLengthMillimeters: 20,
     probeHeadStageCutDepthMillimeters: 17.5,
@@ -52,12 +59,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the twenty preference keys", () => {
+  it("writes only the twenty-seven preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(20);
+    expect(keys).toHaveLength(27);
     expect(keys).not.toContain("junk");
   });
 });
@@ -100,8 +107,41 @@ describe("parsePreferencesFile", () => {
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
 
-  it("returns null for a malformed worldBackgroundColor", () => {
-    const fixture = { ...makePreferences(), worldBackgroundColor: "red" };
+  it("returns null for a non-permutation positionAxisOrder", () => {
+    const fixture = { ...makePreferences(), positionAxisOrder: [0, 0, 1] };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a non-string entry in rotationAxisNames", () => {
+    const fixture = {
+      ...makePreferences(),
+      rotationAxisNames: ["", 5, ""]
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a two-element positionAxisNames", () => {
+    const fixture = { ...makePreferences(), positionAxisNames: ["", ""] };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a malformed worldBackgroundColorLightMode", () => {
+    const fixture = {
+      ...makePreferences(),
+      worldBackgroundColorLightMode: "red"
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a malformed worldBackgroundColorDarkMode", () => {
+    const fixture = {
+      ...makePreferences(),
+      worldBackgroundColorDarkMode: "red"
+    };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
@@ -152,6 +192,12 @@ describe("parsePreferencesFile", () => {
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
 
+  it("returns null for a dragSensitivity below the 0.25 floor", () => {
+    const fixture = { ...makePreferences(), dragSensitivity: 0 };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
   it("returns null for a fractional decimalPrecision", () => {
     const fixture = { ...makePreferences(), decimalPrecision: 2.5 };
 
@@ -183,10 +229,12 @@ describe("applyPreferences", () => {
     const source = makePreferences({
       cameraProjection: "orthographic",
       cameraInertia: 0.1,
-      worldBackgroundColor: "#ff0000",
+      worldBackgroundColorLightMode: "#ff0000",
+      worldBackgroundColorDarkMode: "#00ff00",
       areStructureInteriorsHidden: false,
       isSsaoEnabled: false,
       ssaoRatio: 0.25,
+      structureFadedAlpha: 0.5,
       positionUnit: "centimeter",
       rotationUnit: "radian",
       decimalPrecision: 1,

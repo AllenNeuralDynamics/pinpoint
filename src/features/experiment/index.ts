@@ -15,15 +15,11 @@ export type { VisibleStructure } from "./models/visible-structure.model";
 export {
   buildCameraPose,
   copyCameraPose,
-  frameCameraPoseOnAtlas,
   isCameraPose,
+  resetCameraPose,
   setCameraPose
 } from "./api/camera-pose.api";
-export {
-  ALLEN_MOUSE_REFERENCE_COORDINATE,
-  atlasToReferenceRelative,
-  referenceRelativeToAtlas
-} from "./api/reference-coordinate.api";
+export { ALLEN_MOUSE_REFERENCE_COORDINATE } from "./api/reference-coordinate.api";
 
 export {
   buildExperiment,
@@ -35,6 +31,9 @@ export {
   resetStructureVisibility,
   internProbeInterfaceProbe,
   getInternedProbeInterfaceProbe,
+  internCoordinateSystem,
+  updateInternedCoordinateSystem,
+  setProbeCoordinateSystem,
   addProbe,
   removeProbe,
   reorderProbe,

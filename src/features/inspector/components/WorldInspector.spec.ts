@@ -35,24 +35,49 @@ describe("WorldInspector", () => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
   });
 
-  it("picking a palette color writes it to worldBackgroundColor", async () => {
+  it("picking the light-mode picker's color writes it to worldBackgroundColorLightMode", async () => {
     const wrapper = mountWithQuasar(WorldInspector);
     const preferences = usePreferencesStore();
 
     await wrapper
-      .findComponent({ name: "QColor" })
+      .findAllComponents({ name: "QColor" })[0]!
       .vm.$emit("update:modelValue", "#123456");
 
-    expect(preferences.worldBackgroundColor).toBe("#123456");
+    expect(preferences.worldBackgroundColorLightMode).toBe("#123456");
+    expect(preferences.worldBackgroundColorDarkMode).toBe("#1a1a1a");
   });
 
-  it("appends Babylon's default clear color to the standard palette", () => {
+  it("picking the dark-mode picker's color writes it to worldBackgroundColorDarkMode", async () => {
     const wrapper = mountWithQuasar(WorldInspector);
+    const preferences = usePreferencesStore();
 
-    expect(wrapper.findComponent({ name: "QColor" }).props("palette")).toEqual([
+    await wrapper
+      .findAllComponents({ name: "QColor" })[1]!
+      .vm.$emit("update:modelValue", "#654321");
+
+    expect(preferences.worldBackgroundColorDarkMode).toBe("#654321");
+    expect(preferences.worldBackgroundColorLightMode).toBe("#f3f0e8");
+  });
+
+  it("appends the per-theme default background plus white to the light-mode palette and black to the dark-mode one, filling whole swatch rows", () => {
+    const wrapper = mountWithQuasar(WorldInspector);
+    const [lightPicker, darkPicker] = wrapper.findAllComponents({
+      name: "QColor"
+    });
+
+    expect(lightPicker!.props("palette")).toEqual([
       ...STANDARD_COLORS,
-      "#33334d"
+      "#f3f0e8",
+      "#ffffff"
     ]);
+    expect(darkPicker!.props("palette")).toEqual([
+      ...STANDARD_COLORS,
+      "#1a1a1a",
+      "#000000"
+    ]);
+    // Quasar lays swatches out ten to a row; a partial row renders its
+    // leftover cells as unclickable dead swatches.
+    expect(STANDARD_COLORS.length + 2).toBe(20);
   });
 
   it("the glossiness slider starts at 64", () => {
@@ -78,26 +103,6 @@ describe("WorldInspector", () => {
 
     expect(preferences.worldLightIntensity).toBe(0);
     expect(preferences.materialSpecularIntensity).toBe(0);
-  });
-
-  it("the hide-interiors toggle starts at true", () => {
-    const wrapper = mountWithQuasar(WorldInspector);
-
-    expect(
-      findToggle(wrapper, t.hideStructureInteriors).props("modelValue")
-    ).toBe(true);
-  });
-
-  it("toggling off writes areStructureInteriorsHidden to false", async () => {
-    const wrapper = mountWithQuasar(WorldInspector);
-    const preferences = usePreferencesStore();
-
-    await findToggle(wrapper, t.hideStructureInteriors).vm.$emit(
-      "update:modelValue",
-      false
-    );
-
-    expect(preferences.areStructureInteriorsHidden).toBe(false);
   });
 
   it("the ambient-occlusion toggle starts at false", () => {

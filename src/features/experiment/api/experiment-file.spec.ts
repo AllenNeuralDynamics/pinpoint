@@ -9,6 +9,7 @@ import {
   addCameraPose,
   addProbe,
   buildExperiment,
+  internCoordinateSystem,
   internProbeInterfaceProbe
 } from "./experiment.api";
 import { copyCameraPose } from "./camera-pose.api";
@@ -16,6 +17,7 @@ import { buildProbe, detachProbeInterfaceProbe } from "@/features/probe";
 import {
   makeAtlas,
   makeCameraPose,
+  makeCoordinateSystem,
   makeProbeInterfaceProbe,
   makeSceneModel,
   makeSceneObject
@@ -32,7 +34,9 @@ function makeFullExperiment(): Experiment {
     annotations: { manufacturer: "imec", model_name: "np1" }
   });
   internProbeInterfaceProbe(experiment, spec);
-  addProbe(experiment, buildProbe(spec));
+  const coordinateSystem = makeCoordinateSystem();
+  internCoordinateSystem(experiment, coordinateSystem);
+  addProbe(experiment, buildProbe(spec, [0, 0, 0]));
   experiment.visibleStructures = [{ id: 5, isTransparent: false }];
   return experiment;
 }
@@ -57,12 +61,12 @@ describe("zipExperiment / unzipExperiment", () => {
     const archive = unzipExperiment(
       zipExperiment(
         experiment,
-        new Map([[sceneObject.id, { fileName: "model.obj", bytes }]])
+        new Map([[sceneObject.modelId, { fileName: "model.obj", bytes }]])
       )
     );
 
     expect(archive?.experiment).toEqual(experiment);
-    expect(archive?.models.get(sceneObject.id)).toEqual({
+    expect(archive?.models.get(sceneObject.modelId)).toEqual({
       fileName: "model.obj",
       bytes
     });
@@ -77,12 +81,12 @@ describe("zipExperiment / unzipExperiment", () => {
     const archive = unzipExperiment(
       zipExperiment(
         experiment,
-        new Map([[bodyModel.id, { fileName: "body.glb", bytes }]])
+        new Map([[bodyModel.modelId, { fileName: "body.glb", bytes }]])
       )
     );
 
     expect(archive?.experiment).toEqual(experiment);
-    expect(archive?.models.get(bodyModel.id)).toEqual({
+    expect(archive?.models.get(bodyModel.modelId)).toEqual({
       fileName: "body.glb",
       bytes
     });
@@ -97,11 +101,11 @@ describe("zipExperiment / unzipExperiment", () => {
     const archive = unzipExperiment(
       zipExperiment(
         experiment,
-        new Map([[sceneObject.id, { fileName: "imagingWell.obj", bytes }]])
+        new Map([[sceneObject.modelId, { fileName: "imagingWell.obj", bytes }]])
       )
     );
 
-    expect(archive?.models.get(sceneObject.id)?.fileName).toBe(
+    expect(archive?.models.get(sceneObject.modelId)?.fileName).toBe(
       "imagingWell.obj"
     );
   });
@@ -297,6 +301,57 @@ describe("zipExperiment / unzipExperiment", () => {
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
   });
 
+  it("returns null when a probe's coordinateSystemIdentifier is absent from coordinateSystems", () => {
+    const experiment = makeFullExperiment();
+    experiment.probes[0] = {
+      ...experiment.probes[0]!,
+      coordinateSystemIdentifier: "missing identifier"
+    };
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("returns null when a coordinate system entry's key does not match its definition's id", () => {
+    const experiment = makeFullExperiment();
+    const identifier = Object.keys(experiment.coordinateSystems)[0]!;
+    const coordinateSystem = experiment.coordinateSystems[identifier]!;
+    experiment.coordinateSystems[identifier] = {
+      ...coordinateSystem,
+      id: "wrong identifier"
+    };
+
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("returns null when coordinateSystems is missing", () => {
+    const { coordinateSystems: _coordinateSystems, ...rest } =
+      makeFullExperiment();
+    expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
+  });
+
+  it("round-trips a probe with a null coordinateSystemIdentifier when coordinateSystems is empty", () => {
+    const experiment = {
+      ...makeFullExperiment(),
+      coordinateSystems: {} as Experiment["coordinateSystems"]
+    };
+    expect(unzipExperiment(zipRawExperiment(experiment))?.experiment).toEqual(
+      experiment
+    );
+  });
+
+  it("returns null when a coordinate system node's positionDisplayOrder is not a permutation", () => {
+    const experiment = makeFullExperiment();
+    const identifier = Object.keys(experiment.coordinateSystems)[0]!;
+    const coordinateSystem = experiment.coordinateSystems[identifier]!;
+    experiment.coordinateSystems[identifier] = {
+      ...coordinateSystem,
+      chain: [
+        { ...coordinateSystem.chain[0]!, positionDisplayOrder: [0, 0, 1] }
+      ]
+    };
+
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
   it("returns null when probes is not an array", () => {
     const experiment = {
       ...makeFullExperiment(),
@@ -351,7 +406,10 @@ describe("zipExperiment / unzipExperiment", () => {
       experiment.probeInterfaceProbes[
         Object.keys(experiment.probeInterfaceProbes)[0]!
       ]!;
-    const duplicate = { ...buildProbe(spec), id: experiment.probes[0]!.id };
+    const duplicate = {
+      ...buildProbe(spec, [0, 0, 0]),
+      id: experiment.probes[0]!.id
+    };
     experiment.probes.push(duplicate);
 
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
@@ -382,6 +440,16 @@ describe("zipExperiment / unzipExperiment", () => {
     const sceneObject = makeSceneObject();
     experiment.sceneObjects = [sceneObject, { ...sceneObject, name: "Other" }];
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("accepts two scene objects that share a modelId but have distinct ids", () => {
+    const experiment = makeFullExperiment();
+    const a = makeSceneObject();
+    const b = makeSceneObject({ modelId: a.modelId, name: "Other" });
+    experiment.sceneObjects = [a, b];
+    expect(unzipExperiment(zipRawExperiment(experiment))?.experiment).toEqual(
+      experiment
+    );
   });
 
   it("returns null when cameraPose is missing", () => {
@@ -437,13 +505,23 @@ describe("zipExperiment / unzipExperiment", () => {
     );
   });
 
+  it("round-trips coordinateSystems", () => {
+    const experiment = makeFullExperiment();
+    const zipped = zipExperiment(experiment, new Map());
+    expect(unzipExperiment(zipped)?.experiment.coordinateSystems).toEqual(
+      experiment.coordinateSystems
+    );
+  });
+
   it("accepts a probe interface definition without a probe_planar_contour", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
     const spec = makeProbeInterfaceProbe({
       annotations: { manufacturer: "imec", model_name: "np1" }
     });
     internProbeInterfaceProbe(experiment, spec);
-    addProbe(experiment, buildProbe(spec));
+    const coordinateSystem = makeCoordinateSystem();
+    internCoordinateSystem(experiment, coordinateSystem);
+    addProbe(experiment, buildProbe(spec, [0, 0, 0]));
 
     // buildProbeContour (src/features/scene/api/probe.api.ts) already
     // degrades to `null` for missing contour geometry, so this is left

@@ -1,22 +1,15 @@
 # Pinpoint V
 
-![GitHub Release](https://img.shields.io/github/v/release/kennethjyang/pinpoint-v?label=Stable)
-![GitHub Release](https://img.shields.io/github/v/release/kennethjyang/pinpoint-v?include_prereleases&label=Latest)
-
 Next-generation in vivo electrophysiology planning and automation tool.
 
-> [!WARNING]
-> Under active and early development. Feel free to poke around and contribute, but this is not a finished product yet.
+![Azimuth example](public/images/scene.png)
 
-## Install for development.
+# Usage & Documentation
 
-1. Install Node.js LTS (currently on 24).
-2. Install `pnpm` (currently on 11).
-3. Install the Quasar CLI: `pnpm add -g @quasar/cli`
-4. Clone and install dependencies using `pnpm install`
-5. Run the dev server using `quasar dev`
+[Launch the web app](https://pinpoint.allenneuraldynamics.org/v5/#/). Documentation is coming soon. 
 
-Additional things:
+<!--For instructions, desktop releases, and tutorials please see the [documentation](https://virtualbrainlab.org/pinpoint/installation_and_use.html).-->
 
-- Lefthook has enabled pre-commit hooks that run the formatter, linter, and type checker.
-- Skills was used to install agent skills. Symlink them for your agent (i.e. `pnpx skills add antfu/skills -a claude-code`)
+# Citing
+
+A preprint describing Pinpoint has been reviewed in [eLife](https://elifesciences.org/reviewed-preprints/91662v1). The paper provides an introduction to the key features and should be used as a citation if Pinpoint proves integral to a scientific publication.

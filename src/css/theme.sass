@@ -1,0 +1,211 @@
+// Quasar component skin — Allen Institute data portal.
+//
+// Only theme-reactive or structural overrides belong here; anything that can be
+// expressed as a Quasar Sass variable lives in quasar.variables.sass instead.
+// Colours read tokens from tokens.sass so they flip with Quasar's Dark plugin.
+//
+// House style, copied from the portal:
+//   - hairline `1px solid var(--surface-border)` instead of elevation
+//   - one interaction colour (`--accent`, Maroon) for active/focus/selection
+//   - `0.15s ease` transitions, 4px radii, 12-13px type
+
+// Base ----------------------------------------------------------------------
+
+body
+  -webkit-font-smoothing: antialiased
+  -moz-osx-font-smoothing: grayscale
+
+// The portal uses a native focus ring rather than Quasar's ripple-style blur.
+:focus-visible
+  outline: 2px solid var(--accent)
+  outline-offset: 1px
+
+// Scrollbars ----------------------------------------------------------------
+
+*
+  scrollbar-width: thin
+  scrollbar-color: var(--text-muted) transparent
+
+::-webkit-scrollbar
+  width: 8px
+  height: 8px
+
+::-webkit-scrollbar-track
+  background: transparent
+
+::-webkit-scrollbar-thumb
+  background: var(--surface-raised)
+  border-radius: 4px
+
+  &:hover
+    background: var(--text-muted)
+
+// App chrome ----------------------------------------------------------------
+
+.q-header
+  background: var(--header-bg)
+  color: var(--text-primary)
+  border-bottom: 1px solid var(--header-border)
+
+.q-toolbar__title
+  font-family: $headline-font-family
+  font-size: 0.875rem
+  font-weight: 700
+
+.q-drawer
+  background: var(--surface-bg)
+
+.q-drawer--bordered
+  border-color: var(--surface-border)
+
+.q-page-container,
+.q-layout
+  background: var(--surface-bg)
+
+// Buttons, tabs -------------------------------------------------------------
+
+// The portal never shouts: control labels are sentence case, not Material's
+// all-caps.
+.q-btn,
+.q-tab
+  text-transform: none
+
+.q-btn
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease
+
+// A colourless, non-flat button is the portal's `.btn-secondary`: hairline box
+// on the page background, never a raised Material surface.
+.q-btn--standard:not(.q-btn--flat):not([class*="bg-"])
+  background: var(--surface-bg)
+  color: var(--text-primary)
+  border: 1px solid var(--surface-border)
+
+  &:hover
+    background: var(--surface-hover)
+    border-color: var(--text-secondary)
+
+// `color="primary"` is the portal's solid action button: ink-filled, going
+// Maroon on hover. Keeping Maroon for the hover state only is what stops large
+// buttons from turning into brand-colour slabs.
+// Quasar's `.bg-*` / `.text-*` helpers are `!important`, so the override has to
+// match their weight.
+.q-btn.bg-primary
+  background: var(--text-primary) !important
+  color: var(--text-inverse) !important
+
+  &:hover
+    background: var(--accent) !important
+    color: #fff !important
+
+.q-btn--flat
+  color: var(--text-secondary)
+
+  &:hover
+    color: var(--text-primary)
+
+// Menus, popovers, dialogs --------------------------------------------------
+
+.q-menu
+  background: var(--surface-bg)
+  color: var(--text-primary)
+  border: 1px solid var(--surface-border)
+  border-radius: var(--radius)
+
+.q-dialog__inner > .q-card
+  border: 1px solid var(--surface-border)
+  box-shadow: var(--shadow-2)
+
+.q-card
+  background: var(--surface-bg)
+  border-radius: var(--radius)
+  box-shadow: var(--shadow-1)
+
+.q-tooltip
+  background: var(--surface-bg)
+  color: var(--text-primary)
+  border: 1px solid var(--surface-border)
+  box-shadow: var(--shadow-2)
+
+// Lists ---------------------------------------------------------------------
+
+.q-item
+  min-height: 32px
+  transition: background 0.15s ease, color 0.15s ease
+
+.q-item.q-item--clickable:hover
+  background: var(--surface-hover)
+
+.q-item.q-item--active
+  color: var(--accent)
+  font-weight: 600
+
+.q-item__label--header
+  color: var(--text-secondary)
+  text-transform: uppercase
+
+.q-item__section--side
+  color: var(--text-muted)
+
+.q-separator
+  background: var(--surface-border)
+
+// Tabs ----------------------------------------------------------------------
+// Portal tabs: a 2px rule under the whole strip, the active tab painted in the
+// accent colour with a flush 2px indicator.
+
+.q-tabs
+  color: var(--text-secondary)
+
+.q-tabs__content
+  border-bottom: 2px solid var(--surface-border)
+
+.q-tab
+  min-height: 32px
+  padding: 0 12px
+
+  &:hover
+    color: var(--text-primary)
+
+.q-tab__label
+  font-size: 0.8125rem
+  font-weight: 500
+
+.q-tab--active
+  color: var(--accent)
+
+  .q-tab__label
+    font-weight: 600
+
+.q-tab__indicator
+  height: 2px
+  background: var(--accent)
+
+// Fields --------------------------------------------------------------------
+
+.q-field--outlined .q-field__control
+  &:before
+    border-color: var(--surface-border)
+
+  &:hover:before
+    border-color: var(--text-secondary)
+
+.q-field--outlined.q-field--highlighted .q-field__control:after
+  border-width: 1px
+
+.q-field__native,
+.q-field__input
+  color: var(--text-primary)
+
+.q-field__label,
+.q-field__bottom
+  color: var(--text-secondary)
+
+// Motion --------------------------------------------------------------------
+
+@media (prefers-reduced-motion: reduce)
+  *,
+  *::before,
+  *::after
+    animation-duration: 0.01ms !important
+    animation-iteration-count: 1 !important
+    transition-duration: 0.01ms !important

@@ -11,6 +11,10 @@ import type { ExperimentAuthor } from "../models/experiment-author.model";
 import type { VisibleStructure } from "../models/visible-structure.model";
 import { getExperimentModelIds } from "./experiment.api";
 import { isAtlas } from "@/features/atlas";
+import {
+  getCoordinateSystemIdentifier,
+  isCoordinateSystem
+} from "@/features/coordinate-system";
 import { isCameraPose } from "./camera-pose.api";
 import {
   getProbeInterfaceIdentifier,
@@ -169,6 +173,7 @@ function isExperiment(value: unknown): value is Experiment {
     referenceCoordinate,
     visibleStructures,
     probeInterfaceProbes,
+    coordinateSystems,
     probes,
     sceneObjects,
     cameraPose,
@@ -203,6 +208,13 @@ function isExperiment(value: unknown): value is Experiment {
     if (getProbeInterfaceIdentifier(definition) !== identifier) return false;
   }
 
+  if (!isRecord(coordinateSystems)) return false;
+
+  for (const [identifier, definition] of Object.entries(coordinateSystems)) {
+    if (!isCoordinateSystem(definition)) return false;
+    if (getCoordinateSystemIdentifier(definition) !== identifier) return false;
+  }
+
   if (!Array.isArray(probes) || !probes.every(isProbe)) return false;
   if (new Set(probes.map(probe => probe.id)).size !== probes.length) {
     return false;
@@ -226,8 +238,11 @@ function isExperiment(value: unknown): value is Experiment {
     return false;
   }
 
-  return probes.every(probe =>
-    Object.hasOwn(probeInterfaceProbes, probe.probeInterfaceIdentifier)
+  return probes.every(
+    probe =>
+      Object.hasOwn(probeInterfaceProbes, probe.probeInterfaceIdentifier) &&
+      (probe.coordinateSystemIdentifier === null ||
+        Object.hasOwn(coordinateSystems, probe.coordinateSystemIdentifier))
   );
 }
 

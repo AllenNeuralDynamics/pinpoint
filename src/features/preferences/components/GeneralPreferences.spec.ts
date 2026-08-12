@@ -34,6 +34,14 @@ describe("GeneralPreferences", () => {
     );
   });
 
+  it("renders the axis preferences", () => {
+    const wrapper = mountWithQuasar(GeneralPreferences);
+
+    expect(wrapper.findComponent({ name: "AxisPreferences" }).exists()).toBe(
+      true
+    );
+  });
+
   it("the skip-splash toggle starts at false", () => {
     const wrapper = mountWithQuasar(GeneralPreferences);
 
@@ -51,5 +59,16 @@ describe("GeneralPreferences", () => {
       .vm.$emit("update:modelValue", true);
 
     expect(preferences.isSplashScreenSkipped).toBe(true);
+  });
+
+  it("the drag-sensitivity slider starts at 1 and writes what it is moved to", async () => {
+    const wrapper = mountWithQuasar(GeneralPreferences);
+    const preferences = usePreferencesStore();
+    const slider = wrapper.findComponent({ name: "QSlider" });
+    expect(slider.props("modelValue")).toBe(1);
+
+    await slider.vm.$emit("update:modelValue", 2);
+
+    expect(preferences.dragSensitivity).toBe(2);
   });
 });

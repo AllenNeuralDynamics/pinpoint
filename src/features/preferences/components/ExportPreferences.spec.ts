@@ -74,16 +74,23 @@ function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
     isSplashScreenSkipped: false,
     cameraProjection: "perspective",
     cameraInertia: 0.9,
-    worldBackgroundColor: "#33334d",
+    worldBackgroundColorLightMode: "#f3f0e8",
+    worldBackgroundColorDarkMode: "#1a1a1a",
     worldLightIntensity: 1,
     materialSpecularIntensity: 1,
     materialSpecularPower: 64,
     isSsaoEnabled: true,
     ssaoRatio: 0.5,
+    structureFadedAlpha: 0.2,
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
+    positionAxisNames: ["", "", ""],
+    rotationAxisNames: ["", "", ""],
+    positionAxisOrder: [0, 1, 2],
+    rotationAxisOrder: [0, 1, 2],
     decimalPrecision: 3,
+    dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
     probeHeadStageLengthMillimeters: 20,
     probeHeadStageCutDepthMillimeters: 17.5,
@@ -164,13 +171,15 @@ describe("ExportPreferences", () => {
       const uploaded = buildUploadedPreferences({
         cameraProjection: "orthographic",
         cameraInertia: 0.1,
-        worldBackgroundColor: "#ff0000",
+        worldBackgroundColorLightMode: "#ff0000",
+        worldBackgroundColorDarkMode: "#00ff00",
         worldLightIntensity: 1.5,
         materialSpecularIntensity: 0.5,
         materialSpecularPower: 32,
         areStructureInteriorsHidden: false,
         isSsaoEnabled: false,
         ssaoRatio: 0.25,
+        structureFadedAlpha: 0.5,
         positionUnit: "centimeter",
         rotationUnit: "radian",
         decimalPrecision: 1,
@@ -187,7 +196,12 @@ describe("ExportPreferences", () => {
 
       expect(store.cameraProjection).toBe(uploaded.cameraProjection);
       expect(store.cameraInertia).toBe(uploaded.cameraInertia);
-      expect(store.worldBackgroundColor).toBe(uploaded.worldBackgroundColor);
+      expect(store.worldBackgroundColorLightMode).toBe(
+        uploaded.worldBackgroundColorLightMode
+      );
+      expect(store.worldBackgroundColorDarkMode).toBe(
+        uploaded.worldBackgroundColorDarkMode
+      );
       expect(store.worldLightIntensity).toBe(uploaded.worldLightIntensity);
       expect(store.materialSpecularIntensity).toBe(
         uploaded.materialSpecularIntensity
@@ -198,6 +212,7 @@ describe("ExportPreferences", () => {
       );
       expect(store.isSsaoEnabled).toBe(uploaded.isSsaoEnabled);
       expect(store.ssaoRatio).toBe(uploaded.ssaoRatio);
+      expect(store.structureFadedAlpha).toBe(uploaded.structureFadedAlpha);
       expect(store.positionUnit).toBe(uploaded.positionUnit);
       expect(store.rotationUnit).toBe(uploaded.rotationUnit);
       expect(store.decimalPrecision).toBe(uploaded.decimalPrecision);
@@ -222,7 +237,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.preferencesImported,
-          color: "positive"
+          type: "positive"
         })
       );
     });
@@ -242,7 +257,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionMajorBehind,
-          color: "negative"
+          type: "negative"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(300);
@@ -263,7 +278,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionMinorAhead,
-          color: "warning"
+          type: "warning"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(175);
@@ -284,7 +299,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.versionUnknown,
-          color: "warning"
+          type: "warning"
         })
       );
       expect(store.probeRodLengthMillimeters).toBe(175);
@@ -304,7 +319,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.invalidPreferencesFile,
-          color: "negative"
+          type: "negative"
         })
       );
     });
@@ -339,7 +354,7 @@ describe("ExportPreferences", () => {
       expect(notifySpy).toHaveBeenCalledWith(
         expect.objectContaining({
           message: enUS.preferences.invalidPreferencesFile,
-          color: "negative"
+          type: "negative"
         })
       );
       expect(store).toEqual(defaults);

@@ -1,4 +1,9 @@
 export default {
+  brand: {
+    institute: "allen institute /",
+    department: "neural dynamics /",
+    app: "pinpoint"
+  },
   atlasPicker: {
     title: "Atlas",
     brainglobeHosted: "BrainGlobe",
@@ -37,7 +42,10 @@ export default {
     ml: "ML",
     x: "X",
     y: "Y",
-    z: "Z"
+    z: "Z",
+    roll: "Roll",
+    yaw: "Yaw",
+    pitch: "Pitch"
   },
   newExperiment: {
     title: "New Experiment",
@@ -153,6 +161,7 @@ export default {
     shiftKey: "Shift",
     experimentProperties: "Experiment Properties",
     probeLibrary: "Probe Library",
+    coordinateSystemLibrary: "Coordinate System Library",
     preferences: "Preferences",
     view: "View",
     splashScreen: "Splash Screen",
@@ -166,6 +175,19 @@ export default {
     installProbe: "Install Probe",
     dragToReorder: "Drag to reorder",
     close: "Close"
+  },
+  coordinateSystemLibrary: {
+    addCoordinateSystem: "Add Coordinate System",
+    newCoordinateSystemName: "Coordinate System {index}",
+    title: "Coordinate System Library",
+    clickToInspectHint:
+      "Click a coordinate system to open it in the inspector.",
+    deleteCoordinateSystem: 'Delete "{name}"',
+    confirmDelete: 'Are you sure you wish to delete "{name}"?',
+    delete: "Delete",
+    close: "Close",
+    dragToReorder: "Drag to reorder",
+    confirmDeleteTitle: "Delete Coordinate System"
   },
   modelFile: {
     invalidModelFile: "Unable to import that 3D model.",
@@ -193,9 +215,15 @@ export default {
   probeInspector: {
     name: "Name",
     probeType: "Probe Type",
-    roll: "Roll",
-    yaw: "Yaw",
-    pitch: "Pitch",
+    coordinateSystem: "Coordinate System",
+    defaultCoordinateSystem: "Default",
+    solvePose: "Solve pose",
+    solvePoseCaption:
+      "Re-solve the coordinate system for this pose, keeping its orientation and putting the surface node back on the atlas.",
+    transformValue: "{transform} {name}",
+    offSurface: "Not on the brain surface.",
+    position: "Position",
+    rotation: "Rotation",
     home: "Reset tip position",
     surface: "Move to surface",
     cancelSurface: "Cancel move to surface",
@@ -223,18 +251,24 @@ export default {
     bodyModelPosition: "Position {axis}",
     bodyModelRotation: "Rotation {axis}",
     bodyModelScale: "Scale {axis}",
-    scaleSuffix: "×"
+    scaleSuffix: "×",
+    inverseKinematicsFailed: "Probe is out of reach for this coordinate system",
+    inverseKinematicsStalled:
+      "The solver stopped making progress. The outline shows the closest pose it reached.",
+    inverseKinematicsTimeout:
+      "This coordinate system's adjustable values cannot reach the probe. The outline shows the closest pose.",
+    inverseKinematicsNoFreeValues:
+      "This coordinate system has no adjustable values to solve for."
   },
 
   sceneObjectInspector: {
     name: "Name",
-    roll: "Roll",
-    yaw: "Yaw",
-    pitch: "Pitch",
     scaleSuffix: "×",
+    copy: "Duplicate 3D object",
     lock: "Lock 3D object",
     unlock: "Unlock 3D object",
-    collisionDetection: "Collision detection"
+    collisionDetection: "Collision detection",
+    relativeToReferenceCoordinate: "Relative to reference coordinate"
   },
   cameraInspector: {
     poseName: "Pose name",
@@ -248,6 +282,7 @@ export default {
     projection: "Projection",
     perspective: "Perspective",
     orthographic: "Orthographic",
+    resetCamera: "Reset Camera",
     savePose: "Save Pose",
     applyPose: "Move camera to {name}",
     deletePose: "Delete pose",
@@ -255,13 +290,37 @@ export default {
     noPoses: "No saved camera poses yet."
   },
   worldInspector: {
-    backgroundColor: "Background Color",
+    backgroundColorLightMode: "Background Color (Light)",
+    backgroundColorDarkMode: "Background Color (Dark)",
     lightPower: "Light Power",
     specularIntensity: "Specular Intensity",
     specularPower: "Glossiness",
     ambientOcclusion: "Ambient Occlusion",
-    hideStructureInteriors: "Hide Interior Surfaces",
     backToPreferences: "Back to Preferences"
+  },
+  coordinateSystemInspector: {
+    name: "Name",
+    addTransform: "Add Transform",
+    offsetByReferenceCoordinate: "Offset by reference coordinate",
+    nodeName: "Transform name",
+    newTransformName: "Transform {index}",
+    surfaceCoordinate: "Surface coordinate",
+    position: "Position",
+    rotation: "Rotation",
+    valueName: "Value name",
+    value: "Value",
+    axis: "Axis for {name}",
+    mapToAxis: "Map to {axis}",
+    mode: "Constraint for {name}",
+    modeFree: "Free",
+    modeFixed: "Fixed",
+    modeUser: "User",
+    dragToReorder: "Drag to reorder",
+    deleteTransform: "Delete Transform",
+    valuesFor: "{label} values",
+    valueSummaryEntry: "{name} ({value})",
+    valueSummaryAllFixed: "all fixed",
+    closeValues: "Done"
   },
   slice: {
     zoom: "Zoom",
@@ -307,6 +366,10 @@ export default {
     world: "World",
     editInInspector: "Edit World in Inspector",
 
+    atlas: "Atlas",
+    structureFadedAlpha: "Structure Transparency",
+    hideStructureInteriors: "Hide Interior Surfaces",
+
     appearanceTitle: "Appearance",
     theme: "Theme",
     themeLight: "Light",
@@ -316,10 +379,20 @@ export default {
     startupTitle: "Startup",
     skipSplashScreen: "Skip Splash Screen",
 
+    interactionTitle: "Interaction",
+    dragSensitivity: "Numeric Drag Sensitivity",
+    dragSensitivityValue: "{value}×",
+
     unitsTitle: "Units",
     positionUnit: "Position",
     rotationUnit: "Rotation",
     decimalPrecision: "Decimal Places",
+
+    axesTitle: "Atlas Axes",
+    positionAxes: "Position Axes",
+    rotationAxes: "Rotation Axes",
+    axisName: "Name for {axis}",
+    dragToReorder: "Drag to reorder",
 
     probeShape: "Probe Shape",
     shankThickness: "Shank Thickness",
@@ -369,11 +442,12 @@ export default {
       'This deletes the saved "{name}" data from this browser and then reloads Pinpoint so the store starts from its defaults. The deletion is permanent - the data cannot be recovered.',
     confirmResetAllTitle: "Reset everything?",
     confirmResetAll:
-      "This deletes all saved Pinpoint data from this browser - experiments, recents, probe library, favorite atlases, and preferences - and then reloads Pinpoint so every store starts from its defaults. The deletion is permanent - the data cannot be recovered.",
+      "This deletes all saved Pinpoint data from this browser - experiments, recents, probe library, coordinate system library, favorite atlases, and preferences - and then reloads Pinpoint so every store starts from its defaults. The deletion is permanent - the data cannot be recovered.",
     confirmOk: "Clear",
     storeCurrentExperiment: "Current Experiment",
     storeRecentExperiments: "Recent Experiments",
     storeProbeLibrary: "Probe Library",
+    storeCoordinateSystemLibrary: "Coordinate System Library",
     storeFavoriteAtlases: "Favorite Atlases",
     storePreferences: "Preferences"
   },

@@ -35,7 +35,7 @@ import {
   getProbeShanks
 } from "@/features/probe";
 import { setMaterialDiffuseColor } from "./material.api";
-import { buildReferenceCoordinateNode } from "./reference-coordinate.api";
+import { buildAtlasRootNode } from "./structures.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import { buildCollisionBody, disposeCollisionBody } from "./collision.api";
 import {
@@ -143,7 +143,7 @@ export function buildProbe(
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     shankAlignmentIndex: probe.shankAlignmentIndex,
     geometry,
-    bodyModelId: probe.bodyModel?.id ?? null
+    bodyModelId: probe.bodyModel?.modelId ?? null
   };
 
   const node = new TransformNode(
@@ -151,7 +151,7 @@ export function buildProbe(
     scene
   );
   node.metadata = probeMetadata;
-  node.parent = buildReferenceCoordinateNode(scene);
+  node.parent = buildAtlasRootNode(scene);
 
   const material = buildProbeMaterial(scene, probe);
   const shankMesh = buildShankMesh(
@@ -239,22 +239,24 @@ export function disposeProbe(
  * @param gizmoManager Gizmo manager for controlling probes.
  * @param draggedProbeId ID of the probe being dragged (if any). Ignore transform updates for this probe.
  * @param geometry Probe body geometry to build meshes with.
+ * @param snapPoses Apply pose changes immediately instead of gliding to them, for a numeric input being scrubbed.
  */
 export function syncProbes(
   scene: Scene,
   experiment: Experiment,
   gizmoManager: GizmoManager,
   draggedProbeId: string | null,
-  geometry: ProbeGeometry
+  geometry: ProbeGeometry,
+  snapPoses = false
 ): string[] {
-  const referenceCoordinateNode = buildReferenceCoordinateNode(scene);
+  const atlasRootNode = buildAtlasRootNode(scene);
   const experimentProbesById = new Map(
     experiment.probes.map(probe => [probe.id, probe])
   );
 
   const nodesById = new Map<string, TransformNode>();
   const rebuiltProbeIds: string[] = [];
-  for (const node of referenceCoordinateNode.getChildren(child =>
+  for (const node of atlasRootNode.getChildren(child =>
     child.name.endsWith(PROBE_NODE_SUFFIX)
   ) as TransformNode[]) {
     const id = sceneEntityIdFromName(node.name, "probe");
@@ -266,7 +268,7 @@ export function syncProbes(
       probe.probeInterfaceIdentifier !== metadata.probeInterfaceIdentifier ||
       probe.shankAlignmentIndex !== metadata.shankAlignmentIndex ||
       !isSameProbeGeometry(metadata.geometry, geometry) ||
-      (probe.bodyModel?.id ?? null) !== metadata.bodyModelId
+      (probe.bodyModel?.modelId ?? null) !== metadata.bodyModelId
     ) {
       disposeProbe(scene, id, gizmoManager);
       if (probe) rebuiltProbeIds.push(id);
@@ -319,18 +321,21 @@ export function syncProbes(
 
     const goalPosition = asrToVector3(probe.tipPosition);
     const goalRotation = asrToVector3(probe.rotation);
-    // A freshly built probe snaps, so it doesn't fly in from the origin; an
-    // existing one glides to any new pose. A pose that already matches needs
-    // neither, e.g. the sync right after a gizmo drag ends.
-    if (!existingNode) {
-      node.position = goalPosition;
-      node.rotation = goalRotation;
-      continue;
-    }
+    // A pose that already matches needs no move, e.g. the sync right after a
+    // gizmo drag ends. Checked before anything else so an unrelated sync never
+    // cuts a glide short.
     if (
       node.position.equals(goalPosition) &&
       node.rotation.equals(goalRotation)
     ) {
+      continue;
+    }
+    // A freshly built probe snaps, so it doesn't fly in from the origin, and a
+    // scrubbed one snaps so it tracks the pointer. Anything else glides.
+    if (!existingNode || snapPoses) {
+      stopNodePoseInterpolation(node);
+      node.position = goalPosition;
+      node.rotation = goalRotation;
       continue;
     }
 
@@ -531,7 +536,7 @@ function buildProbeMaterial(scene: Scene, probe: Probe): StandardMaterial {
  * @param name Name for the mesh.
  * @param geometry Probe body geometry to build the mesh with.
  */
-function buildShankMesh(
+export function buildShankMesh(
   scene: Scene,
   contour: ProbeContour,
   name: string,
@@ -558,7 +563,7 @@ function buildShankMesh(
  * @param name Name for the mesh.
  * @param geometry Probe body geometry to build the mesh with.
  */
-function buildHeadStageMesh(
+export function buildHeadStageMesh(
   scene: Scene,
   contour: ProbeContour,
   name: string,
@@ -587,6 +592,9 @@ function buildHeadStageMesh(
     },
     scene
   );
+  // This position resolves to probe-local -Y once parented under the
+  // pitched base mesh - that is the contact face, so the sign here is
+  // load-bearing.
   cutterMesh.position = new Vector3(
     0,
     geometry.headStageCutDepthMillimeters - geometry.headStageLengthMillimeters,
@@ -664,7 +672,10 @@ function buildRodMaterial(scene: Scene): StandardMaterial {
  * @param a First geometry to compare.
  * @param b Second geometry to compare.
  */
-function isSameProbeGeometry(a: ProbeGeometry, b: ProbeGeometry): boolean {
+export function isSameProbeGeometry(
+  a: ProbeGeometry,
+  b: ProbeGeometry
+): boolean {
   return (
     a.shankThicknessMillimeters === b.shankThicknessMillimeters &&
     a.headStageLengthMillimeters === b.headStageLengthMillimeters &&

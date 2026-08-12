@@ -2,6 +2,7 @@ import type { InjectionKey } from "vue";
 import { markRaw, shallowReadonly, type ShallowRef, shallowRef } from "vue";
 import {
   ArcRotateCamera,
+  Color3,
   Engine,
   GizmoManager,
   HavokPlugin,
@@ -121,8 +122,10 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
     gm.positionGizmoEnabled = true;
     gm.rotationGizmoEnabled = true;
     gm.scaleGizmoEnabled = true;
+    gm.attachableMeshes = [];
 
-    new HemisphericLight("main_light", Vector3.Up(), s);
+    const light = new HemisphericLight("main_light", Vector3.Up(), s);
+    light.groundColor = new Color3(0.35, 0.35, 0.35);
 
     const sol = new SelectionOutlineLayer("selection_outline_layer", s);
     const hl = new HighlightLayer("probe_collision_highlight_layer", s);

@@ -152,10 +152,10 @@ describe("SliceCanvas", () => {
       .split(" ")
       .map(pair => pair.split(",").map(Number));
     expect(parsed).toEqual([
-      [-5, 2],
       [5, 2],
-      [5, -8],
-      [-5, -8]
+      [-5, 2],
+      [-5, -8],
+      [5, -8]
     ]);
   });
 
@@ -627,18 +627,18 @@ describe("SliceCanvas", () => {
     expect(zoomSlider.props("modelValue")).toBe(2);
   });
 
-  it("defaults a probe whose zoom has never been set to the middle of the mouse-scale range", async () => {
+  it("defaults a probe whose zoom has never been set to a third of the mouse-scale atlas's average size", async () => {
     const { wrapper } = mountSlice({ sliceExtentMillimeters: null });
     await flushPromises();
 
     const sliders = wrapper.findAllComponents({ name: "QSlider" });
     const zoomSlider = sliders.find(s => s.props("vertical") !== true)!;
-    // Mouse range is {-2, 4}; its middle, exponent 1, is 2mm - the same
-    // value `buildProbe` used to hardcode.
-    expect(zoomSlider.props("modelValue")).toBe(1);
+    // Average dimension ~10.87mm; a third is ~3.62mm; log2(3.62) ~= 1.86,
+    // which rounds to tick 2 (4mm) - not the range's middle exponent 1 (2mm).
+    expect(zoomSlider.props("modelValue")).toBe(2);
   });
 
-  it("defaults a probe whose zoom has never been set to the middle of a human-scale range", async () => {
+  it("defaults a probe whose zoom has never been set to a third of a human-scale atlas's average size", async () => {
     const { wrapper } = mountSlice(
       { sliceExtentMillimeters: null },
       makeAtlas({
@@ -652,9 +652,9 @@ describe("SliceCanvas", () => {
 
     const sliders = wrapper.findAllComponents({ name: "QSlider" });
     const zoomSlider = sliders.find(s => s.props("vertical") !== true)!;
-    // This atlas's range is {2, 8}; its middle, exponent 5, is 32mm - not
-    // pinned to the range's minimum, as a hardcoded 2mm default would be.
-    expect(zoomSlider.props("modelValue")).toBe(5);
+    // Average dimension 197mm; a third is ~65.67mm; log2(65.67) ~= 6.04,
+    // which rounds to tick 6 (64mm) - not the range's middle exponent 5 (32mm).
+    expect(zoomSlider.props("modelValue")).toBe(6);
   });
 
   it("samples at a lower resolution while the probe pose keeps changing, then returns to full resolution once it settles", async () => {

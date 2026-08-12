@@ -31,10 +31,11 @@ describe("ResetPreferences", () => {
     const { wrapper } = mountReset();
 
     const rows = wrapper.findAllComponents({ name: "QItem" });
-    expect(rows).toHaveLength(5);
+    expect(rows).toHaveLength(6);
     expect(wrapper.text()).toContain(t.storeCurrentExperiment);
     expect(wrapper.text()).toContain(t.storeRecentExperiments);
     expect(wrapper.text()).toContain(t.storeProbeLibrary);
+    expect(wrapper.text()).toContain(t.storeCoordinateSystemLibrary);
     expect(wrapper.text()).toContain(t.storeFavoriteAtlases);
     expect(wrapper.text()).toContain(t.storePreferences);
   });

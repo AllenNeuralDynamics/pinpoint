@@ -1,5 +1,13 @@
 <script lang="ts" setup>
-import { computed, onUnmounted, ref } from "vue";
+import {
+  computed,
+  nextTick,
+  onUnmounted,
+  ref,
+  toRaw,
+  watch,
+  watchEffect
+} from "vue";
 import { useI18n } from "vue-i18n";
 import {
   copyProbe,
@@ -20,22 +28,32 @@ import {
   useModelFileImport
 } from "@/features/scene";
 import { SliceCanvas, useProbeSurface } from "@/features/slice";
+import {
+  applyCoordinateSystemChainValues,
+  type CoordinateSystemNode,
+  type CoordinateSystemSolution,
+  type CoordinateSystemSolveStatus,
+  getCoordinateSystemAxisValue,
+  isCoordinateSystemSolutionAtPose,
+  PREVIEW_SOLVE_STARTS,
+  setCoordinateSystemAxisValue,
+  SETTLED_SOLVE_STARTS,
+  solveCoordinateSystemChain,
+  useInverseKinematicsSolver
+} from "@/features/coordinate-system";
 import ProbeBodyModelInspector from "./ProbeBodyModelInspector.vue";
+import ProbeTransformChain from "./ProbeTransformChain.vue";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
-import { setProbeInterface } from "@/features/experiment";
+import {
+  setProbeCoordinateSystem,
+  setProbeInterface
+} from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { usePreferencesStore } from "@/stores/preferences.store";
-import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
-import { useUnitLabels } from "@/composable/useUnitLabels";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { useValidationRules } from "@/composable/useValidationRules";
 import { useNotify } from "@/composable/useNotify";
 import CommittedInput from "@/components/CommittedInput.vue";
-import {
-  millimetersToPositionUnit,
-  positionUnitToMillimeters,
-  radiansToRotationUnit,
-  rotationUnitToRadians
-} from "@/utils/math";
+import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 
 // A library probe's identifier paired with its display label. `emit-value`
 // keeps the model the identifier, which `findProbeInterfaceProbeByIdentifier`
@@ -53,29 +71,116 @@ interface ShankAlignmentOption {
   attrs: { "aria-label": string };
 }
 
+// A library coordinate system's id paired with its name, or null for the
+// Default option. `emit-value` keeps the model the id.
+interface CoordinateSystemOption {
+  label: string;
+  value: string | null;
+}
+
+/** Why a solve or surface check fired, which sets a solve's budget and what it writes. */
+type SolveReason = "preview" | "release" | "external";
+
+/** Pose difference, in mm and radians, below which the probe needs no correction. */
+const POSE_MATCH_TOLERANCE = 1e-4;
+
+/**
+ * Consecutive non-converged preview solves before the unreachable ghost is drawn, so one
+ * spurious warm-seed miss during a drag does not flash it.
+ */
+const SUSTAINED_UNREACHABLE_SOLVES = 3;
+
+/**
+ * Consecutive off-surface readings before a preview run warns, so one transient miss during a
+ * drag does not flash the warning.
+ */
+const SUSTAINED_OFF_SURFACE_CHECKS = 3;
+
+const SOLVE_FAILURE_CAPTION_KEYS = {
+  stalled: "probeInspector.inverseKinematicsStalled",
+  timeout: "probeInspector.inverseKinematicsTimeout",
+  noFreeValues: "probeInspector.inverseKinematicsNoFreeValues"
+} as const satisfies Record<
+  Exclude<CoordinateSystemSolveStatus, "converged" | "diverged">,
+  string
+>;
+
 const { probe } = defineProps<{
   probe: Probe;
 }>();
 
 const probeLibraryStore = useProbeLibraryStore();
 const currentExperimentStore = useCurrentExperimentStore();
-const preferences = usePreferencesStore();
-const unitLabels = useUnitLabels();
-const { requiredName: nameRules, optionalNumber: numberRules } =
-  useValidationRules();
+const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+const { requiredName: nameRules } = useValidationRules();
 
 const { t } = useI18n();
-const { notifyWarning } = useNotify();
-const { findTargets } = useProbeSurface();
+const { notifyError, notifyWarning } = useNotify();
+const { findTargets, isOnSurface } = useProbeSurface();
+const { solve: solveInverseKinematics } = useInverseKinematicsSolver();
 
 /** Is the surface sampling pass currently running. */
 const isFindingSurface = ref(false);
+
+/**
+ * Working copy of the selected coordinate system's chain. Detached from the library so
+ * editing a value here never rewrites the shared definition.
+ */
+const chain = ref<CoordinateSystemNode[]>([]);
+
+/** Indexes into `chain` of `onSurface` nodes whose off-surface reading has been sustained. */
+const offSurfaceNodeIndexes = ref<number[]>([]);
+
+/**
+ * Did the last surface march find a brain-surface point, so the solver pinned the chain's
+ * `onSurface` node to it and the marker has a surface to mark.
+ */
+const isSurfaceNodePinned = ref(false);
 
 /**
  * Aborts the in-flight surface sampling. Deliberately a plain `let`, not a ref:
  * nothing renders it and replacing it must not retrigger effects.
  */
 let surfaceAbortController: AbortController | null = null;
+
+/**
+ * Consecutive off-surface readings per `chain` index. Deliberately not a ref: nothing renders it
+ * and mutating it must not retrigger effects.
+ */
+const offSurfaceCheckCounts = new Map<number, number>();
+
+/**
+ * Guards a surface check against a superseded commit. Deliberately a plain
+ * `let`, not a ref: nothing renders it.
+ */
+let surfaceCheckId = 0;
+
+/** Probe pose this inspector last wrote, so its own correction does not retrigger a solve. */
+let appliedPose: {
+  tipPosition: [number, number, number];
+  rotation: [number, number, number];
+} | null = null;
+
+/** Has the unreachable-pose toast fired, so it fires once per excursion out of reach. */
+let hasNotifiedNonConvergence = false;
+
+/** Was this probe being dragged, so the next non-drag run is the drag's release solve. */
+let wasDragging = false;
+
+/** Is a solve in flight, so a preview never preempts a release or external solve. */
+let isSolving = false;
+
+/** Is the preview loop running, so drag frames re-arm it instead of queueing their own solves. */
+let isPreviewLoopRunning = false;
+
+/** Did a drag frame land while a preview solve was in flight, so the loop must run again. */
+let hasPendingPreview = false;
+
+/** Consecutive non-converged solves since the chain last reached the probe. */
+let unreachableSolveCount = 0;
+
+/** Guards a solve against a superseded pose change. */
+let solveId = 0;
 
 /**
  * Link to the probe identifier that also repoints its interned interface
@@ -104,6 +209,103 @@ const probeTypeOptions = computed<ProbeTypeOption[]>(() =>
     value: getProbeInterfaceIdentifier(probeInterfaceProbe)
   }))
 );
+
+/**
+ * Link to the probe's coordinate system identifier that also interns the picked
+ * library definition into the experiment.
+ */
+const coordinateSystemIdentifier = computed({
+  get: () => probe.coordinateSystemIdentifier,
+  set: (value: string | null) => {
+    const coordinateSystem =
+      value === null
+        ? null
+        : (coordinateSystemLibraryStore.library.find(
+            ({ id }) => id === value
+          ) ?? null);
+    if (value !== null && !coordinateSystem) return;
+
+    setProbeCoordinateSystem(
+      currentExperimentStore.experiment,
+      probe,
+      coordinateSystem
+    );
+  }
+});
+
+/** Coordinate system the transform inputs edit, or null when the probe has none. */
+const selectedCoordinateSystem = computed(() =>
+  probe.coordinateSystemIdentifier
+    ? (currentExperimentStore.coordinateSystems[
+        probe.coordinateSystemIdentifier
+      ] ?? null)
+    : null
+);
+
+const coordinateSystemOptions = computed<CoordinateSystemOption[]>(() => {
+  const options: CoordinateSystemOption[] = [
+    { label: t("probeInspector.defaultCoordinateSystem"), value: null },
+    ...coordinateSystemLibraryStore.library.map(({ id, name }) => ({
+      label: name,
+      value: id
+    }))
+  ];
+  const selected = selectedCoordinateSystem.value;
+  if (selected && !options.some(({ value }) => value === selected.id)) {
+    options.push({ label: selected.name, value: selected.id });
+  }
+  return options;
+});
+
+/** Root translation the chain hangs off, in atlas ASR mm, or null for the atlas origin. */
+const referenceOffset = computed(() =>
+  selectedCoordinateSystem.value?.offsetByReferenceCoordinate
+    ? currentExperimentStore.referenceCoordinate
+    : null
+);
+
+/** Origin the Default option's position inputs are relative to, in atlas ASR mm. */
+const defaultPositionOffset = computed(
+  () => currentExperimentStore.referenceCoordinate
+);
+
+/**
+ * The chain's single all-adjustable node, or null when the chain is not exactly
+ * invertible from the probe's pose.
+ */
+const directNode = computed(() => {
+  const [node] = chain.value;
+  if (chain.value.length !== 1 || !node) return null;
+  return [...node.position, ...node.rotation].some(
+    ({ mode }) => mode !== "free"
+  )
+    ? null
+    : node;
+});
+
+/** Chain index of the node constrained to the brain surface, or null when the chain has none. */
+const surfaceNodeIndex = computed(() => {
+  const index = chain.value.findIndex(node => node.onSurface);
+  return index === -1 ? null : index;
+});
+
+/** Does the working chain have any node constrained to the brain surface. */
+const hasSurfaceNode = computed(() => surfaceNodeIndex.value !== null);
+
+/**
+ * Forward-kinematics position of the chain's on-surface node, in atlas ASR mm, or null when the
+ * chain has none.
+ */
+const surfaceNodePosition = computed<[number, number, number] | null>(() => {
+  const index = surfaceNodeIndex.value;
+  if (index === null) return null;
+
+  const node = directNode.value;
+  const solution = node
+    ? solveDirectNode(node)
+    : solveCoordinateSystemChain(chain.value, referenceOffset.value);
+  return solution.nodePositions[index] ?? null;
+});
 
 /** This probe's interned interface definition, or null when the experiment has none. */
 const probeInterfaceProbe = computed(
@@ -157,64 +359,10 @@ const shankAlignmentOptions = computed<ShankAlignmentOption[]>(() => {
   return options;
 });
 
-const positionSuffix = computed(() =>
-  unitLabels.position(preferences.positionUnit)
-);
-
-const rotationSuffix = computed(() =>
-  unitLabels.rotation(preferences.rotationUnit)
-);
 const name = computed({
   get: () => probe.name,
   set: (value: string) => (probe.name = value.trim())
 });
-
-const ap = useNumericTupleModel(
-  () => probe.tipPosition,
-  0,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const dv = useNumericTupleModel(
-  () => probe.tipPosition,
-  1,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const ml = useNumericTupleModel(
-  () => probe.tipPosition,
-  2,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-
-const roll = useNumericTupleModel(
-  () => probe.rotation,
-  0,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
-  () => preferences.decimalPrecision
-);
-const yaw = useNumericTupleModel(
-  () => probe.rotation,
-  1,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
-  () => preferences.decimalPrecision
-);
-const pitch = useNumericTupleModel(
-  () => probe.rotation,
-  2,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
-  () => preferences.decimalPrecision
-);
 
 const lockIcon = computed(() =>
   probe.lock ? "lock" : "sym_o_lock_open_right"
@@ -253,6 +401,250 @@ const surfaceLabel = computed(() =>
 );
 
 /**
+ * Write the probe's live pose into the direct chain's single node.
+ * @param node Direct chain node to write, mutated in place.
+ */
+function writeProbePoseIntoNode(node: CoordinateSystemNode): void {
+  const offset = referenceOffset.value ?? [0, 0, 0];
+  const [ap, dv, ml] = probe.tipPosition;
+  setCoordinateSystemAxisValue(node, "position", 0, ml - offset[2]);
+  setCoordinateSystemAxisValue(node, "position", 1, dv - offset[1]);
+  setCoordinateSystemAxisValue(node, "position", 2, ap - offset[0]);
+  const [roll, yaw, pitch] = probe.rotation;
+  setCoordinateSystemAxisValue(node, "rotation", 0, pitch);
+  setCoordinateSystemAxisValue(node, "rotation", 1, yaw);
+  setCoordinateSystemAxisValue(node, "rotation", 2, roll);
+}
+
+/**
+ * Solve a direct chain's single node into a probe pose without the matrix chain, so
+ * a value reaches the probe exactly as typed.
+ * @param node Direct chain node to solve.
+ */
+function solveDirectNode(node: CoordinateSystemNode): CoordinateSystemSolution {
+  const offset = referenceOffset.value ?? [0, 0, 0];
+  const tipPosition: [number, number, number] = [
+    getCoordinateSystemAxisValue(node, "position", 2) + offset[0],
+    getCoordinateSystemAxisValue(node, "position", 1) + offset[1],
+    getCoordinateSystemAxisValue(node, "position", 0) + offset[2]
+  ];
+  return {
+    tipPosition,
+    rotation: [
+      getCoordinateSystemAxisValue(node, "rotation", 2),
+      getCoordinateSystemAxisValue(node, "rotation", 1),
+      getCoordinateSystemAxisValue(node, "rotation", 0)
+    ],
+    nodePositions: [tipPosition]
+  };
+}
+
+/**
+ * Mark the chain as reaching the probe: drop this probe's ghost and re-arm the failure toast.
+ */
+function clearUnreachable(): void {
+  hasNotifiedNonConvergence = false;
+  unreachableSolveCount = 0;
+  if (currentExperimentStore.probeGhost?.probeId === probe.id) {
+    currentExperimentStore.probeGhost = null;
+  }
+}
+
+/** Drop every off-surface warning, its debounce counts, and any in-flight check. */
+function clearOffSurfaceWarnings(): void {
+  surfaceCheckId++;
+  if (offSurfaceNodeIndexes.value.length > 0) offSurfaceNodeIndexes.value = [];
+  offSurfaceCheckCounts.clear();
+}
+
+/** Drop this probe's surface marker, leaving another probe's alone. */
+function clearSurfaceMarker(): void {
+  if (currentExperimentStore.probeSurfaceMarker?.probeId === probe.id) {
+    currentExperimentStore.probeSurfaceMarker = null;
+  }
+}
+
+/**
+ * Brain-surface point a probe pose puts the chain's `onSurface` node at, or null when the shank
+ * misses the brain. Marches the same ray Move to surface does, so a tip pushed out the far side
+ * still resolves the entry point above it.
+ * @param probeAtPose Probe carrying the pose to march from.
+ */
+async function findSurfaceGoal(
+  probeAtPose: Probe
+): Promise<[number, number, number] | null> {
+  const targets = await findTargets(probeAtPose);
+  return targets?.insideMillimeters ?? null;
+}
+
+/**
+ * Solve the working chain's free values onto the probe's pose, driving or clearing the
+ * unreachable-pose ghost and toast based on the result.
+ * @param reason Why this solve fired, which sets its restart budget and what it writes.
+ */
+async function runInverseKinematics(reason: SolveReason): Promise<void> {
+  if (reason === "preview" && isSolving) return;
+  // A settled solve supersedes any drag frame still waiting on the preview loop, so the loop
+  // never re-runs a stale preview on top of the release solve's result.
+  if (reason !== "preview") hasPendingPreview = false;
+  const id = ++solveId;
+  isSolving = true;
+  // One pose for the whole run: the surface sample and the solve's goals must describe the same
+  // pose, or a drag frame landing during the sampling leaves the solver two goals it cannot
+  // satisfy at once, and its non-convergence flashes the unreachable ghost.
+  const tipPosition: [number, number, number] = [...probe.tipPosition];
+  const rotation: [number, number, number] = [...probe.rotation];
+  try {
+    let surfacePosition: [number, number, number] | null = null;
+    if (hasSurfaceNode.value) {
+      surfacePosition = await findSurfaceGoal({
+        ...probe,
+        tipPosition,
+        rotation
+      });
+      if (id !== solveId) return;
+      isSurfaceNodePinned.value = surfacePosition !== null;
+    }
+
+    const result = await solveInverseKinematics({
+      chain: toRaw(chain.value),
+      target: { tipPosition, rotation, surfacePosition },
+      referenceOffsetMillimeters: toRaw(referenceOffset.value),
+      maximumStarts:
+        reason === "preview" ? PREVIEW_SOLVE_STARTS : SETTLED_SOLVE_STARTS
+    });
+    if (id !== solveId || !result) return;
+
+    applyCoordinateSystemChainValues(chain.value, result.chain);
+    const { solution, status } = result;
+
+    // A drag reports nothing: the ghost drawn at the best-effort pose is the only cue that
+    // the target is out of the chain's reach. `diverged` never reports either -- the solve
+    // still yields the closest reachable pose, which is what the ghost shows.
+    if (
+      reason !== "preview" &&
+      status !== "converged" &&
+      status !== "diverged" &&
+      !hasNotifiedNonConvergence
+    ) {
+      hasNotifiedNonConvergence = true;
+      notifyError(
+        t("probeInspector.inverseKinematicsFailed"),
+        t(SOLVE_FAILURE_CAPTION_KEYS[status])
+      );
+    }
+
+    if (status === "converged") {
+      clearUnreachable();
+    } else if (reason === "release") {
+      if (
+        !isCoordinateSystemSolutionAtPose(
+          solution,
+          tipPosition,
+          rotation,
+          POSE_MATCH_TOLERANCE
+        )
+      ) {
+        appliedPose = {
+          tipPosition: [...solution.tipPosition],
+          rotation: [...solution.rotation]
+        };
+        setProbeTipMillimeters(probe, solution.tipPosition);
+        probe.rotation = [...solution.rotation];
+      }
+      clearUnreachable();
+    } else {
+      // A drag can miss one solve and reach the next, so a preview must miss repeatedly before
+      // the ghost appears. A one-shot external change has no next iteration to wait for.
+      unreachableSolveCount++;
+      if (
+        reason !== "preview" ||
+        unreachableSolveCount >= SUSTAINED_UNREACHABLE_SOLVES
+      ) {
+        currentExperimentStore.probeGhost = {
+          probeId: probe.id,
+          tipPosition: [...solution.tipPosition],
+          rotation: [...solution.rotation]
+        };
+      }
+    }
+
+    // A preview never writes the probe's pose, so the goal marched before the solve still
+    // describes the final pose. A release or external solve can correct the pose, so re-march it.
+    if (reason === "preview") {
+      void checkSurfaceNodes(solution, reason, surfacePosition !== null);
+    } else {
+      void verifySurfaceNodes(solution, reason);
+    }
+  } finally {
+    if (id === solveId) isSolving = false;
+  }
+}
+
+/**
+ * Run one drag frame through the inverse-kinematics preview solve, re-arming
+ * itself if another frame lands while this one is still solving.
+ */
+// The gizmo streams a pose every frame. Instead of a fixed cadence, previews run back to back:
+// each iteration reads the probe's live pose, and a frame landing mid-solve just re-arms the loop,
+// so the inputs follow the drag as fast as the solver sustains. This cannot livelock -- a preview
+// writes only `chain`, `probeGhost`, and `offSurfaceNodeIndexes`, none of which the pose watcher
+// below depends on, so nothing but a real drag frame ever sets `hasPendingPreview`.
+async function previewInverseKinematics(): Promise<void> {
+  if (isPreviewLoopRunning) {
+    hasPendingPreview = true;
+    return;
+  }
+  isPreviewLoopRunning = true;
+  try {
+    do {
+      hasPendingPreview = false;
+      await runInverseKinematics("preview");
+    } while (hasPendingPreview);
+  } finally {
+    isPreviewLoopRunning = false;
+  }
+}
+
+/** Set by `seedChain` so the pose watcher below skips the redundant march its own reseed already ran, when a coordinate-system switch changes `referenceOffset` in the same tick. */
+let chainJustSeeded = false;
+
+/** Re-clone the selected library coordinate system's chain into the working copy. */
+function seedChain(): void {
+  // A solve still in flight was started for the previous probe or chain: retire its id so its
+  // reply is dropped, and clear the flags its own `finally` can no longer reset.
+  solveId++;
+  isSolving = false;
+  hasPendingPreview = false;
+  chain.value = selectedCoordinateSystem.value
+    ? structuredClone(toRaw(selectedCoordinateSystem.value)).chain
+    : [];
+  clearOffSurfaceWarnings();
+  // A new probe or chain has not been marched yet. Drop the marker outright rather than through
+  // `clearSurfaceMarker`, whose ownership guard no longer matches after a probe swap --
+  // `Inspector.vue`'s unkeyed `v-if` reuses this instance, so no unmount clears it.
+  isSurfaceNodePinned.value = false;
+  currentExperimentStore.probeSurfaceMarker = null;
+  appliedPose = null;
+  clearUnreachable();
+  chainJustSeeded = true;
+  void nextTick(() => {
+    chainJustSeeded = false;
+  });
+  if (!selectedCoordinateSystem.value) return;
+
+  // A single all-adjustable node is exactly invertible from the probe's pose, so
+  // a single-node chain reads and writes live state. Any other chain
+  // shape needs a solve to describe the probe's current pose instead of showing
+  // the library's stored values.
+  const node = directNode.value;
+  if (node) {
+    writeProbePoseIntoNode(node);
+    void verifySurfaceNodes(solveDirectNode(node), "external");
+  } else void runInverseKinematics("external");
+}
+
+/**
  * Abort an in-flight surface move, dropping any path choice awaiting a pick - which
  * disposes its tubes, since `SceneCanvas`'s draw effect rebuilds from
  * `probeSurfaceChoice` and calls `disposeProbeSurfacePaths` when it is null.
@@ -274,12 +666,7 @@ async function moveToSurface(): Promise<void> {
   surfaceAbortController = controller;
   isFindingSurface.value = true;
   try {
-    const referenceCoordinate = currentExperimentStore.referenceCoordinate;
-    const targets = await findTargets(
-      probe,
-      referenceCoordinate,
-      controller.signal
-    );
+    const targets = await findTargets(probe, controller.signal);
     // An abort that lands after the rays resolved must still not move the probe. No
     // toast either: the user asked for this to stop, so it is not a failure.
     if (controller.signal.aborted) return;
@@ -294,7 +681,7 @@ async function moveToSurface(): Promise<void> {
     const { insideMillimeters, axisMillimeters, dorsoventralMillimeters } =
       targets;
     if (insideMillimeters) {
-      setProbeTipMillimeters(probe, insideMillimeters, referenceCoordinate);
+      setProbeTipMillimeters(probe, insideMillimeters);
       return;
     }
     if (!axisMillimeters && !dorsoventralMillimeters) {
@@ -307,8 +694,7 @@ async function moveToSurface(): Promise<void> {
     if (!axisMillimeters || !dorsoventralMillimeters) {
       setProbeTipMillimeters(
         probe,
-        axisMillimeters ?? dorsoventralMillimeters!,
-        referenceCoordinate
+        axisMillimeters ?? dorsoventralMillimeters!
       );
       return;
     }
@@ -317,11 +703,6 @@ async function moveToSurface(): Promise<void> {
       probeId: probe.id,
       tipPosition: [...probe.tipPosition],
       rotation: [...probe.rotation],
-      tipMillimeters: [
-        referenceCoordinate[0] + probe.tipPosition[0],
-        referenceCoordinate[1] + probe.tipPosition[1],
-        referenceCoordinate[2] + probe.tipPosition[2]
-      ],
       axisTargetMillimeters: axisMillimeters,
       dorsoventralTargetMillimeters: dorsoventralMillimeters
     };
@@ -340,7 +721,183 @@ function onSurfaceClick(): void {
   void moveToSurface();
 }
 
-onUnmounted(cancelMoveToSurface);
+/** Re-solve the working chain onto the probe and re-check its on-surface nodes. */
+function applySolve(): void {
+  const node = directNode.value;
+  const solution = node
+    ? solveDirectNode(node)
+    : solveCoordinateSystemChain(chain.value, referenceOffset.value);
+  appliedPose = {
+    tipPosition: [...solution.tipPosition],
+    rotation: [...solution.rotation]
+  };
+  setProbeTipMillimeters(probe, solution.tipPosition);
+  probe.rotation = [...solution.rotation];
+  clearUnreachable();
+  void verifySurfaceNodes(solution, "external");
+}
+
+/**
+ * One-shot inverse-kinematics solve for the probe's current pose, so a chain left in an FK
+ * pose that has drifted its surface node off the atlas resolves back onto it without moving
+ * the probe's position or orientation.
+ */
+function solvePose(): void {
+  void runInverseKinematics("external");
+}
+
+/**
+ * March the probe's committed pose for its surface goal, then check the chain's on-surface nodes
+ * against it.
+ * @param solution Solved chain the node positions come from.
+ * @param reason Why the change that produced this check fired.
+ */
+async function verifySurfaceNodes(
+  solution: CoordinateSystemSolution,
+  reason: SolveReason
+): Promise<void> {
+  if (!hasSurfaceNode.value) {
+    clearOffSurfaceWarnings();
+    return;
+  }
+  const checkId = ++surfaceCheckId;
+  const surfacePosition = await findSurfaceGoal(probe);
+  if (checkId !== surfaceCheckId) return;
+  isSurfaceNodePinned.value = surfacePosition !== null;
+  void checkSurfaceNodes(solution, reason, surfacePosition !== null);
+}
+
+/**
+ * Replace the off-surface warnings with the on-surface nodes the atlas rejects, once a preview's
+ * rejection has held for `SUSTAINED_OFF_SURFACE_CHECKS` consecutive checks.
+ * @param solution Solved chain the node positions come from.
+ * @param reason Why the solve that produced this check fired.
+ * @param hasSurfaceGoal Did this pose's march find a surface point for the solver to pin to.
+ */
+async function checkSurfaceNodes(
+  solution: CoordinateSystemSolution,
+  reason: SolveReason,
+  hasSurfaceGoal: boolean
+): Promise<void> {
+  const indexes = chain.value.flatMap((node, index) =>
+    node.onSurface ? [index] : []
+  );
+  // With no surface goal the solver left the node unconstrained, so there is nothing to verify.
+  if (!hasSurfaceGoal || indexes.length === 0) {
+    clearOffSurfaceWarnings();
+    return;
+  }
+
+  const checkId = ++surfaceCheckId;
+  const results = await Promise.all(
+    indexes.map(index => isOnSurface(solution.nodePositions[index]!))
+  );
+  if (checkId !== surfaceCheckId) return;
+
+  const warned: number[] = [];
+  indexes.forEach((index, position) => {
+    if (results[position] !== false) {
+      offSurfaceCheckCounts.delete(index);
+      return;
+    }
+    // A one-shot solve has no next check to wait for, so it warns at once and holds the warning
+    // through the previews of any later drag.
+    const next = (offSurfaceCheckCounts.get(index) ?? 0) + 1;
+    const count =
+      reason === "preview"
+        ? next
+        : Math.max(next, SUSTAINED_OFF_SURFACE_CHECKS);
+    offSurfaceCheckCounts.set(index, count);
+    if (count >= SUSTAINED_OFF_SURFACE_CHECKS) warned.push(index);
+  });
+  offSurfaceNodeIndexes.value = warned;
+}
+
+// A different probe or a different coordinate system starts from the library's values.
+watch([() => probe.id, () => probe.coordinateSystemIdentifier], seedChain, {
+  immediate: true
+});
+
+// The scene writes the probe's pose straight into state on every gizmo drag frame. A direct
+// chain mirrors it live and needs no solve. Any other chain solves for it: at 10 Hz while
+// dragging, once more when `endProbeDrag` nulls `draggedProbeId` (the release run), and once
+// for an external change such as undo, Home, or Move to surface. Nothing is committed to
+// history until that release run. With no coordinate system selected, the inputs are the
+// state directly, so the watcher below returns immediately.
+watch(
+  [
+    () => probe.tipPosition,
+    () => probe.rotation,
+    referenceOffset,
+    () => currentExperimentStore.draggedProbeId
+  ],
+  () => {
+    if (chainJustSeeded) {
+      chainJustSeeded = false;
+      return;
+    }
+    if (!selectedCoordinateSystem.value) return;
+    const node = directNode.value;
+    if (node) {
+      writeProbePoseIntoNode(node);
+      clearUnreachable();
+      void verifySurfaceNodes(
+        solveDirectNode(node),
+        currentExperimentStore.draggedProbeId === probe.id
+          ? "preview"
+          : "external"
+      );
+      return;
+    }
+    if (
+      appliedPose &&
+      appliedPose.tipPosition.every(
+        (value, index) => value === probe.tipPosition[index]
+      ) &&
+      appliedPose.rotation.every(
+        (value, index) => value === probe.rotation[index]
+      )
+    ) {
+      appliedPose = null;
+      return;
+    }
+    if (currentExperimentStore.draggedProbeId === probe.id) {
+      wasDragging = true;
+      void previewInverseKinematics();
+      return;
+    }
+    if (wasDragging) {
+      wasDragging = false;
+      void runInverseKinematics("release");
+      return;
+    }
+    void runInverseKinematics("external");
+  },
+  { deep: true }
+);
+
+// Publish the on-surface node's solved position for the scene's marker sphere. This reads `chain`,
+// so a manual edit moves the ball through forward kinematics and a drag moves it to wherever the
+// inverse-kinematics solve put the surface node. A chain with no surface node has nothing to mark,
+// and neither does one whose march found no surface: the solver left that node unconstrained, so
+// its solved position means nothing.
+watchEffect(() => {
+  const position = surfaceNodePosition.value;
+  if (!position || !isSurfaceNodePinned.value) {
+    clearSurfaceMarker();
+    return;
+  }
+  currentExperimentStore.probeSurfaceMarker = {
+    probeId: probe.id,
+    position: [...position]
+  };
+});
+
+onUnmounted(() => {
+  cancelMoveToSurface();
+  clearUnreachable();
+  clearSurfaceMarker();
+});
 </script>
 
 <template>
@@ -372,7 +929,9 @@ onUnmounted(cancelMoveToSurface);
                 :aria-label="t('probeInspector.home')"
                 :disable="probe.lock"
                 icon="home"
-                @click="homeProbe(probe)"
+                @click="
+                  homeProbe(probe, currentExperimentStore.referenceCoordinate)
+                "
               >
                 <q-tooltip>{{ t("probeInspector.home") }}</q-tooltip>
               </q-btn>
@@ -440,71 +999,61 @@ onUnmounted(cancelMoveToSurface);
             />
           </div>
 
-          <div class="row q-gutter-x-sm">
-            <CommittedInput
-              v-model="ap"
-              :disable="probe.lock"
-              :label="t('axis.ap')"
-              :rules="numberRules"
-              :suffix="positionSuffix"
-              class="col"
-              hide-bottom-space
-              outlined
-            />
-            <CommittedInput
-              v-model="dv"
-              :disable="probe.lock"
-              :label="t('axis.dv')"
-              :rules="numberRules"
-              :suffix="positionSuffix"
-              class="col"
-              hide-bottom-space
-              outlined
-            />
-            <CommittedInput
-              v-model="ml"
-              :disable="probe.lock"
-              :label="t('axis.ml')"
-              :rules="numberRules"
-              :suffix="positionSuffix"
-              class="col"
-              hide-bottom-space
-              outlined
-            />
-          </div>
+          <q-select
+            v-model="coordinateSystemIdentifier"
+            emit-value
+            :label="t('probeInspector.coordinateSystem')"
+            map-options
+            :options="coordinateSystemOptions"
+            outlined
+          />
 
-          <div class="row q-gutter-x-sm">
-            <CommittedInput
-              v-model="roll"
+          <template v-if="selectedCoordinateSystem">
+            <q-btn
+              :aria-label="t('probeInspector.solvePose')"
+              class="full-width"
+              color="primary"
               :disable="probe.lock"
-              :label="t('probeInspector.roll')"
-              :rules="numberRules"
-              :suffix="rotationSuffix"
-              class="col"
-              hide-bottom-space
-              outlined
-            />
-            <CommittedInput
-              v-model="yaw"
+              icon="restart_alt"
+              :label="t('probeInspector.solvePose')"
+              @click="solvePose"
+            >
+              <q-tooltip>{{ t("probeInspector.solvePoseCaption") }}</q-tooltip>
+            </q-btn>
+            <ProbeTransformChain
+              :chain="chain"
               :disable="probe.lock"
-              :label="t('probeInspector.yaw')"
-              :rules="numberRules"
-              :suffix="rotationSuffix"
-              class="col"
-              hide-bottom-space
-              outlined
+              :off-surface-node-indexes="offSurfaceNodeIndexes"
+              @commit="applySolve"
             />
-            <CommittedInput
-              v-model="pitch"
-              :disable="probe.lock"
-              :label="t('probeInspector.pitch')"
-              :rules="numberRules"
-              :suffix="rotationSuffix"
-              class="col"
-              hide-bottom-space
-              outlined
-            />
-          </div>
+          </template>
+          <template v-else>
+            <div>
+              <div class="text-body2 q-pb-xs">{{
+                t("probeInspector.position")
+              }}</div>
+              <AtlasAxisInputs
+                :disable="probe.lock"
+                hide-bottom-space
+                kind="position"
+                :offset="defaultPositionOffset"
+                outlined
+                :tuple="probe.tipPosition"
+              />
+            </div>
+            <div>
+              <div class="text-body2 q-pb-xs">{{
+                t("probeInspector.rotation")
+              }}</div>
+              <AtlasAxisInputs
+                :disable="probe.lock"
+                hide-bottom-space
+                kind="rotation"
+                outlined
+                :tuple="probe.rotation"
+              />
+            </div>
+          </template>
 
           <div>
             <q-color

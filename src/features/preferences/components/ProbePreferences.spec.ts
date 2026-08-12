@@ -90,4 +90,41 @@ describe("ProbePreferences", () => {
 
     expect(preferences.probeRodLengthMillimeters).toBe(0.5);
   });
+
+  it("dragging Rod Length 100 px right raises probeRodLengthMillimeters by 1", async () => {
+    const wrapper = mountWithQuasar(ProbePreferences);
+    const preferences = usePreferencesStore();
+    await wrapper.vm.$nextTick();
+    const field = fieldByLabel(wrapper, t.rodLength);
+
+    await field.trigger("pointerdown", { clientX: 0, pointerId: 1, button: 0 });
+    await field.trigger("pointermove", { clientX: 100, pointerId: 1 });
+
+    expect(preferences.probeRodLengthMillimeters).toBe(201);
+  });
+
+  it("scales the same 100 px drag by the drag-sensitivity preference", async () => {
+    const wrapper = mountWithQuasar(ProbePreferences);
+    const preferences = usePreferencesStore();
+    preferences.dragSensitivity = 2;
+    await wrapper.vm.$nextTick();
+    const field = fieldByLabel(wrapper, t.rodLength);
+
+    await field.trigger("pointerdown", { clientX: 0, pointerId: 1, button: 0 });
+    await field.trigger("pointermove", { clientX: 100, pointerId: 1 });
+
+    expect(preferences.probeRodLengthMillimeters).toBe(202);
+  });
+
+  it("clamps a far-left drag on Shank Thickness to its 0.001 minimum", async () => {
+    const wrapper = mountWithQuasar(ProbePreferences);
+    const preferences = usePreferencesStore();
+    await wrapper.vm.$nextTick();
+    const field = fieldByLabel(wrapper, t.shankThickness);
+
+    await field.trigger("pointerdown", { clientX: 0, pointerId: 1, button: 0 });
+    await field.trigger("pointermove", { clientX: -10_000, pointerId: 1 });
+
+    expect(preferences.probeShankThicknessMillimeters).toBe(0.001);
+  });
 });

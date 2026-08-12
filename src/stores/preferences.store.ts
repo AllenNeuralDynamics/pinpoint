@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { type Ref, ref } from "vue";
 import type { Appearance } from "@/features/preferences";
 import type { CameraProjection } from "@/features/scene";
+import { type AxisOrder, IDENTITY_AXIS_ORDER } from "@/utils/axis-order";
 import type { PositionUnit, RotationUnit } from "@/utils/math";
 
 /** Every preference value the store holds. */
@@ -16,8 +17,10 @@ export interface Preferences {
   cameraProjection: CameraProjection;
   /** Camera movement damping; 0 is snappy, 1 is smooth. */
   cameraInertia: number;
-  /** Scene background color, as `#rrggbb`. */
-  worldBackgroundColor: string;
+  /** Scene background color while the app renders light, as `#rrggbb`. */
+  worldBackgroundColorLightMode: string;
+  /** Scene background color while the app renders dark, as `#rrggbb`. */
+  worldBackgroundColorDarkMode: string;
   /** Hemispheric light power. */
   worldLightIntensity: number;
   /** Specular reflection strength of every scene material, 0-1. */
@@ -28,14 +31,26 @@ export interface Preferences {
   isSsaoEnabled: boolean;
   /** Size of the ambient occlusion pass relative to the canvas, 0-1; lower is faster. */
   ssaoRatio: number;
+  /** Alpha faded (unselected) structures render with, 0-1. */
+  structureFadedAlpha: number;
   /** Whether see-through structures hide their own interior surfaces. */
   areStructureInteriorsHidden: boolean;
   /** Unit numeric inputs display positions in. */
   positionUnit: PositionUnit;
   /** Unit numeric inputs display rotations in. */
   rotationUnit: RotationUnit;
+  /** User name per atlas position axis, indexed by the internal [AP, DV, ML] triple; empty uses the built-in label. */
+  positionAxisNames: [string, string, string];
+  /** User name per atlas rotation axis, indexed by the internal [roll, yaw, pitch] triple; empty uses the built-in label. */
+  rotationAxisNames: [string, string, string];
+  /** Order atlas position inputs are shown in, as display slot -> triple index. */
+  positionAxisOrder: AxisOrder;
+  /** Order atlas rotation inputs are shown in, as display slot -> triple index. */
+  rotationAxisOrder: AxisOrder;
   /** Decimal places numeric inputs show. */
   decimalPrecision: number;
+  /** Multiplier on how far a numeric input's value moves per pixel of horizontal drag. */
+  dragSensitivity: number;
   /** Thickness of a probe's extruded shank, in mm. */
   probeShankThicknessMillimeters: number;
   /** Length of a probe's head stage cone, in mm. */
@@ -48,6 +63,12 @@ export interface Preferences {
   probeRodLengthMillimeters: number;
 }
 
+/** Starting 3D viewport background in light mode: Allen Institute Page 1. */
+export const DEFAULT_WORLD_BACKGROUND_COLOR_LIGHT = "#f3f0e8";
+
+/** Starting 3D viewport background in dark mode: the dark card surface. */
+export const DEFAULT_WORLD_BACKGROUND_COLOR_DARK = "#1a1a1a";
+
 export const usePreferencesStore = defineStore(
   "preferences",
   () => {
@@ -56,16 +77,27 @@ export const usePreferencesStore = defineStore(
     const isSplashScreenSkipped = ref(false);
     const cameraProjection = ref<CameraProjection>("perspective");
     const cameraInertia = ref(0.9);
-    const worldBackgroundColor = ref("#33334d");
+    const worldBackgroundColorLightMode = ref(
+      DEFAULT_WORLD_BACKGROUND_COLOR_LIGHT
+    );
+    const worldBackgroundColorDarkMode = ref(
+      DEFAULT_WORLD_BACKGROUND_COLOR_DARK
+    );
     const worldLightIntensity = ref(1);
     const materialSpecularIntensity = ref(1);
     const materialSpecularPower = ref(64);
     const isSsaoEnabled = ref(false);
     const ssaoRatio = ref(0.5);
-    const areStructureInteriorsHidden = ref(true);
+    const structureFadedAlpha = ref(0.2);
+    const areStructureInteriorsHidden = ref(false);
     const positionUnit = ref<PositionUnit>("millimeter");
     const rotationUnit = ref<RotationUnit>("degree");
+    const positionAxisNames = ref<[string, string, string]>(["", "", ""]);
+    const rotationAxisNames = ref<[string, string, string]>(["", "", ""]);
+    const positionAxisOrder = ref<AxisOrder>([...IDENTITY_AXIS_ORDER]);
+    const rotationAxisOrder = ref<AxisOrder>([...IDENTITY_AXIS_ORDER]);
     const decimalPrecision = ref(3);
+    const dragSensitivity = ref(1);
     const probeShankThicknessMillimeters = ref(0.05);
     const probeHeadStageLengthMillimeters = ref(20);
     const probeHeadStageCutDepthMillimeters = ref(17.5);
@@ -80,16 +112,23 @@ export const usePreferencesStore = defineStore(
       isSplashScreenSkipped,
       cameraProjection,
       cameraInertia,
-      worldBackgroundColor,
+      worldBackgroundColorLightMode,
+      worldBackgroundColorDarkMode,
       worldLightIntensity,
       materialSpecularIntensity,
       materialSpecularPower,
       isSsaoEnabled,
       ssaoRatio,
+      structureFadedAlpha,
       areStructureInteriorsHidden,
       positionUnit,
       rotationUnit,
+      positionAxisNames,
+      rotationAxisNames,
+      positionAxisOrder,
+      rotationAxisOrder,
       decimalPrecision,
+      dragSensitivity,
       probeShankThicknessMillimeters,
       probeHeadStageLengthMillimeters,
       probeHeadStageCutDepthMillimeters,

@@ -4,7 +4,6 @@ import {
   getAtlasDimensionsMillimeters
 } from "@/features/atlas";
 import type { CameraPose } from "../models/camera-pose.model";
-import { atlasToReferenceRelative } from "./reference-coordinate.api";
 import { isFiniteNumber, isFiniteTriple, isRecord } from "@/utils/type-guards";
 
 /** Initial orbit azimuth of a camera pose, in radians. */
@@ -17,45 +16,43 @@ const INITIAL_BETA = Math.PI / 8;
 const RADIUS_AP_MULTIPLIER = 1.5;
 
 /**
+ * Camera radius that frames an atlas's full AP extent, in mm.
+ * @param atlas Atlas to frame.
+ */
+export function getAtlasFramingRadiusMillimeters(atlas: Atlas): number {
+  return (
+    Math.max(getAtlasDimensionsMillimeters(atlas)[0], 0) * RADIUS_AP_MULTIPLIER
+  );
+}
+
+/**
  * Build an experiment's live camera pose: the default orbit, framed on the atlas.
  * @param atlas Atlas to frame the pose on.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
  */
-export function buildCameraPose(
-  atlas: Atlas,
-  referenceCoordinate: [number, number, number]
-): CameraPose {
+export function buildCameraPose(atlas: Atlas): CameraPose {
   const pose: CameraPose = {
     inspectableKind: "camera",
     id: crypto.randomUUID(),
     name: "",
-    alpha: INITIAL_ALPHA,
-    beta: INITIAL_BETA,
+    alpha: 0,
+    beta: 0,
     radius: 0,
     target: [0, 0, 0]
   };
-  frameCameraPoseOnAtlas(pose, atlas, referenceCoordinate);
+  resetCameraPose(pose, atlas);
   return pose;
 }
 
 /**
- * Frame a camera pose on an atlas: radius from the atlas's AP extent and target
- * on the atlas centre, leaving the orbit angles as the user left them.
- * @param pose Camera pose to frame.
+ * Reset a camera pose to an atlas's default view: the initial orbit angles, framed on the atlas.
+ * @param pose Camera pose to reset in place.
  * @param atlas Atlas to frame the pose on.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
  */
-export function frameCameraPoseOnAtlas(
-  pose: CameraPose,
-  atlas: Atlas,
-  referenceCoordinate: [number, number, number]
-): void {
-  pose.radius =
-    Math.max(getAtlasDimensionsMillimeters(atlas)[0], 0) * RADIUS_AP_MULTIPLIER;
-  pose.target = atlasToReferenceRelative(
-    referenceCoordinate,
-    getAtlasCenter(atlas)
-  );
+export function resetCameraPose(pose: CameraPose, atlas: Atlas): void {
+  pose.alpha = INITIAL_ALPHA;
+  pose.beta = INITIAL_BETA;
+  pose.radius = getAtlasFramingRadiusMillimeters(atlas);
+  pose.target = getAtlasCenter(atlas);
 }
 
 /**
@@ -76,7 +73,7 @@ export function copyCameraPose(pose: CameraPose, name: string): CameraPose {
  * Write an orbit and target onto a camera pose in place, keeping its id and name.
  * @param pose Camera pose to update.
  * @param orbit Alpha/beta in radians and radius in mm.
- * @param target Point the camera orbits, relative to the reference coordinate, in ASR mm.
+ * @param target Point the camera orbits, in atlas ASR mm.
  */
 export function setCameraPose(
   pose: CameraPose,

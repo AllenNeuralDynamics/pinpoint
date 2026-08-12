@@ -4,6 +4,12 @@ import type {
   Manifest,
   TerminologyRow
 } from "@/features/atlas";
+import type { CoordinateSystem } from "@/features/coordinate-system";
+import {
+  buildCoordinateSystem,
+  buildCoordinateSystemNode,
+  buildCoordinateSystemValue
+} from "@/features/coordinate-system";
 import type { ProbeGeometry, SceneModel, SceneObject } from "@/features/scene";
 import type { CameraPose } from "@/features/experiment";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
@@ -17,7 +23,7 @@ export function makeSceneModel(
   overrides: Partial<SceneModel> = {}
 ): SceneModel {
   return {
-    id: crypto.randomUUID(),
+    modelId: crypto.randomUUID(),
     position: [0, 0, 0],
     rotation: [0, 0, 0],
     scale: [1, 1, 1],
@@ -34,6 +40,7 @@ export function makeSceneObject(
 ): SceneObject {
   return {
     ...makeSceneModel(),
+    id: crypto.randomUUID(),
     inspectableKind: "sceneObject",
     name: "Object abc123",
     color: "#ffffff",
@@ -84,7 +91,7 @@ export function makeAtlasListing(
   return {
     name: "allen_mouse",
     source: "http://localhost:3000",
-    variantDirectories: ["allen_mouse_25um"],
+    variantPaths: ["allen_mouse_25um/3_0"],
     ...overrides
   };
 }
@@ -120,6 +127,7 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(
       makeProbeInterfaceProbe()
     ),
+    coordinateSystemIdentifier: null,
     tipPosition: [0, 0, 0],
     rotation: [0, 0, 0],
     sliceExtentMillimeters: 2,
@@ -127,6 +135,34 @@ export function makeProbe(overrides: Partial<Probe> = {}): Probe {
     channelMapWindow: null,
     shankAlignmentIndex: null,
     bodyModel: null,
+    ...overrides
+  };
+}
+
+/**
+ * Build a fixture coordinate system with a single all-zero unfixed node.
+ * @param overrides Fields to override on the default coordinate system.
+ */
+export function makeCoordinateSystem(
+  overrides: Partial<CoordinateSystem> = {}
+): CoordinateSystem {
+  return {
+    ...buildCoordinateSystem("Fixture Coordinate System", [
+      buildCoordinateSystemNode(
+        "Tip",
+        [
+          buildCoordinateSystemValue("ML"),
+          buildCoordinateSystemValue("DV"),
+          buildCoordinateSystemValue("AP")
+        ],
+        [
+          buildCoordinateSystemValue("Pitch"),
+          buildCoordinateSystemValue("Yaw"),
+          buildCoordinateSystemValue("Roll")
+        ]
+      )
+    ]),
+    id: "coordinate-system-id",
     ...overrides
   };
 }

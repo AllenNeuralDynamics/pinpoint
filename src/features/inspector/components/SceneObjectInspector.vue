@@ -1,112 +1,62 @@
 <script lang="ts" setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import {
+  copySceneObject,
   STANDARD_COLORS,
   type SceneObject,
   toggleSceneObjectCollidable,
   toggleSceneObjectLock
 } from "@/features/scene";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
-import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
+import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
-import {
-  millimetersToPositionUnit,
-  positionUnitToMillimeters,
-  radiansToRotationUnit,
-  rotationUnitToRadians
-} from "@/utils/math";
 
 const { sceneObject } = defineProps<{
   sceneObject: SceneObject;
 }>();
 
+const currentExperimentStore = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
-const unitLabels = useUnitLabels();
-const {
-  requiredName: nameRules,
-  optionalNumber: numberRules,
-  positiveNumber: scaleRules
-} = useValidationRules();
+const { unitlessStep } = useDragSteps();
+const { requiredName: nameRules, positiveNumber: scaleRules } =
+  useValidationRules();
 const { t } = useI18n();
 
-const positionSuffix = computed(() =>
-  unitLabels.position(preferences.positionUnit)
-);
-
-const rotationSuffix = computed(() =>
-  unitLabels.rotation(preferences.rotationUnit)
-);
+/** Whether AP/DV/ML fields display the position offset by the reference coordinate. */
+const isPositionRelativeToReference = ref(false);
 
 const name = computed({
   get: () => sceneObject.name,
   set: (value: string) => (sceneObject.name = value.trim())
 });
 
-const ap = useNumericTupleModel(
-  () => sceneObject.position,
-  0,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const dv = useNumericTupleModel(
-  () => sceneObject.position,
-  1,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const ml = useNumericTupleModel(
-  () => sceneObject.position,
-  2,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
+/** Reference coordinate to subtract from/add back to AP/DV/ML when the toggle is on, else zero. */
+const positionOffset = computed<[number, number, number]>(() =>
+  isPositionRelativeToReference.value
+    ? currentExperimentStore.referenceCoordinate
+    : [0, 0, 0]
 );
 
-const roll = useNumericTupleModel(
-  () => sceneObject.rotation,
-  0,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
-  () => preferences.decimalPrecision
-);
-const yaw = useNumericTupleModel(
-  () => sceneObject.rotation,
-  1,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
-  () => preferences.decimalPrecision
-);
-const pitch = useNumericTupleModel(
-  () => sceneObject.rotation,
-  2,
-  radians => radiansToRotationUnit(radians, preferences.rotationUnit),
-  value => rotationUnitToRadians(value, preferences.rotationUnit),
-  () => preferences.decimalPrecision
-);
-
-const scaleAp = useNumericTupleModel(
+const scaleZ = useNumericTupleModel(
   () => sceneObject.scale,
   0,
   value => value,
   value => value,
   () => preferences.decimalPrecision
 );
-const scaleDv = useNumericTupleModel(
+const scaleY = useNumericTupleModel(
   () => sceneObject.scale,
   1,
   value => value,
   value => value,
   () => preferences.decimalPrecision
 );
-const scaleMl = useNumericTupleModel(
+const scaleX = useNumericTupleModel(
   () => sceneObject.scale,
   2,
   value => value,
@@ -127,16 +77,23 @@ const lockLabel = computed(() =>
 
 <template>
   <div class="column q-gutter-y-md">
-    <q-btn
-      :aria-label="lockLabel"
-      class="full-width"
-      :color="lockColor"
-      :icon="lockIcon"
-      :label="lockLabel"
-      @click="toggleSceneObjectLock(sceneObject)"
-    >
-      <q-tooltip>{{ lockLabel }}</q-tooltip>
-    </q-btn>
+    <q-btn-group spread>
+      <q-btn
+        :aria-label="t('sceneObjectInspector.copy')"
+        icon="content_copy"
+        @click="copySceneObject(currentExperimentStore.experiment, sceneObject)"
+      >
+        <q-tooltip>{{ t("sceneObjectInspector.copy") }}</q-tooltip>
+      </q-btn>
+      <q-btn
+        :aria-label="lockLabel"
+        :color="lockColor"
+        :icon="lockIcon"
+        @click="toggleSceneObjectLock(sceneObject)"
+      >
+        <q-tooltip>{{ lockLabel }}</q-tooltip>
+      </q-btn>
+    </q-btn-group>
 
     <q-toggle
       :label="t('sceneObjectInspector.collisionDetection')"
@@ -152,77 +109,34 @@ const lockLabel = computed(() =>
       :rules="nameRules"
     />
 
-    <div class="row q-gutter-x-sm">
-      <CommittedInput
-        v-model="ap"
-        :disable="sceneObject.lock"
-        :label="t('axis.ap')"
-        :rules="numberRules"
-        :suffix="positionSuffix"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-      <CommittedInput
-        v-model="dv"
-        :disable="sceneObject.lock"
-        :label="t('axis.dv')"
-        :rules="numberRules"
-        :suffix="positionSuffix"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-      <CommittedInput
-        v-model="ml"
-        :disable="sceneObject.lock"
-        :label="t('axis.ml')"
-        :rules="numberRules"
-        :suffix="positionSuffix"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-    </div>
+    <q-toggle
+      v-model="isPositionRelativeToReference"
+      :label="t('sceneObjectInspector.relativeToReferenceCoordinate')"
+    />
+
+    <AtlasAxisInputs
+      :disable="sceneObject.lock"
+      hide-bottom-space
+      kind="position"
+      :offset="positionOffset"
+      outlined
+      :tuple="sceneObject.position"
+    />
+
+    <AtlasAxisInputs
+      :disable="sceneObject.lock"
+      hide-bottom-space
+      kind="rotation"
+      outlined
+      :tuple="sceneObject.rotation"
+    />
 
     <div class="row q-gutter-x-sm">
       <CommittedInput
-        v-model="roll"
+        v-model="scaleZ"
         :disable="sceneObject.lock"
-        :label="t('sceneObjectInspector.roll')"
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-      <CommittedInput
-        v-model="yaw"
-        :disable="sceneObject.lock"
-        :label="t('sceneObjectInspector.yaw')"
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-      <CommittedInput
-        v-model="pitch"
-        :disable="sceneObject.lock"
-        :label="t('sceneObjectInspector.pitch')"
-        :rules="numberRules"
-        :suffix="rotationSuffix"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-    </div>
-
-    <div class="row q-gutter-x-sm">
-      <CommittedInput
-        v-model="scaleAp"
-        :disable="sceneObject.lock"
-        :label="t('axis.ap')"
+        :drag-step="unitlessStep"
+        :label="t('axis.z')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
@@ -230,9 +144,10 @@ const lockLabel = computed(() =>
         outlined
       />
       <CommittedInput
-        v-model="scaleDv"
+        v-model="scaleY"
         :disable="sceneObject.lock"
-        :label="t('axis.dv')"
+        :drag-step="unitlessStep"
+        :label="t('axis.y')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"
@@ -240,9 +155,10 @@ const lockLabel = computed(() =>
         outlined
       />
       <CommittedInput
-        v-model="scaleMl"
+        v-model="scaleX"
         :disable="sceneObject.lock"
-        :label="t('axis.ml')"
+        :drag-step="unitlessStep"
+        :label="t('axis.x')"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"

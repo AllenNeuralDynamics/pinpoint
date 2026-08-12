@@ -58,7 +58,11 @@ const {
 
 const { isImporting: isImportingModel, open: openModelFile } =
   useModelFileImport((modelId, file) => {
-    const sceneObject = buildSceneObject(modelId, file.name);
+    const sceneObject = buildSceneObject(
+      modelId,
+      file.name,
+      currentExperiment.referenceCoordinate
+    );
     addSceneObject(currentExperiment.experiment, sceneObject);
     currentExperiment.selectedInspectable = sceneObject;
   });
@@ -82,7 +86,10 @@ const SCENE_OBJECT_VISIBILITY_ICONS: Record<SceneObjectVisibility, string> = {
  */
 function addProbeAndSelect(probeInterfaceProbe: ProbeInterfaceProbe) {
   internProbeInterfaceProbe(currentExperiment.experiment, probeInterfaceProbe);
-  const probe = buildProbe(probeInterfaceProbe);
+  const probe = buildProbe(
+    probeInterfaceProbe,
+    currentExperiment.referenceCoordinate
+  );
   addProbe(currentExperiment.experiment, probe);
   currentExperiment.selectedInspectable = probe;
 }
@@ -111,14 +118,15 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
 </script>
 
 <template>
-  <q-list>
+  <q-list class="hierarchy-list">
     <q-expansion-item
+      class="probes-item"
       default-opened
       header-class="text-weight-bold"
       icon="sym_o_acupuncture"
       :label="$t('sceneHierarchy.probes')"
     >
-      <div class="column q-gutter-y-sm">
+      <div class="probes-panel column q-gutter-y-sm">
         <q-btn-dropdown
           color="primary"
           dropdown-icon="add"
@@ -352,6 +360,39 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
 </template>
 
 <style lang="sass" scoped>
+.hierarchy-list
+  display: flex
+  flex-direction: column
+  flex-wrap: nowrap
+  height: 100%
+
+.probes-item
+  display: flex
+  flex: 1 1 0%
+  flex-direction: column
+  min-height: 0
+
+  :deep(.q-expansion-item__container)
+    display: flex
+    flex: 1 1 auto
+    flex-direction: column
+    min-height: 0
+
+  :deep(.q-expansion-item__content)
+    display: flex
+    flex: 1 1 auto
+    flex-direction: column
+    min-height: 0
+
+.probes-panel
+  flex: 1 1 auto
+  min-height: 0
+
+.probe-list
+  flex: 1 1 auto
+  min-height: 0
+  overflow-y: auto
+
 .visibility-button
   font-variation-settings: 'FILL' 1
 
@@ -363,15 +404,12 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
   opacity: 0.5
 
 .hierarchy-row--drop-target
-  outline: 2px solid var(--q-primary)
+  outline: 2px solid var(--accent)
   outline-offset: -2px
 
 .hierarchy-item--active
-  background: rgba($primary, 0.12)
-  font-weight: 500
-  box-shadow: inset 3px 0 0 $primary
-
-body.body--dark
-  .hierarchy-item--active
-    background: rgba($primary, 0.28)
+  background: var(--surface-hover)
+  color: var(--accent)
+  font-weight: 600
+  box-shadow: inset 3px 0 0 var(--accent)
 </style>

@@ -11,7 +11,7 @@ const Harness = defineComponent({
 });
 
 describe("useNotify", () => {
-  it("notifyError sends a negative, error-icon toast", () => {
+  it("notifyError sends a negative-type toast", () => {
     const wrapper = mountWithQuasar(Harness);
     const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
@@ -20,13 +20,12 @@ describe("useNotify", () => {
     expect(notifySpy).toHaveBeenCalledWith({
       message: "message",
       caption: "caption",
-      color: "negative",
-      icon: "error"
+      type: "negative"
     });
     wrapper.unmount();
   });
 
-  it("notifyWarning sends a warning-colored, warning-icon toast", () => {
+  it("notifyWarning sends a warning-type toast", () => {
     const wrapper = mountWithQuasar(Harness);
     const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
@@ -35,13 +34,12 @@ describe("useNotify", () => {
     expect(notifySpy).toHaveBeenCalledWith({
       message: "message",
       caption: "caption",
-      color: "warning",
-      icon: "warning"
+      type: "warning"
     });
     wrapper.unmount();
   });
 
-  it("notifySuccess sends a positive, check-icon toast", () => {
+  it("notifySuccess sends a positive-type toast", () => {
     const wrapper = mountWithQuasar(Harness);
     const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
@@ -50,8 +48,7 @@ describe("useNotify", () => {
     expect(notifySpy).toHaveBeenCalledWith({
       message: "message",
       caption: "caption",
-      color: "positive",
-      icon: "check_circle"
+      type: "positive"
     });
     wrapper.unmount();
   });

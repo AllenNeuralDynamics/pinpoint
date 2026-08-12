@@ -30,21 +30,16 @@ function fieldByLabel(wrapper: VueWrapper, label: string) {
     .find(field => field.props("label") === label)!;
 }
 
-/** Finds a scale field by label, disambiguated from the position row by its `×` suffix. */
-function scaleFieldByLabel(wrapper: VueWrapper, label: string) {
-  return wrapper
-    .findAllComponents({ name: "QInput" })
-    .find(
-      field =>
-        field.props("label") === label &&
-        field.props("suffix") === t.scaleSuffix
-    )!;
-}
-
 function buttonByLabel(wrapper: VueWrapper, label: string) {
   return wrapper
     .findAll("button")
     .find(button => button.attributes("aria-label") === label)!;
+}
+
+function toggleByLabel(wrapper: VueWrapper, label: string) {
+  return wrapper
+    .findAllComponents({ name: "QToggle" })
+    .find(toggle => toggle.props("label") === label)!;
 }
 
 /**
@@ -103,16 +98,50 @@ describe("SceneObjectInspector", () => {
     expect(sceneObject.lock).toBe(true);
   });
 
+  it("duplicates the scene object on duplicate click", async () => {
+    const { wrapper, store } = mountInspector(makeSceneObject({ name: "A" }));
+
+    await buttonByLabel(wrapper, t.copy).trigger("click");
+
+    expect(store.experiment.sceneObjects).toHaveLength(2);
+    expect(store.experiment.sceneObjects[1]!.name).toBe("A - copy");
+    expect(store.experiment.sceneObjects[1]!.id).not.toBe(
+      store.experiment.sceneObjects[0]!.id
+    );
+    expect(store.experiment.sceneObjects[1]!.modelId).toBe(
+      store.experiment.sceneObjects[0]!.modelId
+    );
+  });
+
   it("disables the position/rotation/scale fields while locked, leaving the name field editable", () => {
     const { wrapper } = mountInspector(makeSceneObject({ lock: true }));
 
-    for (const label of [axis.ap, axis.dv, axis.ml, t.roll, t.yaw, t.pitch]) {
+    for (const label of [
+      axis.ap,
+      axis.dv,
+      axis.ml,
+      axis.roll,
+      axis.yaw,
+      axis.pitch,
+      axis.z,
+      axis.y,
+      axis.x
+    ]) {
       expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);
     }
-    for (const label of [axis.ap, axis.dv, axis.ml]) {
-      expect(scaleFieldByLabel(wrapper, label).props("disable")).toBe(true);
-    }
     expect(fieldByLabel(wrapper, t.name).props("disable")).toBeFalsy();
+  });
+
+  it("writes the scale row into scale[0] (Z) and scale[2] (X), not transposed", async () => {
+    const { wrapper, sceneObject } = mountInspector(
+      makeSceneObject({ scale: [1, 1, 1] })
+    );
+
+    await editAndBlur(fieldByLabel(wrapper, axis.z), "2");
+    expect(sceneObject.scale[0]).toBeCloseTo(2, 6);
+
+    await editAndBlur(fieldByLabel(wrapper, axis.x), "3");
+    expect(sceneObject.scale[2]).toBeCloseTo(3, 6);
   });
 
   it("toggles collidable when the collision detection toggle changes", async () => {
@@ -123,5 +152,47 @@ describe("SceneObjectInspector", () => {
     await wrapper.findComponent({ name: "QToggle" }).setValue(false);
 
     expect(sceneObject.collidable).toBe(false);
+  });
+
+  it("shows the atlas-absolute AP/DV/ML values when relative mode is off", async () => {
+    const { wrapper, store } = mountInspector(
+      makeSceneObject({ position: [1, 2, 3] })
+    );
+    store.experiment.referenceCoordinate = [10, 20, 30];
+    await wrapper.vm.$nextTick();
+
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("1.000");
+    expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe("2.000");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("3.000");
+  });
+
+  it("offsets the displayed AP/DV/ML by the reference coordinate once relative mode is enabled, without touching the stored position", async () => {
+    const { wrapper, store, sceneObject } = mountInspector(
+      makeSceneObject({ position: [1, 2, 3] })
+    );
+    store.experiment.referenceCoordinate = [10, 20, 30];
+
+    await toggleByLabel(wrapper, t.relativeToReferenceCoordinate).setValue(
+      true
+    );
+
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("-9.000");
+    expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe("-18.000");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("-27.000");
+    expect(sceneObject.position).toEqual([1, 2, 3]);
+  });
+
+  it("writes back the atlas-absolute position when a field is edited in relative mode", async () => {
+    const { wrapper, store, sceneObject } = mountInspector(
+      makeSceneObject({ position: [1, 2, 3] })
+    );
+    store.experiment.referenceCoordinate = [10, 20, 30];
+    await toggleByLabel(wrapper, t.relativeToReferenceCoordinate).setValue(
+      true
+    );
+
+    await editAndBlur(fieldByLabel(wrapper, axis.ap), "5");
+
+    expect(sceneObject.position[0]).toBeCloseTo(15, 6);
   });
 });

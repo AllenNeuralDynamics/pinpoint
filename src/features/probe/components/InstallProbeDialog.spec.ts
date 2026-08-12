@@ -327,7 +327,7 @@ describe("InstallProbeDialog", () => {
       await flushMicrotasks();
 
       expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
+        expect.objectContaining({ type: "negative" })
       );
       expect(wrapper.emitted("ok")).toBeUndefined();
     });
@@ -361,7 +361,7 @@ describe("InstallProbeDialog", () => {
       await uploadFile("not json");
 
       expect(notifySpy).toHaveBeenCalledWith(
-        expect.objectContaining({ color: "negative" })
+        expect.objectContaining({ type: "negative" })
       );
       expect(wrapper.emitted("ok")).toBeUndefined();
     });

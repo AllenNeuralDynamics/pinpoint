@@ -3,6 +3,9 @@ import type { SceneObjectVisibility } from "./scene-object-visibility.model";
 
 /** An arbitrary 3D model placed in the scene. */
 export interface SceneObject extends SceneModel {
+  /** Internal unique identifier of this object within the scene. A UUID, not user facing. */
+  id: string;
+
   inspectableKind: "sceneObject";
 
   /** User-facing label. Need not be unique. */

@@ -10,6 +10,7 @@ import {
   watch,
   watchEffect
 } from "vue";
+import { useQuasar } from "quasar";
 import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService";
 import { useCameraPoseSync } from "../composable/useCameraPoseSync";
 import {
@@ -17,14 +18,25 @@ import {
   setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "../api/structures.api";
-import type { AxisGuides } from "../api/axis-guide.api";
+import type {
+  AxisGuideFrame,
+  AxisGuideLabels,
+  AxisGuides
+} from "../api/axis-guide.api";
 import {
   buildAxisGuides,
   clearAxisGuides,
   createAxisGuides
 } from "../api/axis-guide.api";
+import type { GimbalAxisLabels } from "../api/gimbal-axis-label.api";
+import {
+  buildGimbalAxisLabels,
+  clearGimbalAxisLabels,
+  createGimbalAxisLabels
+} from "../api/gimbal-axis-label.api";
 import {
   applyCameraProjection,
+  scaleCameraClipPlanesToAtlas,
   trackAxisViewProjection
 } from "../api/camera.api";
 import type { SurfaceMaterialSettings } from "../api/material.api";
@@ -40,9 +52,11 @@ import {
   getAtlasLongestDimensionMillimeters,
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
+import { getCoordinateSystemSlots } from "@/features/coordinate-system";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useI18n } from "vue-i18n";
+import { useAtlasAxes } from "@/composable/useAtlasAxes";
 import type { Mesh, Scene, SSAO2RenderingPipeline } from "@babylonjs/core";
 import {
   endProbeGizmoDrag,
@@ -52,6 +66,7 @@ import {
   setProbeRotationFromGizmoDrag,
   syncProbes
 } from "../api/probe.api";
+import { syncProbeGhost } from "../api/probe-ghost.api";
 import {
   createCollisionState,
   pruneCollisions,
@@ -80,23 +95,30 @@ import {
 import { getSceneModel } from "../api/scene-model.api";
 import { setGizmoControls } from "../api/gizmo.api";
 import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
-import { setReferenceCoordinateNodePosition } from "../api/reference-coordinate.api";
 import {
   buildProbeSurfacePaths,
   disposeProbeSurfacePaths,
   pickProbeSurfacePathOnTap
 } from "../api/probe-surface-path.api";
+import { syncProbeSurfaceMarker } from "../api/probe-surface-marker.api";
 import {
   isProbeSurfaceChoiceCurrent,
   setProbeTipMillimeters
 } from "@/features/probe";
 import {
   deselectFromPointerDown,
+  getSelectedInspectableGizmoNode,
   orbitCameraFromAxisGuideDoubleTap,
   selectFromSelectedInspectableState,
   setHemisphericLightIntensity,
-  setSceneBackgroundColor
+  setSceneBackgroundColor,
+  setSceneEntitiesHidden
 } from "../api/scene.api";
+import {
+  getCoordinateSystemGimbalAxisLength,
+  getCoordinateSystemGimbalNode,
+  syncCoordinateSystemGimbals
+} from "../api/coordinate-system-gimbal.api";
 import {
   attachSsaoPipeline,
   detachSsaoPipeline,
@@ -104,17 +126,20 @@ import {
   scaleSsaoToAtlas
 } from "../api/ssao.api";
 import { useNotify } from "@/composable/useNotify";
+import { isNumberDragActive } from "@/composable/useNumberDrag";
 
+const $q = useQuasar();
 const { t } = useI18n();
 const { notifyError, notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const runtime = useBabylonRuntimeService();
+const atlasAxes = useAtlasAxes();
 useCameraPoseSync(
   runtime.camera,
   () => currentExperiment.atlas,
-  () => currentExperiment.referenceCoordinate,
   () => currentExperiment.experiment.cameraPose,
+  () => isNumberDragActive.value,
   () => {
     currentExperiment.isCameraMoving = true;
   },
@@ -128,6 +153,9 @@ const isLoadingStructures = ref(false);
 
 /** Axis guide text renderers, created for the current scene the first time the guides are shown. */
 const axisGuides = shallowRef<AxisGuides | null>(null);
+
+/** Gimbal axis label text renderers, created for the current scene alongside the axis guides. */
+const gimbalAxisLabels = shallowRef<GimbalAxisLabels | null>(null);
 
 /** SSAO pipeline for the current scene, present while ambient occlusion is on and supported. */
 const ssaoPipeline = shallowRef<SSAO2RenderingPipeline | null>(null);
@@ -143,6 +171,8 @@ const probeBodyModelSyncState = createProbeBodyModelSyncState();
 
 const gizmoMode = ref<GizmoMode>("position");
 const gizmoCoordinateSpace = ref<GizmoCoordinateSpace>("local");
+/** Coordinate space to restore when leaving scale mode, which is local-only. */
+const spaceBeforeScale = ref<GizmoCoordinateSpace | null>(null);
 
 /**
  * Terminology rows for the current atlas, empty while they resolve.
@@ -184,6 +214,13 @@ const surfaceMaterialSettings = computed<SurfaceMaterialSettings>(() => ({
   specularPower: preferences.materialSpecularPower
 }));
 
+/** Background color for the theme currently rendering; each theme has its own preference. */
+const worldBackgroundColor = computed(() =>
+  $q.dark.isActive
+    ? preferences.worldBackgroundColorDarkMode
+    : preferences.worldBackgroundColorLightMode
+);
+
 const probeGeometry = computed<ProbeGeometry>(() => ({
   shankThicknessMillimeters: preferences.probeShankThicknessMillimeters,
   headStageLengthMillimeters: preferences.probeHeadStageLengthMillimeters,
@@ -192,16 +229,71 @@ const probeGeometry = computed<ProbeGeometry>(() => ({
   rodLengthMillimeters: preferences.probeRodLengthMillimeters
 }));
 
+/** Selected coordinate system, or null when the selection is something else. */
+const selectedCoordinateSystem = computed(() =>
+  currentExperiment.selectedInspectable?.inspectableKind === "coordinateSystem"
+    ? currentExperiment.selectedInspectable
+    : null
+);
+
 /**
- * Whether the gizmo toolbar is shown: the camera and the world have no
- * gizmo, and a locked probe or scene object gets none either.
+ * Are the axis guides drawn: the user's own toggle, or forced on while a coordinate system is
+ * selected, since `setSceneEntitiesHidden` strips every other orientation cue from the scene.
+ */
+const areAxisGuidesDrawn = computed(
+  () =>
+    currentExperiment.areAxisGuidesVisible ||
+    selectedCoordinateSystem.value !== null
+);
+
+/** Axis guide label text: the user's atlas axis names, plus the fixed Babylon axis letters. */
+const axisGuideLabels = computed<AxisGuideLabels>(() => {
+  const [ap, dv, ml] = atlasAxes.position.value
+    .slice()
+    .sort((a, b) => a.axis - b.axis)
+    .map(slot => slot.label) as [string, string, string];
+  return { ap, dv, ml, x: t("axis.x"), y: t("axis.y"), z: t("axis.z") };
+});
+
+/**
+ * Label per Babylon axis for the focused node's chosen triple: each value's own name, or that
+ * axis's letter when the value is unnamed, as `buildFixedCoordinateSystemValue` leaves it.
+ */
+const focusedGimbalAxisLabels = computed<[string, string, string] | null>(
+  () => {
+    const coordinateSystem = selectedCoordinateSystem.value;
+    const nodeIndex = currentExperiment.focusedCoordinateSystemNodeIndex;
+    if (!coordinateSystem || nodeIndex === null) return null;
+
+    const node = coordinateSystem.chain[nodeIndex];
+    if (!node) return null;
+
+    const texts: [string, string, string] = [
+      t("axis.x"),
+      t("axis.y"),
+      t("axis.z")
+    ];
+    for (const { axis, value } of getCoordinateSystemSlots(
+      node,
+      currentExperiment.focusedCoordinateSystemComponent
+    )) {
+      if (value.name) texts[axis] = value.name;
+    }
+    return texts;
+  }
+);
+
+/**
+ * Whether the gizmo toolbar is shown: the camera, the world, and a coordinate
+ * system have no gizmo, and a locked probe or scene object gets none either.
  */
 const isGizmoToolbarVisible = computed(() => {
   const selected = currentExperiment.selectedInspectable;
   if (
     !selected ||
     selected.inspectableKind === "camera" ||
-    selected.inspectableKind === "world"
+    selected.inspectableKind === "world" ||
+    selected.inspectableKind === "coordinateSystem"
   ) {
     return false;
   }
@@ -236,6 +328,21 @@ const gizmoModeOptions = computed(() => [
         }
       ]
     : [])
+]);
+
+/** Coordinate-space toggle options; global is disabled in scale mode, which is local-only. */
+const gizmoCoordinateSpaceOptions = computed(() => [
+  {
+    label: t("sceneCanvas.gizmoLocal"),
+    value: "local",
+    icon: "sym_o_nearby"
+  },
+  {
+    label: t("sceneCanvas.gizmoGlobal"),
+    value: "global",
+    icon: "sym_o_globe",
+    disable: gizmoMode.value === "scale"
+  }
 ]);
 
 /** Meshes of a colliding entity, whichever kind it is. */
@@ -279,7 +386,8 @@ watchEffect(async () => {
       scene,
       currentExperiment.atlas,
       fadedStructures.value,
-      opaqueStructures.value
+      opaqueStructures.value,
+      preferences.structureFadedAlpha
     );
   } catch {
     notifyWarning(
@@ -299,28 +407,40 @@ watchEffect(() => {
   setAtlasCenterOffset(scene, getAtlasCenter(currentExperiment.atlas));
 });
 
-// Axis guide renderers belong to the scene that created them.
+// Axis guide and gimbal axis label renderers belong to the scene that created them.
 watch(runtime.scene, () => {
+  gimbalAxisLabels.value?.dispose();
+  gimbalAxisLabels.value = null;
   axisGuides.value?.dispose();
   axisGuides.value = null;
 });
 
-// Create the axis guide text renderers the first time they are shown: the
-// MSDF font is fetched remotely, so hidden guides load nothing.
+// Create the axis guide text renderers, and the gimbal axis label renderers that borrow their
+// font asset, the first time the guides are shown: the MSDF font is fetched remotely, so hidden
+// guides load nothing.
 watch(
-  [runtime.scene, () => currentExperiment.areAxisGuidesVisible],
+  [runtime.scene, areAxisGuidesDrawn],
   async ([scene, isVisible]) => {
     if (!scene || !isVisible || axisGuides.value) return;
 
     try {
       const guides = await createAxisGuides(scene);
+      let labels: GimbalAxisLabels;
+      try {
+        labels = await createGimbalAxisLabels(scene, guides.fontAsset);
+      } catch (error) {
+        guides.dispose();
+        throw error;
+      }
       // The scene can be replaced, or another creation can win, while the
       // font loads.
       if (runtime.scene.value !== scene || axisGuides.value) {
+        labels.dispose();
         guides.dispose();
         return;
       }
       axisGuides.value = guides;
+      gimbalAxisLabels.value = labels;
     } catch {
       notifyWarning(
         t("sceneCanvas.problemLoadingAxisGuides"),
@@ -331,6 +451,29 @@ watch(
   { immediate: true }
 );
 
+/**
+ * Frame the axis guides are drawn in: the gizmo's own node while the gizmo toolbar is in local
+ * mode, otherwise the atlas.
+ * @param scene Scene the gizmo's node lives in.
+ */
+function axisGuideFrame(scene: Scene): AxisGuideFrame {
+  if (!isGizmoToolbarVisible.value || gizmoCoordinateSpace.value !== "local") {
+    return { kind: "global" };
+  }
+
+  // Resolved per frame by the guides themselves, off Vue's reactive graph, so a probe node
+  // rebuilt under the selection is picked up without redrawing the labels.
+  return {
+    kind: "local",
+    getNode: () =>
+      getSelectedInspectableGizmoNode(
+        scene,
+        currentExperiment.selectedInspectable,
+        currentExperiment.bodyModelGizmoProbeId
+      )
+  };
+}
+
 // Draw the atlas's axis guide labels while they are shown, and strip them
 // when hidden, keeping the loaded renderers for the next time.
 watchEffect(() => {
@@ -338,12 +481,18 @@ watchEffect(() => {
   const guides = axisGuides.value;
   if (!scene || !guides) return;
 
-  if (!currentExperiment.areAxisGuidesVisible) {
+  if (!areAxisGuidesDrawn.value) {
     clearAxisGuides(scene, guides);
     return;
   }
 
-  buildAxisGuides(scene, guides, currentExperiment.atlas);
+  buildAxisGuides(
+    scene,
+    guides,
+    currentExperiment.atlas,
+    axisGuideFrame(scene),
+    axisGuideLabels.value
+  );
 });
 
 watch([runtime.scene, runtime.camera], ([scene, camera]) => {
@@ -395,7 +544,7 @@ watchEffect(() => {
   const scene = runtime.scene.value;
   if (!scene) return;
 
-  setSceneBackgroundColor(scene, preferences.worldBackgroundColor);
+  setSceneBackgroundColor(scene, worldBackgroundColor.value);
 });
 
 watchEffect(() => {
@@ -436,6 +585,17 @@ watchEffect(() => {
   );
 });
 
+// Clip planes are in millimetres, so they track the atlas's size.
+watchEffect(() => {
+  const camera = runtime.camera.value;
+  if (!camera) return;
+
+  scaleCameraClipPlanesToAtlas(
+    camera,
+    getAtlasLongestDimensionMillimeters(currentExperiment.atlas)
+  );
+});
+
 watchEffect(() => {
   const scene = runtime.scene.value;
   if (!scene) return;
@@ -455,15 +615,6 @@ watch(runtime.scene, scene => {
   onWatcherCleanup(() => observer.remove());
 });
 
-watchEffect(() => {
-  const scene = runtime.scene.value;
-  if (!scene) return;
-  setReferenceCoordinateNodePosition(
-    scene,
-    currentExperiment.referenceCoordinate
-  );
-});
-
 // Sync probes from state, reattaching selection to any rebuilt entity.
 watchEffect(() => {
   const scene = runtime.scene.value;
@@ -476,7 +627,8 @@ watchEffect(() => {
     currentExperiment.experiment,
     gizmoManager,
     currentExperiment.draggedProbeId,
-    probeGeometry.value
+    probeGeometry.value,
+    isNumberDragActive.value
   );
 
   // A rebuilt probe loses its body model node, so the gizmo cannot stay on it.
@@ -518,6 +670,17 @@ watchEffect(() => {
       );
     }
   }
+
+  syncProbeGhost(
+    scene,
+    currentExperiment.probeGhost,
+    currentExperiment.probes,
+    rebuiltProbeIds
+  );
+
+  // A rebuilt probe node starts enabled, so isolation has to be re-applied here: a
+  // geometry-preference change rebuilds probes without touching probe state.
+  setSceneEntitiesHidden(scene, selectedCoordinateSystem.value !== null);
 });
 
 /**
@@ -536,7 +699,8 @@ async function syncSceneObjectsFromState() {
       gizmoManager,
       sceneObjectSyncState,
       currentExperiment.draggedSceneObjectId,
-      getSceneModel
+      getSceneModel,
+      isNumberDragActive.value
     );
   if (failedIds.length) {
     notifyError(
@@ -576,6 +740,10 @@ async function syncSceneObjectsFromState() {
       );
     }
   }
+
+  // The node this builds is created after an await, outside the flush the isolation
+  // effect observed, so re-apply isolation here.
+  setSceneEntitiesHidden(scene, selectedCoordinateSystem.value !== null);
 }
 
 // Re-run the sync when the scene/gizmo manager become ready or the dragged
@@ -720,6 +888,21 @@ watchEffect(() => {
   buildProbeSurfacePaths(scene, choice);
 });
 
+// Draw the sphere at the inspected probe's solved on-surface node, or strip it once cleared.
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  const selectionOutlineLayer = runtime.selectionOutlineLayer.value;
+  if (!scene || !selectionOutlineLayer) return;
+
+  syncProbeSurfaceMarker(
+    scene,
+    selectionOutlineLayer,
+    currentExperiment.probeSurfaceMarker,
+    currentExperiment.probes,
+    preferences.probeShankThicknessMillimeters
+  );
+});
+
 // Drop a pending surface-move choice once its probe moves or disappears -
 // deselecting the probe unmounts its inspector, so this cancellation path
 // lives here rather than there.
@@ -777,8 +960,7 @@ watch(runtime.scene, scene => {
       probe,
       kind === "axis"
         ? choice.axisTargetMillimeters
-        : choice.dorsoventralTargetMillimeters,
-      currentExperiment.referenceCoordinate
+        : choice.dorsoventralTargetMillimeters
     );
   });
   onWatcherCleanup(() => observer.remove());
@@ -789,6 +971,22 @@ watch(runtime.scene, scene => {
 // ends up with no active option and a scale gizmo left attached.
 watch(isScaleGizmoAvailable, available => {
   if (!available && gizmoMode.value === "scale") gizmoMode.value = "position";
+});
+
+// The scale gizmo always scales along the attached node's own axes, so a
+// global scale is meaningless: entering scale mode forces local and disables
+// the global option, and leaving it restores the space the user had.
+watch(gizmoMode, (mode, previousMode) => {
+  if (mode === "scale") {
+    spaceBeforeScale.value = gizmoCoordinateSpace.value;
+    gizmoCoordinateSpace.value = "local";
+    return;
+  }
+  if (previousMode !== "scale") return;
+  if (spaceBeforeScale.value) {
+    gizmoCoordinateSpace.value = spaceBeforeScale.value;
+  }
+  spaceBeforeScale.value = null;
 });
 
 // Configure the gizmos from the control bar and keep the probe and scene
@@ -967,6 +1165,64 @@ watchEffect(() => {
   );
 });
 
+/**
+ * Show only the atlas while a coordinate system's chain is visualized. Hiding is
+ * applied to each entity's own node, which no re-sync writes to.
+ */
+function syncSceneEntityIsolation() {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+
+  setSceneEntitiesHidden(scene, selectedCoordinateSystem.value !== null);
+}
+
+// The probes-sync effect and `syncSceneObjectsFromState` re-apply isolation on their own
+// rebuilds, so only the scene/selection change needs its own watcher here.
+watch([runtime.scene, selectedCoordinateSystem], syncSceneEntityIsolation, {
+  immediate: true
+});
+
+// Draw the selected coordinate system's chain. Registered after the selection
+// effect above, so its outline for the focused node is applied last.
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  const selectionOutlineLayer = runtime.selectionOutlineLayer.value;
+  if (!scene || !selectionOutlineLayer) return;
+
+  syncCoordinateSystemGimbals(
+    scene,
+    selectionOutlineLayer,
+    selectedCoordinateSystem.value,
+    currentExperiment.referenceCoordinate,
+    getAtlasLongestDimensionMillimeters(currentExperiment.atlas),
+    currentExperiment.focusedCoordinateSystemNodeIndex,
+    probeGeometry.value
+  );
+
+  const guides = axisGuides.value;
+  const labels = gimbalAxisLabels.value;
+  if (!guides || !labels) return;
+
+  const nodeIndex = currentExperiment.focusedCoordinateSystemNodeIndex;
+  const gimbal =
+    nodeIndex === null ? null : getCoordinateSystemGimbalNode(scene, nodeIndex);
+  const texts = focusedGimbalAxisLabels.value;
+  if (!gimbal || !texts) {
+    clearGimbalAxisLabels(labels);
+    return;
+  }
+
+  buildGimbalAxisLabels(
+    labels,
+    gimbal,
+    getCoordinateSystemGimbalAxisLength(
+      getAtlasLongestDimensionMillimeters(currentExperiment.atlas)
+    ),
+    texts,
+    guides.fontAsset
+  );
+});
+
 onMounted(async () => {
   if (!canvas.value) {
     throw new Error("Scene canvas not found in DOM!");
@@ -976,6 +1232,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  gimbalAxisLabels.value?.dispose();
+  gimbalAxisLabels.value = null;
   axisGuides.value?.dispose();
   axisGuides.value = null;
   runtime.dispose();
@@ -1010,18 +1268,7 @@ onUnmounted(() => {
         <q-btn-toggle
           v-model="gizmoCoordinateSpace"
           :aria-label="$t('sceneCanvas.gizmoCoordinateSpace')"
-          :options="[
-            {
-              label: $t('sceneCanvas.gizmoLocal'),
-              value: 'local',
-              icon: 'sym_o_nearby'
-            },
-            {
-              label: $t('sceneCanvas.gizmoGlobal'),
-              value: 'global',
-              icon: 'sym_o_globe'
-            }
-          ]"
+          :options="gizmoCoordinateSpaceOptions"
           toggle-color="primary"
         />
       </q-card-section>

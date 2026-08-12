@@ -18,6 +18,7 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { AtlasHierarchy } from "@/features/atlas";
+import { CoordinateSystemLibraryDialog } from "@/features/coordinate-system";
 import { ProbeLibraryDialog } from "@/features/probe";
 import { openPreferencesDialog } from "@/features/preferences";
 import { Inspector } from "@/features/inspector";
@@ -26,6 +27,7 @@ import { SyncRecentExperimentsDialog } from "@/features/sync";
 import { useSyncStore } from "@/stores/sync.store";
 import { clamp } from "@/utils/math";
 import { ChannelMaps } from "@/features/slice";
+import AppBrand from "@/components/AppBrand.vue";
 
 /** Widest a drawer can be resized to, as a fraction of the window width. */
 const MAXIMUM_DRAWER_WIDTH_RATIO = 0.4;
@@ -189,9 +191,13 @@ onUnmounted(() => {
 
 <template>
   <q-layout view="hHh lpR fFf">
-    <q-header elevated class="bg-primary text-white">
+    <q-header bordered>
       <q-toolbar>
         <q-btn dense flat round icon="menu" @click="toggleLeftDrawer" />
+
+        <AppBrand class="q-mx-sm" />
+
+        <q-separator vertical inset />
 
         <q-toolbar-title shrink>{{
           currentExperimentStore.name
@@ -279,6 +285,14 @@ onUnmounted(() => {
               >
                 <q-item-section>{{ $t("layout.probeLibrary") }}</q-item-section>
               </q-item>
+              <q-item
+                clickable
+                @click="$q.dialog({ component: CoordinateSystemLibraryDialog })"
+              >
+                <q-item-section>{{
+                  $t("layout.coordinateSystemLibrary")
+                }}</q-item-section>
+              </q-item>
               <q-item clickable @click="openPreferencesDialog($q)">
                 <q-item-section>{{ $t("layout.preferences") }}</q-item-section>
               </q-item>
@@ -286,7 +300,13 @@ onUnmounted(() => {
           </q-menu>
         </q-btn>
 
-        <q-btn :label="$t('layout.help')" flat :href="`${BASE_URL}docs`" />
+        <q-btn
+          :label="$t('layout.help')"
+          flat
+          :href="`${BASE_URL}docs/`"
+          target="_blank"
+          rel="noopener noreferrer"
+        />
 
         <q-space />
 
@@ -359,7 +379,7 @@ onUnmounted(() => {
   top: 0
   bottom: 0
   width: 3px
-  background-color: $grey-5
+  background-color: var(--surface-border)
   cursor: ew-resize
 
   &:after
@@ -372,9 +392,6 @@ onUnmounted(() => {
     transform: translateY(-50%)
     background-color: inherit
     border-radius: 4px
-
-body.body--dark .q-drawer__resizer
-  background-color: $grey-8
 
 .q-drawer__resizer--left
   right: -1.5px
@@ -403,11 +420,7 @@ kbd
   line-height: 1
   padding: 2px 5px
   border-radius: 3px
-  border: 1px solid $grey-5
-  background-color: $grey-2
+  border: 1px solid var(--surface-border)
+  background-color: var(--surface-card)
   color: inherit
-
-body.body--dark kbd
-  border-color: $grey-8
-  background-color: $grey-9
 </style>

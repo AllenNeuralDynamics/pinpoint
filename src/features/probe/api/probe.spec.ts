@@ -30,17 +30,17 @@ describe("buildProbe", () => {
     const spec = makeProbeInterfaceProbe({
       annotations: { manufacturer: "imec", model_name: "np1" }
     });
-    const probe = buildProbe(spec);
+    const probe = buildProbe(spec, [0, 0, 0]);
     expect(probe.probeInterfaceIdentifier).toBe("imec np1");
   });
 
   it("builds a probe with sensible defaults, starting pitched inferiorly", () => {
-    const probe = buildProbe(makeProbeInterfaceProbe());
+    const probe = buildProbe(makeProbeInterfaceProbe(), [1, 2, 3]);
 
     expect(probe.inspectableKind).toBe("probe");
     expect(probe.visibility).toBe("visible");
     expect(probe.lock).toBe(false);
-    expect(probe.tipPosition).toEqual([0, 0, 0]);
+    expect(probe.tipPosition).toEqual([1, 2, 3]);
     // A pitch of 0 would lie flat, pointing anteriorly; PI/2 is the intended
     // starting default so a new probe points inferiorly.
     expect(probe.rotation).toEqual([0, 0, Math.PI / 2]);
@@ -57,10 +57,24 @@ describe("buildProbe", () => {
     expect(probe.bodyModel).toBeNull();
   });
 
+  it("does not alias the given tip position array", () => {
+    const tipPosition: [number, number, number] = [1, 2, 3];
+
+    const probe = buildProbe(makeProbeInterfaceProbe(), tipPosition);
+    tipPosition[0] = 99;
+
+    expect(probe.tipPosition).toEqual([1, 2, 3]);
+  });
+
   it("gives each probe a unique id", () => {
-    const a = buildProbe(makeProbeInterfaceProbe());
-    const b = buildProbe(makeProbeInterfaceProbe());
+    const a = buildProbe(makeProbeInterfaceProbe(), [0, 0, 0]);
+    const b = buildProbe(makeProbeInterfaceProbe(), [0, 0, 0]);
     expect(a.id).not.toBe(b.id);
+  });
+
+  it("leaves the coordinate system identifier null", () => {
+    const probe = buildProbe(makeProbeInterfaceProbe(), [0, 0, 0]);
+    expect(probe.coordinateSystemIdentifier).toBeNull();
   });
 });
 
@@ -135,16 +149,26 @@ describe("rotateProbeVisibility", () => {
 });
 
 describe("homeProbe", () => {
-  it("resets the probe's tip position to the atlas origin, leaving rotation untouched", () => {
+  it("resets the probe's tip position to the reference coordinate, leaving rotation untouched", () => {
     const probe = makeProbe({
       tipPosition: [1, 2, 3],
       rotation: [0.1, 0.2, 0.3]
     });
 
-    homeProbe(probe);
+    homeProbe(probe, [7, 8, 9]);
 
-    expect(probe.tipPosition).toEqual([0, 0, 0]);
+    expect(probe.tipPosition).toEqual([7, 8, 9]);
     expect(probe.rotation).toEqual([0.1, 0.2, 0.3]);
+  });
+
+  it("does not alias the reference coordinate array into the probe's tip position", () => {
+    const probe = makeProbe({ tipPosition: [1, 2, 3] });
+    const referenceCoordinate: [number, number, number] = [7, 8, 9];
+
+    homeProbe(probe, referenceCoordinate);
+    probe.tipPosition[0] = 100;
+
+    expect(referenceCoordinate).toEqual([7, 8, 9]);
   });
 });
 
@@ -381,6 +405,18 @@ describe("isProbe", () => {
     const probe = makeProbe();
     delete (probe as Partial<Probe>).lock;
     expect(isProbe(probe)).toBe(false);
+  });
+
+  it("rejects a probe with a non-string, non-null coordinateSystemIdentifier", () => {
+    expect(isProbe({ ...makeProbe(), coordinateSystemIdentifier: 42 })).toBe(
+      false
+    );
+  });
+
+  it("accepts a probe with a null coordinateSystemIdentifier", () => {
+    expect(isProbe({ ...makeProbe(), coordinateSystemIdentifier: null })).toBe(
+      true
+    );
   });
 
   it("rejects a probe with a short tipPosition", () => {

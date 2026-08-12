@@ -20,7 +20,8 @@ export default defineConfig(ctx => {
     ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
-    css: ["app.sass"],
+    // Order matters: tokens define the custom properties that theme.sass reads.
+    css: ["tokens.sass", "theme.sass", "app.sass"],
 
     // https://github.com/quasarframework/quasar/tree/dev/extras
     extras: [
@@ -30,10 +31,10 @@ export default defineConfig(ctx => {
       // 'eva-icons',
       // 'themify',
       // 'line-awesome',
-      // 'roboto-font-latin-ext', // this or either 'roboto-font', NEVER both!
 
-      "roboto-font", // optional, you are not bound to it
-      "material-icons", // optional, you are not bound to it
+      // Body and headline type is the self-hosted Allen Institute Plus family,
+      // declared in src/css/tokens.sass, so no Roboto here.
+      "material-icons",
       "material-symbols-outlined"
     ],
 

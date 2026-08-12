@@ -54,50 +54,37 @@ describe("isSameInspectable", () => {
 
 describe("moveInspectableToMillimeters", () => {
   const atlasMillimeters: [number, number, number] = [10, 20, 30];
-  const referenceCoordinate: [number, number, number] = [1, 2, 3];
 
-  it("moves a probe's tip to the destination, relative to the reference coordinate", () => {
+  it("moves a probe's tip to the destination", () => {
     const probe = makeProbe();
 
-    moveInspectableToMillimeters(probe, atlasMillimeters, referenceCoordinate);
+    moveInspectableToMillimeters(probe, atlasMillimeters);
 
-    expect(probe.tipPosition).toEqual([9, 18, 27]);
+    expect(probe.tipPosition).toEqual([10, 20, 30]);
   });
 
   it("moves a scene object's position, leaving other fields untouched", () => {
     const sceneObject = makeSceneObject({ rotation: [1, 2, 3] });
 
-    moveInspectableToMillimeters(
-      sceneObject,
-      atlasMillimeters,
-      referenceCoordinate
-    );
+    moveInspectableToMillimeters(sceneObject, atlasMillimeters);
 
-    expect(sceneObject.position).toEqual([9, 18, 27]);
+    expect(sceneObject.position).toEqual([10, 20, 30]);
     expect(sceneObject.rotation).toEqual([1, 2, 3]);
   });
 
   it("moves a camera's target, leaving its orbit untouched", () => {
     const cameraPose = makeCameraPose({ alpha: 1, beta: 2, radius: 3 });
 
-    moveInspectableToMillimeters(
-      cameraPose,
-      atlasMillimeters,
-      referenceCoordinate
-    );
+    moveInspectableToMillimeters(cameraPose, atlasMillimeters);
 
-    expect(cameraPose.target).toEqual([9, 18, 27]);
+    expect(cameraPose.target).toEqual([10, 20, 30]);
     expect(cameraPose.alpha).toBe(1);
     expect(cameraPose.beta).toBe(2);
     expect(cameraPose.radius).toBe(3);
   });
 
   it("leaves the world unchanged", () => {
-    moveInspectableToMillimeters(
-      WORLD_INSPECTABLE,
-      atlasMillimeters,
-      referenceCoordinate
-    );
+    moveInspectableToMillimeters(WORLD_INSPECTABLE, atlasMillimeters);
 
     expect(WORLD_INSPECTABLE).toEqual({ inspectableKind: "world" });
   });

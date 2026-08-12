@@ -22,6 +22,20 @@ const ORBIT_POLE_ALPHA = -Math.PI / 2;
 const AXIS_VIEW_TOLERANCE = 0.02;
 
 /**
+ * Near clip plane as a fraction of the atlas's longest dimension. Sits inside
+ * the tightest zoom the app expects -- `SLICE_ZOOM_RANGE_OCTAVES` puts that at
+ * six octaves below the atlas's longest dimension -- with margin to spare.
+ */
+const NEAR_CLIP_ATLAS_FRACTION = 1 / 100;
+
+/**
+ * Far clip plane as a multiple of the atlas's longest dimension. Generous
+ * because depth resolution is set by the near plane, not this one: probes and
+ * imported scene objects sitting outside the atlas stay inside the frustum.
+ */
+const FAR_CLIP_ATLAS_MULTIPLE = 1000;
+
+/**
  * Orbit the camera to sit along the given world direction from its target,
  * animating there and leaving its radius and target untouched.
  * @param camera Camera to orbit.
@@ -115,6 +129,23 @@ export function applyCameraProjection(
   camera.orthoBottom = -halfHeight;
   camera.orthoRight = halfWidth;
   camera.orthoLeft = -halfWidth;
+}
+
+/**
+ * Scale the camera's near and far clip planes to the atlas's size, so the same
+ * zoom range works on a sub-millimetre wing disc and a 180 mm human brain.
+ * Leaves a zero-sized atlas alone.
+ * @param camera Camera to set the clip planes of.
+ * @param longestDimensionMillimeters Longest dimension of the atlas being rendered, in mm.
+ */
+export function scaleCameraClipPlanesToAtlas(
+  camera: ArcRotateCamera,
+  longestDimensionMillimeters: number
+): void {
+  if (longestDimensionMillimeters <= 0) return;
+
+  camera.minZ = longestDimensionMillimeters * NEAR_CLIP_ATLAS_FRACTION;
+  camera.maxZ = longestDimensionMillimeters * FAR_CLIP_ATLAS_MULTIPLE;
 }
 
 /**

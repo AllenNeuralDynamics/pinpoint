@@ -143,7 +143,7 @@ describe("NewExperimentDialog", () => {
       const store = useCurrentExperimentStore();
       expect(store.name).toBe("My Experiment");
       expect(store.atlas).toEqual(atlas);
-      expect(store.referenceCoordinate).toEqual([1, 1, 1]);
+      expect(store.referenceCoordinate).toEqual([1, 0, 1]);
       // Closing is now driven by `onDialogOK` (so the splash dialog that
       // opened this one can close itself too), not `v-close-popup`.
       expect(wrapper.emitted("ok")).toBeTruthy();

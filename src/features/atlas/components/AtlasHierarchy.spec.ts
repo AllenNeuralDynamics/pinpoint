@@ -349,7 +349,6 @@ describe("AtlasHierarchy", () => {
     seedStructureMesh(scene, 8);
     const wrapper = await mountHierarchy(scene);
     const store = useCurrentExperimentStore();
-    store.experiment.referenceCoordinate = [0, 0, 0];
     store.selectedInspectable = store.cameraPose;
     const { alpha, beta, radius } = store.cameraPose;
 
@@ -376,7 +375,6 @@ describe("AtlasHierarchy", () => {
     seedStructureMesh(scene, 567);
     const wrapper = await mountHierarchy(scene);
     const store = useCurrentExperimentStore();
-    store.experiment.referenceCoordinate = [0, 0, 0];
     store.selectedInspectable = store.cameraPose;
 
     await findRow(wrapper, 8).trigger("click");
@@ -397,7 +395,6 @@ describe("AtlasHierarchy", () => {
     seedStructureMesh(scene, 8);
     const wrapper = await mountHierarchy(scene);
     const store = useCurrentExperimentStore();
-    store.experiment.referenceCoordinate = [0, 0, 0];
     const probe = makeProbe({ tipPosition: [0, 0, 0] });
     store.experiment.probes.push(probe);
     store.selectedInspectable = probe;
@@ -413,7 +410,6 @@ describe("AtlasHierarchy", () => {
     seedStructureMesh(scene, 8);
     const wrapper = await mountHierarchy(scene);
     const store = useCurrentExperimentStore();
-    store.experiment.referenceCoordinate = [0, 0, 0];
     const probe = makeProbe({ tipPosition: [0, 0, 0], lock: true });
     store.experiment.probes.push(probe);
     store.selectedInspectable = probe;
@@ -440,7 +436,6 @@ describe("AtlasHierarchy", () => {
   it("does not move the selection when the row's checkbox is clicked", async () => {
     const wrapper = await mountHierarchy();
     const store = useCurrentExperimentStore();
-    store.experiment.referenceCoordinate = [0, 0, 0];
     store.selectedInspectable = store.cameraPose;
     store.cameraPose.target = [0, 0, 0];
 
@@ -458,7 +453,6 @@ describe("AtlasHierarchy", () => {
     seedStructureMesh(scene, 8);
     const wrapper = await mountHierarchy(scene);
     const store = useCurrentExperimentStore();
-    store.experiment.referenceCoordinate = [0, 0, 0];
     store.selectedInspectable = store.cameraPose;
 
     await findRow(wrapper, 8).trigger("click");

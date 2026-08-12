@@ -1,6 +1,6 @@
 {
   "name": "pinpoint-v",
-  "version": "5.0.0-dev14",
+  "version": "5.0.0-b1",
   "private": true,
   "description": "A Quasar Project",
   "keywords": [
@@ -42,6 +42,7 @@
     "@vueuse/core": "^14.4.0",
     "@vueuse/integrations": "^14.4.0",
     "axios": "^1.19.0",
+    "closed-chain-ik": "github:gkjohnson/closed-chain-ik-js#8308c47ac9452c7069cac1ced92d5af1df760d7d",
     "earcut": "^3.2.3",
     "fflate": "^0.8.3",
     "fuse.js": "^7.5.0",

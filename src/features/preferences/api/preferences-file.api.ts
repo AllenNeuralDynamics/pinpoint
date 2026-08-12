@@ -1,6 +1,7 @@
 import type { Appearance } from "./appearance.api";
 import type { CameraProjection } from "@/features/scene";
 import type { Preferences } from "@/stores/preferences.store";
+import { isAxisOrder } from "@/utils/axis-order";
 import type { PositionUnit, RotationUnit } from "@/utils/math";
 import { isFiniteNumber, isRecord } from "@/utils/type-guards";
 
@@ -93,7 +94,9 @@ const NUMERIC_PREFERENCE_RANGES = {
   materialSpecularIntensity: [0, 1],
   materialSpecularPower: [1, 128],
   ssaoRatio: [0.1, 1],
+  structureFadedAlpha: [0.01, 1],
   decimalPrecision: [0, 10],
+  dragSensitivity: [0.25, 4],
   probeShankThicknessMillimeters: [0.001, 100],
   probeHeadStageLengthMillimeters: [0.01, 1000],
   probeHeadStageCutDepthMillimeters: [0, 1000],
@@ -114,11 +117,16 @@ function isPreferences(value: unknown): value is Preferences {
     appearance,
     isSplashScreenSkipped,
     cameraProjection,
-    worldBackgroundColor,
+    worldBackgroundColorLightMode,
+    worldBackgroundColorDarkMode,
     isSsaoEnabled,
     areStructureInteriorsHidden,
     positionUnit,
-    rotationUnit
+    rotationUnit,
+    positionAxisNames,
+    rotationAxisNames,
+    positionAxisOrder,
+    rotationAxisOrder
   } = value;
 
   if (typeof version !== "string") return false;
@@ -128,11 +136,13 @@ function isPreferences(value: unknown): value is Preferences {
   ) {
     return false;
   }
-  if (
-    typeof worldBackgroundColor !== "string" ||
-    !HEX_COLOR_PATTERN.test(worldBackgroundColor)
-  ) {
-    return false;
+  for (const color of [
+    worldBackgroundColorLightMode,
+    worldBackgroundColorDarkMode
+  ]) {
+    if (typeof color !== "string" || !HEX_COLOR_PATTERN.test(color)) {
+      return false;
+    }
   }
   if (typeof areStructureInteriorsHidden !== "boolean") return false;
   if (typeof isSplashScreenSkipped !== "boolean") return false;
@@ -150,6 +160,12 @@ function isPreferences(value: unknown): value is Preferences {
   if (typeof appearance !== "string" || !APPEARANCES.includes(appearance)) {
     return false;
   }
+  if (!isAxisNames(positionAxisNames) || !isAxisNames(rotationAxisNames)) {
+    return false;
+  }
+  if (!isAxisOrder(positionAxisOrder) || !isAxisOrder(rotationAxisOrder)) {
+    return false;
+  }
 
   for (const [key, [minimum, maximum]] of Object.entries(
     NUMERIC_PREFERENCE_RANGES
@@ -161,6 +177,18 @@ function isPreferences(value: unknown): value is Preferences {
   }
 
   return Number.isInteger(value.decimalPrecision);
+}
+
+/**
+ * Check that a value is a triple of axis name strings.
+ * @param value Value to check.
+ */
+function isAxisNames(value: unknown): value is [string, string, string] {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    value.every(name => typeof name === "string")
+  );
 }
 
 /**
@@ -176,16 +204,23 @@ function pickPreferences(source: Preferences, version: string): Preferences {
     isSplashScreenSkipped: source.isSplashScreenSkipped,
     cameraProjection: source.cameraProjection,
     cameraInertia: source.cameraInertia,
-    worldBackgroundColor: source.worldBackgroundColor,
+    worldBackgroundColorLightMode: source.worldBackgroundColorLightMode,
+    worldBackgroundColorDarkMode: source.worldBackgroundColorDarkMode,
     worldLightIntensity: source.worldLightIntensity,
     materialSpecularIntensity: source.materialSpecularIntensity,
     materialSpecularPower: source.materialSpecularPower,
     isSsaoEnabled: source.isSsaoEnabled,
     ssaoRatio: source.ssaoRatio,
+    structureFadedAlpha: source.structureFadedAlpha,
     areStructureInteriorsHidden: source.areStructureInteriorsHidden,
     positionUnit: source.positionUnit,
     rotationUnit: source.rotationUnit,
+    positionAxisNames: [...source.positionAxisNames],
+    rotationAxisNames: [...source.rotationAxisNames],
+    positionAxisOrder: [...source.positionAxisOrder],
+    rotationAxisOrder: [...source.rotationAxisOrder],
     decimalPrecision: source.decimalPrecision,
+    dragSensitivity: source.dragSensitivity,
     probeShankThicknessMillimeters: source.probeShankThicknessMillimeters,
     probeHeadStageLengthMillimeters: source.probeHeadStageLengthMillimeters,
     probeHeadStageCutDepthMillimeters: source.probeHeadStageCutDepthMillimeters,

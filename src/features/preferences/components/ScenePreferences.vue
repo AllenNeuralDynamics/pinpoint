@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import AtlasPreferences from "./AtlasPreferences.vue";
 import CameraPreferences from "./CameraPreferences.vue";
 import { WORLD_INSPECTABLE } from "@/features/scene";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -17,6 +18,8 @@ function inspectWorld(): void {
 <template>
   <div class="column q-gutter-y-md">
     <CameraPreferences />
+    <q-separator />
+    <AtlasPreferences />
     <q-separator />
     <div>
       <div class="text-h6">{{ $t("preferences.world") }}</div>

@@ -28,6 +28,21 @@ export function setMaterialDiffuseColor(
   material.markDirty(true);
 }
 
+/**
+ * Set a material's emissive color, skipping the update when unchanged.
+ * @param material Material to set the emissive color of.
+ * @param emissiveColor Emissive color to set.
+ */
+export function setMaterialEmissiveColor(
+  material: StandardMaterial,
+  emissiveColor: Color3
+): void {
+  if (material.emissiveColor.equals(emissiveColor)) return;
+
+  material.emissiveColor = emissiveColor;
+  material.markDirty(true);
+}
+
 /** Shared specular shading settings applied to every standard material in a scene. */
 export interface SurfaceMaterialSettings {
   /** Specular reflection strength, 0-1, applied as a grey specular color. */
@@ -36,9 +51,24 @@ export interface SurfaceMaterialSettings {
   specularPower: number;
 }
 
+/** Metadata flag marking a material as exempt from the scene-wide specular settings. */
+interface SurfaceMaterialExemptionMetadata {
+  isSurfaceSettingsExempt?: boolean;
+}
+
 /**
- * Apply specular settings to a material, skipping unchanged values and marking
- * it dirty so a frozen material still picks the change up.
+ * Exempt a material from the scene-wide specular settings, for surfaces whose
+ * shading is owned by the code that builds them.
+ * @param material Material to exempt.
+ */
+export function exemptMaterialFromSurfaceSettings(material: Material): void {
+  const metadata = material.metadata as SurfaceMaterialExemptionMetadata | null;
+  material.metadata = { ...metadata, isSurfaceSettingsExempt: true };
+}
+
+/**
+ * Apply specular settings to a material, skipping exempt and unchanged values
+ * and marking it dirty so a frozen material still picks the change up.
  * @param material Material to apply the settings to.
  * @param settings Specular settings to apply.
  */
@@ -46,6 +76,9 @@ export function applySurfaceMaterialSettings(
   material: StandardMaterial,
   settings: SurfaceMaterialSettings
 ): void {
+  const metadata = material.metadata as SurfaceMaterialExemptionMetadata | null;
+  if (metadata?.isSurfaceSettingsExempt) return;
+
   const specular = new Color3(
     settings.specularIntensity,
     settings.specularIntensity,
