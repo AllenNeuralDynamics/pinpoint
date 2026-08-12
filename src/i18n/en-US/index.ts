@@ -29,9 +29,7 @@ export default {
   validation: {
     nameRequired: "Name is required.",
     mustBeNumber: "Must be a number.",
-    mustBePositiveNumber: "Must be greater than zero.",
-    mustBeLessThanMaximum: "Must be less than the maximum.",
-    mustBeGreaterThanMinimum: "Must be greater than the minimum."
+    mustBePositiveNumber: "Must be greater than zero."
   },
   axis: {
     ap: "AP",
@@ -39,7 +37,10 @@ export default {
     ml: "ML",
     x: "X",
     y: "Y",
-    z: "Z"
+    z: "Z",
+    roll: "Roll",
+    yaw: "Yaw",
+    pitch: "Pitch"
   },
   newExperiment: {
     title: "New Experiment",
@@ -179,11 +180,9 @@ export default {
     deleteCoordinateSystem: 'Delete "{name}"',
     confirmDelete: 'Are you sure you wish to delete "{name}"?',
     delete: "Delete",
-    cancel: "Cancel",
     close: "Close",
     dragToReorder: "Drag to reorder",
-    defaultPinned:
-      "The default coordinate system always stays first and cannot be edited or deleted."
+    confirmDeleteTitle: "Delete Coordinate System"
   },
   modelFile: {
     invalidModelFile: "Unable to import that 3D model.",
@@ -212,11 +211,14 @@ export default {
     name: "Name",
     probeType: "Probe Type",
     coordinateSystem: "Coordinate System",
+    defaultCoordinateSystem: "Default",
+    solvePose: "Solve pose",
+    solvePoseCaption:
+      "Re-solve the coordinate system for this pose, keeping its orientation and putting the surface node back on the atlas.",
     transformValue: "{transform} {name}",
     offSurface: "Not on the brain surface.",
     position: "Position",
     rotation: "Rotation",
-    outOfBounds: "Must be between {minimum} and {maximum} {unit}.",
     home: "Reset tip position",
     surface: "Move to surface",
     cancelSurface: "Cancel move to surface",
@@ -256,14 +258,12 @@ export default {
 
   sceneObjectInspector: {
     name: "Name",
-    roll: "Roll",
-    yaw: "Yaw",
-    pitch: "Pitch",
     scaleSuffix: "×",
     copy: "Duplicate 3D object",
     lock: "Lock 3D object",
     unlock: "Unlock 3D object",
-    collisionDetection: "Collision detection"
+    collisionDetection: "Collision detection",
+    relativeToReferenceCoordinate: "Relative to reference coordinate"
   },
   cameraInspector: {
     poseName: "Pose name",
@@ -307,12 +307,16 @@ export default {
     value: "Value",
     axis: "Axis for {name}",
     mapToAxis: "Map to {axis}",
-    fixed: "Fixed",
-    bounded: "Bounded",
-    minimum: "Minimum",
-    maximum: "Maximum",
+    mode: "Constraint for {name}",
+    modeFree: "Free",
+    modeFixed: "Fixed",
+    modeUser: "User",
     dragToReorder: "Drag to reorder",
-    deleteTransform: "Delete Transform"
+    deleteTransform: "Delete Transform",
+    valuesFor: "{label} values",
+    valueSummaryEntry: "{name} ({value})",
+    valueSummaryAllFixed: "all fixed",
+    closeValues: "Done"
   },
   slice: {
     zoom: "Zoom",
@@ -366,10 +370,20 @@ export default {
     startupTitle: "Startup",
     skipSplashScreen: "Skip Splash Screen",
 
+    interactionTitle: "Interaction",
+    dragSensitivity: "Numeric Drag Sensitivity",
+    dragSensitivityValue: "{value}×",
+
     unitsTitle: "Units",
     positionUnit: "Position",
     rotationUnit: "Rotation",
     decimalPrecision: "Decimal Places",
+
+    axesTitle: "Atlas Axes",
+    positionAxes: "Position Axes",
+    rotationAxes: "Rotation Axes",
+    axisName: "Name for {axis}",
+    dragToReorder: "Drag to reorder",
 
     probeShape: "Probe Shape",
     shankThickness: "Shank Thickness",

@@ -17,12 +17,26 @@ import {
 } from "@/test/mount-helper";
 import { makeAtlas, makeManifest } from "@/test/fixtures";
 import { getAtlasDimensionsMillimeters } from "@/features/atlas";
-import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
+import type {
+  AxisGuideAxis,
+  AxisGuideLabels,
+  AxisGuides
+} from "./axis-guide.api";
 import {
   buildAxisGuides,
   clearAxisGuides,
   pickAxisGuideDirection
 } from "./axis-guide.api";
+
+/** Built-in axis guide labels, matching `+AP`/`-AP` etc. */
+const AXIS_LABELS: AxisGuideLabels = {
+  ap: "AP",
+  dv: "DV",
+  ml: "ML",
+  x: "X",
+  y: "Y",
+  z: "Z"
+};
 
 /**
  * Assert two Babylon vectors are componentwise close, tolerating float
@@ -79,7 +93,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     expect(root).toBeTruthy();
@@ -94,7 +114,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     expect(renderers.ap.paragraphs.map(p => p.text)).toEqual(["+AP", "-AP"]);
     expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+DV", "-DV"]);
@@ -130,7 +156,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
@@ -167,7 +199,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     for (const mesh of scene.meshes.filter(mesh =>
       mesh.name.startsWith("axisGuidePick_")
@@ -181,7 +219,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     expectVectorCloseTo(
       renderers.ap.paragraphs[0]!.worldMatrix.getTranslation(),
@@ -213,7 +257,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const shaftAp = scene.getMeshByName("axisGuideArrow_+AP")!;
     const headAp = scene.getMeshByName("axisGuideArrow_+AP_head")!;
@@ -245,7 +295,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const expectedColors: Record<AxisGuideAxis, Color3> = {
       ap: Color3.Blue(),
@@ -266,7 +322,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
@@ -301,7 +363,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const topEdge = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 1, 0), matrix).normalize();
@@ -336,7 +404,13 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
@@ -353,7 +427,8 @@ describe("buildAxisGuides", () => {
       makeAtlas({
         manifest: makeManifest({ resolutions: [[0.05, 0.05, 0.05]] })
       }),
-      { kind: "global" }
+      { kind: "global" },
+      AXIS_LABELS
     );
     expect(scale(renderers.ml.paragraphs[0]!.worldMatrix)).toBeCloseTo(7.5, 4);
   });
@@ -362,8 +437,20 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
 
     expect(
       scene.transformNodes.filter(node => node.name === "axisGuideRoot_node")
@@ -376,14 +463,21 @@ describe("buildAxisGuides", () => {
   it("builds nothing and clears any existing guides for an atlas with unknown dimensions", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
 
     buildAxisGuides(
       scene,
       guides,
       makeAtlas({ manifest: makeManifest({ resolutions: [] }) }),
-      { kind: "global" }
+      { kind: "global" },
+      AXIS_LABELS
     );
 
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeNull();
@@ -404,10 +498,16 @@ describe("buildAxisGuides", () => {
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
 
-    buildAxisGuides(scene, guides, makeAtlas(), {
-      kind: "local",
-      getNode: () => node
-    });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      {
+        kind: "local",
+        getNode: () => node
+      },
+      AXIS_LABELS
+    );
 
     expect(renderers.ml.paragraphs.map(p => p.text)).toEqual(["+X", "-X"]);
     expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+Y", "-Y"]);
@@ -475,10 +575,16 @@ describe("buildAxisGuides", () => {
     const { renderers, guides } = makeTestAxisGuides(scene);
     const node = new TransformNode("gizmoNode", scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), {
-      kind: "local",
-      getNode: () => node
-    });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      {
+        kind: "local",
+        getNode: () => node
+      },
+      AXIS_LABELS
+    );
 
     const reading = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).normalize();
@@ -552,10 +658,16 @@ describe("buildAxisGuides", () => {
     const { renderers, guides } = makeTestAxisGuides(scene);
     const node = new TransformNode("gizmoNode", scene);
 
-    buildAxisGuides(scene, guides, makeAtlas(), {
-      kind: "local",
-      getNode: () => node
-    });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      {
+        kind: "local",
+        getNode: () => node
+      },
+      AXIS_LABELS
+    );
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
@@ -613,10 +725,16 @@ describe("buildAxisGuides", () => {
     });
     const longestDimension = Math.max(...getAtlasDimensionsMillimeters(atlas));
 
-    buildAxisGuides(scene, guides, atlas, {
-      kind: "local",
-      getNode: () => node
-    });
+    buildAxisGuides(
+      scene,
+      guides,
+      atlas,
+      {
+        kind: "local",
+        getNode: () => node
+      },
+      AXIS_LABELS
+    );
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
@@ -627,6 +745,31 @@ describe("buildAxisGuides", () => {
         expect(distance).toBeCloseTo(longestDimension + 0.7 * labelScale, 4);
       }
     }
+  });
+
+  it("draws a renamed axis's label with the user's name, leaving the other axes' labels and pick meshes unchanged", () => {
+    const scene = makeTestScene();
+    const { renderers, guides } = makeTestAxisGuides(scene);
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      {
+        ...AXIS_LABELS,
+        ap: "Bregma AP"
+      }
+    );
+
+    expect(renderers.ap.paragraphs.map(p => p.text)).toEqual([
+      "+Bregma AP",
+      "-Bregma AP"
+    ]);
+    expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+DV", "-DV"]);
+    expect(renderers.ml.paragraphs.map(p => p.text)).toEqual(["+ML", "-ML"]);
+    expect(scene.getMeshByName("axisGuidePick_+Bregma AP")).toBeTruthy();
+    expect(scene.getMeshByName("axisGuidePick_-Bregma AP")).toBeTruthy();
   });
 });
 
@@ -643,10 +786,16 @@ function makeRotatedLocalFrameScene(): {
   const { guides } = makeTestAxisGuides(scene);
   const node = new TransformNode("gizmoNode", scene);
 
-  buildAxisGuides(scene, guides, makeAtlas(), {
-    kind: "local",
-    getNode: () => node
-  });
+  buildAxisGuides(
+    scene,
+    guides,
+    makeAtlas(),
+    {
+      kind: "local",
+      getNode: () => node
+    },
+    AXIS_LABELS
+  );
   node.rotationQuaternion = Quaternion.RotationYawPitchRoll(Math.PI / 2, 0, 0);
   // The tracker reads `node.absoluteRotationQuaternion` mid-tick: force it fresh first, matching
   // how a full `scene.render()` keeps world matrices current before the next frame's observers run.
@@ -702,10 +851,16 @@ describe("buildAxisGuides local frame tracking", () => {
     const nodeB = new TransformNode("b", scene);
     nodeB.rotationQuaternion = Quaternion.RotationYawPitchRoll(Math.PI, 0, 0);
 
-    buildAxisGuides(scene, guides, makeAtlas(), {
-      kind: "local",
-      getNode: () => nodeA ?? nodeB
-    });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      {
+        kind: "local",
+        getNode: () => nodeA ?? nodeB
+      },
+      AXIS_LABELS
+    );
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     tickScene(scene, 16);
     root.computeWorldMatrix(true);
@@ -743,10 +898,16 @@ describe("buildAxisGuides local frame tracking", () => {
     );
     let current: TransformNode = nodeA;
 
-    buildAxisGuides(scene, guides, makeAtlas(), {
-      kind: "local",
-      getNode: () => current
-    });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      {
+        kind: "local",
+        getNode: () => current
+      },
+      AXIS_LABELS
+    );
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     tickScene(scene, 16);
     root.computeWorldMatrix(true);
@@ -771,7 +932,13 @@ describe("clearAxisGuides", () => {
   it("removes the root node, every label, every arrow, and every pick mesh, leaving the renderers reusable", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
     expect(scene.meshes).toHaveLength(18);
 
     clearAxisGuides(scene, guides);
@@ -784,7 +951,13 @@ describe("clearAxisGuides", () => {
       expect(renderer.parent).toBeNull();
     }
 
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
     expect(scene.meshes).toHaveLength(18);
     for (const renderer of Object.values(renderers)) {
@@ -837,7 +1010,13 @@ describe("pickAxisGuideDirection", () => {
   it("returns the direction of the axis guide label under a screen position", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
     const camera = new ArcRotateCamera(
       "c",
       -Math.PI / 2,
@@ -868,7 +1047,13 @@ describe("pickAxisGuideDirection", () => {
   it("returns null when no axis guide label is under the screen position", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
-    buildAxisGuides(scene, guides, makeAtlas(), { kind: "global" });
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
     const camera = new ArcRotateCamera(
       "c",
       -Math.PI / 2,

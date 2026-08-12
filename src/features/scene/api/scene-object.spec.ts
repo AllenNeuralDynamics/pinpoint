@@ -13,13 +13,13 @@ import { makeAtlas, makeSceneObject } from "@/test/fixtures";
 
 describe("buildSceneObject", () => {
   it("names the object after the file, dropping the last extension", () => {
-    const sceneObject = buildSceneObject("id", "Brain Model.glb");
+    const sceneObject = buildSceneObject("id", "Brain Model.glb", [0, 0, 0]);
 
     expect(sceneObject.name).toBe("Brain Model");
   });
 
   it("builds a scene object with sensible defaults", () => {
-    const sceneObject = buildSceneObject("id", "Brain Model.glb");
+    const sceneObject = buildSceneObject("id", "Brain Model.glb", [0, 0, 0]);
 
     expect(sceneObject.inspectableKind).toBe("sceneObject");
     expect(sceneObject.modelId).toBe("id");
@@ -35,15 +35,30 @@ describe("buildSceneObject", () => {
   });
 
   it("keeps a dotless file name verbatim", () => {
-    const sceneObject = buildSceneObject("id", "BrainModel");
+    const sceneObject = buildSceneObject("id", "BrainModel", [0, 0, 0]);
 
     expect(sceneObject.name).toBe("BrainModel");
   });
 
   it("keeps a dot-only file name verbatim", () => {
-    const sceneObject = buildSceneObject("id", ".gitignore");
+    const sceneObject = buildSceneObject("id", ".gitignore", [0, 0, 0]);
 
     expect(sceneObject.name).toBe(".gitignore");
+  });
+
+  it("places the object at the given position", () => {
+    const sceneObject = buildSceneObject("id", "m.glb", [1, 2, 3]);
+
+    expect(sceneObject.position).toEqual([1, 2, 3]);
+  });
+
+  it("does not alias the given position array", () => {
+    const position: [number, number, number] = [1, 2, 3];
+
+    const sceneObject = buildSceneObject("id", "m.glb", position);
+    sceneObject.position[0] = 99;
+
+    expect(position).toEqual([1, 2, 3]);
   });
 });
 

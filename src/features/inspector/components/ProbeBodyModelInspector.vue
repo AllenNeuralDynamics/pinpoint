@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { SceneModel } from "@/features/scene";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
@@ -28,6 +29,7 @@ const {
 const currentExperiment = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
+const { positionStep, rotationStep, unitlessStep } = useDragSteps();
 const { optionalNumber: numberRules, positiveNumber: scaleRules } =
   useValidationRules();
 const { t } = useI18n();
@@ -146,6 +148,7 @@ function toggleGizmo() {
           v-model="positionX"
           class="col"
           :disable="disable"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelPosition', { axis: t('axis.x') })"
           outlined
@@ -156,6 +159,7 @@ function toggleGizmo() {
           v-model="positionY"
           class="col"
           :disable="disable"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelPosition', { axis: t('axis.y') })"
           outlined
@@ -166,6 +170,7 @@ function toggleGizmo() {
           v-model="positionZ"
           class="col"
           :disable="disable"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelPosition', { axis: t('axis.z') })"
           outlined
@@ -179,6 +184,7 @@ function toggleGizmo() {
           v-model="rotationX"
           class="col"
           :disable="disable"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelRotation', { axis: t('axis.x') })"
           outlined
@@ -189,6 +195,7 @@ function toggleGizmo() {
           v-model="rotationY"
           class="col"
           :disable="disable"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelRotation', { axis: t('axis.y') })"
           outlined
@@ -199,6 +206,7 @@ function toggleGizmo() {
           v-model="rotationZ"
           class="col"
           :disable="disable"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelRotation', { axis: t('axis.z') })"
           outlined
@@ -212,6 +220,7 @@ function toggleGizmo() {
           v-model="scaleX"
           class="col"
           :disable="disable"
+          :drag-step="unitlessStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelScale', { axis: t('axis.x') })"
           outlined
@@ -222,6 +231,7 @@ function toggleGizmo() {
           v-model="scaleY"
           class="col"
           :disable="disable"
+          :drag-step="unitlessStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelScale', { axis: t('axis.y') })"
           outlined
@@ -232,6 +242,7 @@ function toggleGizmo() {
           v-model="scaleZ"
           class="col"
           :disable="disable"
+          :drag-step="unitlessStep"
           hide-bottom-space
           :label="t('probeInspector.bodyModelScale', { axis: t('axis.z') })"
           outlined

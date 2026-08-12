@@ -42,9 +42,10 @@ export interface Probe {
 
   /**
    * Key into `Experiment.coordinateSystems`, as produced by
-   * `getCoordinateSystemIdentifier`.
+   * `getCoordinateSystemIdentifier`, or null when the probe's pose is entered
+   * directly instead of through a coordinate system.
    */
-  coordinateSystemIdentifier: string;
+  coordinateSystemIdentifier: string | null;
 
   /**
    * Internal position representation of the probe tip.

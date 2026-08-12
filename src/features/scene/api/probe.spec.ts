@@ -1153,6 +1153,54 @@ describe("syncProbes", () => {
     expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
   });
 
+  it("snaps a probe's pose immediately when snapPoses is true, with no tick", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [5, 0, 0];
+    syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry(),
+      true
+    );
+
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+  });
+
+  it("stops an in-flight glide and snaps to the new goal when snapPoses is true", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.tipPosition = [0, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+    const node = getProbeTransformNode(scene, probe.id)!;
+
+    probe.tipPosition = [5, 0, 0];
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+    tickScene(scene, 100);
+    expect(node.position.asArray()).not.toEqual(
+      asrToVector3([5, 0, 0]).asArray()
+    );
+
+    syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry(),
+      true
+    );
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+
+    tickScene(scene, 100);
+    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+  });
+
   it("stops the glide on a gizmo drag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();

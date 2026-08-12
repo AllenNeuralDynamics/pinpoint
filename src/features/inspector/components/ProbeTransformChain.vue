@@ -19,8 +19,8 @@ const visibleNodes = computed(() =>
     .filter(
       ({ node, index }) =>
         offSurfaceNodeIndexes.includes(index) ||
-        node.position.some(({ fixed }) => !fixed) ||
-        node.rotation.some(({ fixed }) => !fixed)
+        node.position.some(({ mode }) => mode !== "fixed") ||
+        node.rotation.some(({ mode }) => mode !== "fixed")
     )
 );
 </script>

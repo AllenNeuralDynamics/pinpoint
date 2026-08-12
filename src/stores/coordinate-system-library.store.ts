@@ -13,25 +13,6 @@ export const useCoordinateSystemLibraryStore = defineStore(
   () => {
     const library = ref<CoordinateSystem[]>([
       buildCoordinateSystem(
-        "Default",
-        [
-          buildCoordinateSystemNode(
-            "Tip",
-            [
-              buildCoordinateSystemValue("ML"),
-              buildCoordinateSystemValue("DV"),
-              buildCoordinateSystemValue("AP")
-            ],
-            [
-              buildCoordinateSystemValue("Pitch"),
-              buildCoordinateSystemValue("Yaw"),
-              buildCoordinateSystemValue("Roll")
-            ]
-          )
-        ],
-        true
-      ),
-      buildCoordinateSystem(
         "Surface Coordinate & Depth",
         [
           buildCoordinateSystemNode(
@@ -77,7 +58,7 @@ export const useCoordinateSystemLibraryStore = defineStore(
               buildFixedCoordinateSystemValue()
             ],
             [
-              buildCoordinateSystemValue("Arc Angle", [0, Math.PI]),
+              buildCoordinateSystemValue("Arc Angle"),
               buildFixedCoordinateSystemValue(),
               buildFixedCoordinateSystemValue()
             ]
@@ -91,19 +72,16 @@ export const useCoordinateSystemLibraryStore = defineStore(
             ],
             [
               buildFixedCoordinateSystemValue(),
-              buildCoordinateSystemValue("Module Angle", [
-                -Math.PI / 4,
-                Math.PI / 4
-              ]),
+              buildCoordinateSystemValue("Module Angle"),
               buildFixedCoordinateSystemValue()
             ]
           ),
           buildCoordinateSystemNode(
             "Stage",
             [
-              buildCoordinateSystemValue("X", [-7.5, 7.5]),
-              buildCoordinateSystemValue("Y", [-7.5, 7.5]),
-              buildCoordinateSystemValue("Z", [-7.5, 7.5])
+              buildCoordinateSystemValue("X"),
+              buildCoordinateSystemValue("Y"),
+              buildCoordinateSystemValue("Z")
             ],
             [
               buildFixedCoordinateSystemValue(),
@@ -142,29 +120,27 @@ export const useCoordinateSystemLibraryStore = defineStore(
     }
 
     /**
-     * Remove a coordinate system from the library by id. Index 0 is the pinned default and is
-     * never removed.
+     * Remove a coordinate system from the library by id.
      * @param coordinateSystem Coordinate system to remove.
      */
     function remove(coordinateSystem: CoordinateSystem) {
       const index = library.value.findIndex(
         ({ id }) => id === coordinateSystem.id
       );
-      if (index < 1) return;
+      if (index === -1) return;
       library.value.splice(index, 1);
     }
 
     /**
-     * Move a coordinate system within the library. Index 0 is the default system and is
-     * pinned: it can be neither moved nor displaced.
+     * Move a coordinate system within the library.
      * @param fromIndex Index of the coordinate system to move.
      * @param toIndex Index to move it to.
      */
     function reorder(fromIndex: number, toIndex: number) {
       if (
         fromIndex === toIndex ||
-        fromIndex < 1 ||
-        toIndex < 1 ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
         fromIndex >= library.value.length ||
         toIndex >= library.value.length
       ) {

@@ -1,6 +1,4 @@
 <script lang="ts" setup>
-import { computed } from "vue";
-import { useI18n } from "vue-i18n";
 import type {
   CoordinateSystemNodeComponent,
   CoordinateSystemValue
@@ -8,7 +6,6 @@ import type {
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useCoordinateSystemValueModel } from "../composable/useCoordinateSystemValueModel";
 import { useValidationRules } from "@/composable/useValidationRules";
-import { usePreferencesStore } from "@/stores/preferences.store";
 
 const { coordinateSystemValue, component, label, ariaLabel, disable } =
   defineProps<{
@@ -20,40 +17,11 @@ const { coordinateSystemValue, component, label, ariaLabel, disable } =
   }>();
 const emit = defineEmits<{ commit: [] }>();
 
-const preferences = usePreferencesStore();
 const { optionalNumber: numberRules } = useValidationRules();
-const { t } = useI18n();
-const { value, suffix, toDisplay } = useCoordinateSystemValueModel(
+const { value, suffix, dragStep } = useCoordinateSystemValueModel(
   () => coordinateSystemValue,
   component
 );
-
-const isOutOfBounds = computed(() => {
-  const bounds = coordinateSystemValue.bounds;
-  return (
-    bounds !== null &&
-    (coordinateSystemValue.value < bounds[0] ||
-      coordinateSystemValue.value > bounds[1])
-  );
-});
-const boundsMessage = computed(() => {
-  const bounds = coordinateSystemValue.bounds;
-  return bounds === null || !isOutOfBounds.value
-    ? ""
-    : t("probeInspector.outOfBounds", {
-        minimum: formatBound(bounds[0]),
-        maximum: formatBound(bounds[1]),
-        unit: suffix.value
-      });
-});
-
-/**
- * Format a stored bound in the value's display unit and precision.
- * @param storedValue Bound value in the stored unit.
- */
-function formatBound(storedValue: number): string {
-  return toDisplay(storedValue).toFixed(preferences.decimalPrecision);
-}
 
 /**
  * Write a committed field value through to the coordinate system value, then report the edit
@@ -74,8 +42,7 @@ function onCommit(next: string): void {
     :aria-label="ariaLabel"
     class="col"
     :disable="disable"
-    :error="isOutOfBounds"
-    :error-message="boundsMessage"
+    :drag-step="dragStep"
     hide-bottom-space
     :label="label"
     outlined

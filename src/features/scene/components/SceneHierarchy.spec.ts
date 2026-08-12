@@ -354,6 +354,7 @@ describe("SceneHierarchy", () => {
       const pinia = createPinia();
       setActivePinia(pinia);
       const currentExperiment = useCurrentExperimentStore(pinia);
+      currentExperiment.experiment.referenceCoordinate = [1, 2, 3];
       vi.mocked(canLoadModelFile).mockResolvedValue(true);
       const file = new File([new Uint8Array([1, 2, 3])], "Brain Model.glb", {
         type: "model/gltf-binary"
@@ -366,6 +367,7 @@ describe("SceneHierarchy", () => {
       expect(currentExperiment.sceneObjects).toHaveLength(1);
       const [sceneObject] = currentExperiment.sceneObjects;
       expect(sceneObject!.name).toBe("Brain Model");
+      expect(sceneObject!.position).toEqual([1, 2, 3]);
       expect(currentExperiment.selectedInspectable).toEqual(sceneObject);
       expect(putSceneModel).toHaveBeenCalledWith(sceneObject!.modelId, file);
     });

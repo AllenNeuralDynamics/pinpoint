@@ -11,7 +11,6 @@ import {
   rotateProbeVisibility
 } from "@/features/probe";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
-import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDragReorder } from "@/composable/useDragReorder";
 import {
@@ -21,8 +20,7 @@ import {
   removeProbe,
   removeSceneObject,
   reorderProbe,
-  reorderSceneObject,
-  setProbeCoordinateSystem
+  reorderSceneObject
 } from "@/features/experiment";
 import {
   buildSceneObject,
@@ -34,7 +32,6 @@ import type { SceneObjectVisibility } from "../models/scene-object-visibility.mo
 
 const $q = useQuasar();
 const probeLibrary = useProbeLibraryStore();
-const coordinateSystemLibrary = useCoordinateSystemLibraryStore();
 const currentExperiment = useCurrentExperimentStore();
 
 const {
@@ -61,7 +58,11 @@ const {
 
 const { isImporting: isImportingModel, open: openModelFile } =
   useModelFileImport((modelId, file) => {
-    const sceneObject = buildSceneObject(modelId, file.name);
+    const sceneObject = buildSceneObject(
+      modelId,
+      file.name,
+      currentExperiment.referenceCoordinate
+    );
     addSceneObject(currentExperiment.experiment, sceneObject);
     currentExperiment.selectedInspectable = sceneObject;
   });
@@ -85,18 +86,11 @@ const SCENE_OBJECT_VISIBILITY_ICONS: Record<SceneObjectVisibility, string> = {
  */
 function addProbeAndSelect(probeInterfaceProbe: ProbeInterfaceProbe) {
   internProbeInterfaceProbe(currentExperiment.experiment, probeInterfaceProbe);
-  const coordinateSystem = coordinateSystemLibrary.library[0]!;
   const probe = buildProbe(
     probeInterfaceProbe,
-    currentExperiment.referenceCoordinate,
-    coordinateSystem
+    currentExperiment.referenceCoordinate
   );
   addProbe(currentExperiment.experiment, probe);
-  setProbeCoordinateSystem(
-    currentExperiment.experiment,
-    probe,
-    coordinateSystem
-  );
   currentExperiment.selectedInspectable = probe;
 }
 

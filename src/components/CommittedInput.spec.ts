@@ -120,4 +120,72 @@ describe("CommittedInput", () => {
     expect(native.selectionStart).toBe(0);
     expect(native.selectionEnd).toBe("hello".length);
   });
+
+  it("drags to a new value at the given step, preserving canonical decimal precision", async () => {
+    const wrapper = mountWithQuasar(CommittedInput, {
+      props: { modelValue: "5.000", rules: rejectBad, dragStep: 0.01 }
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.trigger("pointerdown", {
+      clientX: 0,
+      pointerId: 1,
+      button: 0
+    });
+    await wrapper.trigger("pointermove", { clientX: 100, pointerId: 1 });
+
+    expect(wrapper.emitted("update:modelValue")).toEqual([["6.000"]]);
+  });
+
+  it("drags an integer-formatted value to another integer", async () => {
+    const wrapper = mountWithQuasar(CommittedInput, {
+      props: { modelValue: "5", rules: rejectBad, dragStep: 0.01 }
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.trigger("pointerdown", {
+      clientX: 0,
+      pointerId: 1,
+      button: 0
+    });
+    await wrapper.trigger("pointermove", { clientX: 100, pointerId: 1 });
+
+    expect(wrapper.emitted("update:modelValue")).toEqual([["6"]]);
+  });
+
+  it("emits nothing from a drag gesture when dragStep is omitted", async () => {
+    const wrapper = mountWithQuasar(CommittedInput, {
+      props: { modelValue: "5.000", rules: rejectBad }
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.trigger("pointerdown", {
+      clientX: 0,
+      pointerId: 1,
+      button: 0
+    });
+    await wrapper.trigger("pointermove", { clientX: 100, pointerId: 1 });
+
+    expect(wrapper.emitted("update:modelValue")).toBeUndefined();
+  });
+
+  it("selects the whole value on a press-and-release that never becomes a drag", async () => {
+    const wrapper = mountWithQuasar(CommittedInput, {
+      attachTo: document.body,
+      props: { modelValue: "5.000", rules: rejectBad, dragStep: 0.01 }
+    });
+    await wrapper.vm.$nextTick();
+
+    await wrapper.trigger("pointerdown", {
+      clientX: 0,
+      pointerId: 1,
+      button: 0
+    });
+    await wrapper.trigger("pointerup", { pointerId: 1 });
+
+    const native = wrapper.find("input").element;
+    expect(native.selectionStart).toBe(0);
+    expect(native.selectionEnd).toBe("5.000".length);
+    wrapper.unmount();
+  });
 });

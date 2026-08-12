@@ -1,10 +1,11 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useDragReorder } from "@/composable/useDragReorder";
+import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericModel } from "@/composable/useNumericModel";
-import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
 import { useValidationRules } from "@/composable/useValidationRules";
 import {
@@ -31,6 +32,7 @@ const preferences = usePreferencesStore();
 const unitLabels = useUnitLabels();
 const { requiredName: nameRules, optionalNumber: numberRules } =
   useValidationRules();
+const { positionStep, rotationStep } = useDragSteps();
 const {
   draggedIndex,
   dropTargetIndex,
@@ -63,30 +65,6 @@ const beta = useNumericModel(
 const radius = useNumericModel(
   () => pose.value.radius,
   value => (pose.value.radius = value),
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetAp = useNumericTupleModel(
-  () => pose.value.target,
-  0,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetDv = useNumericTupleModel(
-  () => pose.value.target,
-  1,
-  millimeters =>
-    millimetersToPositionUnit(millimeters, preferences.positionUnit),
-  value => positionUnitToMillimeters(value, preferences.positionUnit),
-  () => preferences.decimalPrecision
-);
-const targetMl = useNumericTupleModel(
-  () => pose.value.target,
-  2,
   millimeters =>
     millimetersToPositionUnit(millimeters, preferences.positionUnit),
   value => positionUnitToMillimeters(value, preferences.positionUnit),
@@ -144,35 +122,12 @@ function applyPose(savedPose: CameraPose): void {
     />
     <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
-      <div class="row q-gutter-x-sm">
-        <CommittedInput
-          v-model="targetAp"
-          class="col"
-          hide-bottom-space
-          :label="t('axis.ap')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-        <CommittedInput
-          v-model="targetDv"
-          class="col"
-          hide-bottom-space
-          :label="t('axis.dv')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-        <CommittedInput
-          v-model="targetMl"
-          class="col"
-          hide-bottom-space
-          :label="t('axis.ml')"
-          outlined
-          :rules="numberRules"
-          :suffix="positionSuffix"
-        />
-      </div>
+      <AtlasAxisInputs
+        hide-bottom-space
+        kind="position"
+        outlined
+        :tuple="pose.target"
+      />
     </div>
     <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.orbit") }}</div>
@@ -180,6 +135,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="alpha"
           class="col"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('cameraInspector.alpha')"
           outlined
@@ -189,6 +145,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="beta"
           class="col"
+          :drag-step="rotationStep"
           hide-bottom-space
           :label="t('cameraInspector.beta')"
           outlined
@@ -198,6 +155,7 @@ function applyPose(savedPose: CameraPose): void {
         <CommittedInput
           v-model="radius"
           class="col"
+          :drag-step="positionStep"
           hide-bottom-space
           :label="t('cameraInspector.radius')"
           outlined

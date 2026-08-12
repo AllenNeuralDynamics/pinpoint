@@ -34,7 +34,11 @@ import {
   makeTestSceneWithGizmo
 } from "@/test/mount-helper";
 import { buildProbe } from "./probe.api";
-import type { AxisGuideAxis, AxisGuides } from "./axis-guide.api";
+import type {
+  AxisGuideAxis,
+  AxisGuideLabels,
+  AxisGuides
+} from "./axis-guide.api";
 import { buildAxisGuides } from "./axis-guide.api";
 import { buildSceneEntityName } from "./scene-entity.api";
 import { WORLD_INSPECTABLE } from "../models/inspectable.model";
@@ -46,6 +50,16 @@ import {
   setSceneEntitiesHidden
 } from "./scene.api";
 import { buildAtlasRootNode } from "./structures.api";
+
+/** Built-in axis guide labels, matching `+AP`/`-AP` etc. */
+const AXIS_LABELS: AxisGuideLabels = {
+  ap: "AP",
+  dv: "DV",
+  ml: "ML",
+  x: "X",
+  y: "Y",
+  z: "Z"
+};
 
 // buildProbe's head stage is CSG2-subtracted.
 beforeAll(async () => {
@@ -380,9 +394,13 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
       scene
     );
     scene.activeCamera = camera;
-    buildAxisGuides(scene, makeTestAxisGuides(scene), makeAtlas(), {
-      kind: "global"
-    });
+    buildAxisGuides(
+      scene,
+      makeTestAxisGuides(scene),
+      makeAtlas(),
+      { kind: "global" },
+      AXIS_LABELS
+    );
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
     const onOrbit = vi.fn();
     orbitCameraFromAxisGuideDoubleTap(scene, camera, onOrbit);

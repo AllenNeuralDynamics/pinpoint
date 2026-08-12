@@ -343,6 +343,7 @@ function isSameScale(
  * @param state Load bookkeeping, mutated in place.
  * @param draggedSceneObjectId Scene object id currently under a gizmo drag, skipped for pose updates.
  * @param loadModel Loader for a scene object's stored model file, by model id.
+ * @param snapPoses Apply pose changes immediately instead of gliding to them, for a numeric input being scrubbed.
  */
 export async function syncSceneObjects(
   scene: Scene,
@@ -350,7 +351,8 @@ export async function syncSceneObjects(
   gizmoManager: GizmoManager,
   state: SceneObjectSyncState,
   draggedSceneObjectId: string | null,
-  loadModel: (modelId: string) => Promise<File | null>
+  loadModel: (modelId: string) => Promise<File | null>,
+  snapPoses = false
 ): Promise<{
   failedIds: string[];
   colliderFailedIds: string[];
@@ -493,17 +495,19 @@ export async function syncSceneObjects(
     const goalPosition = asrToVector3(sceneObject.position);
     const goalRotation = asrToVector3(sceneObject.rotation);
     const goalScaling = asrToVector3(sceneObject.scale);
-    if (isFresh) {
-      node.position = goalPosition;
-      node.rotation = goalRotation;
-      scaleNode.scaling = goalScaling;
-      continue;
-    }
     if (
       node.position.equals(goalPosition) &&
       node.rotation.equals(goalRotation) &&
       scaleNode.scaling.equals(goalScaling)
     ) {
+      continue;
+    }
+    if (isFresh || snapPoses) {
+      stopNodePoseInterpolation(node);
+      stopNodePoseInterpolation(scaleNode);
+      node.position = goalPosition;
+      node.rotation = goalRotation;
+      scaleNode.scaling = goalScaling;
       continue;
     }
     interpolateNodePose(scene, node, {

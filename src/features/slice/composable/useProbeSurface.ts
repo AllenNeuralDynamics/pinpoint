@@ -2,7 +2,6 @@ import type { Probe } from "@/features/probe";
 import { getProbeFrame } from "../api/probe-frame.api";
 import {
   findProbeSurfaceTargets,
-  isInAnnotation,
   isOnAnnotationSurface,
   type ProbeSurfaceTargets
 } from "../api/probe-surface.api";
@@ -15,10 +14,6 @@ export function useProbeSurface(): {
     signal?: AbortSignal
   ) => Promise<ProbeSurfaceTargets | null>;
   isOnSurface: (
-    pointMillimeters: [number, number, number],
-    signal?: AbortSignal
-  ) => Promise<boolean | null>;
-  isInsideBrain: (
     pointMillimeters: [number, number, number],
     signal?: AbortSignal
   ) => Promise<boolean | null>;
@@ -63,22 +58,5 @@ export function useProbeSurface(): {
     );
   }
 
-  /**
-   * Is a point inside an annotated voxel, i.e. inside the brain, at the finest atlas level, or
-   * null when the annotation volume can't be opened or the sampling was aborted.
-   * @param pointMillimeters Point to test, in atlas ASR mm.
-   * @param signal Aborts the in-flight sampling.
-   */
-  async function isInsideBrain(
-    pointMillimeters: [number, number, number],
-    signal?: AbortSignal
-  ): Promise<boolean | null> {
-    const level = await getFinestLevel();
-    if (!level) return null;
-    return isInAnnotation(level, pointMillimeters, geometry =>
-      sampleOnce(geometry, 0, signal)
-    );
-  }
-
-  return { findTargets, isOnSurface, isInsideBrain };
+  return { findTargets, isOnSurface };
 }

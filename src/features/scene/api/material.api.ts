@@ -28,6 +28,21 @@ export function setMaterialDiffuseColor(
   material.markDirty(true);
 }
 
+/**
+ * Set a material's emissive color, skipping the update when unchanged.
+ * @param material Material to set the emissive color of.
+ * @param emissiveColor Emissive color to set.
+ */
+export function setMaterialEmissiveColor(
+  material: StandardMaterial,
+  emissiveColor: Color3
+): void {
+  if (material.emissiveColor.equals(emissiveColor)) return;
+
+  material.emissiveColor = emissiveColor;
+  material.markDirty(true);
+}
+
 /** Shared specular shading settings applied to every standard material in a scene. */
 export interface SurfaceMaterialSettings {
   /** Specular reflection strength, 0-1, applied as a grey specular color. */

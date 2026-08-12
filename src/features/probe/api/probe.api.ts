@@ -4,8 +4,6 @@ import type { ProbeSurfaceChoice } from "../models/probe-surface-choice.model";
 import type { ProbeVisibility } from "../models/visibility.model";
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import type { Experiment } from "@/features/experiment";
-import type { CoordinateSystem } from "@/features/coordinate-system";
-import { getCoordinateSystemIdentifier } from "@/features/coordinate-system";
 import {
   KNOWN_MANUFACTURERS,
   KNOWN_PROBES
@@ -40,12 +38,10 @@ const NEXT_PROBE_VISIBILITY: Record<ProbeVisibility, ProbeVisibility> = {
  * random name and color, the given tip position, and a pitch pointing inferiorly.
  * @param probeInterfaceProbe Probe interface definition for the probe.
  * @param tipPosition Starting tip position, in atlas ASR mm.
- * @param coordinateSystem Coordinate system the probe's pose is entered in.
  */
 export function buildProbe(
   probeInterfaceProbe: ProbeInterfaceProbe,
-  tipPosition: [number, number, number],
-  coordinateSystem: CoordinateSystem
+  tipPosition: [number, number, number]
 ): Probe {
   const uuid = crypto.randomUUID();
   const uniqueName = uuid.slice(0, 8);
@@ -57,7 +53,7 @@ export function buildProbe(
     visibility: "visible",
     lock: false,
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
-    coordinateSystemIdentifier: getCoordinateSystemIdentifier(coordinateSystem),
+    coordinateSystemIdentifier: null,
     tipPosition: [...tipPosition],
     rotation: [0, 0, Math.PI / 2],
     sliceExtentMillimeters: null,
@@ -278,7 +274,8 @@ export function isProbe(value: unknown): value is Probe {
     PROBE_VISIBILITIES.includes(value.visibility) &&
     typeof value.lock === "boolean" &&
     typeof value.probeInterfaceIdentifier === "string" &&
-    typeof value.coordinateSystemIdentifier === "string" &&
+    (value.coordinateSystemIdentifier === null ||
+      typeof value.coordinateSystemIdentifier === "string") &&
     isFiniteTriple(value.tipPosition) &&
     isFiniteTriple(value.rotation) &&
     (value.sliceExtentMillimeters === null ||

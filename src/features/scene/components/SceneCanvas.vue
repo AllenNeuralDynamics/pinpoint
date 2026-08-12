@@ -18,12 +18,22 @@ import {
   setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "../api/structures.api";
-import type { AxisGuideFrame, AxisGuides } from "../api/axis-guide.api";
+import type {
+  AxisGuideFrame,
+  AxisGuideLabels,
+  AxisGuides
+} from "../api/axis-guide.api";
 import {
   buildAxisGuides,
   clearAxisGuides,
   createAxisGuides
 } from "../api/axis-guide.api";
+import type { GimbalAxisLabels } from "../api/gimbal-axis-label.api";
+import {
+  buildGimbalAxisLabels,
+  clearGimbalAxisLabels,
+  createGimbalAxisLabels
+} from "../api/gimbal-axis-label.api";
 import {
   applyCameraProjection,
   scaleCameraClipPlanesToAtlas,
@@ -42,9 +52,11 @@ import {
   getAtlasLongestDimensionMillimeters,
   structureEntitiesFromIdentifiers
 } from "@/features/atlas";
+import { getCoordinateSystemSlots } from "@/features/coordinate-system";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useI18n } from "vue-i18n";
+import { useAtlasAxes } from "@/composable/useAtlasAxes";
 import type { Mesh, Scene, SSAO2RenderingPipeline } from "@babylonjs/core";
 import {
   endProbeGizmoDrag,
@@ -88,6 +100,7 @@ import {
   disposeProbeSurfacePaths,
   pickProbeSurfacePathOnTap
 } from "../api/probe-surface-path.api";
+import { syncProbeSurfaceMarker } from "../api/probe-surface-marker.api";
 import {
   isProbeSurfaceChoiceCurrent,
   setProbeTipMillimeters
@@ -101,7 +114,11 @@ import {
   setSceneBackgroundColor,
   setSceneEntitiesHidden
 } from "../api/scene.api";
-import { syncCoordinateSystemGimbals } from "../api/coordinate-system-gimbal.api";
+import {
+  getCoordinateSystemGimbalAxisLength,
+  getCoordinateSystemGimbalNode,
+  syncCoordinateSystemGimbals
+} from "../api/coordinate-system-gimbal.api";
 import {
   attachSsaoPipeline,
   detachSsaoPipeline,
@@ -109,6 +126,7 @@ import {
   scaleSsaoToAtlas
 } from "../api/ssao.api";
 import { useNotify } from "@/composable/useNotify";
+import { isNumberDragActive } from "@/composable/useNumberDrag";
 
 const $q = useQuasar();
 const { t } = useI18n();
@@ -116,10 +134,12 @@ const { notifyError, notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const runtime = useBabylonRuntimeService();
+const atlasAxes = useAtlasAxes();
 useCameraPoseSync(
   runtime.camera,
   () => currentExperiment.atlas,
   () => currentExperiment.experiment.cameraPose,
+  () => isNumberDragActive.value,
   () => {
     currentExperiment.isCameraMoving = true;
   },
@@ -133,6 +153,9 @@ const isLoadingStructures = ref(false);
 
 /** Axis guide text renderers, created for the current scene the first time the guides are shown. */
 const axisGuides = shallowRef<AxisGuides | null>(null);
+
+/** Gimbal axis label text renderers, created for the current scene alongside the axis guides. */
+const gimbalAxisLabels = shallowRef<GimbalAxisLabels | null>(null);
 
 /** SSAO pipeline for the current scene, present while ambient occlusion is on and supported. */
 const ssaoPipeline = shallowRef<SSAO2RenderingPipeline | null>(null);
@@ -211,6 +234,53 @@ const selectedCoordinateSystem = computed(() =>
   currentExperiment.selectedInspectable?.inspectableKind === "coordinateSystem"
     ? currentExperiment.selectedInspectable
     : null
+);
+
+/**
+ * Are the axis guides drawn: the user's own toggle, or forced on while a coordinate system is
+ * selected, since `setSceneEntitiesHidden` strips every other orientation cue from the scene.
+ */
+const areAxisGuidesDrawn = computed(
+  () =>
+    currentExperiment.areAxisGuidesVisible ||
+    selectedCoordinateSystem.value !== null
+);
+
+/** Axis guide label text: the user's atlas axis names, plus the fixed Babylon axis letters. */
+const axisGuideLabels = computed<AxisGuideLabels>(() => {
+  const [ap, dv, ml] = atlasAxes.position.value
+    .slice()
+    .sort((a, b) => a.axis - b.axis)
+    .map(slot => slot.label) as [string, string, string];
+  return { ap, dv, ml, x: t("axis.x"), y: t("axis.y"), z: t("axis.z") };
+});
+
+/**
+ * Label per Babylon axis for the focused node's chosen triple: each value's own name, or that
+ * axis's letter when the value is unnamed, as `buildFixedCoordinateSystemValue` leaves it.
+ */
+const focusedGimbalAxisLabels = computed<[string, string, string] | null>(
+  () => {
+    const coordinateSystem = selectedCoordinateSystem.value;
+    const nodeIndex = currentExperiment.focusedCoordinateSystemNodeIndex;
+    if (!coordinateSystem || nodeIndex === null) return null;
+
+    const node = coordinateSystem.chain[nodeIndex];
+    if (!node) return null;
+
+    const texts: [string, string, string] = [
+      t("axis.x"),
+      t("axis.y"),
+      t("axis.z")
+    ];
+    for (const { axis, value } of getCoordinateSystemSlots(
+      node,
+      currentExperiment.focusedCoordinateSystemComponent
+    )) {
+      if (value.name) texts[axis] = value.name;
+    }
+    return texts;
+  }
 );
 
 /**
@@ -336,28 +406,40 @@ watchEffect(() => {
   setAtlasCenterOffset(scene, getAtlasCenter(currentExperiment.atlas));
 });
 
-// Axis guide renderers belong to the scene that created them.
+// Axis guide and gimbal axis label renderers belong to the scene that created them.
 watch(runtime.scene, () => {
+  gimbalAxisLabels.value?.dispose();
+  gimbalAxisLabels.value = null;
   axisGuides.value?.dispose();
   axisGuides.value = null;
 });
 
-// Create the axis guide text renderers the first time they are shown: the
-// MSDF font is fetched remotely, so hidden guides load nothing.
+// Create the axis guide text renderers, and the gimbal axis label renderers that borrow their
+// font asset, the first time the guides are shown: the MSDF font is fetched remotely, so hidden
+// guides load nothing.
 watch(
-  [runtime.scene, () => currentExperiment.areAxisGuidesVisible],
+  [runtime.scene, areAxisGuidesDrawn],
   async ([scene, isVisible]) => {
     if (!scene || !isVisible || axisGuides.value) return;
 
     try {
       const guides = await createAxisGuides(scene);
+      let labels: GimbalAxisLabels;
+      try {
+        labels = await createGimbalAxisLabels(scene, guides.fontAsset);
+      } catch (error) {
+        guides.dispose();
+        throw error;
+      }
       // The scene can be replaced, or another creation can win, while the
       // font loads.
       if (runtime.scene.value !== scene || axisGuides.value) {
+        labels.dispose();
         guides.dispose();
         return;
       }
       axisGuides.value = guides;
+      gimbalAxisLabels.value = labels;
     } catch {
       notifyWarning(
         t("sceneCanvas.problemLoadingAxisGuides"),
@@ -398,7 +480,7 @@ watchEffect(() => {
   const guides = axisGuides.value;
   if (!scene || !guides) return;
 
-  if (!currentExperiment.areAxisGuidesVisible) {
+  if (!areAxisGuidesDrawn.value) {
     clearAxisGuides(scene, guides);
     return;
   }
@@ -407,7 +489,8 @@ watchEffect(() => {
     scene,
     guides,
     currentExperiment.atlas,
-    axisGuideFrame(scene)
+    axisGuideFrame(scene),
+    axisGuideLabels.value
   );
 });
 
@@ -543,7 +626,8 @@ watchEffect(() => {
     currentExperiment.experiment,
     gizmoManager,
     currentExperiment.draggedProbeId,
-    probeGeometry.value
+    probeGeometry.value,
+    isNumberDragActive.value
   );
 
   // A rebuilt probe loses its body model node, so the gizmo cannot stay on it.
@@ -614,7 +698,8 @@ async function syncSceneObjectsFromState() {
       gizmoManager,
       sceneObjectSyncState,
       currentExperiment.draggedSceneObjectId,
-      getSceneModel
+      getSceneModel,
+      isNumberDragActive.value
     );
   if (failedIds.length) {
     notifyError(
@@ -800,6 +885,21 @@ watchEffect(() => {
     return;
   }
   buildProbeSurfacePaths(scene, choice);
+});
+
+// Draw the sphere at the inspected probe's solved on-surface node, or strip it once cleared.
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  const selectionOutlineLayer = runtime.selectionOutlineLayer.value;
+  if (!scene || !selectionOutlineLayer) return;
+
+  syncProbeSurfaceMarker(
+    scene,
+    selectionOutlineLayer,
+    currentExperiment.probeSurfaceMarker,
+    currentExperiment.probes,
+    preferences.probeShankThicknessMillimeters
+  );
 });
 
 // Drop a pending surface-move choice once its probe moves or disappears -
@@ -1094,7 +1194,31 @@ watchEffect(() => {
     selectedCoordinateSystem.value,
     currentExperiment.referenceCoordinate,
     getAtlasLongestDimensionMillimeters(currentExperiment.atlas),
-    currentExperiment.focusedCoordinateSystemNodeIndex
+    currentExperiment.focusedCoordinateSystemNodeIndex,
+    probeGeometry.value
+  );
+
+  const guides = axisGuides.value;
+  const labels = gimbalAxisLabels.value;
+  if (!guides || !labels) return;
+
+  const nodeIndex = currentExperiment.focusedCoordinateSystemNodeIndex;
+  const gimbal =
+    nodeIndex === null ? null : getCoordinateSystemGimbalNode(scene, nodeIndex);
+  const texts = focusedGimbalAxisLabels.value;
+  if (!gimbal || !texts) {
+    clearGimbalAxisLabels(labels);
+    return;
+  }
+
+  buildGimbalAxisLabels(
+    labels,
+    gimbal,
+    getCoordinateSystemGimbalAxisLength(
+      getAtlasLongestDimensionMillimeters(currentExperiment.atlas)
+    ),
+    texts,
+    guides.fontAsset
   );
 });
 
@@ -1107,6 +1231,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  gimbalAxisLabels.value?.dispose();
+  gimbalAxisLabels.value = null;
   axisGuides.value?.dispose();
   axisGuides.value = null;
   runtime.dispose();

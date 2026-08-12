@@ -28,16 +28,6 @@ const {
 } = useDragReorder(coordinateSystemLibraryStore.reorder);
 
 /**
- * Accept a drag over a row, except over the pinned default at index 0.
- * @param index Index of the row being hovered.
- * @param event Drag event to accept.
- */
-function onDragOverRow(index: number, event: DragEvent): void {
-  if (index === 0) return;
-  dragOverRow(index, event);
-}
-
-/**
  * Select a coordinate system for the inspector and close the library.
  * @param coordinateSystem Coordinate system to inspect.
  */
@@ -67,41 +57,23 @@ function addCoordinateSystem() {
 }
 
 /**
- * Open a row in the inspector, except the pinned default at index 0, which is
- * locked to its definition.
- * @param index Index of the clicked row.
- * @param coordinateSystem Coordinate system the row renders.
- */
-function onRowClick(index: number, coordinateSystem: CoordinateSystem): void {
-  if (index === 0) return;
-  openInInspector(coordinateSystem);
-}
-
-/**
- * Ask the user to confirm, then remove the coordinate system from the library.
+ * Confirm, then remove the coordinate system from the library.
  * @param coordinateSystem Coordinate system to remove.
  */
 function confirmRemove(coordinateSystem: CoordinateSystem) {
-  $q.notify({
+  $q.dialog({
+    title: t("coordinateSystemLibrary.confirmDeleteTitle"),
     message: t("coordinateSystemLibrary.confirmDelete", {
       name: coordinateSystem.name
     }),
-    color: "warning",
-    icon: "warning",
-    timeout: 0,
-    actions: [
-      { label: t("coordinateSystemLibrary.cancel"), color: "white" },
-      {
-        label: t("coordinateSystemLibrary.delete"),
-        color: "white",
-        handler: () => {
-          if (currentExperimentStore.isInspectableSelected(coordinateSystem)) {
-            currentExperimentStore.selectedInspectable = null;
-          }
-          coordinateSystemLibraryStore.remove(coordinateSystem);
-        }
-      }
-    ]
+    cancel: true,
+    persistent: true,
+    ok: { label: t("coordinateSystemLibrary.delete"), color: "negative" }
+  }).onOk(() => {
+    if (currentExperimentStore.isInspectableSelected(coordinateSystem)) {
+      currentExperimentStore.selectedInspectable = null;
+    }
+    coordinateSystemLibraryStore.remove(coordinateSystem);
   });
 }
 </script>
@@ -131,23 +103,19 @@ function confirmRemove(coordinateSystem: CoordinateSystem) {
               coordinateSystem, index
             ) in coordinateSystemLibraryStore.library"
             :key="coordinateSystem.id"
-            :clickable="index > 0"
-            v-ripple="index > 0"
+            clickable
+            v-ripple
             :class="{
               'coordinate-system-row--dragging': draggedIndex === index,
               'coordinate-system-row--drop-target':
                 dropTargetIndex === index && draggedIndex !== index
             }"
-            @click="onRowClick(index, coordinateSystem)"
-            @dragover="onDragOverRow(index, $event)"
+            @click="openInInspector(coordinateSystem)"
+            @dragover="dragOverRow(index, $event)"
             @drop="dropRow(index)"
           >
             <q-item-section side>
-              <!-- Index 0 is the built-in default: pinned first, so it gets a lock in place of
-                   the drag handle rather than an empty section, which would collapse
-                   (`.q-item__section--side` is `min-width: 0`) and misalign this row's name. -->
               <div
-                v-if="index > 0"
                 class="coordinate-system-row__handle"
                 draggable="true"
                 :title="t('coordinateSystemLibrary.dragToReorder')"
@@ -156,15 +124,9 @@ function confirmRemove(coordinateSystem: CoordinateSystem) {
               >
                 <q-icon name="drag_indicator" size="sm" />
               </div>
-              <q-icon
-                v-else
-                name="lock"
-                size="sm"
-                :title="t('coordinateSystemLibrary.defaultPinned')"
-              />
             </q-item-section>
             <q-item-section>{{ coordinateSystem.name }}</q-item-section>
-            <q-item-section v-if="index > 0" side>
+            <q-item-section side>
               <q-btn
                 :aria-label="
                   t('coordinateSystemLibrary.deleteCoordinateSystem', {

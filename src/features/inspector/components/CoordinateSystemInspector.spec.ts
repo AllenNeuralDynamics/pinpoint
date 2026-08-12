@@ -1,12 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VueWrapper } from "@vue/test-utils";
+import { nextTick } from "vue";
 import CoordinateSystemInspector from "./CoordinateSystemInspector.vue";
 import CoordinateSystemNodeInspector from "./CoordinateSystemNodeInspector.vue";
 import CoordinateSystemValueInspector from "./CoordinateSystemValueInspector.vue";
-import CoordinateSystemValueList from "./CoordinateSystemValueList.vue";
-import { mountWithQuasar } from "@/test/mount-helper";
+import type { CoordinateSystemValue } from "@/features/coordinate-system";
+import {
+  buildCoordinateSystemValue,
+  buildFixedCoordinateSystemValue
+} from "@/features/coordinate-system";
+import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { makeCoordinateSystem } from "@/test/fixtures";
-import { usePreferencesStore } from "@/stores/preferences.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getTerminologyRows } from "@/features/atlas";
 import enUS from "@/i18n/en-US";
@@ -27,6 +31,11 @@ vi.mock("@/features/atlas/api/source.api", async () => {
 const t = enUS.coordinateSystemInspector;
 const axis = enUS.axis;
 
+// The Position/Rotation dialogs teleport to `document.body`, outside each
+// wrapper's own mounted subtree, so a leftover teleported dialog from one
+// test could otherwise be picked up while querying another.
+const wrappers = createWrapperRegistry<VueWrapper>();
+
 function fieldByLabel(wrapper: VueWrapper, label: string) {
   return wrapper
     .findAllComponents({ name: "QInput" })
@@ -38,13 +47,6 @@ function findToggle(wrapper: VueWrapper, label: string) {
   return wrapper
     .findAllComponents({ name: "QToggle" })
     .find(toggle => toggle.props("label") === label)!;
-}
-
-/** The rendered validation message of a field, or "" when it is valid. */
-function errorText(field: VueWrapper) {
-  return field.find('[role="alert"]').exists()
-    ? field.find('[role="alert"]').text()
-    : "";
 }
 
 /**
@@ -61,16 +63,40 @@ async function editAndBlur(field: VueWrapper, value: string) {
   await promise;
 }
 
+/**
+ * Click a node inspector's Position or Rotation summary button, opening
+ * that value's dialog.
+ * @param nodeInspector Node inspector wrapper to open the dialog within.
+ * @param label Summary button's own label: `t.position` or `t.rotation`.
+ */
+async function openValueDialog(
+  nodeInspector: VueWrapper,
+  label: string
+): Promise<void> {
+  const button = nodeInspector.find(
+    `[aria-label="${t.valuesFor.replace("{label}", label)}"]`
+  );
+  await button.trigger("click");
+  await nextTick();
+}
+
 function mountInspector(coordinateSystem = makeCoordinateSystem()) {
-  const wrapper = mountWithQuasar(CoordinateSystemInspector, {
-    props: { coordinateSystem }
-  });
+  const wrapper = wrappers.track(
+    mountWithQuasar(CoordinateSystemInspector, {
+      attachTo: document.body,
+      props: { coordinateSystem }
+    })
+  );
   return { wrapper, coordinateSystem };
 }
 
 describe("CoordinateSystemInspector", () => {
   beforeEach(() => {
     vi.mocked(getTerminologyRows).mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    wrappers.unmountAll();
   });
 
   it("trims whitespace when committing a name", async () => {
@@ -198,9 +224,98 @@ describe("CoordinateSystemInspector", () => {
     ]);
   });
 
+  it("the Position button's text lists only variable values, omitting fixed ones", () => {
+    const { wrapper } = mountInspector(
+      makeCoordinateSystem({
+        chain: [
+          {
+            ...makeCoordinateSystem().chain[0]!,
+            position: [
+              buildCoordinateSystemValue("ML", 1),
+              buildFixedCoordinateSystemValue("DV"),
+              buildCoordinateSystemValue("AP", 3)
+            ]
+          }
+        ]
+      })
+    );
+
+    const positionButton = wrapper.find(
+      `[aria-label="${t.valuesFor.replace("{label}", t.position)}"]`
+    );
+
+    expect(positionButton.text()).toBe("ML (1.000)\nAP (3.000)");
+    expect(wrapper.text()).toContain(t.position);
+  });
+
+  it("the Position button reads 'all fixed' when every value is fixed", () => {
+    const { wrapper } = mountInspector(
+      makeCoordinateSystem({
+        chain: [
+          {
+            ...makeCoordinateSystem().chain[0]!,
+            position: [
+              buildFixedCoordinateSystemValue("ML"),
+              buildFixedCoordinateSystemValue("DV"),
+              buildFixedCoordinateSystemValue("AP")
+            ]
+          }
+        ]
+      })
+    );
+
+    const positionButton = wrapper.find(
+      `[aria-label="${t.valuesFor.replace("{label}", t.position)}"]`
+    );
+
+    expect(positionButton.text()).toBe(t.valueSummaryAllFixed);
+    expect(wrapper.text()).toContain(t.position);
+  });
+
+  it("clicking a node's Position or Rotation button focuses that node with the matching triple", async () => {
+    const { wrapper } = mountInspector();
+    const nodeInspector = wrapper.findComponent(CoordinateSystemNodeInspector);
+    const currentExperiment = useCurrentExperimentStore();
+
+    await openValueDialog(nodeInspector, t.rotation);
+
+    expect(currentExperiment.focusedCoordinateSystemNodeIndex).toBe(0);
+    expect(currentExperiment.focusedCoordinateSystemComponent).toBe("rotation");
+
+    await openValueDialog(nodeInspector, t.position);
+
+    expect(currentExperiment.focusedCoordinateSystemNodeIndex).toBe(0);
+    expect(currentExperiment.focusedCoordinateSystemComponent).toBe("position");
+  });
+
+  it("clicking the Rotation button opens exactly one rotation dialog, and Done closes it", async () => {
+    const { wrapper } = mountInspector();
+    const nodeInspector = wrapper.findComponent(CoordinateSystemNodeInspector);
+
+    await openValueDialog(nodeInspector, t.rotation);
+
+    const dialogs = wrapper
+      .findAllComponents({ name: "CoordinateSystemValueDialog" })
+      .filter(dialog => dialog.props("component") === "rotation");
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]!.props("modelValue")).toBe(true);
+
+    const doneButton = dialogs[0]!
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text() === t.closeValues)!;
+    await doneButton.trigger("click");
+    await nextTick();
+
+    expect(dialogs[0]!.props("modelValue")).toBe(false);
+  });
+
   it("editing the first value-name field renames the value", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
 
+    await openValueDialog(
+      wrapper.findComponent(CoordinateSystemNodeInspector),
+      t.position
+    );
     await editAndBlur(fieldByLabel(wrapper, t.valueName), "  Depth  ");
 
     expect(coordinateSystem.chain[0]!.position[0]!.name).toBe("Depth");
@@ -209,6 +324,10 @@ describe("CoordinateSystemInspector", () => {
   it("clicking a value's X axis button swaps the display order", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
 
+    await openValueDialog(
+      wrapper.findComponent(CoordinateSystemNodeInspector),
+      t.position
+    );
     const secondPositionValue = wrapper.findAllComponents(
       CoordinateSystemValueInspector
     )[1]!;
@@ -220,95 +339,78 @@ describe("CoordinateSystemInspector", () => {
     expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([1, 0, 2]);
   });
 
-  it("toggling fixed on a bounded value clears its bounds and hides the bound fields", async () => {
-    const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
-    const { wrapper } = mountInspector(coordinateSystem);
-
-    await findToggle(wrapper, t.fixed).setValue(true);
-
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toBeNull();
-    expect(fieldByLabel(wrapper, t.minimum)).toBeUndefined();
-  });
-
-  it("toggling bounded seeds a range bracketing the value and writes the maximum field", async () => {
+  it("clicking the User constraint button marks the value user-constrained", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
 
-    await findToggle(wrapper, t.bounded).setValue(true);
+    await openValueDialog(
+      wrapper.findComponent(CoordinateSystemNodeInspector),
+      t.position
+    );
+    const firstValue = wrapper.findAllComponents(
+      CoordinateSystemValueInspector
+    )[0]!;
+    await firstValue
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text() === t.modeUser)!
+      .trigger("click");
 
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
-
-    await wrapper.vm.$nextTick();
-    await editAndBlur(fieldByLabel(wrapper, t.maximum), "5");
-
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 5]);
+    expect(coordinateSystem.chain[0]!.position[0]!.mode).toBe("user");
   });
 
-  it("committing a Minimum above the current Maximum shows the ordering error and does not write it", async () => {
+  it("clicking the Free constraint button returns a fixed value to free", async () => {
     const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
+    coordinateSystem.chain[0]!.position[0]!.mode = "fixed";
     const { wrapper } = mountInspector(coordinateSystem);
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
 
-    await editAndBlur(fieldByLabel(wrapper, t.minimum), "5");
-
-    expect(errorText(fieldByLabel(wrapper, t.minimum))).toBe(
-      enUS.validation.mustBeLessThanMaximum
+    await openValueDialog(
+      wrapper.findComponent(CoordinateSystemNodeInspector),
+      t.position
     );
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
-  });
+    const firstValue = wrapper.findAllComponents(
+      CoordinateSystemValueInspector
+    )[0]!;
+    await firstValue
+      .findAllComponents({ name: "QBtn" })
+      .find(button => button.text() === t.modeFree)!
+      .trigger("click");
 
-  it("committing a Maximum below the current Minimum shows the ordering error and does not write it", async () => {
-    const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
-    const { wrapper } = mountInspector(coordinateSystem);
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
-
-    await editAndBlur(fieldByLabel(wrapper, t.maximum), "-5");
-
-    expect(errorText(fieldByLabel(wrapper, t.maximum))).toBe(
-      enUS.validation.mustBeGreaterThanMinimum
-    );
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
-  });
-
-  it("clearing a bound field shows the required-number error", async () => {
-    const coordinateSystem = makeCoordinateSystem();
-    coordinateSystem.chain[0]!.position[0]!.bounds = [-1, 1];
-    const { wrapper } = mountInspector(coordinateSystem);
-    usePreferencesStore().positionUnit = "millimeter";
-    await wrapper.vm.$nextTick();
-
-    await editAndBlur(fieldByLabel(wrapper, t.maximum), "");
-
-    expect(errorText(fieldByLabel(wrapper, t.maximum))).toBe(
-      enUS.validation.mustBeNumber
-    );
-    expect(coordinateSystem.chain[0]!.position[0]!.bounds).toEqual([-1, 1]);
+    expect(coordinateSystem.chain[0]!.position[0]!.mode).toBe("free");
   });
 
   it("drag-reorders position values, keeping axis mapping stable", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
 
-    const positionList = wrapper.findAllComponents(
-      CoordinateSystemValueList
-    )[0]!;
-    const items = positionList.findAllComponents({ name: "QItem" });
-    await wrapper.findAll(".value-row__handle")[0]!.trigger("dragstart");
-    await items[2]!.trigger("dragover");
-    await items[2]!.trigger("drop");
+    await openValueDialog(
+      wrapper.findComponent(CoordinateSystemNodeInspector),
+      t.position
+    );
+    const handles = document.querySelectorAll<HTMLElement>(
+      ".value-column__handle"
+    );
+    const columns = document.querySelectorAll<HTMLElement>(".value-column");
+    handles[0]!.dispatchEvent(new Event("dragstart", { bubbles: true }));
+    columns[2]!.dispatchEvent(
+      new Event("dragover", { bubbles: true, cancelable: true })
+    );
+    columns[2]!.dispatchEvent(new Event("drop", { bubbles: true }));
+    await nextTick();
 
     expect(
       coordinateSystem.chain[0]!.position.map(value => value.name)
+    ).toEqual(["ML", "DV", "AP"]);
+    expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([1, 2, 0]);
+    expect(
+      wrapper
+        .findAllComponents({ name: "CoordinateSystemValueInspector" })
+        .map(
+          component =>
+            (component.props("coordinateSystemValue") as CoordinateSystemValue)
+              .name
+        )
     ).toEqual(["DV", "AP", "ML"]);
-    expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([2, 0, 1]);
   });
 
-  it("clicking a second node's axis button focuses it, and unmounting resets the focus", async () => {
+  it("clicking a second node's Position summary button focuses it, and unmounting resets the focus", async () => {
     const { wrapper } = mountInspector(
       makeCoordinateSystem({
         chain: [
@@ -322,10 +424,7 @@ describe("CoordinateSystemInspector", () => {
     const secondNode = wrapper.findAllComponents(
       CoordinateSystemNodeInspector
     )[1]!;
-    const xButton = secondNode
-      .findAllComponents({ name: "QBtn" })
-      .find(button => button.text() === axis.x)!;
-    await xButton.trigger("click");
+    await openValueDialog(secondNode, t.position);
 
     expect(currentExperiment.focusedCoordinateSystemNodeIndex).toBe(1);
 

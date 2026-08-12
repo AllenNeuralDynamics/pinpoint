@@ -257,21 +257,6 @@ export async function isOnAnnotationSurface(
   );
 }
 
-/**
- * Is a point inside an annotated voxel, i.e. inside the brain. Null when the volume can't be sampled.
- * @param level Annotation level to test against, finest first.
- * @param pointMillimeters Point to test, in atlas ASR mm.
- * @param sampleVoxel Samples the single voxel the point falls in.
- */
-export async function isInAnnotation(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number],
-  sampleVoxel: RaySampler
-): Promise<boolean | null> {
-  const values = await sampleVoxel(getVoxelGeometry(level, pointMillimeters));
-  return values ? values[0] !== 0 : null;
-}
-
 /** Center of the voxel a point falls in, in atlas ASR mm. */
 function getVoxelCenterMillimeters(
   level: AnnotationLevel,
@@ -288,29 +273,6 @@ function getVoxelCenterMillimeters(
       level.translationMillimeters[axis]! + (voxel + 0.5) * scale[axis]!;
   }
   return center;
-}
-
-/** Build the sampling geometry for the single voxel a point falls in. */
-function getVoxelGeometry(
-  level: AnnotationLevel,
-  pointMillimeters: [number, number, number]
-): SampleGeometry {
-  const scale = level.scaleMillimeters;
-  return {
-    rightMillimeters: [0, 0, 1],
-    upMillimeters: [0, 1, 0],
-    halfHeightMillimeters: 0.5 * scale[1]!,
-    widthPixels: 1,
-    heightPixels: 1,
-    bands: [
-      {
-        centerMillimeters: getVoxelCenterMillimeters(level, pointMillimeters),
-        halfWidthMillimeters: 0.5 * scale[2]!,
-        columnOffset: 0,
-        columnCount: 1
-      }
-    ]
-  };
 }
 
 /** Build the sampling geometry for the 3x3x3 voxel neighborhood centered on a point's voxel. */

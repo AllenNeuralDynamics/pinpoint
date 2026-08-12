@@ -28,8 +28,9 @@ import {
   TransformNode,
   Vector3
 } from "@babylonjs/core";
-import { shallowRef } from "vue";
+import { nextTick, shallowRef } from "vue";
 import SceneCanvas from "./SceneCanvas.vue";
+import CommittedInput from "@/components/CommittedInput.vue";
 import type { FakeTextRenderer } from "@/test/mount-helper";
 import type * as MountHelper from "@/test/mount-helper";
 import {
@@ -42,6 +43,7 @@ import {
 } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { WORLD_INSPECTABLE } from "../models/inspectable.model";
 import {
   buildAtlasRootNode,
   setAtlasCenterOffset,
@@ -50,6 +52,11 @@ import {
 import { applyCameraProjection } from "../api/camera.api";
 import { createAxisGuides } from "../api/axis-guide.api";
 import type * as AxisGuideApi from "../api/axis-guide.api";
+import {
+  buildGimbalAxisLabels,
+  clearGimbalAxisLabels,
+  createGimbalAxisLabels
+} from "../api/gimbal-axis-label.api";
 import {
   DEFAULT_ATLAS,
   getAtlasCenter,
@@ -119,6 +126,25 @@ vi.mock("../api/axis-guide.api", async () => {
       fontAsset: makeFontAsset(scene),
       dispose: vi.fn()
     }))
+  };
+});
+
+vi.mock("../api/gimbal-axis-label.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("../api/gimbal-axis-label.api")
+  >("../api/gimbal-axis-label.api");
+  const { makeFakeTextRenderer: makeFake } = await vi.importActual<
+    typeof MountHelper
+  >("@/test/mount-helper");
+
+  return {
+    ...actual,
+    createGimbalAxisLabels: vi.fn(async () => ({
+      renderers: [makeFake(), makeFake(), makeFake()],
+      dispose: vi.fn()
+    })),
+    buildGimbalAxisLabels: vi.fn(actual.buildGimbalAxisLabels),
+    clearGimbalAxisLabels: vi.fn(actual.clearGimbalAxisLabels)
   };
 });
 
@@ -290,6 +316,15 @@ describe("SceneCanvas", () => {
         ml: makeFakeTextRenderer()
       },
       fontAsset: makeTestFontAsset(scene),
+      dispose: vi.fn()
+    }));
+    vi.mocked(createGimbalAxisLabels).mockReset();
+    vi.mocked(createGimbalAxisLabels).mockImplementation(async () => ({
+      renderers: [
+        makeFakeTextRenderer(),
+        makeFakeTextRenderer(),
+        makeFakeTextRenderer()
+      ],
       dispose: vi.fn()
     }));
   });
@@ -513,6 +548,23 @@ describe("SceneCanvas", () => {
         renderer.paragraphs.map(paragraph => paragraph.text)
       )
     ).toEqual(["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"]);
+  });
+
+  it("forces the axis guides on while a coordinate system is selected, even with the toggle off", async () => {
+    const { runtime } = await mountCanvas();
+    await setAxisGuidesVisible(false);
+    const store = useCurrentExperimentStore();
+
+    store.selectedInspectable = makeCoordinateSystem();
+    await flushPromises();
+
+    expect(createAxisGuides).toHaveBeenCalledTimes(1);
+    expect(axisGuidePickMeshCount(runtime.scene.value!)).toBe(6);
+
+    store.selectedInspectable = WORLD_INSPECTABLE;
+    await flushPromises();
+
+    expect(axisGuidePickMeshCount(runtime.scene.value!)).toBe(0);
   });
 
   it("re-offsets when the experiment's atlas changes", async () => {
@@ -1297,6 +1349,44 @@ describe("SceneCanvas", () => {
     expect(getProbeTransformNode(scene, probe.id)!.isEnabled()).toBe(false);
   });
 
+  it("draws the focused node's own value names on its gimbal's axis labels, keyed to the chosen triple", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    const scene = runtime.scene.value!;
+    /** Gimbal node currently in the scene: the shared watchEffect rebuilds the whole chain on every dependency change, including a triple switch. */
+    const gimbal = () =>
+      scene.getTransformNodeByName("coordinateSystemGimbal_0_node");
+
+    store.selectedInspectable = makeCoordinateSystem();
+    store.focusedCoordinateSystemNodeIndex = 0;
+    await flushPromises();
+
+    expect(vi.mocked(buildGimbalAxisLabels)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      gimbal(),
+      expect.any(Number),
+      ["ML", "DV", "AP"],
+      expect.anything()
+    );
+
+    store.focusedCoordinateSystemComponent = "rotation";
+    await flushPromises();
+
+    expect(vi.mocked(buildGimbalAxisLabels)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      gimbal(),
+      expect.any(Number),
+      ["Pitch", "Yaw", "Roll"],
+      expect.anything()
+    );
+
+    vi.mocked(clearGimbalAxisLabels).mockClear();
+    store.focusedCoordinateSystemNodeIndex = null;
+    await flushPromises();
+
+    expect(clearGimbalAxisLabels).toHaveBeenCalled();
+  });
+
   it("draws the ghost node while probeGhost is set and removes it when cleared", async () => {
     const { runtime } = await mountCanvas();
     const store = useCurrentExperimentStore();
@@ -1332,6 +1422,27 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(scene.getTransformNodeByName("probeGhost_node")).toBeNull();
+  });
+
+  it("draws the surface marker sphere while probeSurfaceMarker is set and removes it when cleared", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+
+    const probe = makeProbe();
+    store.experiment.probes = [probe];
+
+    store.probeSurfaceMarker = { probeId: probe.id, position: [5, 3, 5] };
+    await flushPromises();
+
+    const scene = runtime.scene.value!;
+    const mesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
+    expect(mesh).toBeTruthy();
+    expect(runtime.selectionOutlineLayer.value!.hasMesh(mesh)).toBe(true);
+
+    store.probeSurfaceMarker = null;
+    await flushPromises();
+
+    expect(scene.getMeshByName("probeSurfaceMarker_mesh")).toBeNull();
   });
 
   describe("move to surface", () => {
@@ -1491,6 +1602,70 @@ describe("SceneCanvas", () => {
 
       expect(probe.tipPosition).toEqual([5.7, 2.44, 5.4]);
       expect(store.probeSurfaceChoice).toBeNull();
+    });
+  });
+
+  describe("scrubbing a numeric input", () => {
+    it("snaps a probe's pose immediately while scrubbed, and glides again once released", async () => {
+      const { runtime } = await mountCanvas();
+      const store = useCurrentExperimentStore();
+
+      const contour = [
+        [-11, 9989],
+        [-11, -11],
+        [24, -220],
+        [59, -11],
+        [59, 9989]
+      ];
+      const probeInterfaceProbe = makeProbeInterfaceProbe({
+        probe_planar_contour: contour
+      });
+      internProbeInterfaceProbe(store.experiment, probeInterfaceProbe);
+      const builtProbe = makeProbe({
+        probeInterfaceIdentifier:
+          getProbeInterfaceIdentifier(probeInterfaceProbe)
+      });
+      addProbe(store.experiment, builtProbe);
+      const probe = store.experiment.probes.find(p => p.id === builtProbe.id)!;
+      await flushPromises();
+
+      const scene = runtime.scene.value!;
+      const node = getProbeTransformNode(scene, probe.id)!;
+
+      const dragWrapper = mountWithQuasar(CommittedInput, {
+        attachTo: document.body,
+        props: { modelValue: "0", rules: [], dragStep: 0.01 }
+      });
+      // `useNumberDrag`'s listeners bind via `useEventListener`'s `flush: "post"`
+      // watcher, which runs after this synchronous mount returns.
+      await nextTick();
+
+      await dragWrapper.trigger("pointerdown", {
+        clientX: 0,
+        pointerId: 1,
+        button: 0
+      });
+      await dragWrapper.trigger("pointermove", {
+        clientX: 100,
+        pointerId: 1
+      });
+
+      probe.tipPosition = [5, 0, 0];
+      await nextTick();
+
+      expect(node.position.asArray()).toEqual(
+        asrToVector3([5, 0, 0]).asArray()
+      );
+
+      await dragWrapper.trigger("pointerup", { pointerId: 1 });
+      probe.tipPosition = [10, 0, 0];
+      await nextTick();
+
+      expect(node.position.asArray()).not.toEqual(
+        asrToVector3([10, 0, 0]).asArray()
+      );
+
+      dragWrapper.unmount();
     });
   });
 });

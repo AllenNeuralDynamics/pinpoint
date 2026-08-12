@@ -23,6 +23,7 @@ import {
   buildFixedCoordinateSystemValue,
   type CoordinateSystemSolution,
   isCoordinateSystemSolutionAtPose,
+  SETTLED_SOLVE_STARTS,
   solveCoordinateSystemChain,
   solveCoordinateSystemChainInverse
 } from "@/features/coordinate-system";
@@ -36,7 +37,8 @@ import {
 import {
   getProbeContour,
   getProbeInterfaceDisplayName,
-  getProbeInterfaceIdentifier
+  getProbeInterfaceIdentifier,
+  type Probe
 } from "@/features/probe";
 import { useProbeSurface, type ProbeSurfaceTargets } from "@/features/slice";
 import { canLoadModelFile, putSceneModel } from "@/features/scene";
@@ -188,6 +190,26 @@ function makeFileList(file: File): FileList {
   return { 0: file, length: 1, item: () => file } as unknown as FileList;
 }
 
+/** `findTargets` resolving an entry point: the probe's shank crosses the brain. */
+function findTargetsCrossingBrain(
+  insideMillimeters: [number, number, number] = [1, 2, 3]
+) {
+  return vi.fn().mockResolvedValue({
+    insideMillimeters,
+    axisMillimeters: null,
+    dorsoventralMillimeters: null
+  } satisfies ProbeSurfaceTargets);
+}
+
+/** `findTargets` resolving no entry point: the probe's shank misses the brain. */
+function findTargetsMissingBrain() {
+  return vi.fn().mockResolvedValue({
+    insideMillimeters: null,
+    axisMillimeters: [1, 2, 3],
+    dorsoventralMillimeters: null
+  } satisfies ProbeSurfaceTargets);
+}
+
 function fieldByLabel(wrapper: VueWrapper, label: string) {
   return wrapper
     .findAllComponents({ name: "QInput" })
@@ -237,7 +259,6 @@ describe("ProbeInspector", () => {
     vi.mocked(solveCoordinateSystemChainInverse).mockReset();
     vi.mocked(useProbeSurface).mockReturnValue({
       findTargets: vi.fn(),
-      isInsideBrain: vi.fn(),
       isOnSurface: vi.fn()
     });
     openModelFileDialogSpy.mockReset();
@@ -253,12 +274,6 @@ describe("ProbeInspector", () => {
     probeLibrary.add(makeProbeInterfaceProbe());
     const store = useCurrentExperimentStore(pinia);
     store.experiment.probes = [probe];
-    const coordinateSystemLibrary = useCoordinateSystemLibraryStore(pinia);
-    setProbeCoordinateSystem(
-      store.experiment,
-      store.experiment.probes[0]!,
-      coordinateSystemLibrary.library[0]!
-    );
 
     const wrapper = mountWithQuasar(ProbeInspector, {
       pinia,
@@ -355,12 +370,9 @@ describe("ProbeInspector", () => {
   });
 
   it("rejects a non-numeric value in a numeric field", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
+    const { wrapper } = mountInspector();
 
-    const field = fieldByLabel(wrapper, ml);
+    const field = fieldByLabel(wrapper, axis.ml);
     await editAndBlur(field, "abc");
 
     expect(field.find("[role='alert']").text()).toBe(validation.mustBeNumber);
@@ -371,48 +383,39 @@ describe("ProbeInspector", () => {
     // entry was never committed.
     usePreferencesStore().decimalPrecision = 1;
     await wrapper.vm.$nextTick();
-    expect(fieldByLabel(wrapper, ml).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
       (0 - ALLEN_MOUSE_REFERENCE_COORDINATE[2]).toFixed(1)
     );
   });
 
   it("rounds the display to the preferences store's decimal precision", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
+    const { wrapper } = mountInspector();
 
-    await editAndBlur(fieldByLabel(wrapper, ml), "1.2345");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "1.2345");
     usePreferencesStore().decimalPrecision = 1;
     await wrapper.vm.$nextTick();
 
-    expect(fieldByLabel(wrapper, ml).props("modelValue")).toBe("1.2");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("1.2");
   });
 
   it("displays positions and rotations in the preferences store's units", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
-    const ml = node.position[0]!.name;
-    const pitchName = node.rotation[0]!.name;
+    const { wrapper } = mountInspector();
 
-    await editAndBlur(fieldByLabel(wrapper, ml), "1");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "1");
     const preferences = usePreferencesStore();
     preferences.positionUnit = "micrometer";
     preferences.rotationUnit = "radian";
     await wrapper.vm.$nextTick();
 
-    const mlField = fieldByLabel(wrapper, ml);
+    const mlField = fieldByLabel(wrapper, axis.ml);
     expect(mlField.props("modelValue")).toBe("1000.000");
     expect(mlField.props("suffix")).toBe("µm");
-    expect(fieldByLabel(wrapper, pitchName).props("suffix")).toBe("rad");
+    expect(fieldByLabel(wrapper, axis.roll).props("suffix")).toBe("rad");
   });
 
   it("commits zero when a numeric field is left blank", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
-    const field = fieldByLabel(wrapper, ml);
+    const { wrapper } = mountInspector();
+    const field = fieldByLabel(wrapper, axis.ml);
 
     await editAndBlur(field, "5");
     await editAndBlur(field, "");
@@ -422,11 +425,8 @@ describe("ProbeInspector", () => {
   });
 
   it("accepts zero in a numeric field", async () => {
-    const { wrapper, pinia } = mountInspector();
-    const ml =
-      useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!.position[0]!
-        .name;
-    const field = fieldByLabel(wrapper, ml);
+    const { wrapper } = mountInspector();
+    const field = fieldByLabel(wrapper, axis.ml);
 
     await editAndBlur(field, "5");
     await editAndBlur(field, "0");
@@ -442,22 +442,18 @@ describe("ProbeInspector", () => {
     const a = makeProbe({ name: "A" });
     const b = makeProbe({ name: "B" });
     store.experiment.probes = [a, b];
-    const coordinateSystem = useCoordinateSystemLibraryStore(pinia).library[0]!;
-    setProbeCoordinateSystem(store.experiment, a, coordinateSystem);
-    setProbeCoordinateSystem(store.experiment, b, coordinateSystem);
     const wrapper = mountWithQuasar(ProbeInspector, {
       pinia,
       props: { probe: a },
       global: { provide: babylonRuntimeProvide }
     });
-    const ml = coordinateSystem.chain[0]!.position[0]!.name;
 
-    await editAndBlur(fieldByLabel(wrapper, ml), "1");
+    await editAndBlur(fieldByLabel(wrapper, axis.ml), "1");
     // Cast: `setProps`'s generic doesn't narrow to the SFC's declared props.
     await wrapper.setProps({ probe: b } as Record<string, unknown>);
 
     expect(fieldByLabel(wrapper, t.name).props("modelValue")).toBe("B");
-    expect(fieldByLabel(wrapper, ml).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
       (0 - ALLEN_MOUSE_REFERENCE_COORDINATE[2]).toFixed(3)
     );
   });
@@ -477,11 +473,11 @@ describe("ProbeInspector", () => {
     it("renders one transform group per node of the selected coordinate system", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
 
       expect(
         wrapper.findAll(".text-body2.text-weight-bold").map(node => node.text())
-      ).toEqual([store.library[0]!.chain[0]!.name]);
+      ).toEqual([]);
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -497,7 +493,7 @@ describe("ProbeInspector", () => {
     it("writes the probe's coordinateSystemIdentifier and interns the picked definition", async () => {
       const { wrapper, store, probe, pinia } = mountInspector();
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -514,7 +510,7 @@ describe("ProbeInspector", () => {
     it("restores the previously selected coordinate system after unmounting and remounting", async () => {
       const { wrapper, probe, pinia } = mountInspector();
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -539,10 +535,10 @@ describe("ProbeInspector", () => {
     it("hides a node's rotation row when every rotation value is fixed", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
       const depthNodeName = surfaceAndDepth.chain[1]!.name;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -569,7 +565,7 @@ describe("ProbeInspector", () => {
     it("omits a fixed value instead of showing it as a disabled input", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
+      const surfaceAndDepth = store.library[0]!;
       const depthNodeName = surfaceAndDepth.chain[1]!.name;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -594,29 +590,23 @@ describe("ProbeInspector", () => {
       expect(fieldByLabel(wrapper, "Depth").props("disable")).toBeFalsy();
     });
 
-    it("writes an out-of-bounds value and shows the bounds error", async () => {
+    it("shows a user-constrained value as an editable input", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);
-      const surfaceAndDepth = store.library[1]!;
-      const pitchName = surfaceAndDepth.chain[0]!.rotation[0]!.name;
-
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
+      const surfaceAndDepth = store.library[0]!;
+      const depthPosition = surfaceAndDepth.chain[1]!.position;
+      depthPosition[0]!.mode = "user";
+      depthPosition[0]!.name = "Insertion";
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
         surfaceAndDepth.id
       );
       await wrapper.vm.$nextTick();
-      const field = fieldByLabel(wrapper, pitchName);
-      await editAndBlur(field, "200");
 
-      expect(field.props("modelValue")).toBe("200.000");
-      expect(field.find("[role='alert']").text()).toBe(
-        t.outOfBounds
-          .replace("{minimum}", "0.000")
-          .replace("{maximum}", "90.000")
-          .replace("{unit}", "°")
-      );
+      const field = fieldByLabel(wrapper, "Insertion");
+      expect(field.exists()).toBe(true);
+      expect(field.props("disable")).toBeFalsy();
     });
 
     it("omits a node whose every value is fixed", async () => {
@@ -666,61 +656,58 @@ describe("ProbeInspector", () => {
     });
 
     it("shows the probe's current tip and rotation, local to the reference coordinate", () => {
-      const { wrapper, pinia } = mountInspector(
+      const { wrapper } = mountInspector(
         makeProbe({
           tipPosition: [7, 8, 9],
           rotation: [Math.PI / 2, Math.PI, Math.PI / 4]
         })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [apRef, dvRef, mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
-      expect(
-        fieldByLabel(wrapper, node.position[0]!.name).props("modelValue")
-      ).toBe((9 - mlRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[1]!.name).props("modelValue")
-      ).toBe((8 - dvRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[2]!.name).props("modelValue")
-      ).toBe((7 - apRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.rotation[0]!.name).props("modelValue")
-      ).toBe("45.000");
-      expect(
-        fieldByLabel(wrapper, node.rotation[1]!.name).props("modelValue")
-      ).toBe("180.000");
-      expect(
-        fieldByLabel(wrapper, node.rotation[2]!.name).props("modelValue")
-      ).toBe("90.000");
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (7 - apRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe(
+        (8 - dvRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
+        (9 - mlRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.roll).props("modelValue")).toBe(
+        "90.000"
+      );
+      expect(fieldByLabel(wrapper, axis.yaw).props("modelValue")).toBe(
+        "180.000"
+      );
+      expect(fieldByLabel(wrapper, axis.pitch).props("modelValue")).toBe(
+        "45.000"
+      );
     });
 
     it("mirrors an external probe pose change into the default node's fields, local to the reference coordinate", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+      const { wrapper, probe } = mountInspector(
         makeProbe({ tipPosition: [0, 0, 0] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [apRef, dvRef, mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
       probe.tipPosition = [1, 2, 3];
       await wrapper.vm.$nextTick();
 
-      expect(
-        fieldByLabel(wrapper, node.position[0]!.name).props("modelValue")
-      ).toBe((3 - mlRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[1]!.name).props("modelValue")
-      ).toBe((2 - dvRef).toFixed(3));
-      expect(
-        fieldByLabel(wrapper, node.position[2]!.name).props("modelValue")
-      ).toBe((1 - apRef).toFixed(3));
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (1 - apRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe(
+        (2 - dvRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
+        (3 - mlRef).toFixed(3)
+      );
     });
 
     it("tracks a gizmo drag frame by frame, only committing history on release", async () => {
-      const { wrapper, store, probe, pinia } = mountInspector(
+      const { wrapper, store, probe } = mountInspector(
         makeProbe({ tipPosition: [0, 0, 0] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [apRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
       const preDragTip = [...probe.tipPosition];
       // Mounting seeds the probe into the store, which commits its own history
@@ -734,9 +721,9 @@ describe("ProbeInspector", () => {
       await wrapper.vm.$nextTick();
 
       expect(store.canUndo).toBe(false);
-      expect(
-        fieldByLabel(wrapper, node.position[2]!.name).props("modelValue")
-      ).toBe((2 - apRef).toFixed(3));
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (2 - apRef).toFixed(3)
+      );
 
       store.endProbeDrag();
       expect(store.canUndo).toBe(true);
@@ -745,29 +732,47 @@ describe("ProbeInspector", () => {
     });
 
     it("does not renormalize rotation on commit, matching the old six-input system", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+      const { wrapper, probe } = mountInspector(
         makeProbe({
           tipPosition: [7, 8, 9],
           rotation: [0, (3 * Math.PI) / 2, 0]
         })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
       const [, , mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
-      await editAndBlur(fieldByLabel(wrapper, node.position[0]!.name), "20");
+      await editAndBlur(fieldByLabel(wrapper, axis.ml), "20");
 
       expect(probe.tipPosition).toEqual([7, 8, 20 + mlRef]);
       expect(probe.rotation).toEqual([0, (3 * Math.PI) / 2, 0]);
     });
 
-    it("commits the ML field to the probe's tip, leaving AP and DV alone", async () => {
-      const { wrapper, probe, pinia } = mountInspector(
+    it("drags the ML field to move the probe live through the same commit path as typing", async () => {
+      const { wrapper, probe } = mountInspector(
         makeProbe({ tipPosition: [7, 8, 9] })
       );
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
+      await wrapper.vm.$nextTick();
+      const field = fieldByLabel(wrapper, axis.ml);
+      const before = Number(field.props("modelValue"));
+      const tipBeforeDrag = [...probe.tipPosition];
+
+      await field.trigger("pointerdown", {
+        clientX: 0,
+        pointerId: 1,
+        button: 0
+      });
+      await field.trigger("pointermove", { clientX: 40, pointerId: 1 });
+
+      expect(field.props("modelValue")).toBe((before + 0.4).toFixed(3));
+      expect(probe.tipPosition).not.toEqual(tipBeforeDrag);
+    });
+
+    it("commits the ML field to the probe's tip, leaving AP and DV alone", async () => {
+      const { wrapper, probe } = mountInspector(
+        makeProbe({ tipPosition: [7, 8, 9] })
+      );
       const [, , mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
 
-      await editAndBlur(fieldByLabel(wrapper, node.position[0]!.name), "20");
+      await editAndBlur(fieldByLabel(wrapper, axis.ml), "20");
 
       expect(probe.tipPosition).toEqual([7, 8, 20 + mlRef]);
     });
@@ -777,7 +782,7 @@ describe("ProbeInspector", () => {
         makeProbe({ tipPosition: [7, 8, 9], rotation: [0.1, 0.2, 0.3] })
       );
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
 
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
         "update:modelValue",
@@ -802,11 +807,11 @@ describe("ProbeInspector", () => {
       pinia: Pinia
     ): CoordinateSystemSolution {
       const chain = structuredClone(
-        toRaw(useCoordinateSystemLibraryStore(pinia).library[1]!)
+        toRaw(useCoordinateSystemLibraryStore(pinia).library[0]!)
       ).chain;
       for (const node of chain) {
         for (const value of [...node.position, ...node.rotation]) {
-          if (value.fixed) continue;
+          if (value.mode !== "free") continue;
           value.value = Number(
             fieldByLabel(wrapper, value.name).props("modelValue")
           );
@@ -827,7 +832,7 @@ describe("ProbeInspector", () => {
       pinia: Pinia
     ): Promise<void> {
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       usePreferencesStore().rotationUnit = "radian";
       usePreferencesStore().decimalPrecision = 6;
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -838,10 +843,104 @@ describe("ProbeInspector", () => {
       await flushPromises();
     }
 
-    it("warns immediately on a one-shot solve when the tip is inside the brain", async () => {
+    it("runs no solve and shows no toast when Default is selected", async () => {
+      const { wrapper } = mountInspector();
+      const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
+      await flushPromises();
+
+      expect(
+        vi.mocked(solveCoordinateSystemChainInverse)
+      ).not.toHaveBeenCalled();
+      expect(notifySpy).not.toHaveBeenCalled();
+    });
+
+    it("solves a drag frame against the pose its surface sample was taken from", async () => {
+      let reactiveProbe: Probe | null = null;
+      let activePinia: Pinia | null = null;
+      let sampledTip: [number, number, number] = [0, 0, 0];
+      // The mutation fires once: it simulates a single drag frame landing while the first
+      // sampling is in flight, not a fresh drag frame on every subsequent march.
+      let hasLanded = false;
+      const findTargets = vi.fn(async () => {
+        if (!hasLanded) {
+          hasLanded = true;
+          sampledTip = [...reactiveProbe!.tipPosition];
+          // A drag frame landing while this sampling is in flight.
+          useCurrentExperimentStore(activePinia!).draggedProbeId =
+            reactiveProbe!.id;
+          reactiveProbe!.tipPosition = [9, 9, 9];
+        }
+        return {
+          insideMillimeters: [1, 2, 3],
+          axisMillimeters: null,
+          dorsoventralMillimeters: null
+        } satisfies ProbeSurfaceTargets;
+      });
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets,
+        isOnSurface: vi.fn().mockResolvedValue(true)
+      });
+      const mounted = mountInspector();
+      reactiveProbe = mounted.probe;
+      activePinia = mounted.pinia;
+
+      await selectMultiNodeSystem(mounted.wrapper, mounted.pinia);
+
+      expect(reactiveProbe.tipPosition).toEqual([9, 9, 9]);
+      expect(
+        vi.mocked(solveCoordinateSystemChainInverse).mock.calls[0]![1]
+          .tipPosition
+      ).toEqual(sampledTip);
+    });
+
+    it("pins the surface node to the marched entry point with the tip pushed past it, and draws no ghost", async () => {
+      const findTargets = vi.fn().mockResolvedValue(null);
+      vi.mocked(useProbeSurface).mockReturnValue({
+        findTargets,
+        isOnSurface: vi.fn().mockResolvedValue(true)
+      });
+      const { wrapper, pinia, store, probe } = mountInspector();
+      await selectMultiNodeSystem(wrapper, pinia);
+      // No entry point yet, so nothing is pinned and nothing is marked.
+      expect(store.probeSurfaceMarker).toBeNull();
+
+      const surfaceAndDepth =
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
+      const depthValueName = surfaceAndDepth.chain[1]!.position.find(
+        ({ mode }) => mode !== "fixed"
+      )!.name;
+      await editAndBlur(fieldByLabel(wrapper, depthValueName), "5");
+      await flushPromises();
+
+      // This chain always solves its surface node onto the probe's axis, 5 mm up the shank, so its
+      // current position is the kind of point the entry-point march returns.
+      const entryPoint = solveDisplayedChain(wrapper, pinia).nodePositions[0]!;
+      findTargets.mockResolvedValue({
+        insideMillimeters: entryPoint,
+        axisMillimeters: null,
+        dorsoventralMillimeters: null
+      } satisfies ProbeSurfaceTargets);
+      // Drive the tip 10 mm further along the shank, past the entry point's far side: the old
+      // in-brain gate dropped the goal here, while the entry point above the tip stays reachable.
+      probe.tipPosition = probe.tipPosition.map(
+        (value, index) => 3 * value - 2 * entryPoint[index]!
+      ) as [number, number, number];
+      await flushPromises();
+
+      expect(
+        vi.mocked(solveCoordinateSystemChainInverse).mock.calls.at(-1)![1]
+          .surfacePosition
+      ).toEqual(entryPoint);
+      expect(store.probeGhost).toBeNull();
+      expect(store.probeSurfaceMarker?.probeId).toBe(probe.id);
+      store.probeSurfaceMarker!.position.forEach((value, index) => {
+        expect(value).toBeCloseTo(entryPoint[index]!, 3);
+      });
+    });
+
+    it("warns immediately on a one-shot solve when the probe crosses the brain", async () => {
+      vi.mocked(useProbeSurface).mockReturnValue({
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface: vi.fn().mockResolvedValue(false)
       });
       const { wrapper, pinia } = mountInspector();
@@ -857,8 +956,7 @@ describe("ProbeInspector", () => {
 
     it("shows no warning when isOnSurface resolves null", async () => {
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface: vi.fn().mockResolvedValue(null)
       });
       const { wrapper, pinia } = mountInspector();
@@ -872,11 +970,10 @@ describe("ProbeInspector", () => {
       ).toHaveLength(0);
     });
 
-    it("never verifies the surface outside the brain", async () => {
+    it("never verifies the surface when the probe misses the brain", async () => {
       const isOnSurface = vi.fn().mockResolvedValue(false);
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(false),
+        findTargets: findTargetsMissingBrain(),
         isOnSurface
       });
       const { wrapper, store, pinia, probe } = mountInspector();
@@ -901,8 +998,7 @@ describe("ProbeInspector", () => {
     it("debounces a preview warning across drag frames", async () => {
       let onSurface: boolean | null = true;
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface: vi.fn(async () => onSurface)
       });
       const { wrapper, store, pinia, probe } = mountInspector();
@@ -931,11 +1027,10 @@ describe("ProbeInspector", () => {
       ).toHaveLength(1);
     });
 
-    it("re-verifies on a commit inside the brain, keeping the warning", async () => {
+    it("re-verifies on a commit while the probe crosses the brain, keeping the warning", async () => {
       const isOnSurface = vi.fn().mockResolvedValue(false);
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface
       });
       const { wrapper, pinia } = mountInspector();
@@ -949,9 +1044,9 @@ describe("ProbeInspector", () => {
       const callCountBeforeCommit = isOnSurface.mock.calls.length;
 
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
       await editAndBlur(fieldByLabel(wrapper, depthValueName), "5");
       await flushPromises();
@@ -966,12 +1061,11 @@ describe("ProbeInspector", () => {
       );
     });
 
-    it("clears the warning on a commit once the tip leaves the brain, without sampling", async () => {
-      let insideBrain = true;
+    it("clears the warning on a commit once the probe stops crossing the brain, without sampling", async () => {
+      const findTargets = findTargetsCrossingBrain();
       const isOnSurface = vi.fn().mockResolvedValue(false);
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn(async () => insideBrain),
+        findTargets,
         isOnSurface
       });
       const { wrapper, pinia } = mountInspector();
@@ -984,11 +1078,15 @@ describe("ProbeInspector", () => {
       ).toHaveLength(1);
       const callCountBeforeCommit = isOnSurface.mock.calls.length;
 
-      insideBrain = false;
+      findTargets.mockResolvedValue({
+        insideMillimeters: null,
+        axisMillimeters: [1, 2, 3],
+        dorsoventralMillimeters: null
+      });
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
       await editAndBlur(fieldByLabel(wrapper, depthValueName), "5");
       await flushPromises();
@@ -1021,25 +1119,29 @@ describe("ProbeInspector", () => {
       expect(useCurrentExperimentStore(pinia).probeGhost).toBeNull();
     });
 
-    it("draws a ghost at the closest reachable pose while an unreachable drag is out of bounds, and clears it once the drag is back in reach", async () => {
+    it("draws a ghost at the closest reachable pose while an unreachable drag cannot be solved, and clears it once the drag is back in reach", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
       store.draggedProbeId = probe.id;
       probe.tipPosition = [1, 2, 3];
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
 
       // A single warm-seed miss must not flash the ghost.
       expect(store.probeGhost).toBeNull();
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.01];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.02];
       await flushPromises();
 
@@ -1055,18 +1157,22 @@ describe("ProbeInspector", () => {
 
     it("snaps the probe onto the ghost's pose and clears the ghost when an unreachable drag is released", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
       store.draggedProbeId = probe.id;
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.01];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.02];
       await flushPromises();
       expect(store.probeGhost).not.toBeNull();
@@ -1186,13 +1292,11 @@ describe("ProbeInspector", () => {
 
     it("draws the ghost on the first unreachable external change, which has no next solve to wait for", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
 
@@ -1202,10 +1306,10 @@ describe("ProbeInspector", () => {
     it("re-runs the preview solve for the newest pose when a drag frame lands mid-solve", async () => {
       const openGates: Array<() => void> = [];
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: () => {
-          const { promise, resolve } = Promise.withResolvers<boolean | null>();
-          openGates.push(() => resolve(false));
+        findTargets: () => {
+          const { promise, resolve } =
+            Promise.withResolvers<ProbeSurfaceTargets | null>();
+          openGates.push(() => resolve(null));
           return promise;
         },
         isOnSurface: vi.fn()
@@ -1253,20 +1357,15 @@ describe("ProbeInspector", () => {
       setProbeCoordinateSystem(
         store.experiment,
         a,
-        coordinateSystemLibrary.library[1]!
-      );
-      setProbeCoordinateSystem(
-        store.experiment,
-        b,
         coordinateSystemLibrary.library[0]!
       );
 
       const openGates: Array<() => void> = [];
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: () => {
-          const { promise, resolve } = Promise.withResolvers<boolean | null>();
-          openGates.push(() => resolve(false));
+        findTargets: () => {
+          const { promise, resolve } =
+            Promise.withResolvers<ProbeSurfaceTargets | null>();
+          openGates.push(() => resolve(null));
           return promise;
         },
         isOnSurface: vi.fn()
@@ -1321,26 +1420,33 @@ describe("ProbeInspector", () => {
       expect(b.rotation).toEqual(bRotationBeforeSwap);
       expect(
         wrapper.findAll(".text-body2.text-weight-bold").map(node => node.text())
-      ).toEqual([coordinateSystemLibrary.library[0]!.chain[0]!.name]);
+      ).toEqual([]);
     });
 
     it("re-solves when the probe returns to the exact pose this inspector's own correction wrote", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
-      const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
       await selectMultiNodeSystem(wrapper, pinia);
 
       store.draggedProbeId = probe.id;
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.01];
       await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2.02];
       await flushPromises();
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       store.draggedProbeId = null;
       await flushPromises();
       const correctedRotation: [number, number, number] = [...probe.rotation];
@@ -1359,7 +1465,7 @@ describe("ProbeInspector", () => {
       ).toBeGreaterThan(solveCallsBeforeReturn);
     });
 
-    it("routes a bounded single-node chain through the solver instead of the direct fast path", async () => {
+    it("routes a single-node chain with a user-constrained value through the solver instead of the direct fast path", async () => {
       const { store, probe } = mountInspector();
       const bounded = makeCoordinateSystem({
         id: "bounded-tip",
@@ -1368,7 +1474,7 @@ describe("ProbeInspector", () => {
           buildCoordinateSystemNode(
             "Tip",
             [
-              buildCoordinateSystemValue("ML", [-1, 1]),
+              buildCoordinateSystemValue("ML", 0, "user"),
               buildCoordinateSystemValue("DV"),
               buildCoordinateSystemValue("AP")
             ],
@@ -1402,19 +1508,19 @@ describe("ProbeInspector", () => {
     it("does not rewrite the probe pose or drop the ghost when a field is re-committed with a different-text same-value edit", async () => {
       const { wrapper, store, pinia, probe } = mountInspector();
       const surfaceAndDepth =
-        useCoordinateSystemLibraryStore(pinia).library[1]!;
-      surfaceAndDepth.chain[0]!.rotation[0]!.bounds = [0, Math.PI / 2];
-      surfaceAndDepth.chain[0]!.rotation[1]!.bounds = [-0.01, 0.01];
-      surfaceAndDepth.chain[0]!.rotation[2]!.bounds = [-0.01, 0.01];
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
       await selectMultiNodeSystem(wrapper, pinia);
 
+      vi.mocked(solveCoordinateSystemChainInverse).mockReturnValueOnce(
+        "timeout"
+      );
       probe.rotation = [0, 0, 2];
       await flushPromises();
       expect(store.probeGhost?.probeId).toBe(probe.id);
       const rotationBeforeRecommit = [...probe.rotation];
 
       const depthValueName = surfaceAndDepth.chain[1]!.position.find(
-        ({ fixed }) => !fixed
+        ({ mode }) => mode !== "fixed"
       )!.name;
       const field = fieldByLabel(wrapper, depthValueName);
       const currentText = field.props("modelValue") as string;
@@ -1431,8 +1537,7 @@ describe("ProbeInspector", () => {
 
     it("keeps the off-surface warning visible for a surface node whose values are all fixed", async () => {
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface: vi.fn().mockResolvedValue(false)
       });
       const { wrapper, store, probe } = mountInspector();
@@ -1481,6 +1586,258 @@ describe("ProbeInspector", () => {
         wrapper.findAll(".text-body2.text-weight-bold").map(node => node.text())
       ).toEqual(["Fixed Surface", "Adjustable"]);
     });
+
+    describe("surface marker", () => {
+      it("publishes the surface node's solved position after selecting a multi-node system", async () => {
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: findTargetsCrossingBrain(),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, store, probe } = mountInspector();
+
+        await selectMultiNodeSystem(wrapper, pinia);
+
+        const solution = solveDisplayedChain(wrapper, pinia);
+        expect(store.probeSurfaceMarker?.probeId).toBe(probe.id);
+        store.probeSurfaceMarker!.position.forEach((value, index) => {
+          expect(value).toBeCloseTo(solution.nodePositions[0]![index]!);
+        });
+      });
+
+      it("moves the marker through a forward-kinematics edit of the surface node's AP field, keeping the probeId", async () => {
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: findTargetsCrossingBrain(),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, store, probe } = mountInspector();
+        await selectMultiNodeSystem(wrapper, pinia);
+        const before = [...store.probeSurfaceMarker!.position];
+
+        await editAndBlur(fieldByLabel(wrapper, "AP"), "2");
+
+        expect(store.probeSurfaceMarker?.probeId).toBe(probe.id);
+        expect(store.probeSurfaceMarker?.position).not.toEqual(before);
+      });
+
+      it("hides the marker when the probe does not cross the brain", async () => {
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: findTargetsMissingBrain(),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, store } = mountInspector();
+
+        await selectMultiNodeSystem(wrapper, pinia);
+
+        expect(store.probeSurfaceMarker).toBeNull();
+      });
+
+      it("hides the marker once the probe stops crossing the brain", async () => {
+        const findTargets = findTargetsCrossingBrain();
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets,
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, store, probe } = mountInspector();
+        await selectMultiNodeSystem(wrapper, pinia);
+        expect(store.probeSurfaceMarker).not.toBeNull();
+
+        findTargets.mockResolvedValue({
+          insideMillimeters: null,
+          axisMillimeters: [1, 2, 3],
+          dorsoventralMillimeters: null
+        });
+        probe.tipPosition = [9, 9, 9];
+        await flushPromises();
+
+        expect(store.probeSurfaceMarker).toBeNull();
+      });
+
+      it("leaves the marker null when the annotation volume is unavailable", async () => {
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: vi.fn().mockResolvedValue(null),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, store } = mountInspector();
+
+        await selectMultiNodeSystem(wrapper, pinia);
+
+        expect(store.probeSurfaceMarker).toBeNull();
+      });
+
+      it("leaves the marker null for the default system, which has no onSurface node", () => {
+        const { store } = mountInspector();
+
+        expect(store.probeSurfaceMarker).toBeNull();
+      });
+
+      it("clears the marker on unmount", async () => {
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: findTargetsCrossingBrain(),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, store } = mountInspector();
+        await selectMultiNodeSystem(wrapper, pinia);
+        expect(store.probeSurfaceMarker).not.toBeNull();
+
+        wrapper.unmount();
+
+        expect(store.probeSurfaceMarker).toBeNull();
+      });
+
+      it("marches once for the solve and once for the commit re-check on an external pose change", async () => {
+        const findTargets = findTargetsCrossingBrain();
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets,
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, probe } = mountInspector();
+        await selectMultiNodeSystem(wrapper, pinia);
+        const before = findTargets.mock.calls.length;
+
+        probe.tipPosition = [9, 9, 9];
+        await flushPromises();
+
+        expect(findTargets.mock.calls.length).toBe(before + 2);
+      });
+
+      it("publishes the marker on the direct path after one surface march", async () => {
+        const findTargets = vi.fn().mockResolvedValue({
+          insideMillimeters: [1, 2, 3],
+          axisMillimeters: null,
+          dorsoventralMillimeters: null
+        });
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets,
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { store, probe } = mountInspector();
+
+        setProbeCoordinateSystem(
+          store.experiment,
+          probe,
+          makeCoordinateSystem({
+            offsetByReferenceCoordinate: true,
+            id: "surface-tip",
+            name: "Surface Tip",
+            chain: [
+              buildCoordinateSystemNode(
+                "Tip",
+                [
+                  buildCoordinateSystemValue("ML"),
+                  buildCoordinateSystemValue("DV"),
+                  buildCoordinateSystemValue("AP")
+                ],
+                [
+                  buildCoordinateSystemValue("Pitch"),
+                  buildCoordinateSystemValue("Yaw"),
+                  buildCoordinateSystemValue("Roll")
+                ],
+                [0, 1, 2],
+                [0, 1, 2],
+                true
+              )
+            ]
+          })
+        );
+        await flushPromises();
+
+        expect(store.probeSurfaceMarker).not.toBeNull();
+        expect(store.probeSurfaceMarker?.probeId).toBe(probe.id);
+        expect(findTargets).toHaveBeenCalledTimes(1);
+      });
+
+      it("hides a stale marker immediately on a probe swap, before the new probe has marched", async () => {
+        const pinia = createPinia();
+        setActivePinia(pinia);
+        useProbeLibraryStore(pinia).add(makeProbeInterfaceProbe());
+        const store = useCurrentExperimentStore(pinia);
+        const a = makeProbe({ name: "A" });
+        const b = makeProbe({ name: "B" });
+        store.experiment.probes = [a, b];
+        const coordinateSystemLibrary = useCoordinateSystemLibraryStore(pinia);
+        setProbeCoordinateSystem(
+          store.experiment,
+          a,
+          coordinateSystemLibrary.library[0]!
+        );
+        setProbeCoordinateSystem(
+          store.experiment,
+          b,
+          coordinateSystemLibrary.library[0]!
+        );
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: findTargetsCrossingBrain(),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+
+        const wrapper = mountWithQuasar(ProbeInspector, {
+          pinia,
+          props: { probe: a },
+          global: { provide: babylonRuntimeProvide }
+        });
+        await flushPromises();
+        expect(store.probeSurfaceMarker?.probeId).toBe(a.id);
+
+        // Selecting probe B without unmounting reuses this instance, exactly as
+        // `Inspector.vue`'s unkeyed `v-if` does.
+        await wrapper.setProps({ probe: b } as Record<string, unknown>);
+
+        // B has not marched yet, so A's stale marker must not linger at B's unsolved position.
+        expect(store.probeSurfaceMarker).toBeNull();
+
+        await flushPromises();
+        expect(store.probeSurfaceMarker?.probeId).toBe(b.id);
+      });
+    });
+  });
+
+  describe("solve pose button", () => {
+    it("does not show for the default coordinate system", () => {
+      const { wrapper } = mountInspector();
+
+      expect(buttonByLabel(wrapper, t.solvePose)).toBeUndefined();
+    });
+
+    it("shows once a coordinate system is selected", async () => {
+      const { wrapper, pinia } = mountInspector();
+      const surfaceAndDepth =
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
+
+      selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
+        "update:modelValue",
+        surfaceAndDepth.id
+      );
+      await wrapper.vm.$nextTick();
+
+      expect(buttonByLabel(wrapper, t.solvePose)).toBeDefined();
+    });
+
+    it("runs one settled solve for the probe's current pose, leaving it unmoved", async () => {
+      vi.mocked(useProbeSurface).mockReturnValue({
+        findTargets: findTargetsCrossingBrain(),
+        isOnSurface: vi.fn().mockResolvedValue(true)
+      });
+      const { wrapper, store, probe, pinia } = mountInspector(
+        makeProbe({ tipPosition: [7, 8, 9], rotation: [0.1, 0.2, 0.3] })
+      );
+      const surfaceAndDepth =
+        useCoordinateSystemLibraryStore(pinia).library[0]!;
+      setProbeCoordinateSystem(store.experiment, probe, surfaceAndDepth);
+      await flushPromises();
+      vi.mocked(solveCoordinateSystemChainInverse).mockClear();
+
+      await buttonByLabel(wrapper, t.solvePose).trigger("click");
+      await flushPromises();
+
+      expect(solveCoordinateSystemChainInverse).toHaveBeenCalledTimes(1);
+      const [, target, , maximumStarts] = vi.mocked(
+        solveCoordinateSystemChainInverse
+      ).mock.calls[0]!;
+      expect(maximumStarts).toBe(SETTLED_SOLVE_STARTS);
+      expect(target.rotation).toEqual([0.1, 0.2, 0.3]);
+      expect(probe.tipPosition).toEqual([7, 8, 9]);
+      expect(probe.rotation).toEqual([0.1, 0.2, 0.3]);
+    });
   });
 
   describe("direct chain surface warning", () => {
@@ -1510,10 +1867,9 @@ describe("ProbeInspector", () => {
       });
     }
 
-    it("warns at once when selected inside the brain", async () => {
+    it("warns at once when selected while the probe crosses the brain", async () => {
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface: vi.fn().mockResolvedValue(false)
       });
       const { wrapper, store, probe } = mountInspector();
@@ -1528,11 +1884,10 @@ describe("ProbeInspector", () => {
       ).toHaveLength(1);
     });
 
-    it("never samples the surface outside the brain across drag frames", async () => {
+    it("never samples the surface when the probe misses the brain across drag frames", async () => {
       const isOnSurface = vi.fn().mockResolvedValue(false);
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(false),
+        findTargets: findTargetsMissingBrain(),
         isOnSurface
       });
       const { wrapper, store, probe } = mountInspector();
@@ -1559,8 +1914,7 @@ describe("ProbeInspector", () => {
     it("debounces a preview warning across drag frames on the direct path", async () => {
       let onSurface: boolean | null = true;
       vi.mocked(useProbeSurface).mockReturnValue({
-        findTargets: vi.fn(),
-        isInsideBrain: vi.fn().mockResolvedValue(true),
+        findTargets: findTargetsCrossingBrain(),
         isOnSurface: vi.fn(async () => onSurface)
       });
       const { wrapper, store, probe } = mountInspector();
@@ -1748,11 +2102,15 @@ describe("ProbeInspector", () => {
     });
 
     it("disables the pose fields and the home/pin buttons while locked, leaving name and copy editable", () => {
-      const { wrapper, pinia } = mountInspector(makeProbe({ lock: true }));
-      const node = useCoordinateSystemLibraryStore(pinia).library[0]!.chain[0]!;
-      const valueNames = [...node.position, ...node.rotation].map(
-        ({ name }) => name
-      );
+      const { wrapper } = mountInspector(makeProbe({ lock: true }));
+      const valueNames = [
+        axis.ap,
+        axis.dv,
+        axis.ml,
+        axis.roll,
+        axis.yaw,
+        axis.pitch
+      ];
 
       for (const label of valueNames) {
         expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);
@@ -1786,7 +2144,6 @@ describe("ProbeInspector", () => {
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper, store, probe } = mountInspector();
@@ -1806,7 +2163,6 @@ describe("ProbeInspector", () => {
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper, store, probe } = mountInspector(
@@ -1832,7 +2188,6 @@ describe("ProbeInspector", () => {
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper, store, probe } = mountInspector();
@@ -1852,7 +2207,6 @@ describe("ProbeInspector", () => {
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper, probe } = mountInspector(
@@ -1875,7 +2229,6 @@ describe("ProbeInspector", () => {
       const findTargets = vi.fn().mockResolvedValue(null);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper, probe } = mountInspector(
@@ -1904,7 +2257,6 @@ describe("ProbeInspector", () => {
       );
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper } = mountInspector();
@@ -1933,7 +2285,6 @@ describe("ProbeInspector", () => {
       });
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
-        isInsideBrain: vi.fn(),
         isOnSurface: vi.fn()
       });
       const { wrapper, probe } = mountInspector(

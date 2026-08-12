@@ -36,12 +36,12 @@ vi.mock("../api/inverse-kinematics.api", async importOriginal => {
   };
 });
 
-/** Reset every non-fixed value in a chain to zero, mutating it in place. */
+/** Reset every free value in a chain to zero, mutating it in place. */
 function resetFreeValues(chain: CoordinateSystemNode[]): void {
   for (const node of chain) {
     for (const values of [node.position, node.rotation]) {
       for (const value of values) {
-        if (!value.fixed) {
+        if (value.mode === "free") {
           value.value = 0;
         }
       }
@@ -49,19 +49,19 @@ function resetFreeValues(chain: CoordinateSystemNode[]): void {
   }
 }
 
-/** Build the six-free-value node shared by the round-trip fixture, with Pitch bounded. */
+/** Build the six-free-value node shared by the round-trip fixture. */
 function buildFreeNode(): CoordinateSystemNode {
   return buildCoordinateSystemNode(
     "Free",
     [
-      buildCoordinateSystemValue("X", null, 10),
-      buildCoordinateSystemValue("Y", null, -5),
-      buildCoordinateSystemValue("Z", null, 20)
+      buildCoordinateSystemValue("X", 10),
+      buildCoordinateSystemValue("Y", -5),
+      buildCoordinateSystemValue("Z", 20)
     ],
     [
-      buildCoordinateSystemValue("Pitch", [0, Math.PI / 2], 0.3),
-      buildCoordinateSystemValue("Yaw", null, 0.5),
-      buildCoordinateSystemValue("Roll", null, -0.2)
+      buildCoordinateSystemValue("Pitch", 0.3),
+      buildCoordinateSystemValue("Yaw", 0.5),
+      buildCoordinateSystemValue("Roll", -0.2)
     ]
   );
 }
@@ -73,7 +73,7 @@ function buildPartlyFreeNode(): CoordinateSystemNode {
     [
       buildFixedCoordinateSystemValue("X", 2),
       buildFixedCoordinateSystemValue("Y", 3),
-      buildCoordinateSystemValue("Z", null, 7)
+      buildCoordinateSystemValue("Z", 7)
     ],
     [
       buildFixedCoordinateSystemValue("Pitch", 0.1),
