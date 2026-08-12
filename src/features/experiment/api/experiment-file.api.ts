@@ -7,6 +7,7 @@ import {
   zipSync
 } from "fflate";
 import type { Experiment } from "../models/experiment.model";
+import type { ExperimentAuthor } from "../models/experiment-author.model";
 import type { VisibleStructure } from "../models/visible-structure.model";
 import { getExperimentModelIds } from "./experiment.api";
 import { isAtlas } from "@/features/atlas";
@@ -161,6 +162,8 @@ function isExperiment(value: unknown): value is Experiment {
   const {
     id,
     version,
+    updatedAt,
+    author,
     name,
     atlas,
     referenceCoordinate,
@@ -174,6 +177,10 @@ function isExperiment(value: unknown): value is Experiment {
 
   if (typeof id !== "string") return false;
   if (typeof version !== "string") return false;
+  if (typeof updatedAt !== "string" || Number.isNaN(Date.parse(updatedAt))) {
+    return false;
+  }
+  if (!isExperimentAuthorOrNull(author)) return false;
   if (typeof name !== "string") return false;
   if (!isAtlas(atlas)) return false;
   if (!isFiniteTriple(referenceCoordinate)) return false;
@@ -221,6 +228,21 @@ function isExperiment(value: unknown): value is Experiment {
 
   return probes.every(probe =>
     Object.hasOwn(probeInterfaceProbes, probe.probeInterfaceIdentifier)
+  );
+}
+
+/**
+ * Check that a value is an `ExperimentAuthor`, or null for an unclaimed experiment.
+ * @param value Value to check.
+ */
+function isExperimentAuthorOrNull(
+  value: unknown
+): value is ExperimentAuthor | null {
+  return (
+    value === null ||
+    (isRecord(value) &&
+      typeof value.orcid === "string" &&
+      typeof value.name === "string")
   );
 }
 

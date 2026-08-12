@@ -1,2 +1,8 @@
 /** Which tab the preferences dialog opens on. */
-export type PreferencesTab = "general" | "scene" | "probe" | "export" | "reset";
+export type PreferencesTab =
+  | "general"
+  | "scene"
+  | "probe"
+  | "export"
+  | "sync"
+  | "reset";

@@ -6,6 +6,8 @@ import {
   useExperimentFile
 } from "@/features/experiment";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
+import { SyncRecentExperimentsList, useExperimentSync } from "@/features/sync";
+import { useSyncStore } from "@/stores/sync.store";
 
 const appVersion = import.meta.env.APP_VERSION;
 const BASE_URL = import.meta.env.BASE_URL;
@@ -16,6 +18,8 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const $q = useQuasar();
 const { openExperiment, onOpened } = useExperimentFile();
 const recentExperimentStore = useRecentExperimentsStore();
+const syncStore = useSyncStore();
+const { signIn } = useExperimentSync();
 
 onOpened(onDialogOK);
 </script>
@@ -77,12 +81,22 @@ onOpened(onDialogOK);
               href="https://virtualbrainlab.org/index.html"
               icon="web"
             />
+            <q-btn
+              v-if="!syncStore.isSignedIn"
+              icon="sync"
+              :label="$t('sync.signIn')"
+              @click="signIn()"
+            />
           </div>
         </div>
       </q-card-section>
 
       <q-card-section v-if="recentExperimentStore.recents.length > 0">
-        <RecentExperimentsList @opened="onDialogOK" />
+        <SyncRecentExperimentsList
+          v-if="syncStore.isSignedIn"
+          @opened="onDialogOK"
+        />
+        <RecentExperimentsList v-else @opened="onDialogOK" />
       </q-card-section>
     </q-card>
   </q-dialog>

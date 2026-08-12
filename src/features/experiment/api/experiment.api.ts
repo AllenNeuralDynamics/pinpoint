@@ -45,6 +45,8 @@ export function buildExperiment(
   return {
     id: crypto.randomUUID(),
     version: import.meta.env.APP_VERSION,
+    updatedAt: new Date().toISOString(),
+    author: null,
     name,
     atlas,
     referenceCoordinate,

@@ -3,7 +3,13 @@ export { default as RecentExperimentsDialog } from "./components/RecentExperimen
 export { default as RecentExperimentsList } from "./components/RecentExperimentsList.vue";
 export { default as ExperimentPropertiesDialog } from "./components/ExperimentPropertiesDialog.vue";
 export { useExperimentFile } from "./composable/useExperimentFile";
+export {
+  unzipExperiment,
+  zipExperiment,
+  type SceneModelFile
+} from "./api/experiment-file.api";
 export type { Experiment } from "./models/experiment.model";
+export type { ExperimentAuthor } from "./models/experiment-author.model";
 export type { CameraPose } from "./models/camera-pose.model";
 export type { VisibleStructure } from "./models/visible-structure.model";
 export {

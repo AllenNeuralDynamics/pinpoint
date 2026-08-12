@@ -47,7 +47,7 @@ describe("PreferencesDialog", () => {
     wrappers.unmountAll();
   });
 
-  it("renders the title and the five tabs", async () => {
+  it("renders the title and the six tabs", async () => {
     const wrapper = await mountDialog();
 
     expect(document.body.textContent).toContain(t.title);
@@ -59,6 +59,7 @@ describe("PreferencesDialog", () => {
       t.scene,
       t.probe,
       t.export,
+      t.sync,
       t.reset
     ]);
   });
