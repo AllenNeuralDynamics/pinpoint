@@ -1,4 +1,5 @@
 import type { Atlas } from "@/features/atlas";
+import type { ExperimentAuthor } from "./experiment-author.model";
 import type { CoordinateSystem } from "@/features/coordinate-system";
 import type { CameraPose } from "./camera-pose.model";
 import type { VisibleStructure } from "./visible-structure.model";
@@ -11,6 +12,12 @@ export interface Experiment {
 
   // Semantic version of Pinpoint.
   version: string;
+
+  /** ISO-8601 timestamp of the experiment's last edit, used to resolve syncs. */
+  updatedAt: string;
+
+  /** ORCID account this experiment belongs to, or null while unclaimed. */
+  author: ExperimentAuthor | null;
 
   // Can be anything since ID is unique.
   name: string;

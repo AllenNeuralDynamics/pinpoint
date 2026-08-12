@@ -157,6 +157,36 @@ describe("zipExperiment / unzipExperiment", () => {
     expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
   });
 
+  it("returns null when updatedAt is missing", () => {
+    const { updatedAt: _updatedAt, ...rest } = makeFullExperiment();
+    expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
+  });
+
+  it("returns null when updatedAt is not a parseable timestamp", () => {
+    const experiment = { ...makeFullExperiment(), updatedAt: "not a date" };
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("returns null when author is missing", () => {
+    const { author: _author, ...rest } = makeFullExperiment();
+    expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
+  });
+
+  it("returns null when author is missing its orcid", () => {
+    const experiment = { ...makeFullExperiment(), author: { name: "Alice" } };
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("round-trips an authored experiment", () => {
+    const experiment = {
+      ...makeFullExperiment(),
+      author: { orcid: "0000-0001-2345-6789", name: "Alice" }
+    };
+    expect(unzipExperiment(zipRawExperiment(experiment))?.experiment).toEqual(
+      experiment
+    );
+  });
+
   it("returns null when name is missing", () => {
     const { name: _name, ...rest } = makeFullExperiment();
     expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();

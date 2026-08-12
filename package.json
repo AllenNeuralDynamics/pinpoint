@@ -24,7 +24,7 @@
     "test": "vitest",
     "coverage": "vitest run --coverage",
     "testui": "vitest --ui",
-    "postinstall": "quasar prepare --silent",
+    "postinstall": "quasar prepare --silent && lefthook install",
     "local-atlas": "pnpx serve -C ~/.brainglobe/",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",

@@ -5,6 +5,7 @@ import ScenePreferences from "./ScenePreferences.vue";
 import ProbePreferences from "./ProbePreferences.vue";
 import ExportPreferences from "./ExportPreferences.vue";
 import ResetPreferences from "./ResetPreferences.vue";
+import { SyncPreferences } from "@/features/sync";
 import type { PreferencesTab } from "../models/preferences-dialog.model";
 
 defineEmits([...useDialogPluginComponent.emits]);
@@ -24,6 +25,7 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
           <q-tab name="scene" :label="$t('preferences.scene')" />
           <q-tab name="probe" :label="$t('preferences.probe')" />
           <q-tab name="export" :label="$t('preferences.export')" />
+          <q-tab name="sync" :label="$t('preferences.sync')" />
           <q-tab name="reset" :label="$t('preferences.reset')" />
         </q-tabs>
         <q-separator />
@@ -34,6 +36,7 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
           </q-tab-panel>
           <q-tab-panel name="probe"><ProbePreferences /></q-tab-panel>
           <q-tab-panel name="export"><ExportPreferences /></q-tab-panel>
+          <q-tab-panel name="sync"><SyncPreferences /></q-tab-panel>
           <q-tab-panel name="reset"><ResetPreferences /></q-tab-panel>
         </q-tab-panels>
       </q-card-section>

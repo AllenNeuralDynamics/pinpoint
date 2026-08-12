@@ -351,6 +351,7 @@ export default {
     scene: "Scene",
     probe: "Probe",
     export: "Export",
+    sync: "Sync",
     reset: "Reset",
     close: "Close",
 
@@ -449,5 +450,19 @@ export default {
     storeCoordinateSystemLibrary: "Coordinate System Library",
     storeFavoriteAtlases: "Favorite Atlases",
     storePreferences: "Preferences"
+  },
+
+  sync: {
+    signIn: "Sync via ORCiD",
+    signOut: "Stop syncing",
+    signedInAs: "Signed in as {name}",
+    signedInHint:
+      "Your experiments are mirrored to your ORCID account as they are saved, and restored when you sign in on another computer.",
+    signedOutHint:
+      "Sign in with ORCID to mirror your experiments to your account. Nothing about Pinpoint changes - your experiments keep working exactly as they do now.",
+    myExperiments: "Your experiments",
+    otherAuthors: "Other authors on this computer",
+    syncExperiment: "Sync this experiment",
+    unknownAuthor: "Unknown author"
   }
 };

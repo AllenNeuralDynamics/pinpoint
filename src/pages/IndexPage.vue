@@ -23,6 +23,8 @@ import { ProbeLibraryDialog } from "@/features/probe";
 import { openPreferencesDialog } from "@/features/preferences";
 import { Inspector } from "@/features/inspector";
 import { SplashDialog } from "@/features/splash";
+import { SyncRecentExperimentsDialog } from "@/features/sync";
+import { useSyncStore } from "@/stores/sync.store";
 import { clamp } from "@/utils/math";
 import { ChannelMaps } from "@/features/slice";
 import AppBrand from "@/components/AppBrand.vue";
@@ -39,6 +41,7 @@ const $q = useQuasar();
 const currentExperimentStore = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const recentExperimentsStore = useRecentExperimentsStore();
+const syncStore = useSyncStore();
 const { openExperiment, downloadExperiment } = useExperimentFile();
 
 const leftDrawerOpen = ref(false);
@@ -62,6 +65,10 @@ const isEditMenuOpen = computed({
     openMenu.value = value ? "edit" : null;
   }
 });
+/** Recents dialog to open, which gains sync columns once an account is signed in. */
+const openRecentDialogComponent = computed(() =>
+  syncStore.isSignedIn ? SyncRecentExperimentsDialog : RecentExperimentsDialog
+);
 
 /**
  * Toggle a drawer's open state.
@@ -214,7 +221,7 @@ onUnmounted(() => {
               </q-item>
               <q-item
                 clickable
-                @click="$q.dialog({ component: RecentExperimentsDialog })"
+                @click="$q.dialog({ component: openRecentDialogComponent })"
               >
                 <q-item-section>{{ $t("layout.openRecent") }}</q-item-section>
               </q-item>
