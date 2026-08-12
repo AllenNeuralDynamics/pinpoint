@@ -404,15 +404,12 @@ function removeSceneObjectAndDeselect(sceneObject: SceneObject) {
   opacity: 0.5
 
 .hierarchy-row--drop-target
-  outline: 2px solid var(--q-primary)
+  outline: 2px solid var(--accent)
   outline-offset: -2px
 
 .hierarchy-item--active
-  background: rgba($primary, 0.12)
-  font-weight: 500
-  box-shadow: inset 3px 0 0 $primary
-
-body.body--dark
-  .hierarchy-item--active
-    background: rgba($primary, 0.28)
+  background: var(--surface-hover)
+  color: var(--accent)
+  font-weight: 600
+  box-shadow: inset 3px 0 0 var(--accent)
 </style>

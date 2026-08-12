@@ -282,11 +282,11 @@ const tooltipStyle = computed(() => {
     cursor: pointer
 
     &:hover
-      border-color: rgba($primary, 0.4)
+      border-color: var(--text-muted)
 
     &--selected,
     &--selected:hover
-      border-color: $primary
+      border-color: var(--accent)
 
   &__viewport
     min-width: 1px

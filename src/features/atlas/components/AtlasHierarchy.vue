@@ -330,7 +330,7 @@ $guide-width: 2px
   cursor: pointer
 
   &:hover
-    background-color: rgba(0, 0, 0, 0.04)
+    background-color: var(--surface-hover)
 
 // Quasar's virtual-scroll content wrapper is `contain: content`, which
 // paint-clips rows wider than the panel. Sizing it to the widest row in the
@@ -351,7 +351,7 @@ $guide-width: 2px
   top: 0
   left: 50%
   height: 100%
-  border-left: $guide-width solid $separator-color
+  border-left: $guide-width solid var(--surface-border)
 
 .guide--elbow::before
   content: ''
@@ -359,7 +359,7 @@ $guide-width: 2px
   top: 0
   left: 50%
   height: 50%
-  border-left: $guide-width solid $separator-color
+  border-left: $guide-width solid var(--surface-border)
 
 .guide--tee::after, .guide--elbow::after
   content: ''
@@ -368,18 +368,5 @@ $guide-width: 2px
   left: calc(50% + $guide-width / 2)
   width: 50%
   margin-top: -($guide-width * 0.5)
-  border-top: $guide-width solid $separator-color
-
-body.body--dark
-  .guide--line::before, .guide--tee::before
-    border-left-color: $separator-dark-color
-
-  .guide--elbow::before
-    border-left-color: $separator-dark-color
-
-  .guide--tee::after, .guide--elbow::after
-    border-top-color: $separator-dark-color
-
-  .hierarchy-row--clickable:hover
-    background-color: rgba(255, 255, 255, 0.07)
+  border-top: $guide-width solid var(--surface-border)
 </style>

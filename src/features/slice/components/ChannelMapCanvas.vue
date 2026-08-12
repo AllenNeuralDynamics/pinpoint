@@ -303,16 +303,17 @@ onUnmounted(() => emit("hover", null));
   &__overlay
     pointer-events: none
 
+  // Contours and contacts are chart ink: black on light, white on dark.
   &__contour
     fill: none
-    stroke: $dark
+    stroke: var(--text-primary)
     stroke-opacity: 0.6
     stroke-width: 1
     vector-effect: non-scaling-stroke
 
   &__contacts
     fill: none
-    stroke: $dark
+    stroke: var(--text-primary)
     stroke-opacity: 0.6
     stroke-width: 1
     vector-effect: non-scaling-stroke
@@ -330,11 +331,4 @@ onUnmounted(() => emit("hover", null));
     white-space: nowrap
     overflow: hidden
     text-overflow: ellipsis
-
-body.body--dark
-  .channel-map-canvas__contour
-    stroke: #fff
-
-  .channel-map-canvas__contacts
-    stroke: #fff
 </style>

@@ -26,17 +26,16 @@ onOpened(onDialogOK);
       <q-card-section class="column full-width items-center">
         <div class="column items-center q-gutter-y-sm">
           <q-img
-            class="rounded-borders"
-            :src="`${BASE_URL}icons/favicon-128x128.png`"
-            :srcset="`${BASE_URL}icons/favicon-32x32.png 32w, ${BASE_URL}icons/favicon-96x96.png 96w, ${BASE_URL}icons/favicon-128x128.png 128w`"
-            sizes="64px"
-            width="64px"
-            height="64px"
+            :src="`${BASE_URL}images/logo.svg`"
+            width="56px"
+            height="69px"
+            fit="contain"
             loading="eager"
             no-spinner
             aria-hidden="true"
+            class="splash__logo"
           />
-          <p class="text-h2">{{ $t("splash.title") }}</p>
+          <p class="splash__title">{{ $t("splash.title") }}</p>
         </div>
         <i class="text-caption">{{ appVersion }}</i>
       </q-card-section>
@@ -47,7 +46,7 @@ onOpened(onDialogOK);
             <q-btn
               icon="add"
               :label="$t('splash.new')"
-              size="xl"
+              size="lg"
               @click="
                 $q.dialog({ component: NewExperimentDialog }).onOk(onDialogOK)
               "
@@ -57,12 +56,12 @@ onOpened(onDialogOK);
               color="primary"
               icon="play_arrow"
               :label="$t('splash.resume')"
-              size="xl"
+              size="lg"
             />
             <q-btn
               icon="file_open"
               :label="$t('splash.open')"
-              size="xl"
+              size="lg"
               @click="() => openExperiment()"
             />
           </div>
@@ -94,4 +93,15 @@ onOpened(onDialogOK);
 .splash
   min-width: 30vw
   max-height: 70vh
+
+// Solid black artwork, inverted rather than shipping a second asset.
+body.body--dark .splash__logo
+  filter: invert(1)
+
+.splash__title
+  font-family: $headline-font-family
+  font-size: 1.6rem
+  font-weight: 300
+  letter-spacing: -0.01em
+  margin: 0
 </style>

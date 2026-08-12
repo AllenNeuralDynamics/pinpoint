@@ -74,15 +74,16 @@ describe("SplashDialog", () => {
     expect(wrapper.emitted("ok")).toBeTruthy();
   });
 
-  it("offers the 128x128 logo to high-density displays", async () => {
+  it("renders the Allen Institute mark", async () => {
     const wrapper = await mountDialog();
 
     // The dialog teleports, so reach the rendered <img> through the QImg
     // component instance rather than a DOM query on the wrapper root.
     const logo = wrapper.findComponent({ name: "QImg" }).find("img");
 
-    expect(logo.attributes("srcset")).toContain("favicon-128x128.png 128w");
-    expect(logo.attributes("sizes")).toBe("64px");
+    expect(logo.attributes("src")).toBe(
+      `${import.meta.env.BASE_URL}images/logo.svg`
+    );
   });
 
   it("opens the docs in a new tab from the user-guide button", async () => {

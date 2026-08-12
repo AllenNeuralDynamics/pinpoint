@@ -4,26 +4,27 @@ import { openPreferencesDialog } from "@/features/preferences";
 import { STANDARD_COLORS } from "@/features/scene";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
-  DEFAULT_WORLD_BACKGROUND_COLOR,
+  DEFAULT_WORLD_BACKGROUND_COLOR_DARK,
+  DEFAULT_WORLD_BACKGROUND_COLOR_LIGHT,
   usePreferencesStore
 } from "@/stores/preferences.store";
 
 /**
- * Standard palette plus Babylon's default clear color and pure white, so both
- * stay pickable in light mode. Quasar lays palette swatches out ten to a row,
- * so the length must stay a multiple of ten or the row's leftover cells read
- * as dead swatches.
+ * Standard palette plus the light-mode default background and pure white, so
+ * both stay pickable in light mode. Quasar lays palette swatches out ten to a
+ * row, so the length must stay a multiple of ten or the row's leftover cells
+ * read as dead swatches.
  */
 const LIGHT_MODE_COLOR_PALETTE = [
   ...STANDARD_COLORS,
-  DEFAULT_WORLD_BACKGROUND_COLOR,
+  DEFAULT_WORLD_BACKGROUND_COLOR_LIGHT,
   "#ffffff"
 ];
 
-/** Same as the light-mode palette, but with black in place of white. */
+/** Same as the light-mode palette, but with the dark surfaces in place. */
 const DARK_MODE_COLOR_PALETTE = [
   ...STANDARD_COLORS,
-  DEFAULT_WORLD_BACKGROUND_COLOR,
+  DEFAULT_WORLD_BACKGROUND_COLOR_DARK,
   "#000000"
 ];
 

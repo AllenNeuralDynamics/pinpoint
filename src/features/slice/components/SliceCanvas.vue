@@ -298,7 +298,7 @@ useSliceCanvasPainter(
 
   &__square
     position: relative
-    border: 1px solid $separator-color
+    border: 1px solid var(--surface-border)
     border-radius: $generic-border-radius
     overflow: hidden
 
@@ -309,16 +309,10 @@ useSliceCanvasPainter(
   &__overlay
     pointer-events: none
 
+  // Contours are chart ink: black on light, white on dark.
   &__contour
     fill: none
-    stroke: $dark
+    stroke: var(--text-primary)
     stroke-width: 0.02
     opacity: 0.6
-
-body.body--dark
-  .slice-canvas__square
-    border-color: $separator-dark-color
-
-  .slice-canvas__contour
-    stroke: #fff
 </style>

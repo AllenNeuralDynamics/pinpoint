@@ -63,8 +63,11 @@ export interface Preferences {
   probeRodLengthMillimeters: number;
 }
 
-/** Babylon's default scene clear color, the starting background for both themes. */
-export const DEFAULT_WORLD_BACKGROUND_COLOR = "#33334d";
+/** Starting 3D viewport background in light mode: Allen Institute Page 1. */
+export const DEFAULT_WORLD_BACKGROUND_COLOR_LIGHT = "#f3f0e8";
+
+/** Starting 3D viewport background in dark mode: the dark card surface. */
+export const DEFAULT_WORLD_BACKGROUND_COLOR_DARK = "#1a1a1a";
 
 export const usePreferencesStore = defineStore(
   "preferences",
@@ -74,8 +77,12 @@ export const usePreferencesStore = defineStore(
     const isSplashScreenSkipped = ref(false);
     const cameraProjection = ref<CameraProjection>("perspective");
     const cameraInertia = ref(0.9);
-    const worldBackgroundColorLightMode = ref(DEFAULT_WORLD_BACKGROUND_COLOR);
-    const worldBackgroundColorDarkMode = ref(DEFAULT_WORLD_BACKGROUND_COLOR);
+    const worldBackgroundColorLightMode = ref(
+      DEFAULT_WORLD_BACKGROUND_COLOR_LIGHT
+    );
+    const worldBackgroundColorDarkMode = ref(
+      DEFAULT_WORLD_BACKGROUND_COLOR_DARK
+    );
     const worldLightIntensity = ref(1);
     const materialSpecularIntensity = ref(1);
     const materialSpecularPower = ref(64);

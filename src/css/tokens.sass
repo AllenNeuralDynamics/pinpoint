@@ -1,0 +1,195 @@
+// Allen Institute design tokens.
+//
+// Two layers, mirroring the data portal (see ~/proj/aind/zombie/web/styles/STYLE.md):
+//
+//   1. `--ai-*` raw brand values. Identical in both themes. Never used directly
+//      outside this file — always go through a semantic token.
+//   2. Semantic tokens, expressed in terms of the raw palette, redefined under
+//      `body.body--dark` (the class Quasar's Dark plugin toggles).
+//
+// Quasar's own Sass variables (quasar.variables.sass) cover the light theme at
+// build time and cannot flip at runtime, so every override in theme.sass that
+// must react to dark mode reads a token from here instead.
+
+// Web fonts -----------------------------------------------------------------
+// Relative URLs so Vite fingerprints them and honours the `/v5/` public path.
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-Light.woff2") format("woff2")
+  font-weight: 300
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-LightItalic.woff2") format("woff2")
+  font-weight: 300
+  font-style: italic
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-Regular.woff2") format("woff2")
+  font-weight: 400
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-Italic.woff2") format("woff2")
+  font-weight: 400
+  font-style: italic
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-Medium.woff2") format("woff2")
+  font-weight: 500
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-MediumItalic.woff2") format("woff2")
+  font-weight: 500
+  font-style: italic
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-Semibold.woff2") format("woff2")
+  font-weight: 600
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-SemiboldItalic.woff2") format("woff2")
+  font-weight: 600
+  font-style: italic
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-Bold.woff2") format("woff2")
+  font-weight: 700
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusText"
+  src: url("../assets/fonts/AllenInstitutePlusText-BoldItalic.woff2") format("woff2")
+  font-weight: 700
+  font-style: italic
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusHeadline"
+  src: url("../assets/fonts/AllenInstitutePlusHeadline-Light.woff2") format("woff2")
+  font-weight: 300
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusHeadline"
+  src: url("../assets/fonts/AllenInstitutePlusHeadline-Regular.woff2") format("woff2")
+  font-weight: 400
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusHeadline"
+  src: url("../assets/fonts/AllenInstitutePlusHeadline-Medium.woff2") format("woff2")
+  font-weight: 500
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusHeadline"
+  src: url("../assets/fonts/AllenInstitutePlusHeadline-Semibold.woff2") format("woff2")
+  font-weight: 600
+  font-style: normal
+  font-display: swap
+
+@font-face
+  font-family: "AllenInstitutePlusHeadline"
+  src: url("../assets/fonts/AllenInstitutePlusHeadline-Bold.woff2") format("woff2")
+  font-weight: 700
+  font-style: normal
+  font-display: swap
+
+// Raw palette ---------------------------------------------------------------
+
+\:root
+  // base/ — structure, text, backgrounds
+  --ai-black: #000000
+  --ai-white: #ffffff
+  --ai-page-1: #f3f0e8
+  --ai-page-2: #ded9d1
+  --ai-gray-1: #aaa39f
+  --ai-gray-2: #737373
+
+  // primary/ — backgrounds and large fills
+  --ai-blue: #6464ff
+  --ai-violet: #8246e1
+  --ai-maroon: #cd0f55
+  --ai-teal: #00a59b
+
+  // accent/ — highlights only, never large areas
+  --ai-rose: #ff00ff
+  --ai-green: #cdeb05
+  --ai-orange: #ff6e00
+  --ai-ochre: #dc9600
+  --ai-yellow: #ffeb23
+
+  // Semantic tokens — light theme
+  --surface-bg: var(--ai-white)
+  --surface-card: var(--ai-page-1)
+  --surface-raised: var(--ai-page-2)
+  --surface-border: var(--ai-page-2)
+  --surface-hover: var(--ai-page-1)
+
+  --header-bg: var(--ai-white)
+  --header-border: var(--ai-page-2)
+
+  --text-primary: var(--ai-black)
+  --text-secondary: var(--ai-gray-2)
+  --text-muted: var(--ai-gray-1)
+  --text-inverse: var(--ai-white)
+
+  // Single interaction colour: active nav, focus rings, selection, hover fills.
+  --accent: var(--ai-maroon)
+  --accent-hover: #a80c46
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.07)
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.1)
+
+  --radius: 4px
+  --gap: 12px
+
+  color-scheme: light
+
+body.body--dark
+  --surface-bg: var(--ai-black)
+  --surface-card: #1a1a1a
+  --surface-raised: #262626
+  --surface-border: #333333
+  --surface-hover: #262626
+
+  --header-bg: var(--ai-black)
+  --header-border: #333333
+
+  --text-primary: var(--ai-white)
+  --text-secondary: var(--ai-gray-1)
+  --text-muted: var(--ai-gray-2)
+  --text-inverse: var(--ai-black)
+
+  // Maroon stays the interaction colour in dark mode, matching the portal and
+  // Quasar's build-time `$primary`.
+  --accent-hover: #e83a75
+
+  --shadow-1: 0 1px 4px rgba(0, 0, 0, 0.6)
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.7)
+
+  color-scheme: dark

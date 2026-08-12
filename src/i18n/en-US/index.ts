@@ -1,4 +1,9 @@
 export default {
+  brand: {
+    institute: "allen institute /",
+    department: "neural dynamics /",
+    app: "pinpoint"
+  },
   atlasPicker: {
     title: "Atlas",
     brainglobeHosted: "BrainGlobe",

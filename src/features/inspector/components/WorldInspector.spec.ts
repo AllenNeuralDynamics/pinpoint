@@ -44,7 +44,7 @@ describe("WorldInspector", () => {
       .vm.$emit("update:modelValue", "#123456");
 
     expect(preferences.worldBackgroundColorLightMode).toBe("#123456");
-    expect(preferences.worldBackgroundColorDarkMode).toBe("#33334d");
+    expect(preferences.worldBackgroundColorDarkMode).toBe("#1a1a1a");
   });
 
   it("picking the dark-mode picker's color writes it to worldBackgroundColorDarkMode", async () => {
@@ -56,10 +56,10 @@ describe("WorldInspector", () => {
       .vm.$emit("update:modelValue", "#654321");
 
     expect(preferences.worldBackgroundColorDarkMode).toBe("#654321");
-    expect(preferences.worldBackgroundColorLightMode).toBe("#33334d");
+    expect(preferences.worldBackgroundColorLightMode).toBe("#f3f0e8");
   });
 
-  it("appends Babylon's default clear color plus white to the light-mode palette and black to the dark-mode one, filling whole swatch rows", () => {
+  it("appends the per-theme default background plus white to the light-mode palette and black to the dark-mode one, filling whole swatch rows", () => {
     const wrapper = mountWithQuasar(WorldInspector);
     const [lightPicker, darkPicker] = wrapper.findAllComponents({
       name: "QColor"
@@ -67,12 +67,12 @@ describe("WorldInspector", () => {
 
     expect(lightPicker!.props("palette")).toEqual([
       ...STANDARD_COLORS,
-      "#33334d",
+      "#f3f0e8",
       "#ffffff"
     ]);
     expect(darkPicker!.props("palette")).toEqual([
       ...STANDARD_COLORS,
-      "#33334d",
+      "#1a1a1a",
       "#000000"
     ]);
     // Quasar lays swatches out ten to a row; a partial row renders its
