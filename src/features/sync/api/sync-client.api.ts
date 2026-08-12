@@ -3,13 +3,13 @@ import type { ExperimentAuthor } from "@/features/experiment";
 import { isRecord } from "@/utils/type-guards";
 import {
   SYNC_ARCHIVE_CONTENT_TYPE,
-  SYNC_SERVICE_PATH,
+  SYNC_SERVICE_URL,
   type SyncListing
 } from "./sync.api";
 
 /** Client for the metadata-viz endpoints backing sync, scoped to the logged-in account. */
 const syncClient = axios.create({
-  baseURL: SYNC_SERVICE_PATH,
+  baseURL: SYNC_SERVICE_URL,
   // The session lives in a cookie set by the metadata-viz service.
   withCredentials: true
 });

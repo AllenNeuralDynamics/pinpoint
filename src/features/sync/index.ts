@@ -10,6 +10,6 @@ export {
   partitionExperimentsByAuthor,
   planPull,
   SYNC_ARCHIVE_CONTENT_TYPE,
-  SYNC_SERVICE_PATH,
+  SYNC_SERVICE_URL,
   touchExperiment
 } from "./api/sync.api";

@@ -27,7 +27,7 @@ beforeEach(() => {
 describe("the sync client", () => {
   it("sends session cookies to the metadata-viz service", () => {
     expect(mockCreate).toHaveBeenCalledWith({
-      baseURL: "/metadata-viz",
+      baseURL: "https://data.allenneuraldynamics.org/metadata-viz",
       withCredentials: true
     });
   });

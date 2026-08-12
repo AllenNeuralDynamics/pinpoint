@@ -10,8 +10,14 @@ export interface SyncListing {
   content_type: string;
 }
 
-/** Path the metadata-viz service is mounted at, relative to the app's origin. */
-export const SYNC_SERVICE_PATH = "/metadata-viz";
+/**
+ * Absolute base URL of the metadata-viz service. The service is a separate
+ * origin from the app, and its ORCID callback is registered against this host,
+ * so requests and the login redirect must both go here rather than to a path
+ * on the app's own origin.
+ */
+export const SYNC_SERVICE_URL =
+  "https://data.allenneuraldynamics.org/metadata-viz";
 
 /** Content type experiment archives are pushed and served under. */
 export const SYNC_ARCHIVE_CONTENT_TYPE = "application/zip";
@@ -21,7 +27,7 @@ export const SYNC_ARCHIVE_CONTENT_TYPE = "application/zip";
  * @param returnUrl Absolute URL to come back to once logged in.
  */
 export function buildLoginUrl(returnUrl: string): string {
-  return `${SYNC_SERVICE_PATH}/auth/orcid/login?next=${encodeURIComponent(returnUrl)}`;
+  return `${SYNC_SERVICE_URL}/auth/orcid/login?next=${encodeURIComponent(returnUrl)}`;
 }
 
 /**
