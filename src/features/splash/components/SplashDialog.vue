@@ -6,7 +6,11 @@ import {
   useExperimentFile
 } from "@/features/experiment";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
-import { SyncRecentExperimentsList, useExperimentSync } from "@/features/sync";
+import {
+  SyncRecentExperimentsList,
+  SyncStatusIndicator,
+  useExperimentSync
+} from "@/features/sync";
 import { useSyncStore } from "@/stores/sync.store";
 
 const appVersion = import.meta.env.APP_VERSION;
@@ -88,6 +92,12 @@ onOpened(onDialogOK);
               :label="$t('sync.signIn')"
               @click="signIn()"
             />
+          </div>
+          <div v-if="syncStore.user" class="column items-center q-gutter-y-xs">
+            <div class="text-caption">
+              {{ $t("sync.signedInAs", { name: syncStore.user.name }) }}
+            </div>
+            <SyncStatusIndicator />
           </div>
         </div>
       </q-card-section>

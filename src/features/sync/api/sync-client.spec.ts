@@ -17,7 +17,21 @@ const { mockCreate, mockGet, mockPost } = vi.hoisted(() => {
   };
 });
 
-vi.mock("axios", () => ({ default: { create: mockCreate } }));
+vi.mock("axios", () => ({
+  default: {
+    create: mockCreate,
+    isAxiosError: (error: unknown) =>
+      typeof error === "object" && error !== null && "response" in error
+  }
+}));
+
+/**
+ * Build an axios-shaped rejection carrying an HTTP status.
+ * @param status Status the service answered with.
+ */
+function httpError(status: number) {
+  return { response: { status } };
+}
 
 beforeEach(() => {
   mockGet.mockReset();
@@ -27,7 +41,7 @@ beforeEach(() => {
 describe("the sync client", () => {
   it("sends session cookies to the metadata-viz service", () => {
     expect(mockCreate).toHaveBeenCalledWith({
-      baseURL: "https://data.allenneuraldynamics.org/metadata-viz",
+      baseURL: "/metadata-viz",
       withCredentials: true
     });
   });
@@ -56,9 +70,15 @@ describe("fetchSyncUser", () => {
   });
 
   it("returns null when nobody is signed in", async () => {
-    mockGet.mockRejectedValue(new Error("401"));
+    mockGet.mockRejectedValue(httpError(401));
 
     await expect(fetchSyncUser()).resolves.toBeNull();
+  });
+
+  it("throws when the service can't be reached", async () => {
+    mockGet.mockRejectedValue(new Error("network error"));
+
+    await expect(fetchSyncUser()).rejects.toThrow("network error");
   });
 
   it("returns null for a response without an ORCID iD", async () => {
@@ -109,10 +129,10 @@ describe("listSyncedArchives", () => {
     await expect(listSyncedArchives()).resolves.toEqual([]);
   });
 
-  it("returns an empty list when the request fails", async () => {
+  it("throws when the request fails", async () => {
     mockGet.mockRejectedValue(new Error("network error"));
 
-    await expect(listSyncedArchives()).resolves.toEqual([]);
+    await expect(listSyncedArchives()).rejects.toThrow("network error");
   });
 });
 
@@ -121,18 +141,20 @@ describe("pushSyncedArchive", () => {
     mockPost.mockResolvedValue({});
     const archiveBytes = new Uint8Array([1, 2, 3]);
 
-    await expect(pushSyncedArchive("abc", archiveBytes)).resolves.toBe(true);
+    await expect(
+      pushSyncedArchive("abc", archiveBytes)
+    ).resolves.toBeUndefined();
     expect(mockPost).toHaveBeenCalledWith("/pinpoint-post", archiveBytes, {
       params: { name: "abc" },
       headers: { "Content-Type": "application/zip" }
     });
   });
 
-  it("reports failure rather than throwing", async () => {
+  it("throws when the upload fails", async () => {
     mockPost.mockRejectedValue(new Error("network error"));
 
-    await expect(pushSyncedArchive("abc", new Uint8Array([1]))).resolves.toBe(
-      false
+    await expect(pushSyncedArchive("abc", new Uint8Array([1]))).rejects.toThrow(
+      "network error"
     );
   });
 });
@@ -150,9 +172,9 @@ describe("fetchSyncedArchive", () => {
     });
   });
 
-  it("returns null when the blob can't be fetched", async () => {
+  it("throws when the blob can't be fetched", async () => {
     mockGet.mockRejectedValue(new Error("404"));
 
-    await expect(fetchSyncedArchive("abc")).resolves.toBeNull();
+    await expect(fetchSyncedArchive("abc")).rejects.toThrow("404");
   });
 });

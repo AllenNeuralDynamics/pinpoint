@@ -3,19 +3,21 @@ import type { ExperimentAuthor } from "@/features/experiment";
 import { isRecord } from "@/utils/type-guards";
 import {
   SYNC_ARCHIVE_CONTENT_TYPE,
-  SYNC_SERVICE_URL,
+  SYNC_SERVICE_PATH,
   type SyncListing
 } from "./sync.api";
 
 /** Client for the metadata-viz endpoints backing sync, scoped to the logged-in account. */
 const syncClient = axios.create({
-  baseURL: SYNC_SERVICE_URL,
+  baseURL: SYNC_SERVICE_PATH,
   // The session lives in a cookie set by the metadata-viz service.
   withCredentials: true
 });
 
 /**
- * The logged-in ORCID account, or null when there is no live session.
+ * The logged-in ORCID account, or null when the server reports no live
+ * session. Throws when the service can't be reached, so a network failure is
+ * not mistaken for a sign-out.
  */
 export async function fetchSyncUser(): Promise<ExperimentAuthor | null> {
   try {
@@ -25,8 +27,10 @@ export async function fetchSyncUser(): Promise<ExperimentAuthor | null> {
       orcid: data.orcid,
       name: typeof data.name === "string" ? data.name : data.orcid
     };
-  } catch {
-    return null;
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401)
+      return null;
+    throw error;
   }
 }
 
@@ -41,55 +45,40 @@ export async function postSyncLogout(): Promise<void> {
   }
 }
 
-/**
- * Metadata of every blob the logged-in account holds, or an empty list on failure.
- */
+/** Metadata of every blob the logged-in account holds. */
 export async function listSyncedArchives(): Promise<SyncListing[]> {
-  try {
-    const { data } = await syncClient.get<unknown>("/pinpoint-get");
-    return Array.isArray(data) ? data.filter(isSyncListing) : [];
-  } catch {
-    return [];
-  }
+  const { data } = await syncClient.get<unknown>("/pinpoint-get");
+  return Array.isArray(data) ? data.filter(isSyncListing) : [];
 }
 
 /**
  * Upload an experiment archive under the experiment's id, replacing any
- * previous copy. Returns whether the upload succeeded.
+ * previous copy.
  * @param experimentId Id of the experiment being pushed, used as the blob name.
  * @param archiveBytes Zipped experiment archive.
  */
 export async function pushSyncedArchive(
   experimentId: string,
   archiveBytes: Uint8Array
-): Promise<boolean> {
-  try {
-    await syncClient.post("/pinpoint-post", archiveBytes, {
-      params: { name: experimentId },
-      headers: { "Content-Type": SYNC_ARCHIVE_CONTENT_TYPE }
-    });
-    return true;
-  } catch {
-    return false;
-  }
+): Promise<void> {
+  await syncClient.post("/pinpoint-post", archiveBytes, {
+    params: { name: experimentId },
+    headers: { "Content-Type": SYNC_ARCHIVE_CONTENT_TYPE }
+  });
 }
 
 /**
- * Download an experiment archive by blob name, or null when it can't be fetched.
+ * Download an experiment archive by blob name.
  * @param experimentId Id of the experiment to fetch.
  */
 export async function fetchSyncedArchive(
   experimentId: string
-): Promise<Uint8Array | null> {
-  try {
-    const { data } = await syncClient.get<ArrayBuffer>("/pinpoint-get", {
-      params: { name: experimentId },
-      responseType: "arraybuffer"
-    });
-    return new Uint8Array(data);
-  } catch {
-    return null;
-  }
+): Promise<Uint8Array> {
+  const { data } = await syncClient.get<ArrayBuffer>("/pinpoint-get", {
+    params: { name: experimentId },
+    responseType: "arraybuffer"
+  });
+  return new Uint8Array(data);
 }
 
 /**

@@ -2,6 +2,9 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import type { ExperimentAuthor } from "@/features/experiment";
 
+/** Where the last mirroring attempt got to. */
+export type SyncStatus = "idle" | "syncing" | "failed";
+
 export const useSyncStore = defineStore(
   "sync",
   () => {
@@ -13,6 +16,12 @@ export const useSyncStore = defineStore(
      * default, so only the exceptions are tracked.
      */
     const disabledExperimentIds = ref<string[]>([]);
+
+    /** Where the last mirroring attempt got to. */
+    const status = ref<SyncStatus>("idle");
+
+    /** When mirroring last completed without a failure, ISO-8601. */
+    const lastSyncedAt = ref<string | null>(null);
 
     /** Is an ORCID account signed in. */
     const isSignedIn = computed(() => user.value !== null);
@@ -52,12 +61,37 @@ export const useSyncStore = defineStore(
       user.value = null;
     }
 
-    const state = { user, disabledExperimentIds };
+    /** Note that mirroring has started. */
+    function startSync() {
+      status.value = "syncing";
+    }
+
+    /** Note that mirroring finished, stamping the time it completed. */
+    function finishSync() {
+      status.value = "idle";
+      lastSyncedAt.value = new Date().toISOString();
+    }
+
+    /** Note that mirroring failed, leaving the last success time alone. */
+    function failSync() {
+      status.value = "failed";
+    }
+
+    const state = { user, disabledExperimentIds, status, lastSyncedAt };
     const getters = { isSignedIn };
-    const actions = { isSyncEnabled, setSyncEnabled, signIn, signOut };
+    const actions = {
+      isSyncEnabled,
+      setSyncEnabled,
+      signIn,
+      signOut,
+      startSync,
+      finishSync,
+      failSync
+    };
     return { ...state, ...getters, ...actions };
   },
   {
-    persist: true
+    // `status` is deliberately left out: a reload has no attempt in flight.
+    persist: { pick: ["user", "disabledExperimentIds", "lastSyncedAt"] }
   }
 );

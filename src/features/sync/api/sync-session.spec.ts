@@ -38,7 +38,9 @@ function makePullDependencies(
   const bytesToId = new Map<string, string>();
   return {
     fetchArchive: vi.fn(async (experimentId: string) => {
-      if (!(experimentId in experimentsById)) return null;
+      if (!(experimentId in experimentsById)) {
+        throw new Error(`no blob named ${experimentId}`);
+      }
       const marker = `archive:${experimentId}`;
       bytesToId.set(marker, experimentId);
       return new TextEncoder().encode(marker);
@@ -106,64 +108,64 @@ describe("pullSyncedExperiments", () => {
     const remote = makeExperiment({ author: ALICE });
     const dependencies = makePullDependencies({ [remote.id]: remote });
 
-    const pulled = await pullSyncedExperiments(
-      [makeListing(remote.id, "2024-01-01T00:00:00.000Z")],
-      [],
-      dependencies
-    );
-
-    expect(pulled).toEqual([remote]);
+    await expect(
+      pullSyncedExperiments(
+        [makeListing(remote.id, "2024-01-01T00:00:00.000Z")],
+        [],
+        dependencies
+      )
+    ).resolves.toEqual({ experiments: [remote], failedIds: [] });
   });
 
   it("does not fetch an experiment the local copy is newer than", async () => {
     const local = makeExperiment({ updatedAt: "2024-06-01T00:00:00.000Z" });
     const dependencies = makePullDependencies({ [local.id]: local });
 
-    const pulled = await pullSyncedExperiments(
-      [makeListing(local.id, "2024-01-01T00:00:00.000Z")],
-      [local],
-      dependencies
-    );
-
-    expect(pulled).toEqual([]);
+    await expect(
+      pullSyncedExperiments(
+        [makeListing(local.id, "2024-01-01T00:00:00.000Z")],
+        [local],
+        dependencies
+      )
+    ).resolves.toEqual({ experiments: [], failedIds: [] });
     expect(dependencies.fetchArchive).not.toHaveBeenCalled();
   });
 
-  it("skips a blob that can't be downloaded", async () => {
+  it("reports a blob that can't be downloaded", async () => {
     const dependencies = makePullDependencies({});
 
-    const pulled = await pullSyncedExperiments(
-      [makeListing("gone", "2024-01-01T00:00:00.000Z")],
-      [],
-      dependencies
-    );
-
-    expect(pulled).toEqual([]);
+    await expect(
+      pullSyncedExperiments(
+        [makeListing("gone", "2024-01-01T00:00:00.000Z")],
+        [],
+        dependencies
+      )
+    ).resolves.toEqual({ experiments: [], failedIds: ["gone"] });
   });
 
-  it("skips an archive that isn't a well-formed experiment", async () => {
+  it("reports an archive that isn't a well-formed experiment", async () => {
     const dependencies = makePullDependencies({ broken: null });
 
-    const pulled = await pullSyncedExperiments(
-      [makeListing("broken", "2024-01-01T00:00:00.000Z")],
-      [],
-      dependencies
-    );
-
-    expect(pulled).toEqual([]);
+    await expect(
+      pullSyncedExperiments(
+        [makeListing("broken", "2024-01-01T00:00:00.000Z")],
+        [],
+        dependencies
+      )
+    ).resolves.toEqual({ experiments: [], failedIds: ["broken"] });
   });
 
-  it("skips an archive whose experiment id does not match its blob name", async () => {
+  it("reports an archive whose experiment id does not match its blob name", async () => {
     const impostor = makeExperiment({ author: BOB });
     const dependencies = makePullDependencies({ "some-other-id": impostor });
 
-    const pulled = await pullSyncedExperiments(
-      [makeListing("some-other-id", "2024-01-01T00:00:00.000Z")],
-      [],
-      dependencies
-    );
-
-    expect(pulled).toEqual([]);
+    await expect(
+      pullSyncedExperiments(
+        [makeListing("some-other-id", "2024-01-01T00:00:00.000Z")],
+        [],
+        dependencies
+      )
+    ).resolves.toEqual({ experiments: [], failedIds: ["some-other-id"] });
   });
 
   it("keeps going after one blob fails", async () => {
@@ -173,15 +175,15 @@ describe("pullSyncedExperiments", () => {
       [good.id]: good
     });
 
-    const pulled = await pullSyncedExperiments(
-      [
-        makeListing("missing", "2024-01-01T00:00:00.000Z"),
-        makeListing(good.id, "2024-01-01T00:00:00.000Z")
-      ],
-      [],
-      dependencies
-    );
-
-    expect(pulled).toEqual([good]);
+    await expect(
+      pullSyncedExperiments(
+        [
+          makeListing("missing", "2024-01-01T00:00:00.000Z"),
+          makeListing(good.id, "2024-01-01T00:00:00.000Z")
+        ],
+        [],
+        dependencies
+      )
+    ).resolves.toEqual({ experiments: [good], failedIds: ["missing"] });
   });
 });

@@ -93,7 +93,21 @@ export default defineConfig(ctx => {
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#devserver
     devServer: {
       // https: true,
-      open: false // opens browser window automatically
+      open: false, // opens browser window automatically
+
+      // Mirrors the production Apache config (deploy/apache/pinpoint-sync.conf):
+      // sync talks to /metadata-viz on the app's own origin, so the ORCID
+      // session cookie is a first-party cookie. Point `SYNC_SERVICE_TARGET` at
+      // a locally running aind-metadata-viz to develop against it.
+      proxy: {
+        "/metadata-viz": {
+          target:
+            process.env.SYNC_SERVICE_TARGET ??
+            "https://metadata-portal.allenneuraldynamics.org",
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/metadata-viz/, "")
+        }
+      }
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework

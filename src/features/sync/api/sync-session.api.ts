@@ -8,10 +8,16 @@ import {
 
 /** I/O the pull step needs, injected so the step itself stays testable. */
 export interface PullDependencies {
-  fetchArchive: (experimentId: string) => Promise<Uint8Array | null>;
+  fetchArchive: (experimentId: string) => Promise<Uint8Array>;
   restoreArchive: (
     archiveBytes: Uint8Array
   ) => Promise<{ experiment: Experiment } | null>;
+}
+
+/** Outcome of a pull: what came down, and which blobs could not be taken. */
+export interface PullResult {
+  experiments: Experiment[];
+  failedIds: string[];
 }
 
 /**
@@ -36,7 +42,7 @@ export function reconcileAuthorship(
 
 /**
  * Download the server's experiments that this computer is missing or holds an
- * older copy of, in listing order.
+ * older copy of, in listing order, reporting the ids that could not be taken.
  * @param listings Blob metadata the server reports for the account.
  * @param localExperiments Experiments already held on this computer.
  * @param dependencies Archive fetch and restore implementations.
@@ -45,20 +51,25 @@ export async function pullSyncedExperiments(
   listings: SyncListing[],
   localExperiments: Experiment[],
   dependencies: PullDependencies
-): Promise<Experiment[]> {
-  const pulled: Experiment[] = [];
+): Promise<PullResult> {
+  const experiments: Experiment[] = [];
+  const failedIds: string[] = [];
 
   for (const experimentId of planPull(listings, localExperiments)) {
-    const archiveBytes = await dependencies.fetchArchive(experimentId);
-    if (!archiveBytes) continue;
-
-    const restored = await dependencies.restoreArchive(archiveBytes);
-    // A blob whose payload doesn't match its own name would overwrite an
-    // unrelated experiment, so it is dropped rather than trusted.
-    if (!restored || restored.experiment.id !== experimentId) continue;
-
-    pulled.push(restored.experiment);
+    try {
+      const archiveBytes = await dependencies.fetchArchive(experimentId);
+      const restored = await dependencies.restoreArchive(archiveBytes);
+      // A blob whose payload doesn't match its own name would overwrite an
+      // unrelated experiment, so it is dropped rather than trusted.
+      if (!restored || restored.experiment.id !== experimentId) {
+        failedIds.push(experimentId);
+        continue;
+      }
+      experiments.push(restored.experiment);
+    } catch {
+      failedIds.push(experimentId);
+    }
   }
 
-  return pulled;
+  return { experiments, failedIds };
 }

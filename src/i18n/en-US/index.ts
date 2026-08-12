@@ -463,6 +463,13 @@ export default {
     myExperiments: "Your experiments",
     otherAuthors: "Other authors on this computer",
     syncExperiment: "Sync this experiment",
-    unknownAuthor: "Unknown author"
+    unknownAuthor: "Unknown author",
+    syncNow: "Sync now",
+    statusSyncing: "Syncing…",
+    statusSynced: "Synced at {time}",
+    statusNeverSynced: "Nothing synced yet",
+    statusFailed: "Sync failed",
+    statusFailedHint:
+      "Pinpoint could not reach the sync service. Your experiments are safe on this computer; try again."
   }
 };

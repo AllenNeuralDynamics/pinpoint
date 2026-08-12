@@ -40,7 +40,7 @@ function makeListing(
 describe("buildLoginUrl", () => {
   it("sends the browser back to the given URL after login", () => {
     expect(buildLoginUrl("https://example.org/pinpoint-v/#/")).toBe(
-      "https://data.allenneuraldynamics.org/metadata-viz/auth/orcid/login?next=https%3A%2F%2Fexample.org%2Fpinpoint-v%2F%23%2F"
+      "/metadata-viz/auth/orcid/login?next=https%3A%2F%2Fexample.org%2Fpinpoint-v%2F%23%2F"
     );
   });
 

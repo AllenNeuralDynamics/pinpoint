@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useSyncStore } from "@/stores/sync.store";
 import { useExperimentSync } from "../composable/useExperimentSync";
+import SyncStatusIndicator from "./SyncStatusIndicator.vue";
 
 const syncStore = useSyncStore();
 const { signIn, signOut } = useExperimentSync();
@@ -13,6 +14,13 @@ const { signIn, signOut } = useExperimentSync();
         {{ $t("sync.signedInAs", { name: syncStore.user.name }) }}
       </div>
       <div class="text-caption">{{ syncStore.user.orcid }}</div>
+      <SyncStatusIndicator />
+      <div
+        v-if="syncStore.status === 'failed'"
+        class="text-caption text-negative"
+      >
+        {{ $t("sync.statusFailedHint") }}
+      </div>
       <div class="text-caption">{{ $t("sync.signedInHint") }}</div>
       <q-btn
         class="self-start"
