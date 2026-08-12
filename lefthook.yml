@@ -1,5 +1,17 @@
 pre-commit:
   jobs:
     - name: format
-      run: npm run format
+      run: pnpm format
       stage_fixed: true
+
+    - name: lint
+      run: pnpm exec oxlint {staged_files}
+      glob: "*.{js,ts,mjs,cjs,vue}"
+
+pre-push:
+  jobs:
+    - name: typecheck
+      run: pnpm typecheck
+
+    - name: test
+      run: pnpm vitest run

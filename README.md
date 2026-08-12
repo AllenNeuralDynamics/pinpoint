@@ -6,7 +6,7 @@ Next-generation in vivo electrophysiology planning and automation tool.
 
 # Usage & Documentation
 
-[Launch the web app](https://pinpoint.allenneuraldynamics.org/v5/#/). Documentation is coming soon. 
+[Launch the web app](https://pinpoint.allenneuraldynamics.org/v5/#/). Documentation is coming soon.
 
 <!--For instructions, desktop releases, and tutorials please see the [documentation](https://virtualbrainlab.org/pinpoint/installation_and_use.html).-->
 

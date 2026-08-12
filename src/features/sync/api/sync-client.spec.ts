@@ -131,9 +131,9 @@ describe("pushSyncedArchive", () => {
   it("reports failure rather than throwing", async () => {
     mockPost.mockRejectedValue(new Error("network error"));
 
-    await expect(
-      pushSyncedArchive("abc", new Uint8Array([1]))
-    ).resolves.toBe(false);
+    await expect(pushSyncedArchive("abc", new Uint8Array([1]))).resolves.toBe(
+      false
+    );
   });
 });
 

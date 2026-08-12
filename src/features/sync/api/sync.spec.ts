@@ -53,7 +53,9 @@ describe("buildLoginUrl", () => {
 
 describe("touchExperiment", () => {
   it("replaces the timestamp with a parseable one at or after the old", () => {
-    const experiment = makeExperiment({ updatedAt: "2020-01-01T00:00:00.000Z" });
+    const experiment = makeExperiment({
+      updatedAt: "2020-01-01T00:00:00.000Z"
+    });
 
     touchExperiment(experiment);
 
