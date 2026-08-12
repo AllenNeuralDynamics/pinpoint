@@ -291,7 +291,6 @@ export default {
     specularIntensity: "Specular Intensity",
     specularPower: "Glossiness",
     ambientOcclusion: "Ambient Occlusion",
-    hideStructureInteriors: "Hide Interior Surfaces",
     backToPreferences: "Back to Preferences"
   },
   coordinateSystemInspector: {
@@ -360,6 +359,10 @@ export default {
 
     world: "World",
     editInInspector: "Edit World in Inspector",
+
+    atlas: "Atlas",
+    structureFadedAlpha: "Structure Transparency",
+    hideStructureInteriors: "Hide Interior Surfaces",
 
     appearanceTitle: "Appearance",
     theme: "Theme",

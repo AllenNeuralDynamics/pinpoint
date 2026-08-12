@@ -8,11 +8,23 @@ import {
   usePreferencesStore
 } from "@/stores/preferences.store";
 
-/** Standard palette plus Babylon's default clear color and pure white, so both stay pickable after switching away from them. */
-const BACKGROUND_COLOR_PALETTE = [
+/**
+ * Standard palette plus Babylon's default clear color and pure white, so both
+ * stay pickable in light mode. Quasar lays palette swatches out ten to a row,
+ * so the length must stay a multiple of ten or the row's leftover cells read
+ * as dead swatches.
+ */
+const LIGHT_MODE_COLOR_PALETTE = [
   ...STANDARD_COLORS,
   DEFAULT_WORLD_BACKGROUND_COLOR,
   "#ffffff"
+];
+
+/** Same as the light-mode palette, but with black in place of white. */
+const DARK_MODE_COLOR_PALETTE = [
+  ...STANDARD_COLORS,
+  DEFAULT_WORLD_BACKGROUND_COLOR,
+  "#000000"
 ];
 
 const $q = useQuasar();
@@ -35,7 +47,7 @@ function returnToPreferences(): void {
       <q-color
         v-model="preferences.worldBackgroundColorLightMode"
         class="world-inspector__color"
-        :palette="BACKGROUND_COLOR_PALETTE"
+        :palette="LIGHT_MODE_COLOR_PALETTE"
         default-view="palette"
       />
     </div>
@@ -46,7 +58,7 @@ function returnToPreferences(): void {
       <q-color
         v-model="preferences.worldBackgroundColorDarkMode"
         class="world-inspector__color"
-        :palette="BACKGROUND_COLOR_PALETTE"
+        :palette="DARK_MODE_COLOR_PALETTE"
         default-view="palette"
       />
     </div>
@@ -94,10 +106,6 @@ function returnToPreferences(): void {
     <q-toggle
       v-model="preferences.isSsaoEnabled"
       :label="$t('worldInspector.ambientOcclusion')"
-    />
-    <q-toggle
-      v-model="preferences.areStructureInteriorsHidden"
-      :label="$t('worldInspector.hideStructureInteriors')"
     />
     <q-btn
       class="full-width"

@@ -59,16 +59,25 @@ describe("WorldInspector", () => {
     expect(preferences.worldBackgroundColorLightMode).toBe("#33334d");
   });
 
-  it("appends Babylon's default clear color and pure white to the standard palette for both pickers", () => {
+  it("appends Babylon's default clear color plus white to the light-mode palette and black to the dark-mode one, filling whole swatch rows", () => {
     const wrapper = mountWithQuasar(WorldInspector);
+    const [lightPicker, darkPicker] = wrapper.findAllComponents({
+      name: "QColor"
+    });
 
-    for (const picker of wrapper.findAllComponents({ name: "QColor" })) {
-      expect(picker.props("palette")).toEqual([
-        ...STANDARD_COLORS,
-        "#33334d",
-        "#ffffff"
-      ]);
-    }
+    expect(lightPicker!.props("palette")).toEqual([
+      ...STANDARD_COLORS,
+      "#33334d",
+      "#ffffff"
+    ]);
+    expect(darkPicker!.props("palette")).toEqual([
+      ...STANDARD_COLORS,
+      "#33334d",
+      "#000000"
+    ]);
+    // Quasar lays swatches out ten to a row; a partial row renders its
+    // leftover cells as unclickable dead swatches.
+    expect(STANDARD_COLORS.length + 2).toBe(20);
   });
 
   it("the glossiness slider starts at 64", () => {
@@ -94,26 +103,6 @@ describe("WorldInspector", () => {
 
     expect(preferences.worldLightIntensity).toBe(0);
     expect(preferences.materialSpecularIntensity).toBe(0);
-  });
-
-  it("the hide-interiors toggle starts at true", () => {
-    const wrapper = mountWithQuasar(WorldInspector);
-
-    expect(
-      findToggle(wrapper, t.hideStructureInteriors).props("modelValue")
-    ).toBe(true);
-  });
-
-  it("toggling off writes areStructureInteriorsHidden to false", async () => {
-    const wrapper = mountWithQuasar(WorldInspector);
-    const preferences = usePreferencesStore();
-
-    await findToggle(wrapper, t.hideStructureInteriors).vm.$emit(
-      "update:modelValue",
-      false
-    );
-
-    expect(preferences.areStructureInteriorsHidden).toBe(false);
   });
 
   it("the ambient-occlusion toggle starts at false", () => {

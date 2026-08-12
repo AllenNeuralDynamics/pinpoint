@@ -5,6 +5,7 @@ import type {
   Scene
 } from "@babylonjs/core";
 import {
+  Color3,
   DracoDecoder,
   Mesh,
   StandardMaterial,
@@ -17,7 +18,10 @@ import axios from "axios";
 import type { Atlas, StructureEntity } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
 import { asrToBabylon } from "./coordinate-transforms.api";
-import { setMaterialAlpha, setMaterialDiffuseColor } from "./material.api";
+import {
+  exemptMaterialFromSurfaceSettings,
+  setMaterialAlpha
+} from "./material.api";
 
 /** Decoded structure geometry, in millimeters. */
 interface DecodedMeshData {
@@ -44,8 +48,15 @@ const STRUCTURE_MATERIAL_SUFFIX = "_structure_material";
 /** Alpha applied to a visible structure's material. */
 const STRUCTURE_VISIBLE_ALPHA = 1;
 
-/** Alpha applied to a transparent structure's material. */
-const STRUCTURE_FADED_ALPHA = 0.1;
+/**
+ * Share of a structure's color emitted regardless of lighting. Translucent
+ * shells stack, so a purely diffuse structure washes out to grey where its
+ * unlit faces show through; emitting most of the color keeps it saturated.
+ */
+const STRUCTURE_EMISSIVE_SHARE = 0.55;
+
+/** Share of a structure's color that shades with the scene lighting. */
+const STRUCTURE_DIFFUSE_SHARE = 1 - STRUCTURE_EMISSIVE_SHARE;
 
 /**
  * Build the atlas root node or return the existing one.
@@ -81,12 +92,14 @@ export function setAtlasCenterOffset(
  * @param atlas Atlas the structures belong to.
  * @param fadedStructures Structures to keep in the scene faded out.
  * @param opaqueStructures Structures to draw fully opaque.
+ * @param fadedAlpha Alpha to draw the faded structures with.
  */
 export async function syncStructuresVisibility(
   scene: Scene,
   atlas: Atlas,
   fadedStructures: StructureEntity[],
-  opaqueStructures: StructureEntity[]
+  opaqueStructures: StructureEntity[],
+  fadedAlpha: number
 ) {
   const atlasRootNode = buildAtlasRootNode(scene);
 
@@ -145,13 +158,13 @@ export async function syncStructuresVisibility(
       material,
       opaqueIdentifiers.has(structure.identifier)
         ? STRUCTURE_VISIBLE_ALPHA
-        : STRUCTURE_FADED_ALPHA
+        : fadedAlpha
     );
     // Repaint every pass, as syncProbes does for a probe's colour: a mesh built
     // while the terminology rows still belonged to the previous atlas would
     // otherwise keep that atlas's colour until a page reload.
     if (material instanceof StandardMaterial) {
-      setMaterialDiffuseColor(material, structure.color);
+      applyStructureColor(material, structure.color);
     }
   }
 
@@ -273,10 +286,34 @@ function buildStructureMesh(
     `${structure.identifier}${STRUCTURE_MATERIAL_SUFFIX}`,
     scene
   );
-  material.diffuseColor = structure.color;
+  // A translucent shell picks up a white highlight per layer, so the global
+  // specular preference would stack into a haze over a nested atlas.
+  material.specularColor = Color3.Black();
+  exemptMaterialFromSurfaceSettings(material);
+  applyStructureColor(material, structure.color);
   mesh.material = material;
 
   return mesh;
+}
+
+/**
+ * Shade a structure's material from its color, splitting it between an
+ * unlit emissive term and a lit diffuse term.
+ * @param material Material to shade.
+ * @param color Structure color to shade from.
+ */
+function applyStructureColor(material: StandardMaterial, color: Color3): void {
+  const emissive = color.scale(STRUCTURE_EMISSIVE_SHARE);
+  const diffuse = color.scale(STRUCTURE_DIFFUSE_SHARE);
+  if (
+    material.emissiveColor.equals(emissive) &&
+    material.diffuseColor.equals(diffuse)
+  )
+    return;
+
+  material.emissiveColor = emissive;
+  material.diffuseColor = diffuse;
+  material.markDirty(true);
 }
 
 /**

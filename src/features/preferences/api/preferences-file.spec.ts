@@ -25,6 +25,7 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     materialSpecularPower: 64,
     isSsaoEnabled: true,
     ssaoRatio: 0.5,
+    structureFadedAlpha: 0.2,
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
@@ -58,12 +59,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the twenty-six preference keys", () => {
+  it("writes only the twenty-seven preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(26);
+    expect(keys).toHaveLength(27);
     expect(keys).not.toContain("junk");
   });
 });
@@ -233,6 +234,7 @@ describe("applyPreferences", () => {
       areStructureInteriorsHidden: false,
       isSsaoEnabled: false,
       ssaoRatio: 0.25,
+      structureFadedAlpha: 0.5,
       positionUnit: "centimeter",
       rotationUnit: "radian",
       decimalPrecision: 1,

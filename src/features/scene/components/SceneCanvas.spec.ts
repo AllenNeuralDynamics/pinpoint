@@ -402,7 +402,8 @@ describe("SceneCanvas", () => {
       expect.anything(),
       expect.anything(),
       [],
-      []
+      [],
+      0.2
     );
     expect(structureEntitiesFromIdentifiers).toHaveBeenCalledWith(
       expect.anything(),
@@ -741,7 +742,8 @@ describe("SceneCanvas", () => {
       expect.anything(),
       newAtlas,
       expect.anything(),
-      expect.anything()
+      expect.anything(),
+      0.2
     );
   });
 

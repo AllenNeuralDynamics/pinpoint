@@ -386,7 +386,8 @@ watchEffect(async () => {
       scene,
       currentExperiment.atlas,
       fadedStructures.value,
-      opaqueStructures.value
+      opaqueStructures.value,
+      preferences.structureFadedAlpha
     );
   } catch {
     notifyWarning(

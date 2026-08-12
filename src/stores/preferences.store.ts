@@ -31,6 +31,8 @@ export interface Preferences {
   isSsaoEnabled: boolean;
   /** Size of the ambient occlusion pass relative to the canvas, 0-1; lower is faster. */
   ssaoRatio: number;
+  /** Alpha faded (unselected) structures render with, 0-1. */
+  structureFadedAlpha: number;
   /** Whether see-through structures hide their own interior surfaces. */
   areStructureInteriorsHidden: boolean;
   /** Unit numeric inputs display positions in. */
@@ -79,7 +81,8 @@ export const usePreferencesStore = defineStore(
     const materialSpecularPower = ref(64);
     const isSsaoEnabled = ref(false);
     const ssaoRatio = ref(0.5);
-    const areStructureInteriorsHidden = ref(true);
+    const structureFadedAlpha = ref(0.2);
+    const areStructureInteriorsHidden = ref(false);
     const positionUnit = ref<PositionUnit>("millimeter");
     const rotationUnit = ref<RotationUnit>("degree");
     const positionAxisNames = ref<[string, string, string]>(["", "", ""]);
@@ -109,6 +112,7 @@ export const usePreferencesStore = defineStore(
       materialSpecularPower,
       isSsaoEnabled,
       ssaoRatio,
+      structureFadedAlpha,
       areStructureInteriorsHidden,
       positionUnit,
       rotationUnit,

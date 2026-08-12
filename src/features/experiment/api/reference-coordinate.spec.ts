@@ -23,7 +23,7 @@ describe("buildInitialReferenceCoordinate", () => {
   it("uses the override for a known atlas name", () => {
     const atlas = makeAtlas({ name: "allen_mouse" });
 
-    expect(buildInitialReferenceCoordinate(atlas)).toEqual([5.7, 0.44, 5.4]);
+    expect(buildInitialReferenceCoordinate(atlas)).toEqual([5.4, 0.33, 5.7]);
   });
 
   it("never returns the same array instance across calls, for a known atlas", () => {
@@ -33,7 +33,7 @@ describe("buildInitialReferenceCoordinate", () => {
     const second = buildInitialReferenceCoordinate(atlas);
     first[0] = 99;
 
-    expect(second[0]).toBe(5.7);
+    expect(second[0]).toBe(5.4);
     expect(first).not.toBe(second);
   });
 

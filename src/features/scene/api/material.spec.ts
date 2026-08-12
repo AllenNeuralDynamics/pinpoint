@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Color3, StandardMaterial } from "@babylonjs/core";
 import {
   applySurfaceMaterialSettings,
+  exemptMaterialFromSurfaceSettings,
   setMaterialAlpha,
   setMaterialDiffuseColor,
   syncSceneMaterials
@@ -114,6 +115,19 @@ describe("applySurfaceMaterialSettings", () => {
     });
 
     expect(markDirtySpy).not.toHaveBeenCalled();
+  });
+
+  it("leaves an exempt material's specular untouched", () => {
+    const material = new StandardMaterial("material", makeTestScene());
+    material.specularColor = Color3.Black();
+    exemptMaterialFromSurfaceSettings(material);
+
+    applySurfaceMaterialSettings(material, {
+      specularIntensity: 1,
+      specularPower: 64
+    });
+
+    expect(material.specularColor.equals(Color3.Black())).toBe(true);
   });
 });
 

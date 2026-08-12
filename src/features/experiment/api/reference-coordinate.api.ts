@@ -2,7 +2,7 @@ import { type Atlas, getAtlasCenter } from "@/features/atlas";
 
 /** Allen Mouse's default reference coordinate, in atlas ASR mm. */
 export const ALLEN_MOUSE_REFERENCE_COORDINATE: [number, number, number] = [
-  5.7, 0.44, 5.4
+  5.4, 0.33, 5.7
 ];
 
 const DEFAULT_REFERENCE_COORDINATE_OVERRIDES: Record<
