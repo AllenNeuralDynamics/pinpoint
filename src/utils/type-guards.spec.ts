@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isEditableTarget,
   isFiniteNumber,
   isFiniteTriple,
   isHexColor,
@@ -69,5 +70,21 @@ describe("isSafeObjectKey", () => {
     expect(isSafeObjectKey("__proto__")).toBe(false);
     expect(isSafeObjectKey("constructor")).toBe(false);
     expect(isSafeObjectKey("prototype")).toBe(false);
+  });
+});
+
+describe("isEditableTarget", () => {
+  it("accepts a text input, a textarea, and a contenteditable element", () => {
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+
+    expect(isEditableTarget(document.createElement("input"))).toBe(true);
+    expect(isEditableTarget(document.createElement("textarea"))).toBe(true);
+    expect(isEditableTarget(editable)).toBe(true);
+  });
+
+  it("rejects a plain element and a null target", () => {
+    expect(isEditableTarget(document.createElement("div"))).toBe(false);
+    expect(isEditableTarget(null)).toBe(false);
   });
 });

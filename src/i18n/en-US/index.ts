@@ -110,6 +110,11 @@ export default {
     gizmoLocal: "Local",
     gizmoGlobal: "Global"
   },
+  keyboardControls: {
+    translationSpeed: "Speed {value} {unit}/click",
+    rotationSpeed: "Speed {value}{unit}/click",
+    speedKeys: "Speed"
+  },
   installProbe: {
     title: "Install Probe",
     manufacturer: "Manufacturer",
@@ -459,7 +464,7 @@ export default {
     signedInHint:
       "Your experiments are mirrored to your ORCID account as they are saved, and restored when you sign in on another computer.",
     signedOutHint:
-      "Sign in with ORCID to mirror your experiments to your account. Nothing about Pinpoint changes - your experiments keep working exactly as they do now.",
+      "Sign in with ORCID to keep experiments synced to the cloud.",
     myExperiments: "Your experiments",
     otherAuthors: "Other authors on this computer",
     syncExperiment: "Sync this experiment",

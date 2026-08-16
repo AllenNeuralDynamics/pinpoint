@@ -14,6 +14,7 @@ export {
   rotateProbeVisibility,
   homeProbe,
   setProbeTipMillimeters,
+  setProbeRotationRadians,
   isProbeSurfaceChoiceCurrent,
   copyProbe,
   toggleProbeLock,

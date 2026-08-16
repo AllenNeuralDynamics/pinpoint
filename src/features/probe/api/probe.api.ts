@@ -121,6 +121,18 @@ export function setProbeTipMillimeters(
 }
 
 /**
+ * Turn a probe to an orientation, in roll, yaw, pitch radians.
+ * @param probe Probe to turn.
+ * @param radians Target orientation, as roll, yaw, pitch radians.
+ */
+export function setProbeRotationRadians(
+  probe: Probe,
+  radians: [number, number, number]
+): void {
+  probe.rotation = [...radians];
+}
+
+/**
  * Is a pending surface choice still valid, i.e. has its probe not been moved since.
  * @param choice Choice to validate.
  * @param probe Probe the choice was requested for.

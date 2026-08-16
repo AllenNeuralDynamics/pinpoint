@@ -127,6 +127,7 @@ import {
 } from "../api/ssao.api";
 import { useNotify } from "@/composable/useNotify";
 import { isNumberDragActive } from "@/composable/useNumberDrag";
+import { KeyboardControls } from "@/features/keyboard-controls";
 
 const $q = useQuasar();
 const { t } = useI18n();
@@ -306,6 +307,16 @@ const isScaleGizmoAvailable = computed(
     currentExperiment.selectedInspectable?.inspectableKind === "sceneObject" ||
     currentExperiment.bodyModelGizmoProbeId !== null
 );
+
+/**
+ * Probe the keyboard drives: the selected probe, unless it is locked or the
+ * gizmo sits on its body model rather than the probe itself.
+ */
+const keyboardControlProbe = computed(() => {
+  const selected = currentExperiment.selectedInspectable;
+  if (selected?.inspectableKind !== "probe" || selected.lock) return null;
+  return currentExperiment.bodyModelGizmoProbeId === null ? selected : null;
+});
 
 /** Transform-mode toggle options, offering scale only for scene objects. */
 const gizmoModeOptions = computed(() => [
@@ -1250,6 +1261,7 @@ onUnmounted(() => {
       size="lg"
       class="absolute-top"
     />
+    <KeyboardControls :probe="keyboardControlProbe" :gizmo-mode="gizmoMode" />
   </div>
   <q-resize-observer @resize="onResize" />
   <q-page-sticky

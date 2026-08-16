@@ -37,6 +37,20 @@ export function isHexColor(value: unknown): value is string {
   return typeof value === "string" && HEX_COLOR_PATTERN.test(value);
 }
 
+/**
+ * Is an event target an editable element, where the browser's own text editing
+ * takes priority over the app's keyboard shortcuts.
+ * @param target Event target to check.
+ */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA")
+  );
+}
+
 /** Property names that would repoint an object's prototype chain if assigned dynamically. */
 const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 

@@ -26,6 +26,7 @@ import { SplashDialog } from "@/features/splash";
 import { SyncRecentExperimentsDialog } from "@/features/sync";
 import { useSyncStore } from "@/stores/sync.store";
 import { clamp } from "@/utils/math";
+import { isEditableTarget } from "@/utils/type-guards";
 import { ChannelMaps } from "@/features/slice";
 import AppBrand from "@/components/AppBrand.vue";
 
@@ -131,20 +132,6 @@ function fixedQPageHeight(offset: number) {
     minHeight: height,
     height
   };
-}
-
-/**
- * Is a keyboard event's target an editable element, where the browser's own
- * undo/redo should take priority over the app's.
- * @param target Event target to check.
- */
-function isEditableTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLElement &&
-    (target.isContentEditable ||
-      target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA")
-  );
 }
 
 // Ctrl/Cmd+Z undoes the current experiment, unless an editable element is
