@@ -1,12 +1,6 @@
 import type {
   AbstractMesh,
-  DragEvent,
-  DragStartEndEvent,
   GizmoManager,
-  IGizmo,
-  IPositionGizmo,
-  IRotationGizmo,
-  IScaleGizmo,
   Nullable,
   Observer,
   Scene,
@@ -17,6 +11,7 @@ import {
   ImportMeshAsync,
   Mesh,
   PhysicsShapeMesh,
+  Quaternion,
   StandardMaterial,
   TransformNode,
   Vector3
@@ -24,7 +19,20 @@ import {
 import type { Experiment } from "@/features/experiment";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildAtlasRootNode } from "./structures.api";
-import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
+import {
+  fromSceneMagnitudes,
+  fromSceneQuaternion,
+  fromSceneVector,
+  toSceneMagnitudes,
+  toSceneQuaternion,
+  toSceneVector
+} from "./coordinate-transforms.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import {
+  getAxisDirections,
+  getRotationMatrix,
+  getRotationTriple
+} from "@/utils/coordinate-frame";
 import {
   buildCollisionBody,
   buildColliderMesh,
@@ -38,10 +46,12 @@ import {
 } from "./scene-entity.api";
 import {
   interpolateNodePose,
+  POSE_ROTATION_EPSILON,
   stopNodePoseInterpolation
 } from "./pose-interpolation.api";
 import type { SceneObject } from "../models/scene-object.model";
-import type { TransformGizmos } from "../models/gizmo.model";
+import type { CoordinateGizmos } from "../models/gizmo.model";
+import type { CoordinateGizmo } from "./coordinate-gizmo.api";
 
 /** Suffix applied to a scene object's id to name its parenting transform node. */
 const SCENE_OBJECT_NODE_SUFFIX = sceneEntityNameSuffix("object", "node");
@@ -216,12 +226,14 @@ function buildSceneObjectCollider(
  * matching its parts, or none when the object's `collidable` is off.
  * @param scene Scene to build the object in.
  * @param sceneObject Scene object to build.
+ * @param globalDirections Axis directions the object's pose and scale are in.
  * @param modelFile Model file to import the object's geometry from, exactly as the user picked it.
  * @param gizmoManager Gizmo manager to add the object's meshes to.
  */
 export async function buildSceneObjectNode(
   scene: Scene,
   sceneObject: SceneObject,
+  globalDirections: AxisDirections,
   modelFile: File,
   gizmoManager: GizmoManager
 ): Promise<SceneObjectBuild | null> {
@@ -233,6 +245,9 @@ export async function buildSceneObjectNode(
     scene
   );
   node.parent = buildAtlasRootNode(scene);
+  // Orientation comes from a coordinate system, so the node is quaternion
+  // driven from birth and its Euler `rotation` is never read.
+  node.rotationQuaternion = Quaternion.Identity();
   const scaleNode = buildSceneObjectScaleNode(node, sceneObject.id);
 
   const result = await ImportMeshAsync(modelFile, scene, {});
@@ -284,7 +299,7 @@ export async function buildSceneObjectNode(
         scaleNode,
         sceneObject.id,
         meshes,
-        asrToVector3(sceneObject.scale)
+        toSceneMagnitudes(globalDirections, sceneObject.scale)
       );
     } catch {
       colliderFailed = true;
@@ -359,6 +374,7 @@ export async function syncSceneObjects(
   colliderChangedIds: string[];
 }> {
   const atlasRootNode = buildAtlasRootNode(scene);
+  const globalDirections = getAxisDirections(experiment.globalCoordinateSystem);
   const sceneObjectsById = new Map(
     experiment.sceneObjects.map(sceneObject => [sceneObject.id, sceneObject])
   );
@@ -406,6 +422,7 @@ export async function syncSceneObjects(
           ? await buildSceneObjectNode(
               scene,
               sceneObject,
+              globalDirections,
               modelFile,
               gizmoManager
             )
@@ -483,7 +500,7 @@ export async function syncSceneObjects(
           scaleNode,
           sceneObject.id,
           meshes,
-          asrToVector3(sceneObject.scale)
+          toSceneMagnitudes(globalDirections, sceneObject.scale)
         );
         state.colliderScales.set(sceneObject.id, [...sceneObject.scale]);
       } catch {
@@ -492,12 +509,19 @@ export async function syncSceneObjects(
       }
     }
 
-    const goalPosition = asrToVector3(sceneObject.position);
-    const goalRotation = asrToVector3(sceneObject.rotation);
-    const goalScaling = asrToVector3(sceneObject.scale);
+    const goalPosition = toSceneVector(globalDirections, sceneObject.position);
+    const goalRotation = toSceneQuaternion(
+      getRotationMatrix(globalDirections, sceneObject.rotation)
+    );
+    const goalScaling = toSceneMagnitudes(globalDirections, sceneObject.scale);
+    // A rotation decomposed by a gizmo readback and recomposed here only
+    // agrees to within rounding, and a move that small is far below a pixel.
     if (
       node.position.equals(goalPosition) &&
-      node.rotation.equals(goalRotation) &&
+      !!node.rotationQuaternion?.equalsWithEpsilon(
+        goalRotation,
+        POSE_ROTATION_EPSILON
+      ) &&
       scaleNode.scaling.equals(goalScaling)
     ) {
       continue;
@@ -506,7 +530,7 @@ export async function syncSceneObjects(
       stopNodePoseInterpolation(node);
       stopNodePoseInterpolation(scaleNode);
       node.position = goalPosition;
-      node.rotation = goalRotation;
+      node.rotationQuaternion = goalRotation;
       scaleNode.scaling = goalScaling;
       continue;
     }
@@ -517,7 +541,7 @@ export async function syncSceneObjects(
     });
     interpolateNodePose(scene, scaleNode, {
       position: Vector3.Zero(),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: goalScaling
     });
   }
@@ -595,7 +619,7 @@ export function selectSceneObjectFromGizmoAttach(
  * @param sceneObjects Experiment scene objects to resolve the attached mesh against.
  */
 function attachedSceneObjectFromGizmo(
-  gizmo: IGizmo,
+  gizmo: CoordinateGizmo,
   sceneObjects: SceneObject[]
 ): { sceneObject: SceneObject; node: TransformNode } | null {
   const node = gizmo.attachedNode;
@@ -614,18 +638,23 @@ function attachedSceneObjectFromGizmo(
  * Update a scene object's position from a gizmo drag.
  * @param positionGizmo Position gizmo to track dragging on.
  * @param sceneObjects Experiment scene objects to resolve the attached mesh against.
+ * @param globalDirections Axis directions the objects' positions are in.
  * @param onDrag Callback invoked with the scene object id the drag is happening to.
  */
 export function setSceneObjectPositionFromGizmoDrag(
-  positionGizmo: IPositionGizmo,
+  positionGizmo: CoordinateGizmo,
   sceneObjects: SceneObject[],
+  globalDirections: AxisDirections,
   onDrag: (sceneObjectId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return positionGizmo.onDragObservable.add(() => {
     const attached = attachedSceneObjectFromGizmo(positionGizmo, sceneObjects);
     if (!attached) return;
     stopNodePoseInterpolation(attached.node);
-    attached.sceneObject.position = vector3ToAsr(attached.node.position);
+    attached.sceneObject.position = fromSceneVector(
+      globalDirections,
+      attached.node.position
+    );
     onDrag(attached.sceneObject.id);
   });
 }
@@ -634,18 +663,23 @@ export function setSceneObjectPositionFromGizmoDrag(
  * Update a scene object's orientation from a gizmo drag.
  * @param rotationGizmo Rotation gizmo to track dragging on.
  * @param sceneObjects Experiment scene objects to resolve the attached mesh against.
+ * @param globalDirections Axis directions the objects' rotations turn about.
  * @param onDrag Callback invoked with the scene object id the drag is happening to.
  */
 export function setSceneObjectRotationFromGizmoDrag(
-  rotationGizmo: IRotationGizmo,
+  rotationGizmo: CoordinateGizmo,
   sceneObjects: SceneObject[],
+  globalDirections: AxisDirections,
   onDrag: (sceneObjectId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return rotationGizmo.onDragObservable.add(() => {
     const attached = attachedSceneObjectFromGizmo(rotationGizmo, sceneObjects);
-    if (!attached) return;
+    if (!attached?.node.rotationQuaternion) return;
     stopNodePoseInterpolation(attached.node);
-    attached.sceneObject.rotation = vector3ToAsr(attached.node.rotation);
+    attached.sceneObject.rotation = getRotationTriple(
+      globalDirections,
+      fromSceneQuaternion(attached.node.rotationQuaternion)
+    );
     onDrag(attached.sceneObject.id);
   });
 }
@@ -654,13 +688,15 @@ export function setSceneObjectRotationFromGizmoDrag(
  * Update a scene object's scale from a gizmo drag.
  * @param scaleGizmo Scale gizmo to track dragging on.
  * @param sceneObjects Experiment scene objects to resolve the attached mesh against.
+ * @param globalDirections Axis directions the objects' scales are in.
  * @param onDrag Callback invoked with the scene object id the drag is happening to.
  */
 export function setSceneObjectScaleFromGizmoDrag(
-  scaleGizmo: IScaleGizmo,
+  scaleGizmo: CoordinateGizmo,
   sceneObjects: SceneObject[],
+  globalDirections: AxisDirections,
   onDrag: (sceneObjectId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return scaleGizmo.onDragObservable.add(() => {
     const attached = attachedSceneObjectFromGizmo(scaleGizmo, sceneObjects);
     if (!attached) return;
@@ -675,7 +711,10 @@ export function setSceneObjectScaleFromGizmoDrag(
     // working in local space.
     scaleNode.scaling.multiplyInPlace(attached.node.scaling);
     attached.node.scaling.setAll(1);
-    attached.sceneObject.scale = vector3ToAsr(scaleNode.scaling);
+    attached.sceneObject.scale = fromSceneMagnitudes(
+      globalDirections,
+      scaleNode.scaling
+    );
     onDrag(attached.sceneObject.id);
   });
 }
@@ -687,10 +726,10 @@ export function setSceneObjectScaleFromGizmoDrag(
  * @param onDragEnd Callback invoked to confirm the scene object drag ended.
  */
 export function endSceneObjectGizmoDrag(
-  gizmos: TransformGizmos,
+  gizmos: CoordinateGizmos,
   onDragEnd: () => void
-): Observer<DragStartEndEvent>[] {
-  const onEnd = (gizmo: IGizmo) => () => {
+): Observer<void>[] {
+  const onEnd = (gizmo: CoordinateGizmo) => () => {
     if (!gizmo.attachedNode) return;
     if (!isSceneEntityName(gizmo.attachedNode.name, "object")) return;
     onDragEnd();

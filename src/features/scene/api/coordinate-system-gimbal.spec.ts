@@ -1,6 +1,12 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { StandardMaterial } from "@babylonjs/core";
-import { Color3, Matrix, MeshBuilder, Vector3 } from "@babylonjs/core";
+import {
+  Color3,
+  Matrix,
+  MeshBuilder,
+  TransformNode,
+  Vector3
+} from "@babylonjs/core";
 import {
   buildCoordinateSystem,
   buildCoordinateSystemNode,
@@ -13,12 +19,40 @@ import {
   makeTestSceneWithGizmo
 } from "@/test/mount-helper";
 import { makeProbeGeometry } from "@/test/fixtures";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections,
+  getChainRestRotation,
+  getProbeRestRotation,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
+import { toSceneQuaternion, toSceneVector } from "./coordinate-transforms.api";
+import { LOCAL_FRAME_AXIS_COLORS } from "./frame-axes.api";
 import { buildAtlasRootNode } from "./structures.api";
 import { syncCoordinateSystemGimbals } from "./coordinate-system-gimbal.api";
 
 /** Atlas longest-dimension stand-in for every test: an axis length of 18mm. */
 const ATLAS_SCALE_MILLIMETERS = 100;
+
+/** Axis directions new experiments start in: x right, y anterior, z superior. */
+const RAS_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
+
+/** Resting orientation new experiments start in: depth posterior, electrodes up. */
+const REST = buildDefaultLocalCoordinateSystem();
+
+/** A rest orientation aimed straight down, as a stereotaxic probe sits. */
+const DOWNWARD_REST: LocalCoordinateSystem = {
+  depthDirection: "Superior_to_inferior",
+  forwardDirection: "Posterior_to_anterior"
+};
 
 // The chain-tip marker's head stage is CSG2-subtracted; initialize it once for every test in
 // this file, mirroring what `babylon-runtime.service.ts` does at startup.
@@ -75,13 +109,20 @@ describe("syncCoordinateSystemGimbals", () => {
       makeNode("Parent", [0, 0, 0], [0, Math.PI / 6, 0]),
       makeNode("Child", [1, 2, 3])
     ];
-    const solution = solveCoordinateSystemChain(chain, null);
+    const solution = solveCoordinateSystemChain(
+      chain,
+      null,
+      RAS_DIRECTIONS,
+      REST
+    );
 
     syncCoordinateSystemGimbals(
       scene,
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", chain),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -92,12 +133,60 @@ describe("syncCoordinateSystemGimbals", () => {
       "coordinateSystemGimbal_1_node"
     )!;
     const expectedWorldPosition = Vector3.TransformCoordinates(
-      asrToVector3(solution.nodePositions[1]!),
+      toSceneVector(RAS_DIRECTIONS, solution.nodePositions[1]!),
       atlasRoot.computeWorldMatrix(true)
     );
     expectVectorCloseTo(
       childGimbal.computeWorldMatrix(true).getTranslation(),
       expectedWorldPosition
+    );
+  });
+
+  it("roots the chain in the probe's resting chain orientation, so a depth value drives it deeper", () => {
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
+    // The chain's third axis is the depth axis, so a Z value is a depth value.
+    const chain = [makeNode("Depth", [0, 0, 5])];
+    const solution = solveCoordinateSystemChain(
+      chain,
+      null,
+      RAS_DIRECTIONS,
+      DOWNWARD_REST
+    );
+
+    syncCoordinateSystemGimbals(
+      scene,
+      selectionOutlineLayer,
+      buildCoordinateSystem("Fixture", chain),
+      [0, 0, 0],
+      RAS_DIRECTIONS,
+      DOWNWARD_REST,
+      ATLAS_SCALE_MILLIMETERS,
+      null,
+      makeProbeGeometry()
+    );
+
+    const rest = scene.getTransformNodeByName(
+      "coordinateSystemGimbalRest_node"
+    )!;
+    expect(
+      rest.rotationQuaternion!.equalsWithEpsilon(
+        toSceneQuaternion(getChainRestRotation(DOWNWARD_REST))
+      )
+    ).toBe(true);
+
+    // Depth 5mm down means 5mm inferior, which the solver reports as -5 on the
+    // superior axis of a RAS system.
+    expect(solution.tipPosition[2]).toBeCloseTo(-5);
+    const atlasRoot = buildAtlasRootNode(scene);
+    const gimbal = scene.getTransformNodeByName(
+      "coordinateSystemGimbal_0_node"
+    )!;
+    expectVectorCloseTo(
+      gimbal.computeWorldMatrix(true).getTranslation(),
+      Vector3.TransformCoordinates(
+        toSceneVector(RAS_DIRECTIONS, solution.nodePositions[0]!),
+        atlasRoot.computeWorldMatrix(true)
+      )
     );
   });
 
@@ -111,6 +200,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", chain),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       geometry
@@ -131,6 +222,65 @@ describe("syncCoordinateSystemGimbals", () => {
     );
   });
 
+  it.each([
+    { label: "the default rest", localCoordinateSystem: REST },
+    { label: "a downward rest", localCoordinateSystem: DOWNWARD_REST }
+  ])(
+    "orients the chain-tip probe marker exactly like a real probe at the solved pose, for $label",
+    ({ localCoordinateSystem }) => {
+      const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
+      const chain = [
+        makeNode("Arm", [0, 0, 0], [Math.PI / 7, Math.PI / 5, 0]),
+        makeNode("Depth", [0, 0, 3])
+      ];
+      const solution = solveCoordinateSystemChain(
+        chain,
+        null,
+        RAS_DIRECTIONS,
+        localCoordinateSystem
+      );
+
+      syncCoordinateSystemGimbals(
+        scene,
+        selectionOutlineLayer,
+        buildCoordinateSystem("Fixture", chain),
+        [0, 0, 0],
+        RAS_DIRECTIONS,
+        localCoordinateSystem,
+        ATLAS_SCALE_MILLIMETERS,
+        null,
+        makeProbeGeometry()
+      );
+
+      // The orientation a real probe's node carries: its solved rest-relative
+      // rotation composed onto the resting body orientation.
+      const reference = new TransformNode("referenceProbe", scene);
+      reference.parent = buildAtlasRootNode(scene);
+      reference.rotationQuaternion = toSceneQuaternion(
+        multiplyMatrices(
+          getRotationMatrix(RAS_DIRECTIONS, solution.rotation),
+          getProbeRestRotation(localCoordinateSystem)
+        )
+      );
+
+      const pose = scene.getTransformNodeByName(
+        "coordinateSystemGimbalPose_node"
+      )!;
+      const referenceMatrix = reference.computeWorldMatrix(true);
+      const poseMatrix = pose.computeWorldMatrix(true);
+      for (const axis of [
+        new Vector3(1, 0, 0),
+        new Vector3(0, 1, 0),
+        new Vector3(0, 0, 1)
+      ]) {
+        expectVectorCloseTo(
+          Vector3.TransformNormal(axis, poseMatrix).normalize(),
+          Vector3.TransformNormal(axis, referenceMatrix).normalize()
+        );
+      }
+    }
+  );
+
   it("colours the probe marker's shank and head stage with the shared pink lit material", () => {
     const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
 
@@ -139,6 +289,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -168,6 +320,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -195,6 +349,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       geometry
@@ -208,6 +364,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       geometry
@@ -222,6 +380,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       {
@@ -246,26 +406,30 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", chain),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
     );
 
-    const atlasRoot = buildAtlasRootNode(scene);
+    // Measured against the rest node, whose frame the chain's first node turns in.
+    const rest = scene.getTransformNodeByName(
+      "coordinateSystemGimbalRest_node"
+    )!;
     const gimbal = scene.getTransformNodeByName(
       "coordinateSystemGimbal_0_node"
     )!;
-    const probeLocalDirection = new Vector3(1, 0, 0);
-    const expectedLocalDirection = Vector3.TransformNormal(
-      probeLocalDirection,
-      Matrix.RotationYawPitchRoll(yaw, pitch, 0)
-    );
+    const chainLocalDirection = new Vector3(1, 0, 0);
     const expectedDirection = Vector3.TransformNormal(
-      expectedLocalDirection,
-      atlasRoot.computeWorldMatrix(true)
+      Vector3.TransformNormal(
+        chainLocalDirection,
+        Matrix.RotationYawPitchRoll(yaw, pitch, 0)
+      ),
+      rest.computeWorldMatrix(true)
     );
     const actualDirection = Vector3.TransformNormal(
-      probeLocalDirection,
+      chainLocalDirection,
       gimbal.computeWorldMatrix(true)
     );
     expectVectorCloseTo(actualDirection, expectedDirection);
@@ -280,6 +444,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", chain, true),
       [1, 2, 3],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -288,7 +454,10 @@ describe("syncCoordinateSystemGimbals", () => {
     const root = scene.getTransformNodeByName(
       "coordinateSystemGimbalRoot_node"
     )!;
-    expectVectorCloseTo(root.position, asrToVector3([1, 2, 3]));
+    expectVectorCloseTo(
+      root.position,
+      toSceneVector(RAS_DIRECTIONS, [1, 2, 3])
+    );
     expect(
       scene.getMeshByName("coordinateSystemGimbalReference_mesh")
     ).toBeTruthy();
@@ -298,6 +467,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", chain, false),
       [1, 2, 3],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -311,6 +482,37 @@ describe("syncCoordinateSystemGimbals", () => {
     ).toBeNull();
   });
 
+  it("leaves the reference arrow spanning the atlas origin, unturned by the rest orientation", () => {
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
+
+    syncCoordinateSystemGimbals(
+      scene,
+      selectionOutlineLayer,
+      buildCoordinateSystem("Fixture", [makeNode("Node")], true),
+      [1, 2, 3],
+      RAS_DIRECTIONS,
+      DOWNWARD_REST,
+      ATLAS_SCALE_MILLIMETERS,
+      null,
+      makeProbeGeometry()
+    );
+
+    const atlasRoot = buildAtlasRootNode(scene);
+    const head = scene.getMeshByName(
+      "coordinateSystemGimbalReference_mesh_head"
+    )!;
+    // The arrow's head sits just short of the atlas origin, whichever way the
+    // probe rests, because the rest rotation lives below the offset root.
+    const originInAtlasRoot = Vector3.TransformCoordinates(
+      Vector3.Zero(),
+      atlasRoot.computeWorldMatrix(true)
+    );
+    const headWorld = head.computeWorldMatrix(true).getTranslation();
+    expect(Vector3.Distance(headWorld, originInAtlasRoot)).toBeLessThan(
+      toSceneVector(RAS_DIRECTIONS, [1, 2, 3]).length()
+    );
+  });
+
   it("draws a link arrow only for a non-zero translation, head beyond shaft", () => {
     const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
 
@@ -319,6 +521,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -330,6 +534,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node", [2, 0, 0])]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -341,7 +547,7 @@ describe("syncCoordinateSystemGimbals", () => {
     expect(head.position.length()).toBeGreaterThan(shaft.position.length());
   });
 
-  it("colours each gimbal axis cylinder to match the inspector's axis toggles, unlit", () => {
+  it("colours each gimbal axis cylinder from the local frame's palette, unlit", () => {
     const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
 
     syncCoordinateSystemGimbals(
@@ -349,15 +555,17 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
     );
 
     const expectedColors: [string, Color3][] = [
-      ["coordinateSystemGimbalAxisX_material", Color3.FromHexString("#f44336")],
-      ["coordinateSystemGimbalAxisY_material", Color3.FromHexString("#4caf50")],
-      ["coordinateSystemGimbalAxisZ_material", Color3.FromHexString("#2196f3")]
+      ["coordinateSystemGimbalAxisX_material", LOCAL_FRAME_AXIS_COLORS[0]],
+      ["coordinateSystemGimbalAxisY_material", LOCAL_FRAME_AXIS_COLORS[1]],
+      ["coordinateSystemGimbalAxisZ_material", LOCAL_FRAME_AXIS_COLORS[2]]
     ];
     for (const [name, color] of expectedColors) {
       const material = scene.getMaterialByName(name) as StandardMaterial;
@@ -376,6 +584,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", chain),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       0,
       makeProbeGeometry()
@@ -406,6 +616,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       5,
       makeProbeGeometry()
@@ -422,6 +634,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       buildCoordinateSystem("Fixture", [makeNode("Node")]),
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -434,6 +648,8 @@ describe("syncCoordinateSystemGimbals", () => {
       selectionOutlineLayer,
       null,
       [0, 0, 0],
+      RAS_DIRECTIONS,
+      REST,
       ATLAS_SCALE_MILLIMETERS,
       null,
       makeProbeGeometry()
@@ -441,6 +657,9 @@ describe("syncCoordinateSystemGimbals", () => {
 
     expect(
       scene.getTransformNodeByName("coordinateSystemGimbalRoot_node")
+    ).toBeNull();
+    expect(
+      scene.getTransformNodeByName("coordinateSystemGimbalRest_node")
     ).toBeNull();
     expect(
       scene.getMeshByName("coordinateSystemGimbalPoseHeadStageTemplate_mesh")

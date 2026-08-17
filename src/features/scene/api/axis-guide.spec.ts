@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   ArcRotateCamera,
-  Color3,
   Matrix,
   Quaternion,
   TransformNode,
   Vector3
 } from "@babylonjs/core";
 import type { Scene, StandardMaterial } from "@babylonjs/core";
-import type { FakeTextRenderer } from "@/test/mount-helper";
+import type {
+  FakeAxisGuideRenderers,
+  FakeTextRenderer
+} from "@/test/mount-helper";
 import {
-  makeFakeTextRenderer,
+  makeFakeAxisGuideRenderers,
   makeTestFontAsset,
   makeTestScene,
   tickScene
@@ -18,29 +20,79 @@ import {
 import { makeAtlas, makeManifest } from "@/test/fixtures";
 import { getAtlasDimensionsMillimeters } from "@/features/atlas";
 import type {
-  AxisGuideAxis,
-  AxisGuideLabels,
-  AxisGuides
-} from "./axis-guide.api";
+  AnatomicalDirection,
+  AnatomicalLine,
+  AxisDirections
+} from "@/utils/coordinate-frame";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  CANONICAL_AXIS_DIRECTIONS,
+  getAxisDirections,
+  getDirectionVector
+} from "@/utils/coordinate-frame";
+import { toWorldDirection } from "./coordinate-transforms.api";
+import type { FrameAxes } from "../models/frame-axis.model";
+import {
+  getLocalFrameAxes,
+  GLOBAL_FRAME_AXIS_COLORS,
+  LOCAL_FRAME_AXIS_COLORS
+} from "./frame-axes.api";
+import type { AxisGuideLabels, AxisGuides } from "./axis-guide.api";
 import {
   buildAxisGuides,
   clearAxisGuides,
   pickAxisGuideDirection
 } from "./axis-guide.api";
 
-/** Built-in axis guide labels, matching `+AP`/`-AP` etc. */
-const AXIS_LABELS: AxisGuideLabels = {
-  ap: "AP",
-  dv: "DV",
-  ml: "ML",
-  x: "X",
-  y: "Y",
-  z: "Z"
+/** Axis directions new experiments start in: x right, y anterior, z superior. */
+const RAS_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
+
+/**
+ * A permutation of the same three anatomical lines with two axes reversed: an
+ * atlas's own directions, x posterior, y inferior, z right.
+ */
+const PIR_DIRECTIONS: AxisDirections = ATLAS_AXIS_DIRECTIONS;
+
+/**
+ * `RAS` with only its left-right axis reversed, so the `ML` labels swap ends
+ * while the other four stay put.
+ */
+const LAS_DIRECTIONS: AxisDirections = [
+  "Right_to_left",
+  "Posterior_to_anterior",
+  "Inferior_to_superior"
+];
+
+/**
+ * Local axes of a probe resting depth posterior with its electrodes facing
+ * superior -- the default local coordinate system. Every one of them runs along
+ * a *negative* Babylon axis of the probe's body, which is what makes drawing
+ * the body's own axes wrong.
+ */
+const PROBE_LOCAL_AXES: FrameAxes = getLocalFrameAxes(
+  buildDefaultLocalCoordinateSystem(),
+  ["Depth", "Forward", "Right"]
+).axes;
+
+/** Labels for `RAS_DIRECTIONS`, matching the built-in names its axes fall back to. */
+const RAS_LABELS: AxisGuideLabels = {
+  global: ["ML", "AP", "SI"],
+  local: PROBE_LOCAL_AXES
+};
+
+/** Labels for `PIR_DIRECTIONS`, whose axes run along the same lines in another order. */
+const PIR_LABELS: AxisGuideLabels = {
+  global: ["AP", "SI", "ML"],
+  local: PROBE_LOCAL_AXES
 };
 
 /**
  * Assert two Babylon vectors are componentwise close, tolerating float
- * error from ASR-axis addition.
+ * error from axis permutation.
  * @param actual Vector produced by the code under test.
  * @param expected Vector to compare against.
  */
@@ -55,7 +107,7 @@ function expectVectorCloseTo(
 
 /** Fake renderers and the `AxisGuides` object they back, for one test. */
 interface TestAxisGuides {
-  renderers: Record<AxisGuideAxis, FakeTextRenderer>;
+  renderers: FakeAxisGuideRenderers;
   guides: AxisGuides;
 }
 
@@ -65,17 +117,79 @@ interface TestAxisGuides {
  * @param scene Scene the font asset's texture is hosted in.
  */
 function makeTestAxisGuides(scene: Scene): TestAxisGuides {
-  const renderers = {
-    ap: makeFakeTextRenderer(),
-    dv: makeFakeTextRenderer(),
-    ml: makeFakeTextRenderer()
-  };
+  const renderers = makeFakeAxisGuideRenderers();
   const guides: AxisGuides = {
     renderers,
     fontAsset: makeTestFontAsset(scene),
     dispose: () => {}
   };
   return { renderers, guides };
+}
+
+/**
+ * The three renderers a global guide set draws on, in the order its lines are
+ * coloured.
+ * @param renderers Fake renderers the guides were drawn on.
+ */
+function globalRenderers(
+  renderers: FakeAxisGuideRenderers
+): FakeTextRenderer[] {
+  return [
+    renderers.leftRight,
+    renderers.inferiorSuperior,
+    renderers.posteriorAnterior
+  ];
+}
+
+/**
+ * The three renderers a local guide set draws on, in its frame's axis order.
+ * @param renderers Fake renderers the guides were drawn on.
+ */
+function localRenderers(renderers: FakeAxisGuideRenderers): FakeTextRenderer[] {
+  return [renderers.localAxis0, renderers.localAxis1, renderers.localAxis2];
+}
+
+/**
+ * Rounded, comparable key of a world direction, so a guide's placement can be
+ * matched against another guide's or against an anatomical direction's without
+ * comparing floats componentwise.
+ * @param vector World-space vector to key, of any length.
+ */
+function worldAxisKey(vector: Vector3): string {
+  return vector
+    .normalizeToNew()
+    .asArray()
+    .map(value => Math.round(value))
+    .join(",");
+}
+
+/**
+ * Babylon world direction an anatomical direction points, taken from the same
+ * conversion the guides go through so no expectation carries a world literal.
+ * @param direction Anatomical direction to convert.
+ */
+function worldDirectionOf(direction: AnatomicalDirection): Vector3 {
+  return toWorldDirection(
+    CANONICAL_AXIS_DIRECTIONS,
+    getDirectionVector(direction)
+  );
+}
+
+/**
+ * Every drawn label with the direction it was placed along, gathered across
+ * the given renderers, so a test can compare label-to-direction mappings.
+ * @param renderers Fake renderers the labels were drawn on.
+ */
+function collectGuideDirections(
+  renderers: FakeTextRenderer[]
+): Array<{ text: string; direction: string }> {
+  return renderers
+    .flatMap(renderer => renderer.paragraphs)
+    .map(paragraph => ({
+      text: paragraph.text,
+      direction: worldAxisKey(paragraph.worldMatrix.getTranslation())
+    }))
+    .sort((a, b) => a.text.localeCompare(b.text));
 }
 
 /** A mesh's local +Y direction transformed into world space, normalized. */
@@ -89,7 +203,7 @@ function worldUp(mesh: {
 }
 
 describe("buildAxisGuides", () => {
-  it("creates axisGuideRoot_node with no parent and an identity world matrix, and parents every renderer to it", () => {
+  it("creates axisGuideRoot_node with no parent and an identity world matrix, and parents each of its renderers to it", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -97,20 +211,21 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     expect(root).toBeTruthy();
     expect(root.parent).toBeNull();
     expect(root.getWorldMatrix().isIdentity()).toBe(true);
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of globalRenderers(renderers)) {
       expect(renderer.parent).toBe(root);
     }
   });
 
-  it("adds each axis's own pair of labels to its own renderer, and one arrow and pick mesh per label", () => {
+  it("draws each axis's pair of labels on the renderer of the anatomical line it runs along, and one arrow and pick mesh per label", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -118,37 +233,172 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
-    expect(renderers.ap.paragraphs.map(p => p.text)).toEqual(["+AP", "-AP"]);
-    expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+DV", "-DV"]);
-    expect(renderers.ml.paragraphs.map(p => p.text)).toEqual(["+ML", "-ML"]);
+    expect(renderers.leftRight.paragraphs.map(p => p.text)).toEqual([
+      "+ML",
+      "-ML"
+    ]);
+    expect(renderers.posteriorAnterior.paragraphs.map(p => p.text)).toEqual([
+      "+AP",
+      "-AP"
+    ]);
+    expect(renderers.inferiorSuperior.paragraphs.map(p => p.text)).toEqual([
+      "+SI",
+      "-SI"
+    ]);
     expect(scene.meshes.map(mesh => mesh.name)).toEqual([
-      "axisGuidePick_+AP",
-      "axisGuideArrow_+AP",
-      "axisGuideArrow_+AP_head",
-      "axisGuidePick_-AP",
-      "axisGuideArrow_-AP",
-      "axisGuideArrow_-AP_head",
-      "axisGuidePick_+DV",
-      "axisGuideArrow_+DV",
-      "axisGuideArrow_+DV_head",
-      "axisGuidePick_-DV",
-      "axisGuideArrow_-DV",
-      "axisGuideArrow_-DV_head",
-      "axisGuidePick_+ML",
-      "axisGuideArrow_+ML",
-      "axisGuideArrow_+ML_head",
-      "axisGuidePick_-ML",
-      "axisGuideArrow_-ML",
-      "axisGuideArrow_-ML_head"
+      "axisGuidePick_0+",
+      "axisGuideArrow_0+",
+      "axisGuideArrow_0+_head",
+      "axisGuidePick_0-",
+      "axisGuideArrow_0-",
+      "axisGuideArrow_0-_head",
+      "axisGuidePick_1+",
+      "axisGuideArrow_1+",
+      "axisGuideArrow_1+_head",
+      "axisGuidePick_1-",
+      "axisGuideArrow_1-",
+      "axisGuideArrow_1-_head",
+      "axisGuidePick_2+",
+      "axisGuideArrow_2+",
+      "axisGuideArrow_2+_head",
+      "axisGuidePick_2-",
+      "axisGuideArrow_2-",
+      "axisGuideArrow_2-_head"
     ]);
     for (const mesh of scene.meshes.filter(mesh =>
       mesh.name.startsWith("axisGuidePick_")
     )) {
       expect(mesh.isVisible).toBe(false);
+    }
+  });
+
+  it("marks each global guide with the world direction its anatomical direction points", () => {
+    const scene = makeTestScene();
+    const { renderers, guides } = makeTestAxisGuides(scene);
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      RAS_DIRECTIONS,
+      { kind: "global" },
+      RAS_LABELS
+    );
+    const ras = collectGuideDirections(globalRenderers(renderers));
+    const directionOf = (text: string) =>
+      ras.find(guide => guide.text === text)!.direction;
+
+    // `RAS` names its axes rightward, anterior, and superior positive, so each
+    // `+` label has to sit on that anatomical end -- `+ML` on the animal's own
+    // right, which is the mirror the axis guides give away first.
+    expect(directionOf("+ML")).toBe(
+      worldAxisKey(worldDirectionOf("Left_to_right"))
+    );
+    expect(directionOf("-ML")).toBe(
+      worldAxisKey(worldDirectionOf("Right_to_left"))
+    );
+    expect(directionOf("+AP")).toBe(
+      worldAxisKey(worldDirectionOf("Posterior_to_anterior"))
+    );
+    expect(directionOf("-AP")).toBe(
+      worldAxisKey(worldDirectionOf("Anterior_to_posterior"))
+    );
+    expect(directionOf("+SI")).toBe(
+      worldAxisKey(worldDirectionOf("Inferior_to_superior"))
+    );
+    expect(directionOf("-SI")).toBe(
+      worldAxisKey(worldDirectionOf("Superior_to_inferior"))
+    );
+  });
+
+  it("keeps the same six world directions under another coordinate system, moving only which label marks each one", () => {
+    const scene = makeTestScene();
+    const { renderers, guides } = makeTestAxisGuides(scene);
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      RAS_DIRECTIONS,
+      { kind: "global" },
+      RAS_LABELS
+    );
+    const ras = collectGuideDirections(globalRenderers(renderers));
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      PIR_DIRECTIONS,
+      { kind: "global" },
+      PIR_LABELS
+    );
+    const pir = collectGuideDirections(globalRenderers(renderers));
+
+    // Any orthogonal triple's six signed axes are the same six anatomical
+    // directions, so world space never moves - only the labels on it do.
+    expect([...new Set(pir.map(guide => guide.direction))].sort()).toEqual(
+      [...new Set(ras.map(guide => guide.direction))].sort()
+    );
+    expect(ras.map(guide => guide.text)).toEqual(pir.map(guide => guide.text));
+    // `PIR` reverses the anterior and superior axes, so those two labels swap
+    // ends; both frames count the third axis rightward, so `ML` stays put.
+    expect(pir.find(guide => guide.text === "+AP")!.direction).toBe(
+      ras.find(guide => guide.text === "-AP")!.direction
+    );
+    expect(pir.find(guide => guide.text === "+SI")!.direction).toBe(
+      ras.find(guide => guide.text === "-SI")!.direction
+    );
+    expect(pir.find(guide => guide.text === "+ML")!.direction).toBe(
+      ras.find(guide => guide.text === "+ML")!.direction
+    );
+  });
+
+  it("swaps which side each ML label sits on when the global system counts leftward, without moving the six world directions", () => {
+    const scene = makeTestScene();
+    const { renderers, guides } = makeTestAxisGuides(scene);
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      RAS_DIRECTIONS,
+      { kind: "global" },
+      RAS_LABELS
+    );
+    const ras = collectGuideDirections(globalRenderers(renderers));
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      LAS_DIRECTIONS,
+      { kind: "global" },
+      RAS_LABELS
+    );
+    const las = collectGuideDirections(globalRenderers(renderers));
+
+    // Reversing only the left-right axis relabels the animal's two sides and
+    // nothing else: `+ML` moves onto the left, `-ML` onto the right, and the
+    // world directions the six guides occupy are the same set as before.
+    expect([...new Set(las.map(guide => guide.direction))].sort()).toEqual(
+      [...new Set(ras.map(guide => guide.direction))].sort()
+    );
+    expect(las.find(guide => guide.text === "+ML")!.direction).toBe(
+      worldAxisKey(worldDirectionOf("Right_to_left"))
+    );
+    expect(las.find(guide => guide.text === "-ML")!.direction).toBe(
+      worldAxisKey(worldDirectionOf("Left_to_right"))
+    );
+    for (const text of ["+AP", "-AP", "+SI", "-SI"]) {
+      expect(las.find(guide => guide.text === text)!.direction).toBe(
+        ras.find(guide => guide.text === text)!.direction
+      );
     }
   });
 
@@ -160,28 +410,29 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
     const pairs: Array<{
       meshName: string;
-      axis: AxisGuideAxis;
+      line: AnatomicalLine;
       index: 0 | 1;
     }> = [
-      { meshName: "axisGuidePick_+AP", axis: "ap", index: 0 },
-      { meshName: "axisGuidePick_-AP", axis: "ap", index: 1 },
-      { meshName: "axisGuidePick_+DV", axis: "dv", index: 0 },
-      { meshName: "axisGuidePick_-DV", axis: "dv", index: 1 },
-      { meshName: "axisGuidePick_+ML", axis: "ml", index: 0 },
-      { meshName: "axisGuidePick_-ML", axis: "ml", index: 1 }
+      { meshName: "axisGuidePick_0+", line: "leftRight", index: 0 },
+      { meshName: "axisGuidePick_0-", line: "leftRight", index: 1 },
+      { meshName: "axisGuidePick_1+", line: "posteriorAnterior", index: 0 },
+      { meshName: "axisGuidePick_1-", line: "posteriorAnterior", index: 1 },
+      { meshName: "axisGuidePick_2+", line: "inferiorSuperior", index: 0 },
+      { meshName: "axisGuidePick_2-", line: "inferiorSuperior", index: 1 }
     ];
 
-    for (const { meshName, axis, index } of pairs) {
+    for (const { meshName, line, index } of pairs) {
       const mesh = scene.getMeshByName(meshName)!;
-      const paragraph = renderers[axis].paragraphs[index]!;
+      const paragraph = renderers[line].paragraphs[index]!;
       mesh.computeWorldMatrix(true);
 
       expectVectorCloseTo(
@@ -203,8 +454,9 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     for (const mesh of scene.meshes.filter(mesh =>
@@ -215,7 +467,7 @@ describe("buildAxisGuides", () => {
     }
   });
 
-  it("positions each label past its arrow's tip, one atlas dimension plus the arrow clearance from the scene origin", () => {
+  it("positions each label past its arrow's tip, one atlas extent along its own anatomical line plus the arrow clearance from the scene origin", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -223,34 +475,48 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
-    expectVectorCloseTo(
-      renderers.ap.paragraphs[0]!.worldMatrix.getTranslation(),
-      new Vector3(0, 0, -15.825)
-    );
-    expectVectorCloseTo(
-      renderers.ap.paragraphs[1]!.worldMatrix.getTranslation(),
-      new Vector3(0, 0, 15.825)
-    );
-    expectVectorCloseTo(
-      renderers.dv.paragraphs[0]!.worldMatrix.getTranslation(),
-      new Vector3(0, -10.625, 0)
-    );
-    expectVectorCloseTo(
-      renderers.dv.paragraphs[1]!.worldMatrix.getTranslation(),
-      new Vector3(0, 10.625, 0)
-    );
-    expectVectorCloseTo(
-      renderers.ml.paragraphs[0]!.worldMatrix.getTranslation(),
-      new Vector3(14.025, 0, 0)
-    );
-    expectVectorCloseTo(
-      renderers.ml.paragraphs[1]!.worldMatrix.getTranslation(),
-      new Vector3(-14.025, 0, 0)
-    );
+    // Each guide sits one atlas extent along its own anatomical line plus the
+    // shared 2.625mm arrow-and-gap clearance: 11.4mm left-right, 13.2mm
+    // posterior-anterior, 8mm inferior-superior. World space is unchanged by
+    // the coordinate system, so each line's `+` end lands on the anatomical
+    // direction `RAS` counts positive -- the animal's own right for `ML`.
+    const lines: Array<{
+      renderer: FakeTextRenderer;
+      positive: AnatomicalDirection;
+      distance: number;
+    }> = [
+      {
+        renderer: renderers.leftRight,
+        positive: "Left_to_right",
+        distance: 14.025
+      },
+      {
+        renderer: renderers.posteriorAnterior,
+        positive: "Posterior_to_anterior",
+        distance: 15.825
+      },
+      {
+        renderer: renderers.inferiorSuperior,
+        positive: "Inferior_to_superior",
+        distance: 10.625
+      }
+    ];
+
+    for (const { renderer, positive, distance } of lines) {
+      expectVectorCloseTo(
+        renderer.paragraphs[0]!.worldMatrix.getTranslation(),
+        worldDirectionOf(positive).scale(distance)
+      );
+      expectVectorCloseTo(
+        renderer.paragraphs[1]!.worldMatrix.getTranslation(),
+        worldDirectionOf(positive).scale(-distance)
+      );
+    }
   });
 
   it("builds a shaft and cone head arrow per label, tip at the label's anchor and pointing outward", () => {
@@ -261,37 +527,39 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
-    const shaftAp = scene.getMeshByName("axisGuideArrow_+AP")!;
-    const headAp = scene.getMeshByName("axisGuideArrow_+AP_head")!;
-    expectVectorCloseTo(shaftAp.position, new Vector3(0, 0, -10.66875));
-    expectVectorCloseTo(headAp.position, new Vector3(0, 0, -12.54375));
-    expect(shaftAp.getBoundingInfo().boundingBox.extendSize.y).toBeCloseTo(
-      1.21875
-    );
-    expect(headAp.getBoundingInfo().boundingBox.extendSize.y).toBeCloseTo(
+    // `+AP` is the anterior end of the posterior-anterior axis, world +Z.
+    const shaftAnterior = scene.getMeshByName("axisGuideArrow_1+")!;
+    const headAnterior = scene.getMeshByName("axisGuideArrow_1+_head")!;
+    expectVectorCloseTo(shaftAnterior.position, new Vector3(0, 0, 10.66875));
+    expectVectorCloseTo(headAnterior.position, new Vector3(0, 0, 12.54375));
+    expect(
+      shaftAnterior.getBoundingInfo().boundingBox.extendSize.y
+    ).toBeCloseTo(1.21875);
+    expect(headAnterior.getBoundingInfo().boundingBox.extendSize.y).toBeCloseTo(
       0.65625
     );
-    expectVectorCloseTo(worldUp(shaftAp), new Vector3(0, 0, -1));
-    expectVectorCloseTo(worldUp(headAp), new Vector3(0, 0, -1));
-    expect(shaftAp.isPickable).toBe(false);
-    expect(headAp.isPickable).toBe(false);
+    expectVectorCloseTo(worldUp(shaftAnterior), new Vector3(0, 0, 1));
+    expectVectorCloseTo(worldUp(headAnterior), new Vector3(0, 0, 1));
+    expect(shaftAnterior.isPickable).toBe(false);
+    expect(headAnterior.isPickable).toBe(false);
 
-    // +DV's direction (0, -1, 0) is antiparallel to CreateCylinder's local +Y build axis.
-    const shaftDv = scene.getMeshByName("axisGuideArrow_+DV")!;
-    const headDv = scene.getMeshByName("axisGuideArrow_+DV_head")!;
-    expectVectorCloseTo(shaftDv.position, new Vector3(0, -5.46875, 0));
-    expectVectorCloseTo(headDv.position, new Vector3(0, -7.34375, 0));
-    expectVectorCloseTo(worldUp(shaftDv), new Vector3(0, -1, 0));
-    expectVectorCloseTo(worldUp(headDv), new Vector3(0, -1, 0));
-    expect(shaftDv.isPickable).toBe(false);
-    expect(headDv.isPickable).toBe(false);
+    // `-SI`'s direction (0, -1, 0) is antiparallel to CreateCylinder's local +Y build axis.
+    const shaftInferior = scene.getMeshByName("axisGuideArrow_2-")!;
+    const headInferior = scene.getMeshByName("axisGuideArrow_2-_head")!;
+    expectVectorCloseTo(shaftInferior.position, new Vector3(0, -5.46875, 0));
+    expectVectorCloseTo(headInferior.position, new Vector3(0, -7.34375, 0));
+    expectVectorCloseTo(worldUp(shaftInferior), new Vector3(0, -1, 0));
+    expectVectorCloseTo(worldUp(headInferior), new Vector3(0, -1, 0));
+    expect(shaftInferior.isPickable).toBe(false);
+    expect(headInferior.isPickable).toBe(false);
   });
 
-  it("colours each axis's arrow material to match its label, unlit", () => {
+  it("colours each anatomical line's arrow material to match its labels, unlit", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
 
@@ -299,26 +567,83 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
-    const expectedColors: Record<AxisGuideAxis, Color3> = {
-      ap: Color3.Blue(),
-      dv: Color3.Green(),
-      ml: Color3.Red()
-    };
-    for (const axis of Object.keys(expectedColors) as AxisGuideAxis[]) {
+    for (const line of Object.keys(
+      GLOBAL_FRAME_AXIS_COLORS
+    ) as AnatomicalLine[]) {
       const material = scene.getMaterialByName(
-        `axisGuideArrow_${axis}_material`
+        `axisGuideArrow_${line}_material`
       ) as StandardMaterial;
       expect(material).toBeTruthy();
-      expect(material.emissiveColor.equals(expectedColors[axis])).toBe(true);
+      expect(
+        material.emissiveColor.equals(GLOBAL_FRAME_AXIS_COLORS[line])
+      ).toBe(true);
       expect(material.disableLighting).toBe(true);
     }
   });
 
-  it("faces each label's readable side outward along its own signed axis", () => {
+  it("colours a local set from the local palette, which shares no colour with the global one", () => {
+    const scene = makeTestScene();
+    const { guides } = makeTestAxisGuides(scene);
+    const node = new TransformNode("gizmoNode", scene);
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      RAS_DIRECTIONS,
+      { kind: "local", getNode: () => node },
+      RAS_LABELS
+    );
+
+    for (const [index, color] of LOCAL_FRAME_AXIS_COLORS.entries()) {
+      const material = scene.getMaterialByName(
+        `axisGuideArrow_localAxis${index}_material`
+      ) as StandardMaterial;
+      expect(material).toBeTruthy();
+      expect(material.emissiveColor.equals(color)).toBe(true);
+      expect(material.disableLighting).toBe(true);
+      expect(scene.getMeshByName(`axisGuideArrow_${index}+`)!.material).toBe(
+        material
+      );
+      for (const globalColor of Object.values(GLOBAL_FRAME_AXIS_COLORS)) {
+        expect(color.equals(globalColor)).toBe(false);
+      }
+    }
+    // A local set draws none of the global lines, so none of their materials exist.
+    expect(
+      scene.getMaterialByName("axisGuideArrow_leftRight_material")
+    ).toBeNull();
+  });
+
+  it("keys the arrow colours to the anatomical line, so reordering the coordinate system's axes never recolours a plane", () => {
+    const scene = makeTestScene();
+    const { guides } = makeTestAxisGuides(scene);
+
+    buildAxisGuides(
+      scene,
+      guides,
+      makeAtlas(),
+      PIR_DIRECTIONS,
+      { kind: "global" },
+      PIR_LABELS
+    );
+
+    // `PIR`'s first axis runs posterior-anterior, yet that line stays blue.
+    const material = scene.getMaterialByName(
+      "axisGuideArrow_posteriorAnterior_material"
+    ) as StandardMaterial;
+    expect(
+      material.emissiveColor.equals(GLOBAL_FRAME_AXIS_COLORS.posteriorAnterior)
+    ).toBe(true);
+    expect(scene.getMeshByName("axisGuideArrow_0+")!.material).toBe(material);
+  });
+
+  it("faces each label's readable side outward along its own signed world axis", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -326,40 +651,28 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
 
-    expectVectorCloseTo(
-      facing(renderers.ap.paragraphs[0]!.worldMatrix),
-      new Vector3(0, 1, 0)
-    );
-    expectVectorCloseTo(
-      facing(renderers.ap.paragraphs[1]!.worldMatrix),
-      new Vector3(0, 1, 0)
-    );
-    expectVectorCloseTo(
-      facing(renderers.ml.paragraphs[0]!.worldMatrix),
-      new Vector3(0, 1, 0)
-    );
-    expectVectorCloseTo(
-      facing(renderers.ml.paragraphs[1]!.worldMatrix),
-      new Vector3(0, 1, 0)
-    );
-    expectVectorCloseTo(
-      facing(renderers.dv.paragraphs[0]!.worldMatrix),
-      new Vector3(0, 0, -1)
-    );
-    expectVectorCloseTo(
-      facing(renderers.dv.paragraphs[1]!.worldMatrix),
-      new Vector3(0, 0, -1)
-    );
+    // The guides in the horizontal plane lie flat, read from above; the
+    // vertical pair stands upright, read from the front.
+    for (const paragraph of [
+      ...renderers.posteriorAnterior.paragraphs,
+      ...renderers.leftRight.paragraphs
+    ]) {
+      expectVectorCloseTo(facing(paragraph.worldMatrix), new Vector3(0, 1, 0));
+    }
+    for (const paragraph of renderers.inferiorSuperior.paragraphs) {
+      expectVectorCloseTo(facing(paragraph.worldMatrix), new Vector3(0, 0, -1));
+    }
   });
 
-  it("points each label's top edge towards its own signed axis, except DV where both point -DV", () => {
+  it("points each label's top edge towards its own signed axis, except the vertical pair where both point up", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -367,40 +680,29 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const topEdge = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 1, 0), matrix).normalize();
 
-    expectVectorCloseTo(
-      topEdge(renderers.ap.paragraphs[0]!.worldMatrix),
-      new Vector3(0, 0, -1)
-    );
-    expectVectorCloseTo(
-      topEdge(renderers.ap.paragraphs[1]!.worldMatrix),
-      new Vector3(0, 0, 1)
-    );
-    expectVectorCloseTo(
-      topEdge(renderers.ml.paragraphs[0]!.worldMatrix),
-      new Vector3(1, 0, 0)
-    );
-    expectVectorCloseTo(
-      topEdge(renderers.ml.paragraphs[1]!.worldMatrix),
-      new Vector3(-1, 0, 0)
-    );
-    expectVectorCloseTo(
-      topEdge(renderers.dv.paragraphs[0]!.worldMatrix),
-      new Vector3(0, 1, 0)
-    );
-    expectVectorCloseTo(
-      topEdge(renderers.dv.paragraphs[1]!.worldMatrix),
-      new Vector3(0, 1, 0)
-    );
+    for (const paragraph of [
+      ...renderers.posteriorAnterior.paragraphs,
+      ...renderers.leftRight.paragraphs
+    ]) {
+      expectVectorCloseTo(
+        topEdge(paragraph.worldMatrix),
+        paragraph.worldMatrix.getTranslation().normalize()
+      );
+    }
+    for (const paragraph of renderers.inferiorSuperior.paragraphs) {
+      expectVectorCloseTo(topEdge(paragraph.worldMatrix), new Vector3(0, 1, 0));
+    }
   });
 
-  it("sizes every label so the widest spans half the atlas's ML length, tracking the atlas", () => {
+  it("sizes every label so the widest spans half the atlas's left-right length, tracking the atlas", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -408,14 +710,15 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
 
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of globalRenderers(renderers)) {
       for (const paragraph of renderer.paragraphs) {
         expect(scale(paragraph.worldMatrix)).toBeCloseTo(5.7 / 1.52, 4);
       }
@@ -427,13 +730,17 @@ describe("buildAxisGuides", () => {
       makeAtlas({
         manifest: makeManifest({ resolutions: [[0.05, 0.05, 0.05]] })
       }),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
-    expect(scale(renderers.ml.paragraphs[0]!.worldMatrix)).toBeCloseTo(7.5, 4);
+    expect(scale(renderers.leftRight.paragraphs[0]!.worldMatrix)).toBeCloseTo(
+      7.5,
+      4
+    );
   });
 
-  it("rebuilds idempotently, leaving one root and two paragraphs per renderer", () => {
+  it("rebuilds idempotently, leaving one root and two paragraphs per global renderer", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -441,21 +748,23 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
     buildAxisGuides(
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     expect(
       scene.transformNodes.filter(node => node.name === "axisGuideRoot_node")
     ).toHaveLength(1);
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of globalRenderers(renderers)) {
       expect(renderer.paragraphs).toHaveLength(2);
     }
   });
@@ -467,8 +776,9 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
 
@@ -476,8 +786,9 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas({ manifest: makeManifest({ resolutions: [] }) }),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeNull();
@@ -489,12 +800,13 @@ describe("buildAxisGuides", () => {
     }
   });
 
-  it("draws Babylon-axis labels in a local frame, keyed to each axis's counterpart renderer", () => {
+  it("draws the local coordinate system's own axes, one renderer per frame axis, not the tracked node's Babylon axes", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
     const node = new TransformNode("gizmoNode", scene);
-    const dimensions = getAtlasDimensionsMillimeters(makeAtlas());
-    const longestDimension = Math.max(...dimensions);
+    const longestDimension = Math.max(
+      ...getAtlasDimensionsMillimeters(makeAtlas())
+    );
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
 
@@ -502,75 +814,65 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       {
         kind: "local",
         getNode: () => node
       },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
-    expect(renderers.ml.paragraphs.map(p => p.text)).toEqual(["+X", "-X"]);
-    expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+Y", "-Y"]);
-    expect(renderers.ap.paragraphs.map(p => p.text)).toEqual(["+Z", "-Z"]);
+    expect(renderers.localAxis0.paragraphs.map(p => p.text)).toEqual([
+      "+Depth",
+      "-Depth"
+    ]);
+    expect(renderers.localAxis1.paragraphs.map(p => p.text)).toEqual([
+      "+Forward",
+      "-Forward"
+    ]);
+    expect(renderers.localAxis2.paragraphs.map(p => p.text)).toEqual([
+      "+Right",
+      "-Right"
+    ]);
+    // A local set never borrows the global palette's renderers.
+    for (const renderer of globalRenderers(renderers)) {
+      expect(renderer.paragraphs).toHaveLength(0);
+      expect(renderer.parent).toBeNull();
+    }
     expect(
       scene.meshes
         .filter(mesh => mesh.name.startsWith("axisGuidePick_"))
         .map(mesh => mesh.name)
     ).toEqual([
-      "axisGuidePick_+X",
-      "axisGuidePick_-X",
-      "axisGuidePick_+Y",
-      "axisGuidePick_-Y",
-      "axisGuidePick_+Z",
-      "axisGuidePick_-Z"
+      "axisGuidePick_0+",
+      "axisGuidePick_0-",
+      "axisGuidePick_1+",
+      "axisGuidePick_1-",
+      "axisGuidePick_2+",
+      "axisGuidePick_2-"
     ]);
 
-    const cases: Array<{
-      paragraph: (typeof renderers.ml.paragraphs)[number];
-      dimension: number;
-      direction: Vector3;
-    }> = [
-      {
-        paragraph: renderers.ml.paragraphs[0]!,
-        dimension: longestDimension,
-        direction: new Vector3(1, 0, 0)
-      },
-      {
-        paragraph: renderers.ml.paragraphs[1]!,
-        dimension: longestDimension,
-        direction: new Vector3(-1, 0, 0)
-      },
-      {
-        paragraph: renderers.dv.paragraphs[0]!,
-        dimension: longestDimension,
-        direction: new Vector3(0, 1, 0)
-      },
-      {
-        paragraph: renderers.dv.paragraphs[1]!,
-        dimension: longestDimension,
-        direction: new Vector3(0, -1, 0)
-      },
-      {
-        paragraph: renderers.ap.paragraphs[0]!,
-        dimension: longestDimension,
-        direction: new Vector3(0, 0, 1)
-      },
-      {
-        paragraph: renderers.ap.paragraphs[1]!,
-        dimension: longestDimension,
-        direction: new Vector3(0, 0, -1)
+    // The electrodes face along the probe body's -Y, so `+Forward` marks -Y:
+    // the body's own +Y, which Babylon's green axis would draw, points the
+    // opposite way, inferior.
+    expectVectorCloseTo(
+      renderers.localAxis1.paragraphs[0]!.worldMatrix.getTranslation().normalize(),
+      new Vector3(0, -1, 0)
+    );
+
+    for (const [index, renderer] of localRenderers(renderers).entries()) {
+      const axis = PROBE_LOCAL_AXES[index]!;
+      for (const [end, paragraph] of renderer.paragraphs.entries()) {
+        const direction = end === 0 ? axis.direction : axis.direction.negate();
+        expectVectorCloseTo(
+          paragraph.worldMatrix.getTranslation(),
+          direction.scale(longestDimension + 0.7 * scale(paragraph.worldMatrix))
+        );
       }
-    ];
-    for (const { paragraph, dimension, direction } of cases) {
-      const labelScale = scale(paragraph.worldMatrix);
-      expectVectorCloseTo(
-        paragraph.worldMatrix.getTranslation(),
-        direction.scale(dimension + 0.7 * labelScale)
-      );
     }
   });
 
-  it("orients each local label per the probe-frame convention: ±X/±Y flat facing +Z, ±Z upright facing +Y", () => {
+  it("orients each local label per the probe-frame convention: the guides along the node's X and Y flat facing +Z, those along its Z upright facing +Y", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
     const node = new TransformNode("gizmoNode", scene);
@@ -579,11 +881,12 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       {
         kind: "local",
         getNode: () => node
       },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const reading = (matrix: Matrix) =>
@@ -593,67 +896,33 @@ describe("buildAxisGuides", () => {
     const facing = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(0, 0, -1), matrix).normalize();
 
-    const cases: Array<{
-      paragraph: (typeof renderers.ml.paragraphs)[number];
-      reading: Vector3;
-      topEdge: Vector3;
-      facing: Vector3;
-    }> = [
-      {
-        paragraph: renderers.ml.paragraphs[0]!,
-        reading: new Vector3(0, 1, 0),
-        topEdge: new Vector3(1, 0, 0),
-        facing: new Vector3(0, 0, 1)
-      },
-      {
-        paragraph: renderers.ml.paragraphs[1]!,
-        reading: new Vector3(0, -1, 0),
-        topEdge: new Vector3(-1, 0, 0),
-        facing: new Vector3(0, 0, 1)
-      },
-      {
-        paragraph: renderers.dv.paragraphs[0]!,
-        reading: new Vector3(-1, 0, 0),
-        topEdge: new Vector3(0, 1, 0),
-        facing: new Vector3(0, 0, 1)
-      },
-      {
-        paragraph: renderers.dv.paragraphs[1]!,
-        reading: new Vector3(1, 0, 0),
-        topEdge: new Vector3(0, -1, 0),
-        facing: new Vector3(0, 0, 1)
-      },
-      {
-        paragraph: renderers.ap.paragraphs[0]!,
-        reading: new Vector3(1, 0, 0),
-        topEdge: new Vector3(0, 0, 1),
-        facing: new Vector3(0, 1, 0)
-      },
-      {
-        paragraph: renderers.ap.paragraphs[1]!,
-        reading: new Vector3(1, 0, 0),
-        topEdge: new Vector3(0, 0, 1),
-        facing: new Vector3(0, 1, 0)
+    const paragraphs = localRenderers(renderers).flatMap(
+      renderer => renderer.paragraphs
+    );
+    expect(paragraphs).toHaveLength(6);
+    for (const paragraph of paragraphs) {
+      const direction = paragraph.worldMatrix.getTranslation().normalize();
+      if (Math.abs(direction.z) > 0.5) {
+        expectVectorCloseTo(
+          facing(paragraph.worldMatrix),
+          new Vector3(0, 1, 0)
+        );
+        expectVectorCloseTo(
+          topEdge(paragraph.worldMatrix),
+          new Vector3(0, 0, 1)
+        );
+        expectVectorCloseTo(
+          reading(paragraph.worldMatrix),
+          new Vector3(1, 0, 0)
+        );
+        continue;
       }
-    ];
-
-    for (const testCase of cases) {
-      expectVectorCloseTo(
-        reading(testCase.paragraph.worldMatrix),
-        testCase.reading
-      );
-      expectVectorCloseTo(
-        topEdge(testCase.paragraph.worldMatrix),
-        testCase.topEdge
-      );
-      expectVectorCloseTo(
-        facing(testCase.paragraph.worldMatrix),
-        testCase.facing
-      );
+      expectVectorCloseTo(facing(paragraph.worldMatrix), new Vector3(0, 0, 1));
+      expectVectorCloseTo(topEdge(paragraph.worldMatrix), direction);
     }
   });
 
-  it("draws the local set at the same em size and arrow geometry as the global set, with every label anchored beyond the atlas's longest dimension", () => {
+  it("draws the local set at the global set's em size, with every label anchored beyond the atlas's longest dimension", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
     const node = new TransformNode("gizmoNode", scene);
@@ -662,43 +931,46 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       {
         kind: "local",
         getNode: () => node
       },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of localRenderers(renderers)) {
       for (const paragraph of renderer.paragraphs) {
         expect(scale(paragraph.worldMatrix)).toBeCloseTo(5.7 / 1.52, 4);
       }
     }
 
-    // Longest atlas dimension (AP, 13.2mm) plus the shared arrow-clearance-and-label-gap term
+    // Longest atlas dimension (13.2mm) plus the shared arrow-clearance-and-label-gap term
     // (2.625mm): every local label anchors the same distance out, regardless of its own axis.
-    const translations: Array<{ text: string; position: Vector3 }> = [
-      { text: "+X", position: new Vector3(15.825, 0, 0) },
-      { text: "-X", position: new Vector3(-15.825, 0, 0) },
-      { text: "+Y", position: new Vector3(0, 15.825, 0) },
-      { text: "-Y", position: new Vector3(0, -15.825, 0) },
-      { text: "+Z", position: new Vector3(0, 0, 15.825) },
-      { text: "-Z", position: new Vector3(0, 0, -15.825) }
-    ];
-    const allParagraphs = Object.values(renderers).flatMap(
+    const allParagraphs = localRenderers(renderers).flatMap(
       renderer => renderer.paragraphs
     );
-    for (const { text, position } of translations) {
-      const paragraph = allParagraphs.find(p => p.text === text)!;
-      expectVectorCloseTo(paragraph.worldMatrix.getTranslation(), position);
+    for (const axis of PROBE_LOCAL_AXES) {
+      for (const sign of ["+", "-"] as const) {
+        const paragraph = allParagraphs.find(
+          p => p.text === `${sign}${axis.label}`
+        )!;
+        const direction =
+          sign === "+" ? axis.direction : axis.direction.negate();
+        expectVectorCloseTo(
+          paragraph.worldMatrix.getTranslation(),
+          direction.scale(15.825)
+        );
+      }
     }
 
-    const shaft = scene.getMeshByName("axisGuideArrow_+X")!;
-    const head = scene.getMeshByName("axisGuideArrow_+X_head")!;
-    expectVectorCloseTo(shaft.position, new Vector3(10.66875, 0, 0));
-    expectVectorCloseTo(head.position, new Vector3(12.54375, 0, 0));
+    const shaft = scene.getMeshByName("axisGuideArrow_0+")!;
+    const head = scene.getMeshByName("axisGuideArrow_0+_head")!;
+    const depth = PROBE_LOCAL_AXES[0]!.direction;
+    expectVectorCloseTo(shaft.position, depth.scale(10.66875));
+    expectVectorCloseTo(head.position, depth.scale(12.54375));
     expect(shaft.getBoundingInfo().boundingBox.extendSize.y).toBeCloseTo(
       1.21875
     );
@@ -719,7 +991,8 @@ describe("buildAxisGuides", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
     const node = new TransformNode("gizmoNode", scene);
-    // DV (500 voxels) is the longest axis here, unlike the default fixture where AP is longest.
+    // The inferior-superior axis (500 voxels) is the longest here, unlike the
+    // default fixture where posterior-anterior is longest.
     const atlas = makeAtlas({
       manifest: makeManifest({ shape: [[100, 500, 100]] })
     });
@@ -729,16 +1002,17 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       atlas,
+      RAS_DIRECTIONS,
       {
         kind: "local",
         getNode: () => node
       },
-      AXIS_LABELS
+      RAS_LABELS
     );
 
     const scale = (matrix: Matrix) =>
       Vector3.TransformNormal(new Vector3(1, 0, 0), matrix).length();
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of localRenderers(renderers)) {
       for (const paragraph of renderer.paragraphs) {
         const labelScale = scale(paragraph.worldMatrix);
         const distance = paragraph.worldMatrix.getTranslation().length();
@@ -747,7 +1021,7 @@ describe("buildAxisGuides", () => {
     }
   });
 
-  it("draws a renamed axis's label with the user's name, leaving the other axes' labels and pick meshes unchanged", () => {
+  it("draws a renamed axis's label with the user's name, leaving the other axes' labels and mesh names unchanged", () => {
     const scene = makeTestScene();
     const { renderers, guides } = makeTestAxisGuides(scene);
 
@@ -755,21 +1029,26 @@ describe("buildAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      {
-        ...AXIS_LABELS,
-        ap: "Bregma AP"
-      }
+      { ...RAS_LABELS, global: ["ML", "PAXAP", "SI"] }
     );
 
-    expect(renderers.ap.paragraphs.map(p => p.text)).toEqual([
-      "+Bregma AP",
-      "-Bregma AP"
+    expect(renderers.posteriorAnterior.paragraphs.map(p => p.text)).toEqual([
+      "+PAXAP",
+      "-PAXAP"
     ]);
-    expect(renderers.dv.paragraphs.map(p => p.text)).toEqual(["+DV", "-DV"]);
-    expect(renderers.ml.paragraphs.map(p => p.text)).toEqual(["+ML", "-ML"]);
-    expect(scene.getMeshByName("axisGuidePick_+Bregma AP")).toBeTruthy();
-    expect(scene.getMeshByName("axisGuidePick_-Bregma AP")).toBeTruthy();
+    expect(renderers.leftRight.paragraphs.map(p => p.text)).toEqual([
+      "+ML",
+      "-ML"
+    ]);
+    expect(renderers.inferiorSuperior.paragraphs.map(p => p.text)).toEqual([
+      "+SI",
+      "-SI"
+    ]);
+    // Mesh names are keyed to the axis index, so a rename never renames a mesh.
+    expect(scene.getMeshByName("axisGuidePick_1+")).toBeTruthy();
+    expect(scene.getMeshByName("axisGuidePick_1-")).toBeTruthy();
   });
 });
 
@@ -790,11 +1069,12 @@ function makeRotatedLocalFrameScene(): {
     scene,
     guides,
     makeAtlas(),
+    RAS_DIRECTIONS,
     {
       kind: "local",
       getNode: () => node
     },
-    AXIS_LABELS
+    RAS_LABELS
   );
   node.rotationQuaternion = Quaternion.RotationYawPitchRoll(Math.PI / 2, 0, 0);
   // The tracker reads `node.absoluteRotationQuaternion` mid-tick: force it fresh first, matching
@@ -819,7 +1099,7 @@ describe("buildAxisGuides local frame tracking", () => {
   it("keeps the guide root's rotation in sync with the tracked node, live", () => {
     const { scene, node } = makeRotatedLocalFrameScene();
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
-    const mesh = scene.getMeshByName("axisGuidePick_+X")!;
+    const mesh = scene.getMeshByName("axisGuidePick_0+")!;
     // Forcing the mesh's world matrix cascades up to its parent, the root.
     mesh.computeWorldMatrix(true);
 
@@ -828,20 +1108,22 @@ describe("buildAxisGuides local frame tracking", () => {
         node.absoluteRotationQuaternion
       )
     ).toBe(true);
+    // `+Depth` lies along the node's -Z, which a quarter turn of yaw swings
+    // onto world -X.
     expectVectorCloseTo(
       mesh.absolutePosition.normalize(),
-      new Vector3(0, 0, -1)
+      new Vector3(-1, 0, 0)
     );
   });
 
   it("picks the tracked node's rotated world direction, not its frame-local one", () => {
     const { scene, camera } = makeRotatedLocalFrameScene();
-    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_+X");
+    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_0+");
 
     const picked = pickAxisGuideDirection(scene, screen.x, screen.y);
 
     expect(picked).not.toBeNull();
-    expectVectorCloseTo(picked!, new Vector3(0, 0, -1));
+    expectVectorCloseTo(picked!, new Vector3(-1, 0, 0));
   });
 
   it("re-resolves the tracked node after it is rebuilt, and releases the observer on clear", () => {
@@ -855,11 +1137,12 @@ describe("buildAxisGuides local frame tracking", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       {
         kind: "local",
         getNode: () => nodeA ?? nodeB
       },
-      AXIS_LABELS
+      RAS_LABELS
     );
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     tickScene(scene, 16);
@@ -902,11 +1185,12 @@ describe("buildAxisGuides local frame tracking", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       {
         kind: "local",
         getNode: () => current
       },
-      AXIS_LABELS
+      RAS_LABELS
     );
     const root = scene.getTransformNodeByName("axisGuideRoot_node")!;
     tickScene(scene, 16);
@@ -936,8 +1220,9 @@ describe("clearAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
     expect(scene.meshes).toHaveLength(18);
 
@@ -955,12 +1240,13 @@ describe("clearAxisGuides", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
     expect(scene.getTransformNodeByName("axisGuideRoot_node")).toBeTruthy();
     expect(scene.meshes).toHaveLength(18);
-    for (const renderer of Object.values(renderers)) {
+    for (const renderer of globalRenderers(renderers)) {
       expect(renderer.paragraphs).toHaveLength(2);
     }
   });
@@ -1007,15 +1293,16 @@ function projectPickMeshToScreen(
 }
 
 describe("pickAxisGuideDirection", () => {
-  it("returns the direction of the axis guide label under a screen position", () => {
+  it("returns the world direction of the axis guide label under a screen position", () => {
     const scene = makeTestScene();
     const { guides } = makeTestAxisGuides(scene);
     buildAxisGuides(
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
     const camera = new ArcRotateCamera(
       "c",
@@ -1027,20 +1314,22 @@ describe("pickAxisGuideDirection", () => {
     );
     scene.activeCamera = camera;
 
-    const cases: Array<{ meshName: string; direction: Vector3 }> = [
-      { meshName: "axisGuidePick_+AP", direction: new Vector3(0, 0, -1) },
-      { meshName: "axisGuidePick_-AP", direction: new Vector3(0, 0, 1) },
-      { meshName: "axisGuidePick_+DV", direction: new Vector3(0, -1, 0) },
-      { meshName: "axisGuidePick_-DV", direction: new Vector3(0, 1, 0) },
-      { meshName: "axisGuidePick_+ML", direction: new Vector3(1, 0, 0) },
-      { meshName: "axisGuidePick_-ML", direction: new Vector3(-1, 0, 0) }
+    // `RAS` axis 0 is the left-right one, so its `+` guide marks the animal's
+    // right; axis 1 is anterior-positive and axis 2 superior-positive.
+    const cases: Array<{ meshName: string; direction: AnatomicalDirection }> = [
+      { meshName: "axisGuidePick_0+", direction: "Left_to_right" },
+      { meshName: "axisGuidePick_0-", direction: "Right_to_left" },
+      { meshName: "axisGuidePick_1+", direction: "Posterior_to_anterior" },
+      { meshName: "axisGuidePick_1-", direction: "Anterior_to_posterior" },
+      { meshName: "axisGuidePick_2+", direction: "Inferior_to_superior" },
+      { meshName: "axisGuidePick_2-", direction: "Superior_to_inferior" }
     ];
 
     for (const { meshName, direction } of cases) {
       const screen = projectPickMeshToScreen(scene, camera, meshName);
       const picked = pickAxisGuideDirection(scene, screen.x, screen.y);
       expect(picked).not.toBeNull();
-      expectVectorCloseTo(picked!, direction);
+      expectVectorCloseTo(picked!, worldDirectionOf(direction));
     }
   });
 
@@ -1051,8 +1340,9 @@ describe("pickAxisGuideDirection", () => {
       scene,
       guides,
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
-      AXIS_LABELS
+      RAS_LABELS
     );
     const camera = new ArcRotateCamera(
       "c",

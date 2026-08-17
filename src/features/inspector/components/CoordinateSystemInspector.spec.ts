@@ -117,7 +117,7 @@ describe("CoordinateSystemInspector", () => {
     expect(coordinateSystem.name).toBe("A");
   });
 
-  it("clicking Add Transform appends exactly one node to the chain", async () => {
+  it("clicking Add Transform appends one node named after the global coordinate system's axes", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
     expect(coordinateSystem.chain).toHaveLength(1);
 
@@ -129,7 +129,10 @@ describe("CoordinateSystemInspector", () => {
     expect(coordinateSystem.chain).toHaveLength(2);
     expect(
       coordinateSystem.chain[1]!.position.map(value => value.name)
-    ).toEqual(["ML", "DV", "AP"]);
+    ).toEqual(["ML", "AP", "SI"]);
+    expect(
+      coordinateSystem.chain[1]!.rotation.map(value => value.name)
+    ).toEqual(["Pitch", "Roll", "Yaw"]);
   });
 
   it("renders each node's name as its expansion item label", () => {
@@ -232,7 +235,7 @@ describe("CoordinateSystemInspector", () => {
             ...makeCoordinateSystem().chain[0]!,
             position: [
               buildCoordinateSystemValue("ML", 1),
-              buildFixedCoordinateSystemValue("DV"),
+              buildFixedCoordinateSystemValue("SI"),
               buildCoordinateSystemValue("AP", 3)
             ]
           }
@@ -256,7 +259,7 @@ describe("CoordinateSystemInspector", () => {
             ...makeCoordinateSystem().chain[0]!,
             position: [
               buildFixedCoordinateSystemValue("ML"),
-              buildFixedCoordinateSystemValue("DV"),
+              buildFixedCoordinateSystemValue("SI"),
               buildFixedCoordinateSystemValue("AP")
             ]
           }
@@ -397,7 +400,7 @@ describe("CoordinateSystemInspector", () => {
 
     expect(
       coordinateSystem.chain[0]!.position.map(value => value.name)
-    ).toEqual(["ML", "DV", "AP"]);
+    ).toEqual(["ML", "SI", "AP"]);
     expect(coordinateSystem.chain[0]!.positionDisplayOrder).toEqual([1, 2, 0]);
     expect(
       wrapper
@@ -407,7 +410,7 @@ describe("CoordinateSystemInspector", () => {
             (component.props("coordinateSystemValue") as CoordinateSystemValue)
               .name
         )
-    ).toEqual(["DV", "AP", "ML"]);
+    ).toEqual(["SI", "AP", "ML"]);
   });
 
   it("clicking a second node's Position summary button focuses it, and unmounting resets the focus", async () => {

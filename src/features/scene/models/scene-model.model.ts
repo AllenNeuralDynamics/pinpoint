@@ -10,8 +10,8 @@ export interface SceneModel {
 
   /**
    * Internal position representation of the model's origin.
-   * - Scene objects: AP, DV, ML order, ASR orientation, relative to the
-   *   atlas origin, in mm.
+   * - Scene objects: the experiment's global coordinate system, relative to
+   *   the atlas origin, in mm.
    * - Probe body models: Babylon local X, Y, Z, relative to the probe's
    *   transform node, in mm.
    */
@@ -19,7 +19,8 @@ export interface SceneModel {
 
   /**
    * Internal orientation representation of the model.
-   * - Scene objects: roll, yaw, pitch order (aligned to AP, DV, ML order), in radians.
+   * - Scene objects: a rotation triple about the global coordinate system's
+   *   own axes, in radians.
    * - Probe body models: Babylon local X, Y, Z rotation, relative to the
    *   probe's transform node, in radians.
    */
@@ -27,8 +28,8 @@ export interface SceneModel {
 
   /**
    * Internal scale representation of the model.
-   * - Scene objects: AP, DV, ML order, ASR orientation. That triple maps to
-   *   the object node's Babylon local Z, Y, X respectively (via `asrToVector3`).
+   * - Scene objects: one factor per global coordinate system axis, which the
+   *   object node's scale node takes through `toSceneMagnitudes`.
    * - Probe body models: Babylon local X, Y, Z.
    * - Unitless multiplier; 1 is the model's own size.
    */

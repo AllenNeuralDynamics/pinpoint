@@ -88,7 +88,9 @@ function addProbeAndSelect(probeInterfaceProbe: ProbeInterfaceProbe) {
   internProbeInterfaceProbe(currentExperiment.experiment, probeInterfaceProbe);
   const probe = buildProbe(
     probeInterfaceProbe,
-    currentExperiment.referenceCoordinate
+    currentExperiment.referenceCoordinate,
+    currentExperiment.globalCoordinateSystem,
+    currentExperiment.localCoordinateSystem
   );
   addProbe(currentExperiment.experiment, probe);
   currentExperiment.selectedInspectable = probe;

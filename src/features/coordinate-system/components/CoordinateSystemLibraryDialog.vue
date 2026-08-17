@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { computed } from "vue";
 import { useDialogPluginComponent, useQuasar } from "quasar";
 import { useI18n } from "vue-i18n";
 import type { CoordinateSystem } from "../model/coordinate-system.model";
@@ -7,6 +8,7 @@ import {
   buildCoordinateSystem
 } from "../api/coordinate-system.api";
 import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
+import { useCoordinateAxes } from "@/composable/useCoordinateAxes";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDragReorder } from "@/composable/useDragReorder";
 
@@ -17,6 +19,7 @@ const $q = useQuasar();
 const { t } = useI18n();
 const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
 const currentExperimentStore = useCurrentExperimentStore();
+const { positionDefaultNames, rotationDefaultNames } = useCoordinateAxes();
 
 const {
   draggedIndex,
@@ -26,6 +29,26 @@ const {
   dropRow,
   endDrag
 } = useDragReorder(coordinateSystemLibraryStore.reorder);
+
+/** Name of each position axis of the experiment's global coordinate system, indexed by axis. */
+const positionAxisNames = computed<[string, string, string]>(() => {
+  const { axes } = currentExperimentStore.globalCoordinateSystem;
+  return [
+    axes[0].positionName || positionDefaultNames.value[0],
+    axes[1].positionName || positionDefaultNames.value[1],
+    axes[2].positionName || positionDefaultNames.value[2]
+  ];
+});
+
+/** Name of each rotation axis of the experiment's global coordinate system, indexed by axis. */
+const rotationAxisNames = computed<[string, string, string]>(() => {
+  const { axes } = currentExperimentStore.globalCoordinateSystem;
+  return [
+    axes[0].rotationName || rotationDefaultNames.value[0],
+    axes[1].rotationName || rotationDefaultNames.value[1],
+    axes[2].rotationName || rotationDefaultNames.value[2]
+  ];
+});
 
 /**
  * Select a coordinate system for the inspector and close the library.
@@ -50,7 +73,9 @@ function addCoordinateSystem() {
   );
   addCoordinateSystemTransform(
     coordinateSystem,
-    t("coordinateSystemInspector.newTransformName", { index: 1 })
+    t("coordinateSystemInspector.newTransformName", { index: 1 }),
+    positionAxisNames.value,
+    rotationAxisNames.value
   );
   coordinateSystemLibraryStore.add(coordinateSystem);
   openInInspector(coordinateSystem);

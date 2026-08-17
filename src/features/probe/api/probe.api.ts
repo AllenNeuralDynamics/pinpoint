@@ -15,6 +15,11 @@ import {
   isHexColor,
   isRecord
 } from "@/utils/type-guards";
+import type {
+  GlobalCoordinateSystem,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import { getDownwardProbeRotation } from "@/utils/coordinate-frame";
 
 /** Every valid probe visibility, for validating untrusted probe data. */
 const PROBE_VISIBILITIES: readonly string[] = [
@@ -35,13 +40,18 @@ const NEXT_PROBE_VISIBILITY: Record<ProbeVisibility, ProbeVisibility> = {
 
 /**
  * Build a probe referencing the given probe interface definition, with a
- * random name and color, the given tip position, and a pitch pointing inferiorly.
+ * random name and color, the given tip position, and the rotation that points
+ * its depth axis as close to inferior as the coordinate systems allow.
  * @param probeInterfaceProbe Probe interface definition for the probe.
- * @param tipPosition Starting tip position, in atlas ASR mm.
+ * @param tipPosition Starting tip position, in global coordinate system mm.
+ * @param globalCoordinateSystem Global coordinate system the pose is expressed in.
+ * @param localCoordinateSystem Local coordinate system the probe rests in.
  */
 export function buildProbe(
   probeInterfaceProbe: ProbeInterfaceProbe,
-  tipPosition: [number, number, number]
+  tipPosition: [number, number, number],
+  globalCoordinateSystem: GlobalCoordinateSystem,
+  localCoordinateSystem: LocalCoordinateSystem
 ): Probe {
   const uuid = crypto.randomUUID();
   const uniqueName = uuid.slice(0, 8);
@@ -55,7 +65,10 @@ export function buildProbe(
     probeInterfaceIdentifier: getProbeInterfaceIdentifier(probeInterfaceProbe),
     coordinateSystemIdentifier: null,
     tipPosition: [...tipPosition],
-    rotation: [0, 0, Math.PI / 2],
+    rotation: getDownwardProbeRotation(
+      globalCoordinateSystem,
+      localCoordinateSystem
+    ),
     sliceExtentMillimeters: null,
     sliceCenterHeightMillimeters: 0,
     channelMapWindow: null,
@@ -99,7 +112,8 @@ export function rotateProbeVisibility(probe: Probe) {
 /**
  * Reset a probe's tip position to the experiment's reference coordinate.
  * @param probe Probe to reset the tip position of.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
+ * @param referenceCoordinate Experiment reference coordinate, in global
+ * coordinate system mm.
  */
 export function homeProbe(
   probe: Probe,
@@ -109,21 +123,22 @@ export function homeProbe(
 }
 
 /**
- * Move a probe's tip to a point in atlas ASR millimeters.
+ * Move a probe's tip to a point in the experiment's global coordinate system.
  * @param probe Probe to move.
- * @param atlasMillimeters Target tip position, in atlas ASR mm.
+ * @param globalMillimeters Target tip position, in global coordinate system mm.
  */
 export function setProbeTipMillimeters(
   probe: Probe,
-  atlasMillimeters: [number, number, number]
+  globalMillimeters: [number, number, number]
 ): void {
-  probe.tipPosition = [...atlasMillimeters];
+  probe.tipPosition = [...globalMillimeters];
 }
 
 /**
- * Turn a probe to an orientation, in roll, yaw, pitch radians.
+ * Turn a probe to a rest-relative rotation about the global coordinate
+ * system's axes.
  * @param probe Probe to turn.
- * @param radians Target orientation, as roll, yaw, pitch radians.
+ * @param radians Target rotation triple, in radians.
  */
 export function setProbeRotationRadians(
   probe: Probe,

@@ -6,6 +6,10 @@ import {
   serializePreferences
 } from "./preferences-file.api";
 import type { Preferences } from "@/stores/preferences.store";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 
 /**
  * Build a fully populated `Preferences` fixture, so each test only needs to
@@ -29,10 +33,9 @@ function makePreferences(overrides: Partial<Preferences> = {}): Preferences {
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
-    positionAxisNames: ["", "", ""],
-    rotationAxisNames: ["", "", ""],
-    positionAxisOrder: [0, 1, 2],
-    rotationAxisOrder: [0, 1, 2],
+    newSceneGlobalCoordinateSystem: buildDefaultGlobalCoordinateSystem(),
+    newSceneLocalCoordinateSystem: buildDefaultLocalCoordinateSystem(),
+    areCoordinateSystemsRetained: false,
     decimalPrecision: 3,
     dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
@@ -59,12 +62,12 @@ describe("serializePreferences", () => {
     );
   });
 
-  it("writes only the twenty-seven preference keys", () => {
+  it("writes only the twenty-six preference keys", () => {
     const fixture = { ...makePreferences(), junk: 1 } as Preferences;
 
     const keys = Object.keys(JSON.parse(serializePreferences(fixture)));
 
-    expect(keys).toHaveLength(27);
+    expect(keys).toHaveLength(26);
     expect(keys).not.toContain("junk");
   });
 });
@@ -107,23 +110,59 @@ describe("parsePreferencesFile", () => {
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
 
-  it("returns null for a non-permutation positionAxisOrder", () => {
-    const fixture = { ...makePreferences(), positionAxisOrder: [0, 0, 1] };
-
-    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
-  });
-
-  it("returns null for a non-string entry in rotationAxisNames", () => {
+  it("returns null for a global system whose axes share an anatomical line", () => {
+    const system = buildDefaultGlobalCoordinateSystem();
+    system.axes[1].direction = system.axes[0].direction;
     const fixture = {
       ...makePreferences(),
-      rotationAxisNames: ["", 5, ""]
+      newSceneGlobalCoordinateSystem: system
     };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
 
-  it("returns null for a two-element positionAxisNames", () => {
-    const fixture = { ...makePreferences(), positionAxisNames: ["", ""] };
+  it("returns null for a global system with a non-permutation display order", () => {
+    const system = buildDefaultGlobalCoordinateSystem();
+    const fixture = {
+      ...makePreferences(),
+      newSceneGlobalCoordinateSystem: {
+        ...system,
+        positionDisplayOrder: [0, 0, 1]
+      }
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a local system whose depth and forward axes are parallel", () => {
+    const fixture = {
+      ...makePreferences(),
+      newSceneLocalCoordinateSystem: {
+        depthDirection: "Anterior_to_posterior",
+        forwardDirection: "Posterior_to_anterior"
+      }
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for an unrecognized direction in the local system", () => {
+    const fixture = {
+      ...makePreferences(),
+      newSceneLocalCoordinateSystem: {
+        depthDirection: "Dorsal_to_ventral",
+        forwardDirection: "Posterior_to_anterior"
+      }
+    };
+
+    expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
+  });
+
+  it("returns null for a non-boolean areCoordinateSystemsRetained", () => {
+    const fixture = {
+      ...makePreferences(),
+      areCoordinateSystemsRetained: "true"
+    };
 
     expect(parsePreferencesFile(JSON.stringify(fixture))).toBeNull();
   });
@@ -246,6 +285,33 @@ describe("applyPreferences", () => {
 
     expect(target).toBe(originalTarget);
     expect(target).toEqual({ ...source, version: "9.9.9" });
+  });
+
+  it("gives the target its own copy of the coordinate systems", () => {
+    const target = makePreferences();
+    const system = buildDefaultGlobalCoordinateSystem();
+    system.axes[0].positionName = "Bregma ML";
+    const source = makePreferences({
+      newSceneGlobalCoordinateSystem: system,
+      newSceneLocalCoordinateSystem: {
+        depthDirection: "Superior_to_inferior",
+        forwardDirection: "Posterior_to_anterior"
+      }
+    });
+
+    applyPreferences(target, source, "9.9.9");
+
+    expect(target.newSceneGlobalCoordinateSystem).toEqual(system);
+    expect(target.newSceneGlobalCoordinateSystem).not.toBe(system);
+    expect(target.newSceneGlobalCoordinateSystem.axes[0]).not.toBe(
+      system.axes[0]
+    );
+    expect(target.newSceneLocalCoordinateSystem).toEqual(
+      source.newSceneLocalCoordinateSystem
+    );
+    expect(target.newSceneLocalCoordinateSystem).not.toBe(
+      source.newSceneLocalCoordinateSystem
+    );
   });
 
   it("ignores an extra key on the source", () => {

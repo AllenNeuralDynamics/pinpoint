@@ -8,16 +8,20 @@ import {
 import {
   addCameraPose,
   addProbe,
-  buildExperiment,
   internCoordinateSystem,
   internProbeInterfaceProbe
 } from "./experiment.api";
 import { copyCameraPose } from "./camera-pose.api";
 import { buildProbe, detachProbeInterfaceProbe } from "@/features/probe";
 import {
-  makeAtlas,
+  type AnatomicalDirection,
+  buildCoordinateAxis
+} from "@/utils/coordinate-frame";
+import type { AxisOrder } from "@/utils/axis-order";
+import {
   makeCameraPose,
   makeCoordinateSystem,
+  makeExperiment,
   makeProbeInterfaceProbe,
   makeSceneModel,
   makeSceneObject
@@ -29,14 +33,25 @@ import type { Experiment } from "../models/experiment.model";
  * probe referencing it, for round-trip and validation tests.
  */
 function makeFullExperiment(): Experiment {
-  const experiment = buildExperiment("My Experiment", makeAtlas(), [1, 2, 3]);
+  const experiment = makeExperiment({
+    name: "My Experiment",
+    referenceCoordinate: [1, 2, 3]
+  });
   const spec = makeProbeInterfaceProbe({
     annotations: { manufacturer: "imec", model_name: "np1" }
   });
   internProbeInterfaceProbe(experiment, spec);
   const coordinateSystem = makeCoordinateSystem();
   internCoordinateSystem(experiment, coordinateSystem);
-  addProbe(experiment, buildProbe(spec, [0, 0, 0]));
+  addProbe(
+    experiment,
+    buildProbe(
+      spec,
+      [0, 0, 0],
+      experiment.globalCoordinateSystem,
+      experiment.localCoordinateSystem
+    )
+  );
   experiment.visibleStructures = [{ id: 5, isTransparent: false }];
   return experiment;
 }
@@ -407,7 +422,12 @@ describe("zipExperiment / unzipExperiment", () => {
         Object.keys(experiment.probeInterfaceProbes)[0]!
       ]!;
     const duplicate = {
-      ...buildProbe(spec, [0, 0, 0]),
+      ...buildProbe(
+        spec,
+        [0, 0, 0],
+        experiment.globalCoordinateSystem,
+        experiment.localCoordinateSystem
+      ),
       id: experiment.probes[0]!.id
     };
     experiment.probes.push(duplicate);
@@ -514,14 +534,22 @@ describe("zipExperiment / unzipExperiment", () => {
   });
 
   it("accepts a probe interface definition without a probe_planar_contour", () => {
-    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "Exp" });
     const spec = makeProbeInterfaceProbe({
       annotations: { manufacturer: "imec", model_name: "np1" }
     });
     internProbeInterfaceProbe(experiment, spec);
     const coordinateSystem = makeCoordinateSystem();
     internCoordinateSystem(experiment, coordinateSystem);
-    addProbe(experiment, buildProbe(spec, [0, 0, 0]));
+    addProbe(
+      experiment,
+      buildProbe(
+        spec,
+        [0, 0, 0],
+        experiment.globalCoordinateSystem,
+        experiment.localCoordinateSystem
+      )
+    );
 
     // buildProbeContour (src/features/scene/api/probe.api.ts) already
     // degrades to `null` for missing contour geometry, so this is left
@@ -530,43 +558,110 @@ describe("zipExperiment / unzipExperiment", () => {
       experiment
     );
   });
+
+  it("round-trips the experiment's coordinate systems", () => {
+    const experiment = makeFullExperiment();
+    experiment.globalCoordinateSystem = {
+      axes: [
+        buildCoordinateAxis("Anterior_to_posterior"),
+        buildCoordinateAxis("Superior_to_inferior"),
+        buildCoordinateAxis("Right_to_left")
+      ],
+      positionDisplayOrder: [2, 0, 1],
+      rotationDisplayOrder: [1, 2, 0]
+    };
+    experiment.localCoordinateSystem = {
+      depthDirection: "Superior_to_inferior",
+      forwardDirection: "Posterior_to_anterior"
+    };
+
+    const archive = unzipExperiment(zipExperiment(experiment, new Map()));
+
+    expect(archive?.experiment.globalCoordinateSystem).toEqual(
+      experiment.globalCoordinateSystem
+    );
+    expect(archive?.experiment.localCoordinateSystem).toEqual(
+      experiment.localCoordinateSystem
+    );
+  });
+
+  it("returns null when globalCoordinateSystem is missing", () => {
+    const { globalCoordinateSystem: _global, ...rest } = makeFullExperiment();
+    expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
+  });
+
+  it("returns null when localCoordinateSystem is missing", () => {
+    const { localCoordinateSystem: _local, ...rest } = makeFullExperiment();
+    expect(unzipExperiment(zipRawExperiment(rest))).toBeNull();
+  });
+
+  it("returns null when a global coordinate system axis has an unknown direction", () => {
+    const experiment = makeFullExperiment();
+    experiment.globalCoordinateSystem = {
+      ...experiment.globalCoordinateSystem,
+      axes: [
+        buildCoordinateAxis("Up_to_down" as AnatomicalDirection),
+        experiment.globalCoordinateSystem.axes[1],
+        experiment.globalCoordinateSystem.axes[2]
+      ]
+    };
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("returns null when a global coordinate system display order repeats an axis", () => {
+    const experiment = makeFullExperiment();
+    experiment.globalCoordinateSystem = {
+      ...experiment.globalCoordinateSystem,
+      positionDisplayOrder: [0, 0, 1] as unknown as AxisOrder
+    };
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
+
+  it("returns null when the local coordinate system has an unknown direction", () => {
+    const experiment = makeFullExperiment();
+    experiment.localCoordinateSystem = {
+      depthDirection: "Anterior_to_posterior",
+      forwardDirection: "sideways" as AnatomicalDirection
+    };
+    expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
+  });
 });
 
 describe("buildExperimentFileName", () => {
   it("replaces spaces with dashes", () => {
-    const experiment = buildExperiment("My Experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "My Experiment" });
     expect(buildExperimentFileName(experiment)).toBe("My-Experiment.zip");
   });
 
   it("collapses runs of unsafe characters into a single dash", () => {
-    const experiment = buildExperiment("a/b:c*d", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "a/b:c*d" });
     expect(buildExperimentFileName(experiment)).toBe("a-b-c-d.zip");
   });
 
   it("falls back to a default name when nothing safe remains", () => {
-    const experiment = buildExperiment("   ", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: " " });
     expect(buildExperimentFileName(experiment)).toBe("experiment.zip");
   });
 
   it("falls back to a default name for a name with no ASCII characters", () => {
-    const experiment = buildExperiment("🧠🧠", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "🧠🧠" });
     expect(buildExperimentFileName(experiment)).toBe("experiment.zip");
   });
 
   it("strips a leading dot so the file isn't hidden", () => {
-    const experiment = buildExperiment(".hidden", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: ".hidden" });
     expect(buildExperimentFileName(experiment)).toBe("hidden.zip");
   });
 
   it("truncates a long name without leaving a trailing dash", () => {
-    const experiment = buildExperiment("a".repeat(200), makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "a".repeat(200) });
     const fileName = buildExperimentFileName(experiment);
     expect(fileName).toBe(`${"a".repeat(64)}.zip`);
     expect(fileName).not.toMatch(/-\.zip$/);
   });
 
   it("appends .zip even when the name already ends in .zip", () => {
-    const experiment = buildExperiment("exp.zip", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "exp.zip" });
     expect(buildExperimentFileName(experiment)).toBe("exp.zip.zip");
   });
 });

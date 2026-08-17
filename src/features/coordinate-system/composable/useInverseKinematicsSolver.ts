@@ -7,6 +7,10 @@ import type {
 } from "../api/inverse-kinematics.api";
 import type { CoordinateSystemNode } from "../model/coordinate-system.model";
 import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import type {
   InboundInverseKinematicsMessage,
   OutboundInverseKinematicsMessage
 } from "../model/inverse-kinematics-message.model";
@@ -29,6 +33,8 @@ export interface InverseKinematicsSolveRequest {
   chain: CoordinateSystemNode[];
   target: CoordinateSystemTarget;
   referenceOffsetMillimeters: [number, number, number] | null;
+  globalDirections: AxisDirections;
+  localCoordinateSystem: LocalCoordinateSystem;
   maximumStarts: number;
 }
 

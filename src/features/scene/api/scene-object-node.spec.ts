@@ -1,16 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 import { Color3, Quaternion, TransformNode, Vector3 } from "@babylonjs/core";
-import type { DragEvent, Mesh, StandardMaterial } from "@babylonjs/core";
+import type { GizmoManager, Mesh, StandardMaterial } from "@babylonjs/core";
 import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
-import { addSceneObject, buildExperiment } from "@/features/experiment";
-import { makeAtlas, makeSceneObject } from "@/test/fixtures";
+import { addSceneObject } from "@/features/experiment";
+import { makeExperiment, makeSceneObject } from "@/test/fixtures";
 import {
   makeTestModelFile,
   makeTestSceneWithGizmo,
   makeTestSceneWithPhysics,
   tickScene
 } from "@/test/mount-helper";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import {
+  toSceneMagnitudes,
+  toSceneQuaternion,
+  toSceneVector
+} from "./coordinate-transforms.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import { getRotationMatrix } from "@/utils/coordinate-frame";
 import {
   attachSceneObjectSelection,
   buildSceneObjectNode,
@@ -21,10 +27,24 @@ import {
   setSceneObjectScaleFromGizmoDrag,
   syncSceneObjects
 } from "./scene-object-node.api";
+import type { CoordinateGizmos, GizmoMode } from "../models/gizmo.model";
+import {
+  buildCoordinateGizmos,
+  setCoordinateGizmoMode,
+  trackCoordinateGizmoAttachment
+} from "./coordinate-gizmo.api";
+import { getNodeFrameAxes } from "./frame-axes.api";
 
 // `buildSceneObjectNode` imports the stored model file through `ImportMeshAsync`,
 // which needs the glTF plugin factory registered, mirroring the app boot.
 registerBuiltInLoaders();
+
+/** Global system a new experiment uses, which every fixture here is expressed in. */
+const GLOBAL_DIRECTIONS: AxisDirections = [
+  "Left_to_right",
+  "Posterior_to_anterior",
+  "Inferior_to_superior"
+];
 
 /**
  * Build an experiment holding one scene object, for sync tests.
@@ -33,10 +53,28 @@ registerBuiltInLoaders();
 function makeExperimentWithSceneObject(
   overrides: Parameters<typeof makeSceneObject>[0] = {}
 ) {
-  const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  const experiment = makeExperiment();
   const sceneObject = makeSceneObject(overrides);
   addSceneObject(experiment, sceneObject);
   return { experiment, sceneObject };
+}
+
+/**
+ * Build the three transform gizmos for a scene object, whose handles run along
+ * the node's own axes, following the gizmo manager's attachment and showing the
+ * one under test, since a hidden gizmo is deliberately detached.
+ * @param gizmoManager Gizmo manager whose layers and attachment to follow.
+ * @param mode Gizmo the test drags; the other two stay hidden.
+ */
+function makeGizmos(
+  gizmoManager: GizmoManager,
+  mode: GizmoMode
+): CoordinateGizmos {
+  const frame = getNodeFrameAxes(["one", "two", "three"]);
+  const gizmos = buildCoordinateGizmos(gizmoManager, frame, frame);
+  trackCoordinateGizmoAttachment(gizmoManager, gizmos);
+  setCoordinateGizmoMode(gizmos, mode);
+  return gizmos;
 }
 
 describe("buildSceneObjectNode", () => {
@@ -48,6 +86,7 @@ describe("buildSceneObjectNode", () => {
     const built = await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     );
@@ -79,6 +118,7 @@ describe("buildSceneObjectNode", () => {
     const built = await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     );
@@ -100,12 +140,14 @@ describe("buildSceneObjectNode", () => {
     const first = await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     );
     const second = await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     );
@@ -119,7 +161,13 @@ describe("disposeSceneObjectNode", () => {
     const { scene, gizmoManager } = await makeTestSceneWithPhysics();
     const sceneObject = makeSceneObject();
     const modelFile = await makeTestModelFile();
-    await buildSceneObjectNode(scene, sceneObject, modelFile, gizmoManager);
+    await buildSceneObjectNode(
+      scene,
+      sceneObject,
+      GLOBAL_DIRECTIONS,
+      modelFile,
+      gizmoManager
+    );
 
     disposeSceneObjectNode(scene, sceneObject.id, gizmoManager);
 
@@ -135,7 +183,7 @@ describe("disposeSceneObjectNode", () => {
 });
 
 describe("syncSceneObjects", () => {
-  it("snaps a freshly built object to its ASR pose", async () => {
+  it("snaps a freshly built object to its stored pose", async () => {
     const { scene, gizmoManager } = await makeTestSceneWithPhysics();
     const { experiment, sceneObject } = makeExperimentWithSceneObject({
       position: [1, 2, 3],
@@ -154,15 +202,28 @@ describe("syncSceneObjects", () => {
     );
 
     const node = getSceneObjectTransformNode(scene, sceneObject.id)!;
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
-    expect(node.rotation.equals(asrToVector3(sceneObject.rotation))).toBe(true);
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(true);
+    expect(
+      node.rotationQuaternion!.equalsWithEpsilon(
+        toSceneQuaternion(
+          getRotationMatrix(GLOBAL_DIRECTIONS, sceneObject.rotation)
+        ),
+        1e-6
+      )
+    ).toBe(true);
     expect(node.scaling.equals(Vector3.One())).toBe(true);
     const scaleNode = scene.getTransformNodeByName(
       `${sceneObject.id}_object_scale`
     )!;
-    expect(scaleNode.scaling.equals(asrToVector3(sceneObject.scale))).toBe(
-      true
-    );
+    expect(
+      scaleNode.scaling.equals(
+        toSceneMagnitudes(GLOBAL_DIRECTIONS, sceneObject.scale)
+      )
+    ).toBe(true);
   });
 
   it("keeps the gizmo node's world scale uniform under a non-uniform object scale", async () => {
@@ -225,11 +286,17 @@ describe("syncSceneObjects", () => {
     const node = getSceneObjectTransformNode(scene, sceneObject.id)!;
     // Interpolation has started but not finished after a single small tick.
     tickScene(scene, 50);
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(
-      false
-    );
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(false);
     tickScene(scene, 1000);
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(true);
   });
 
   it("snaps a scene object's pose immediately when snapPoses is true, with no tick", async () => {
@@ -264,11 +331,24 @@ describe("syncSceneObjects", () => {
     const scaleNode = scene.getTransformNodeByName(
       `${sceneObject.id}_object_scale`
     )!;
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
-    expect(node.rotation.equals(asrToVector3(sceneObject.rotation))).toBe(true);
-    expect(scaleNode.scaling.equals(asrToVector3(sceneObject.scale))).toBe(
-      true
-    );
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(true);
+    expect(
+      node.rotationQuaternion!.equalsWithEpsilon(
+        toSceneQuaternion(
+          getRotationMatrix(GLOBAL_DIRECTIONS, sceneObject.rotation)
+        ),
+        1e-6
+      )
+    ).toBe(true);
+    expect(
+      scaleNode.scaling.equals(
+        toSceneMagnitudes(GLOBAL_DIRECTIONS, sceneObject.scale)
+      )
+    ).toBe(true);
   });
 
   it("stops an in-flight glide and snaps to the new goal when snapPoses is true", async () => {
@@ -298,9 +378,11 @@ describe("syncSceneObjects", () => {
 
     const node = getSceneObjectTransformNode(scene, sceneObject.id)!;
     tickScene(scene, 50);
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(
-      false
-    );
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(false);
 
     await syncSceneObjects(
       scene,
@@ -311,10 +393,18 @@ describe("syncSceneObjects", () => {
       loadModel,
       true
     );
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(true);
 
     tickScene(scene, 1000);
-    expect(node.position.equals(asrToVector3(sceneObject.position))).toBe(true);
+    expect(
+      node.position.equals(
+        toSceneVector(GLOBAL_DIRECTIONS, sceneObject.position)
+      )
+    ).toBe(true);
   });
 
   it("recolors the material when the object's color changes", async () => {
@@ -617,20 +707,20 @@ describe("setSceneObjectScaleFromGizmoDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { sceneObject } = makeExperimentWithSceneObject();
     const node = new TransformNode(`${sceneObject.id}_object_node`, scene);
+    const gizmos = makeGizmos(gizmoManager, "scale");
     gizmoManager.attachToNode(node);
     node.scaling.set(2, 1, 1);
     const onDrag = vi.fn();
 
     setSceneObjectScaleFromGizmoDrag(
-      gizmoManager.gizmos.scaleGizmo!,
+      gizmos.scaleGizmo,
       [sceneObject],
+      GLOBAL_DIRECTIONS,
       onDrag
     );
-    gizmoManager.gizmos.scaleGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.scaleGizmo.onDragObservable.notifyObservers();
 
-    expect(sceneObject.scale).toEqual([1, 1, 2]);
+    expect(sceneObject.scale).toEqual([2, 1, 1]);
     expect(node.scaling.equals(Vector3.One())).toBe(true);
     const scaleNode = scene.getTransformNodeByName(
       `${sceneObject.id}_object_scale`
@@ -639,11 +729,9 @@ describe("setSceneObjectScaleFromGizmoDrag", () => {
     expect(onDrag).toHaveBeenCalledWith(sceneObject.id);
 
     node.scaling.set(3, 1, 1);
-    gizmoManager.gizmos.scaleGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.scaleGizmo.onDragObservable.notifyObservers();
 
-    expect(sceneObject.scale).toEqual([1, 1, 6]);
+    expect(sceneObject.scale).toEqual([6, 1, 1]);
     expect(node.scaling.equals(Vector3.One())).toBe(true);
     expect(scaleNode.scaling.equals(new Vector3(6, 1, 1))).toBe(true);
   });
@@ -658,6 +746,7 @@ describe("attachSceneObjectSelection", () => {
     const node = (await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     ))!.node;
@@ -683,6 +772,7 @@ describe("attachSceneObjectSelection", () => {
     const node = (await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     ))!.node;

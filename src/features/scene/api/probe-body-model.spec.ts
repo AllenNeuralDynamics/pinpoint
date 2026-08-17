@@ -1,17 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import type { DragEvent, DragStartEndEvent, Scene } from "@babylonjs/core";
+import type { GizmoManager, Scene } from "@babylonjs/core";
 import { TransformNode, Vector3 } from "@babylonjs/core";
 import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
-import {
-  addProbe,
-  buildExperiment,
-  internProbeInterfaceProbe
-} from "@/features/experiment";
+import { addProbe, internProbeInterfaceProbe } from "@/features/experiment";
 import type { Experiment } from "@/features/experiment";
 import type { Probe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 import {
-  makeAtlas,
+  makeExperiment,
   makeProbe,
   makeProbeGeometry,
   makeProbeInterfaceProbe,
@@ -35,6 +31,13 @@ import {
   setProbeBodyModelScaleFromGizmoDrag,
   syncProbeBodyModels
 } from "./probe-body-model.api";
+import type { CoordinateGizmos, GizmoMode } from "../models/gizmo.model";
+import {
+  buildCoordinateGizmos,
+  setCoordinateGizmoMode,
+  trackCoordinateGizmoAttachment
+} from "./coordinate-gizmo.api";
+import { getNodeFrameAxes } from "./frame-axes.api";
 
 // `buildProbeBodyModelNode` imports the stored model file through
 // `ImportMeshAsync`, which needs the glTF plugin factory registered,
@@ -60,7 +63,7 @@ function makeExperimentWithProbe(probeOverrides: Partial<Probe> = {}): {
   experiment: Experiment;
   probe: Probe;
 } {
-  const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  const experiment = makeExperiment();
   const probeInterfaceProbe = makeProbeInterfaceProbe({
     probe_planar_contour: NP1000_CONTOUR
   });
@@ -133,7 +136,7 @@ describe("buildProbeBodyModelNode", () => {
 });
 
 describe("syncProbeBodyModels", () => {
-  it("applies the body model's local pose to the node unswapped, not through ASR", async () => {
+  it("applies the body model's local pose to the node unswapped, not through the global coordinate system", async () => {
     const { scene, gizmoManager } = await makeTestSceneWithPhysics();
     const bodyModel = makeSceneModel({
       position: [1, 2, 3],
@@ -393,23 +396,40 @@ function makeBodyModelNode(scene: Scene, probeId: string) {
   return new TransformNode(`${probeId}_probe_body-model_node`, scene);
 }
 
+/**
+ * Build the three transform gizmos for a body model, whose handles run along
+ * the node's own axes, following the gizmo manager's attachment and showing
+ * the one under test, since a hidden gizmo is deliberately detached.
+ * @param gizmoManager Gizmo manager whose layers and attachment to follow.
+ * @param mode Gizmo the test drags; the other two stay hidden.
+ */
+function makeGizmos(
+  gizmoManager: GizmoManager,
+  mode: GizmoMode
+): CoordinateGizmos {
+  const frame = getNodeFrameAxes(["one", "two", "three"]);
+  const gizmos = buildCoordinateGizmos(gizmoManager, frame, frame);
+  trackCoordinateGizmoAttachment(gizmoManager, gizmos);
+  setCoordinateGizmoMode(gizmos, mode);
+  return gizmos;
+}
+
 describe("setProbeBodyModelPositionFromGizmoDrag", () => {
   it("writes the attached body model's local position and notifies onDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { probe } = makeExperimentWithProbe({ bodyModel: makeSceneModel() });
     const node = makeBodyModelNode(scene, probe.id);
+    const gizmos = makeGizmos(gizmoManager, "position");
     gizmoManager.attachToNode(node);
     node.position.set(1, 2, 3);
     const onDrag = vi.fn();
 
     setProbeBodyModelPositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       [probe],
       onDrag
     );
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
 
     expect(probe.bodyModel!.position).toEqual([1, 2, 3]);
     expect(onDrag).toHaveBeenCalledWith(probe.id);
@@ -427,17 +447,16 @@ describe("setProbeBodyModelPositionFromGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(gizmoManager, "position");
     gizmoManager.attachToNode(probeNode);
     const onDrag = vi.fn();
 
     setProbeBodyModelPositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       [probe],
       onDrag
     );
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
 
     expect(onDrag).not.toHaveBeenCalled();
   });
@@ -448,18 +467,17 @@ describe("setProbeBodyModelRotationFromGizmoDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { probe } = makeExperimentWithProbe({ bodyModel: makeSceneModel() });
     const node = makeBodyModelNode(scene, probe.id);
+    const gizmos = makeGizmos(gizmoManager, "rotation");
     gizmoManager.attachToNode(node);
     node.rotation.set(0.1, 0.2, 0.3);
     const onDrag = vi.fn();
 
     setProbeBodyModelRotationFromGizmoDrag(
-      gizmoManager.gizmos.rotationGizmo!,
+      gizmos.rotationGizmo,
       [probe],
       onDrag
     );
-    gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.rotationGizmo.onDragObservable.notifyObservers();
 
     expect(probe.bodyModel!.rotation).toEqual([0.1, 0.2, 0.3]);
     expect(onDrag).toHaveBeenCalledWith(probe.id);
@@ -477,17 +495,16 @@ describe("setProbeBodyModelRotationFromGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(gizmoManager, "rotation");
     gizmoManager.attachToNode(probeNode);
     const onDrag = vi.fn();
 
     setProbeBodyModelRotationFromGizmoDrag(
-      gizmoManager.gizmos.rotationGizmo!,
+      gizmos.rotationGizmo,
       [probe],
       onDrag
     );
-    gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.rotationGizmo.onDragObservable.notifyObservers();
 
     expect(onDrag).not.toHaveBeenCalled();
   });
@@ -498,26 +515,19 @@ describe("setProbeBodyModelScaleFromGizmoDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { probe } = makeExperimentWithProbe({ bodyModel: makeSceneModel() });
     const node = makeBodyModelNode(scene, probe.id);
+    const gizmos = makeGizmos(gizmoManager, "scale");
     gizmoManager.attachToNode(node);
     node.scaling.set(2, 3, 4);
     const onDrag = vi.fn();
 
-    setProbeBodyModelScaleFromGizmoDrag(
-      gizmoManager.gizmos.scaleGizmo!,
-      [probe],
-      onDrag
-    );
-    gizmoManager.gizmos.scaleGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    setProbeBodyModelScaleFromGizmoDrag(gizmos.scaleGizmo, [probe], onDrag);
+    gizmos.scaleGizmo.onDragObservable.notifyObservers();
 
     expect(probe.bodyModel!.scale).toEqual([2, 3, 4]);
     expect(onDrag).toHaveBeenCalledWith(probe.id);
 
     node.scaling.set(3, 1, 1);
-    gizmoManager.gizmos.scaleGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.scaleGizmo.onDragObservable.notifyObservers();
 
     expect(probe.bodyModel!.scale).toEqual([6, 3, 4]);
     expect(node.scaling.equals(Vector3.One())).toBe(true);
@@ -535,17 +545,12 @@ describe("setProbeBodyModelScaleFromGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(gizmoManager, "scale");
     gizmoManager.attachToNode(probeNode);
     const onDrag = vi.fn();
 
-    setProbeBodyModelScaleFromGizmoDrag(
-      gizmoManager.gizmos.scaleGizmo!,
-      [probe],
-      onDrag
-    );
-    gizmoManager.gizmos.scaleGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    setProbeBodyModelScaleFromGizmoDrag(gizmos.scaleGizmo, [probe], onDrag);
+    gizmos.scaleGizmo.onDragObservable.notifyObservers();
 
     expect(onDrag).not.toHaveBeenCalled();
   });
@@ -556,24 +561,17 @@ describe("endProbeBodyModelGizmoDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { probe } = makeExperimentWithProbe();
     const node = makeBodyModelNode(scene, probe.id);
-    const gizmos = {
-      positionGizmo: gizmoManager.gizmos.positionGizmo!,
-      rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-      scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-    };
+    const gizmos = makeGizmos(gizmoManager, "position");
     const onDragEnd = vi.fn();
     endProbeBodyModelGizmoDrag(gizmos, onDragEnd);
 
     gizmoManager.attachToNode(node);
-    gizmos.positionGizmo.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
-    gizmos.rotationGizmo.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
-    gizmos.scaleGizmo.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    // Each gizmo drags in its own mode, as the toolbar shows one at a time.
+    gizmos.positionGizmo.onDragEndObservable.notifyObservers();
+    setCoordinateGizmoMode(gizmos, "rotation");
+    gizmos.rotationGizmo.onDragEndObservable.notifyObservers();
+    setCoordinateGizmoMode(gizmos, "scale");
+    gizmos.scaleGizmo.onDragEndObservable.notifyObservers();
 
     expect(onDragEnd).toHaveBeenCalledTimes(3);
   });
@@ -590,18 +588,12 @@ describe("endProbeBodyModelGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
-    const gizmos = {
-      positionGizmo: gizmoManager.gizmos.positionGizmo!,
-      rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-      scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-    };
+    const gizmos = makeGizmos(gizmoManager, "position");
     const onDragEnd = vi.fn();
     endProbeBodyModelGizmoDrag(gizmos, onDragEnd);
 
     gizmoManager.attachToNode(probeNode);
-    gizmos.positionGizmo.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    gizmos.positionGizmo.onDragEndObservable.notifyObservers();
 
     expect(onDragEnd).not.toHaveBeenCalled();
   });

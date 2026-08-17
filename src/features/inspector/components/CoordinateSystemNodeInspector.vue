@@ -15,6 +15,9 @@ import { useValidationRules } from "@/composable/useValidationRules";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import CoordinateSystemValueDialog from "./CoordinateSystemValueDialog.vue";
 
+// Built-in label per chain axis, indexed by axis. A chain node's axes are the
+// probe's own chain axes, rooted in the experiment's local coordinate system -
+// not the global coordinate system's anatomical axes - so they stay X, Y, Z.
 const AXIS_MESSAGE_KEYS = ["axis.x", "axis.y", "axis.z"] as const;
 
 const { node } = defineProps<{

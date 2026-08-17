@@ -6,8 +6,7 @@ import RecentExperimentsList from "./RecentExperimentsList.vue";
 import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
-import { buildExperiment } from "../api/experiment.api";
-import { makeAtlas } from "@/test/fixtures";
+import { makeExperiment } from "@/test/fixtures";
 
 // The current-experiment store's `terminologyRows` is `computedAsync` and
 // fetches on store creation, so mounting would trigger real network calls
@@ -70,12 +69,8 @@ describe("RecentExperimentsList", () => {
 
   it("renders one row per recent experiment", () => {
     const recentExperimentsStore = useRecentExperimentsStore();
-    recentExperimentsStore.add(
-      buildExperiment("Experiment A", makeAtlas(), [0, 0, 0])
-    );
-    recentExperimentsStore.add(
-      buildExperiment("Experiment B", makeAtlas(), [0, 0, 0])
-    );
+    recentExperimentsStore.add(makeExperiment({ name: "Experiment A" }));
+    recentExperimentsStore.add(makeExperiment({ name: "Experiment B" }));
 
     const wrapper = mountList();
     const items = wrapper.findAllComponents({ name: "QItem" });
@@ -89,7 +84,7 @@ describe("RecentExperimentsList", () => {
   it("removes and loads the experiment when a row is clicked, then emits opened", async () => {
     const recentExperimentsStore = useRecentExperimentsStore();
     const currentExperimentStore = useCurrentExperimentStore();
-    const experiment = buildExperiment("Experiment A", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "Experiment A" });
     recentExperimentsStore.add(experiment);
 
     const wrapper = mountList();
@@ -102,7 +97,7 @@ describe("RecentExperimentsList", () => {
 
   it("prompts for confirmation and removes the experiment when the delete button is confirmed", async () => {
     const recentExperimentsStore = useRecentExperimentsStore();
-    const experiment = buildExperiment("Experiment A", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment({ name: "Experiment A" });
     recentExperimentsStore.add(experiment);
 
     const wrapper = mountList();

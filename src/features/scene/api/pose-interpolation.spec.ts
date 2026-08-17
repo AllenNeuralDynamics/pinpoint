@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TransformNode, Vector3 } from "@babylonjs/core";
+import { Quaternion, TransformNode, Vector3 } from "@babylonjs/core";
 import { makeTestScene, tickScene } from "@/test/mount-helper";
 import {
   interpolateNodePose,
@@ -12,7 +12,7 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
 
@@ -23,7 +23,7 @@ describe("interpolateNodePose", () => {
     const node2 = new TransformNode("n2", scene2);
     interpolateNodePose(scene2, node2, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
 
@@ -37,7 +37,7 @@ describe("interpolateNodePose", () => {
     const goal = new Vector3(10, 0, 0);
     interpolateNodePose(scene, node, {
       position: goal,
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
 
@@ -55,26 +55,32 @@ describe("interpolateNodePose", () => {
   it("animates rotation alongside position", () => {
     const scene = makeTestScene();
     const node = new TransformNode("n", scene);
+    const goal = Quaternion.FromEulerVector(new Vector3(0, 0, 1));
     interpolateNodePose(scene, node, {
       position: Vector3.Zero(),
-      rotation: new Vector3(0, 0, 1),
+      rotation: goal,
       scaling: Vector3.One()
     });
 
     tickScene(scene, 100);
-    expect(node.rotation.z).toBeCloseTo(0.5);
+    expect(
+      node.rotationQuaternion!.equalsWithEpsilon(
+        Quaternion.FromEulerVector(new Vector3(0, 0, 0.5)),
+        1e-6
+      )
+    ).toBe(true);
 
     tickScene(scene, 100);
-    expect(node.rotation.asArray()).toEqual([0, 0, 1]);
+    expect(node.rotationQuaternion!.equalsWithEpsilon(goal, 1e-9)).toBe(true);
   });
 
   it("rotates the short way around a wrap", () => {
     const scene = makeTestScene();
     const node = new TransformNode("n", scene);
-    node.rotation = new Vector3(0, 0, -3);
+    node.rotationQuaternion = Quaternion.FromEulerVector(new Vector3(0, 0, -3));
     interpolateNodePose(scene, node, {
       position: Vector3.Zero(),
-      rotation: new Vector3(0, 0, 3),
+      rotation: Quaternion.FromEulerVector(new Vector3(0, 0, 3)),
       scaling: Vector3.One()
     });
 
@@ -92,7 +98,7 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
     tickScene(scene, 100);
@@ -100,7 +106,7 @@ describe("interpolateNodePose", () => {
 
     interpolateNodePose(scene, node, {
       position: new Vector3(0, 0, 20),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
     tickScene(scene, 100);
@@ -118,7 +124,7 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
 
@@ -133,7 +139,7 @@ describe("interpolateNodePose", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: Vector3.Zero(),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: new Vector3(2, 2, 2)
     });
 
@@ -152,7 +158,7 @@ describe("stopNodePoseInterpolation", () => {
     const node = new TransformNode("n", scene);
     interpolateNodePose(scene, node, {
       position: new Vector3(10, 0, 0),
-      rotation: Vector3.Zero(),
+      rotation: Quaternion.Identity(),
       scaling: Vector3.One()
     });
     tickScene(scene, 100);

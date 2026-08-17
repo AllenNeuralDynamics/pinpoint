@@ -270,7 +270,7 @@ export function getShankSliceGeometry(
 }
 
 /**
- * Unit ASR direction of a rendered image's +x axis: probe-local -X, so the
+ * Unit atlas direction of a rendered image's +x axis: probe-local -X, so the
  * image looks along the contacts' outward normal (probe-local -Y, the
  * head-stage cut side).
  * @param frame Probe frame whose right axis to mirror.

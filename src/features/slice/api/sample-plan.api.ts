@@ -41,7 +41,7 @@ export function planSamples(
   const [scaleA, scaleS, scaleR] = level.scaleMillimeters;
   const [shapeA, shapeS, shapeR] = level.shapeVoxels;
   const [chunkA, chunkS, chunkR] = level.chunkShapeVoxels;
-  const gridDv = Math.ceil(shapeS / chunkS);
+  const gridSi = Math.ceil(shapeS / chunkS);
   const gridMl = Math.ceil(shapeR / chunkR);
 
   const {
@@ -133,7 +133,7 @@ export function planSamples(
           originR = chunkCoordinateR * chunkR;
 
           const chunkKey =
-            (chunkCoordinateA * gridDv + chunkCoordinateS) * gridMl +
+            (chunkCoordinateA * gridSi + chunkCoordinateS) * gridMl +
             chunkCoordinateR;
           bucket = buckets.get(chunkKey) ?? null;
           if (!bucket) {
@@ -253,7 +253,7 @@ function countChunksAtLevel(
     Math.min(heightPixels, Math.ceil((2 * halfHeight) / stepMillimeters) + 1)
   );
 
-  const gridDv = Math.ceil(shapeS / chunkS);
+  const gridSi = Math.ceil(shapeS / chunkS);
   const gridMl = Math.ceil(shapeR / chunkR);
   const chunkKeys = new Set<number>();
   for (const band of bands) {
@@ -295,7 +295,7 @@ function countChunksAtLevel(
         const chunkCoordinateS = Math.floor(voxelS / chunkS);
         const chunkCoordinateR = Math.floor(voxelR / chunkR);
         chunkKeys.add(
-          (chunkCoordinateA * gridDv + chunkCoordinateS) * gridMl +
+          (chunkCoordinateA * gridSi + chunkCoordinateS) * gridMl +
             chunkCoordinateR
         );
       }

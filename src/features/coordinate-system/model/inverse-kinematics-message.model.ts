@@ -3,6 +3,10 @@ import type {
   CoordinateSystemSolveStatus,
   CoordinateSystemTarget
 } from "../api/inverse-kinematics.api";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import type { CoordinateSystemNode } from "./coordinate-system.model";
 
 /** Solve one transform chain onto a target pose. */
@@ -12,6 +16,8 @@ export interface SolveInverseKinematicsMessage {
   chain: CoordinateSystemNode[];
   target: CoordinateSystemTarget;
   referenceOffsetMillimeters: [number, number, number] | null;
+  globalDirections: AxisDirections;
+  localCoordinateSystem: LocalCoordinateSystem;
   maximumStarts: number;
 }
 

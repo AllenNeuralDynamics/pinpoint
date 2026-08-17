@@ -7,6 +7,7 @@ import {
   Geometry,
   Mesh,
   MeshBuilder,
+  TransformNode,
   Vector3,
   VertexBuffer,
   VertexData
@@ -18,7 +19,8 @@ import {
   syncStructuresVisibility
 } from "./structures.api";
 import type { StructureEntity } from "@/features/atlas";
-import { asrToBabylon } from "./coordinate-transforms.api";
+import { toSceneVector } from "./coordinate-transforms.api";
+import { ATLAS_AXIS_DIRECTIONS } from "@/utils/coordinate-frame";
 import { makeTestScene, stubDracoDecoder } from "@/test/mount-helper";
 import { makeAtlas } from "@/test/fixtures";
 
@@ -979,16 +981,21 @@ describe("setAtlasCenterOffset", () => {
     );
   });
 
-  it("offsets the atlas root so the atlas center sits at the origin", () => {
+  it("offsets the atlas root so the atlas center sits at the world origin", () => {
     const scene = makeTestScene();
     const center: [number, number, number] = [5.7, 0.44, 5.4];
 
     setAtlasCenterOffset(scene, center);
 
     const atlasRootNode = scene.getTransformNodeByName("atlasRoot_node")!;
-    expect(atlasRootNode.position.equals(asrToBabylon(center).negate())).toBe(
-      true
-    );
+    const atCenter = new TransformNode("center", scene);
+    atCenter.parent = atlasRootNode;
+    atCenter.position = toSceneVector(ATLAS_AXIS_DIRECTIONS, center);
+    atCenter.computeWorldMatrix(true);
+
+    expect(
+      Vector3.Distance(atCenter.absolutePosition, Vector3.Zero())
+    ).toBeLessThan(1e-6);
   });
 
   it("reuses the existing atlas root node on a second call", () => {

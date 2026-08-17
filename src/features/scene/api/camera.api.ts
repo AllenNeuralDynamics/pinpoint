@@ -8,9 +8,12 @@ import { clamp } from "@/utils/math";
 const ORBIT_POLE_EPSILON = 1e-6;
 
 /**
- * Azimuth used when orbiting straight up or down `DV`, where azimuth is
- * otherwise undefined: matches `+AP`'s, so the camera's roll at the pole is
- * always the same regardless of where it orbited from.
+ * Azimuth used when orbiting straight up or down Babylon's world Y, where
+ * azimuth is otherwise undefined: matches world -Z's azimuth, so the camera's
+ * roll at a pole is always the same regardless of where it orbited from.
+ * @remarks Every direction reaching this module is already in Babylon world
+ * space, which stays anatomically fixed however the experiment's coordinate
+ * system names its axes, so no anatomical axis is hardcoded here.
  */
 const ORBIT_POLE_ALPHA = -Math.PI / 2;
 

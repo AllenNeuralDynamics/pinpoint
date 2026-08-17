@@ -38,14 +38,25 @@ export default {
   },
   axis: {
     ap: "AP",
-    dv: "DV",
+    si: "SI",
     ml: "ML",
     x: "X",
     y: "Y",
     z: "Z",
     roll: "Roll",
     yaw: "Yaw",
-    pitch: "Pitch"
+    pitch: "Pitch",
+    depth: "Depth",
+    forward: "Forward",
+    right: "Right"
+  },
+  direction: {
+    leftToRight: "Left → Right",
+    rightToLeft: "Right → Left",
+    posteriorToAnterior: "Posterior → Anterior",
+    anteriorToPosterior: "Anterior → Posterior",
+    inferiorToSuperior: "Inferior → Superior",
+    superiorToInferior: "Superior → Inferior"
   },
   newExperiment: {
     title: "New Experiment",
@@ -57,10 +68,9 @@ export default {
   experimentProperties: {
     title: "Experiment Properties",
     experimentName: "Experiment name",
-    referenceCoordinate: "Reference Coordinate",
     cancel: "Cancel",
     save: "Save",
-    incomplete: "Enter a name, pick an atlas, and set the reference coordinate."
+    incomplete: "Enter a name and pick an atlas."
   },
   recentExperiments: {
     title: "Recent Experiments",
@@ -234,7 +244,7 @@ export default {
     cancelSurface: "Cancel move to surface",
     noSurfaceFound: "No brain surface found",
     noSurfaceFoundCaption:
-      "Neither the probe's axis nor straight down on DV reaches the atlas.",
+      "Neither the probe's axis nor straight down reaches the atlas.",
     surfaceUnavailable: "Could not read the atlas annotations",
     surfaceUnavailableCaption: "Check your connection to the atlas source.",
     copy: "Duplicate probe",
@@ -273,7 +283,8 @@ export default {
     lock: "Lock 3D object",
     unlock: "Unlock 3D object",
     collisionDetection: "Collision detection",
-    relativeToReferenceCoordinate: "Relative to reference coordinate"
+    relativeToReferenceCoordinate: "Relative to reference coordinate",
+    scaleAxis: "Scale {axis}"
   },
   cameraInspector: {
     poseName: "Pose name",
@@ -353,6 +364,7 @@ export default {
   preferences: {
     title: "Preferences",
     general: "General",
+    coordinates: "Coordinates",
     scene: "Scene",
     probe: "Probe",
     export: "Export",
@@ -393,11 +405,31 @@ export default {
     rotationUnit: "Rotation",
     decimalPrecision: "Decimal Places",
 
-    axesTitle: "Atlas Axes",
-    positionAxes: "Position Axes",
-    rotationAxes: "Rotation Axes",
-    axisName: "Name for {axis}",
+    globalCoordinateSystemTitle: "Global Coordinate System",
+    globalCoordinateSystemHint:
+      "Every coordinate in this experiment is expressed in these axes. Changing them rewrites the numbers, not the geometry.",
+    coordinateSystemSummary: "{name} ({handedness})",
+    handednessRight: "right-handed",
+    handednessLeft: "left-handed",
+    globalAxes: "Axes",
+    axisDirection: "Direction",
+    axisDirectionFor: "Direction for {axis}",
+    positionAxisName: "Position name for {axis}",
+    rotationAxisName: "Rotation name for {axis}",
+    rotationAxisOrder: "Rotation Input Order",
     dragToReorder: "Drag to reorder",
+
+    localCoordinateSystemTitle: "Probe Coordinate System",
+    localCoordinateSystemHint:
+      "Where a probe points before its own rotations: the direction it advances as it is inserted, and the direction its electrodes face.",
+
+    referenceCoordinateTitle: "Reference Coordinate",
+    referenceCoordinateHint:
+      "Origin every coordinate in this experiment is measured from.",
+
+    retainCoordinateSystems: "Reuse These Coordinate Systems",
+    retainCoordinateSystemsHint:
+      "Stores the global and probe coordinate systems of the current scene as the defaults for new scenes.",
 
     probeShape: "Probe Shape",
     shankThickness: "Shank Thickness",

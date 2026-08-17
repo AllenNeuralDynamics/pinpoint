@@ -11,9 +11,14 @@ import {
   buildCoordinateSystemValue
 } from "@/features/coordinate-system";
 import type { ProbeGeometry, SceneModel, SceneObject } from "@/features/scene";
-import type { CameraPose } from "@/features/experiment";
+import type { CameraPose, Experiment } from "@/features/experiment";
+import { buildExperiment } from "@/features/experiment";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 
 /**
  * Build a fixture scene model.
@@ -152,7 +157,7 @@ export function makeCoordinateSystem(
         "Tip",
         [
           buildCoordinateSystemValue("ML"),
-          buildCoordinateSystemValue("DV"),
+          buildCoordinateSystemValue("SI"),
           buildCoordinateSystemValue("AP")
         ],
         [
@@ -182,6 +187,31 @@ export function makeCameraPose(
     beta: Math.PI / 8,
     radius: 10,
     target: [0, 0, 0],
+    ...overrides
+  };
+}
+
+/**
+ * Build a fixture experiment in the default coordinate systems, framed on its
+ * atlas. Overrides are applied after the build, so overriding the name, atlas,
+ * coordinate systems, or reference coordinate seeds the build itself.
+ * @param overrides Fields to override on the default experiment.
+ */
+export function makeExperiment(
+  overrides: Partial<Experiment> = {}
+): Experiment {
+  const atlas = overrides.atlas ?? makeAtlas();
+  const globalCoordinateSystem =
+    overrides.globalCoordinateSystem ?? buildDefaultGlobalCoordinateSystem();
+
+  return {
+    ...buildExperiment(
+      overrides.name ?? "Experiment",
+      atlas,
+      globalCoordinateSystem,
+      overrides.localCoordinateSystem ?? buildDefaultLocalCoordinateSystem(),
+      overrides.referenceCoordinate ?? [0, 0, 0]
+    ),
     ...overrides
   };
 }

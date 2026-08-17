@@ -20,7 +20,7 @@ const SCENE_OBJECT_COPY_NAME_SUFFIX = " - copy";
  * at the given position, and given a random color and a fresh scene id.
  * @param modelId Model id of the object's GLB in IndexedDB.
  * @param fileName Name of the model file the object was imported from.
- * @param position Spawn position, in atlas ASR mm as [ap, dv, ml].
+ * @param position Spawn position, in global-coordinate-system mm relative to the atlas origin.
  */
 export function buildSceneObject(
   modelId: string,

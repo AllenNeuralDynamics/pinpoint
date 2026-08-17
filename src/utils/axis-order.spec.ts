@@ -63,14 +63,14 @@ describe("moveAxisSlot", () => {
 });
 
 describe("getAxisSlots", () => {
-  const defaultNames: [string, string, string] = ["AP", "DV", "ML"];
+  const defaultNames: [string, string, string] = ["AP", "SI", "ML"];
 
   it("returns slots in display order, using the built-in name when unnamed", () => {
     const slots = getAxisSlots([0, 1, 2], ["", "", ""], defaultNames);
 
     expect(slots).toEqual([
       { axis: 0, label: "AP" },
-      { axis: 1, label: "DV" },
+      { axis: 1, label: "SI" },
       { axis: 2, label: "ML" }
     ]);
   });
@@ -79,7 +79,7 @@ describe("getAxisSlots", () => {
     const slots = getAxisSlots([2, 0, 1], ["", "", ""], defaultNames);
 
     expect(slots.map(slot => slot.axis)).toEqual([2, 0, 1]);
-    expect(slots.map(slot => slot.label)).toEqual(["ML", "AP", "DV"]);
+    expect(slots.map(slot => slot.label)).toEqual(["ML", "AP", "SI"]);
   });
 
   it("prefers a user name over the built-in label", () => {

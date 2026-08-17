@@ -1,11 +1,6 @@
 import type {
   AbstractMesh,
-  DragEvent,
-  DragStartEndEvent,
   GizmoManager,
-  IGizmo,
-  IPositionGizmo,
-  IRotationGizmo,
   Nullable,
   Observer,
   PhysicsShape,
@@ -20,6 +15,7 @@ import {
   MeshBuilder,
   PhysicsShapeBox,
   PhysicsShapeConvexHull,
+  Quaternion,
   StandardMaterial,
   TransformNode,
   Vector3
@@ -36,7 +32,24 @@ import {
 } from "@/features/probe";
 import { setMaterialDiffuseColor } from "./material.api";
 import { buildAtlasRootNode } from "./structures.api";
-import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
+import {
+  fromSceneQuaternion,
+  fromSceneVector,
+  toSceneQuaternion,
+  toSceneVector
+} from "./coordinate-transforms.api";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import {
+  getAxisDirections,
+  getProbeRestRotation,
+  getRotationMatrix,
+  getRotationTriple,
+  multiplyMatrices,
+  transposeMatrix
+} from "@/utils/coordinate-frame";
 import { buildCollisionBody, disposeCollisionBody } from "./collision.api";
 import {
   buildSceneEntityName,
@@ -46,11 +59,13 @@ import {
 } from "./scene-entity.api";
 import {
   interpolateNodePose,
+  POSE_ROTATION_EPSILON,
   stopNodePoseInterpolation
 } from "./pose-interpolation.api";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
 import type { ProbeGeometry } from "../models/probe-geometry.model";
-import type { TransformGizmos } from "../models/gizmo.model";
+import type { CoordinateGizmos } from "../models/gizmo.model";
+import type { CoordinateGizmo } from "./coordinate-gizmo.api";
 
 /** Suffix applied to a probe's id to name its parenting transform node. */
 const PROBE_NODE_SUFFIX = sceneEntityNameSuffix("probe", "node");
@@ -152,6 +167,9 @@ export function buildProbe(
   );
   node.metadata = probeMetadata;
   node.parent = buildAtlasRootNode(scene);
+  // Orientation comes from a coordinate system, so the node is quaternion
+  // driven from birth and its Euler `rotation` is never read.
+  node.rotationQuaternion = Quaternion.Identity();
 
   const material = buildProbeMaterial(scene, probe);
   const shankMesh = buildShankMesh(
@@ -250,6 +268,8 @@ export function syncProbes(
   snapPoses = false
 ): string[] {
   const atlasRootNode = buildAtlasRootNode(scene);
+  const globalDirections = getAxisDirections(experiment.globalCoordinateSystem);
+  const restRotation = getProbeRestRotation(experiment.localCoordinateSystem);
   const experimentProbesById = new Map(
     experiment.probes.map(probe => [probe.id, probe])
   );
@@ -319,14 +339,23 @@ export function syncProbes(
 
     if (probe.id === draggedProbeId) continue;
 
-    const goalPosition = asrToVector3(probe.tipPosition);
-    const goalRotation = asrToVector3(probe.rotation);
+    const goalPosition = toSceneVector(globalDirections, probe.tipPosition);
+    const goalRotation = toSceneQuaternion(
+      multiplyMatrices(
+        getRotationMatrix(globalDirections, probe.rotation),
+        restRotation
+      )
+    );
     // A pose that already matches needs no move, e.g. the sync right after a
-    // gizmo drag ends. Checked before anything else so an unrelated sync never
+    // gizmo drag ends, whose readback and this recomposition only agree to
+    // within rounding. Checked before anything else so an unrelated sync never
     // cuts a glide short.
     if (
       node.position.equals(goalPosition) &&
-      node.rotation.equals(goalRotation)
+      !!node.rotationQuaternion?.equalsWithEpsilon(
+        goalRotation,
+        POSE_ROTATION_EPSILON
+      )
     ) {
       continue;
     }
@@ -335,7 +364,7 @@ export function syncProbes(
     if (!existingNode || snapPoses) {
       stopNodePoseInterpolation(node);
       node.position = goalPosition;
-      node.rotation = goalRotation;
+      node.rotationQuaternion = goalRotation;
       continue;
     }
 
@@ -416,39 +445,60 @@ export function selectProbeFromGizmoAttach(
  * Update a probe's position from a gizmo drag.
  * @param positionGizmo Position gizmo to track dragging on.
  * @param probes Experiment probes to resolve the attached mesh against.
+ * @param globalDirections Axis directions the probes' positions are in.
  * @param onDrag Callback invoked with probe ID the drag is happening to.
  */
 export function setProbePositionFromGizmoDrag(
-  positionGizmo: IPositionGizmo,
+  positionGizmo: CoordinateGizmo,
   probes: Probe[],
+  globalDirections: AxisDirections,
   onDrag: (probeId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return positionGizmo.onDragObservable.add(() => {
     const attached = attachedProbeFromGizmo(positionGizmo, probes);
     if (!attached) return;
     stopNodePoseInterpolation(attached.node);
-    attached.probe.tipPosition = vector3ToAsr(attached.node.position);
+    attached.probe.tipPosition = fromSceneVector(
+      globalDirections,
+      attached.node.position
+    );
     onDrag(attached.probe.id);
   });
 }
 
 /**
- * Update a probe's orientation from a gizmo drag.
+ * Update a probe's orientation from a gizmo drag, as a rotation off its rest
+ * orientation.
  * @param rotationGizmo Rotation gizmo to track dragging on.
  * @param probes Experiment probes to resolve the attached mesh against.
+ * @param globalDirections Axis directions the probes' rotations turn about.
+ * @param localCoordinateSystem Local coordinate system the probes rest in.
  * @param onDrag Callback invoked with probe ID the drag is happening to.
  */
 export function setProbeRotationFromGizmoDrag(
-  rotationGizmo: IRotationGizmo,
+  rotationGizmo: CoordinateGizmo,
   probes: Probe[],
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   onDrag: (probeId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
+  const restRotation = transposeMatrix(
+    getProbeRestRotation(localCoordinateSystem)
+  );
   return rotationGizmo.onDragObservable.add(() => {
     const attached = attachedProbeFromGizmo(rotationGizmo, probes);
-    if (!attached) return;
+    if (!attached?.node.rotationQuaternion) return;
 
     stopNodePoseInterpolation(attached.node);
-    attached.probe.rotation = vector3ToAsr(attached.node.rotation);
+    // The node carries the body's whole orientation; dividing the rest
+    // orientation back out leaves the rotation the user applied to it.
+    attached.probe.rotation = getRotationTriple(
+      globalDirections,
+      multiplyMatrices(
+        fromSceneQuaternion(attached.node.rotationQuaternion),
+        restRotation
+      )
+    );
     onDrag(attached.probe.id);
   });
 }
@@ -460,10 +510,10 @@ export function setProbeRotationFromGizmoDrag(
  * @param onDragEnd Callback invoked to confirm probe drag ended.
  */
 export function endProbeGizmoDrag(
-  gizmos: TransformGizmos,
+  gizmos: CoordinateGizmos,
   onDragEnd: () => void
-): Observer<DragStartEndEvent>[] {
-  const onEnd = (gizmo: IGizmo) => () => {
+): Observer<void>[] {
+  const onEnd = (gizmo: CoordinateGizmo) => () => {
     if (!gizmo.attachedNode?.name.endsWith(PROBE_NODE_SUFFIX)) return;
     onDragEnd();
   };
@@ -481,7 +531,7 @@ export function endProbeGizmoDrag(
  * @param probes Experiment probes to resolve the attached mesh against.
  */
 function attachedProbeFromGizmo(
-  gizmo: IGizmo,
+  gizmo: CoordinateGizmo,
   probes: Probe[]
 ): { probe: Probe; node: TransformNode } | null {
   const node = gizmo.attachedNode;

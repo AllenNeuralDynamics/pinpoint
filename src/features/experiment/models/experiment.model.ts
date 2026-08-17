@@ -5,6 +5,10 @@ import type { CameraPose } from "./camera-pose.model";
 import type { VisibleStructure } from "./visible-structure.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
 import type { SceneObject } from "@/features/scene";
+import type {
+  GlobalCoordinateSystem,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 
 export interface Experiment {
   // Unique identifier.
@@ -24,10 +28,23 @@ export interface Experiment {
   atlas: Atlas;
 
   /**
-   * Reference coordinate (in ASR, AP/DV/ML, mm) marking the experiment's
-   * landmark of interest within the atlas. A landmark only: geometry
-   * (probe tips, scene objects, camera targets) is stored in atlas ASR mm,
-   * independent of this value.
+   * Coordinate system every coordinate in this experiment is expressed in:
+   * probe tips, probe rotations, scene object poses, camera targets, and the
+   * reference coordinate. Changing it re-expresses all of them, so nothing
+   * moves.
+   */
+  globalCoordinateSystem: GlobalCoordinateSystem;
+
+  /**
+   * Orientation every probe rests in before its own rotations and translations
+   * are applied.
+   */
+  localCoordinateSystem: LocalCoordinateSystem;
+
+  /**
+   * Reference coordinate marking the experiment's landmark of interest within
+   * the atlas, in `globalCoordinateSystem` mm relative to the atlas origin. A
+   * landmark only: geometry is stored independent of this value.
    */
   referenceCoordinate: [number, number, number];
 

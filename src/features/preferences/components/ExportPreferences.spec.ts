@@ -9,6 +9,10 @@ import {
   mountWithQuasar
 } from "@/test/mount-helper";
 import enUS from "@/i18n/en-US";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 
 // `useFileDialog`'s input is never attached to the DOM, so it can't be
 // driven through a queryable `<input type="file">`. Replace it with a fake
@@ -85,10 +89,9 @@ function buildUploadedPreferences(overrides: Record<string, unknown> = {}) {
     areStructureInteriorsHidden: true,
     positionUnit: "millimeter",
     rotationUnit: "degree",
-    positionAxisNames: ["", "", ""],
-    rotationAxisNames: ["", "", ""],
-    positionAxisOrder: [0, 1, 2],
-    rotationAxisOrder: [0, 1, 2],
+    newSceneGlobalCoordinateSystem: buildDefaultGlobalCoordinateSystem(),
+    newSceneLocalCoordinateSystem: buildDefaultLocalCoordinateSystem(),
+    areCoordinateSystemsRetained: false,
     decimalPrecision: 3,
     dragSensitivity: 1,
     probeShankThicknessMillimeters: 0.05,
@@ -240,6 +243,31 @@ describe("ExportPreferences", () => {
           type: "positive"
         })
       );
+    });
+
+    it("applies the uploaded coordinate systems", async () => {
+      mountExport();
+      const store = usePreferencesStore();
+      const system = buildDefaultGlobalCoordinateSystem();
+      system.axes[0].positionName = "Bregma ML";
+      system.rotationDisplayOrder = [2, 0, 1];
+      const uploaded = buildUploadedPreferences({
+        newSceneGlobalCoordinateSystem: system,
+        newSceneLocalCoordinateSystem: {
+          depthDirection: "Superior_to_inferior",
+          forwardDirection: "Left_to_right"
+        },
+        areCoordinateSystemsRetained: true
+      });
+
+      await uploadFile(JSON.stringify(uploaded));
+
+      expect(store.newSceneGlobalCoordinateSystem).toEqual(system);
+      expect(store.newSceneLocalCoordinateSystem).toEqual({
+        depthDirection: "Superior_to_inferior",
+        forwardDirection: "Left_to_right"
+      });
+      expect(store.areCoordinateSystemsRetained).toBe(true);
     });
 
     it("stamps the running version, notifying an error for a major-behind file", async () => {

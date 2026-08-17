@@ -2,8 +2,16 @@ import { describe, expect, it, vi } from "vitest";
 import { Color3, StandardMaterial } from "@babylonjs/core";
 import { makeProbe } from "@/test/fixtures";
 import { makeTestSceneWithGizmo } from "@/test/mount-helper";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import { toSceneVector } from "./coordinate-transforms.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 import { syncProbeSurfaceMarker } from "./probe-surface-marker.api";
+
+/** Global system the marker's position is expressed in, matching a new experiment's. */
+const GLOBAL_DIRECTIONS: AxisDirections = [
+  "Left_to_right",
+  "Posterior_to_anterior",
+  "Inferior_to_superior"
+];
 
 describe("syncProbeSurfaceMarker", () => {
   it("builds a shank-scaled sphere parented to the atlas root, unpickable, positioned, colored with the probe's color, and outlined", () => {
@@ -14,14 +22,21 @@ describe("syncProbeSurfaceMarker", () => {
       position: [5, 3, 5] as [number, number, number]
     };
 
-    syncProbeSurfaceMarker(scene, selectionOutlineLayer, marker, [probe], 0.05);
+    syncProbeSurfaceMarker(
+      scene,
+      selectionOutlineLayer,
+      marker,
+      [probe],
+      GLOBAL_DIRECTIONS,
+      0.05
+    );
 
     const mesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
     expect(mesh).toBeTruthy();
     expect(mesh.parent?.name).toBe("atlasRoot_node");
     expect(mesh.isPickable).toBe(false);
     expect(mesh.position.asArray()).toEqual(
-      asrToVector3(marker.position).asArray()
+      toSceneVector(GLOBAL_DIRECTIONS, marker.position).asArray()
     );
     const extendSize = mesh.getBoundingInfo().boundingBox.extendSize;
     expect(extendSize.x).toBeCloseTo(0.25);
@@ -47,6 +62,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
     const firstMesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
@@ -56,13 +72,14 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [4, 5, 6] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
     const secondMesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
 
     expect(secondMesh.uniqueId).toBe(firstMesh.uniqueId);
     expect(secondMesh.position.asArray()).toEqual(
-      asrToVector3([4, 5, 6]).asArray()
+      toSceneVector(GLOBAL_DIRECTIONS, [4, 5, 6]).asArray()
     );
   });
 
@@ -76,6 +93,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
     syncProbeSurfaceMarker(
@@ -83,6 +101,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [4, 5, 6] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
@@ -98,6 +117,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
     const firstMesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
@@ -107,6 +127,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.1
     );
     const secondMesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
@@ -121,6 +142,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.1
     );
     const thirdMesh = scene.getMeshByName("probeSurfaceMarker_mesh")!;
@@ -135,6 +157,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
@@ -144,6 +167,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
@@ -163,10 +187,18 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
-    syncProbeSurfaceMarker(scene, selectionOutlineLayer, null, [probe], 0.05);
+    syncProbeSurfaceMarker(
+      scene,
+      selectionOutlineLayer,
+      null,
+      [probe],
+      GLOBAL_DIRECTIONS,
+      0.05
+    );
 
     expect(scene.getMeshByName("probeSurfaceMarker_mesh")).toBeNull();
     expect(scene.getMaterialByName("probeSurfaceMarker_material")).toBeNull();
@@ -180,6 +212,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
@@ -188,6 +221,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: "missing-probe", position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
@@ -203,6 +237,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 
@@ -212,6 +247,7 @@ describe("syncProbeSurfaceMarker", () => {
       selectionOutlineLayer,
       { probeId: probe.id, position: [1, 2, 3] },
       [probe],
+      GLOBAL_DIRECTIONS,
       0.05
     );
 

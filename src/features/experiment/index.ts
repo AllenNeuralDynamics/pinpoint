@@ -4,6 +4,7 @@ export { default as RecentExperimentsList } from "./components/RecentExperiments
 export { default as ExperimentPropertiesDialog } from "./components/ExperimentPropertiesDialog.vue";
 export { useExperimentFile } from "./composable/useExperimentFile";
 export {
+  isExperiment,
   unzipExperiment,
   zipExperiment,
   type SceneModelFile
@@ -19,7 +20,12 @@ export {
   resetCameraPose,
   setCameraPose
 } from "./api/camera-pose.api";
-export { ALLEN_MOUSE_REFERENCE_COORDINATE } from "./api/reference-coordinate.api";
+export {
+  ALLEN_MOUSE_REFERENCE_COORDINATE,
+  atlasToReferenceRelative,
+  buildInitialReferenceCoordinate,
+  referenceRelativeToAtlas
+} from "./api/reference-coordinate.api";
 
 export {
   buildExperiment,
@@ -39,6 +45,8 @@ export {
   reorderProbe,
   setProbeInterface,
   setExperimentProperties,
+  setExperimentGlobalCoordinateSystem,
+  setExperimentLocalCoordinateSystem,
   addSceneObject,
   removeSceneObject,
   reorderSceneObject,

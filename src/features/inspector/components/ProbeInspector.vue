@@ -33,7 +33,7 @@ import {
   type CoordinateSystemNode,
   type CoordinateSystemSolution,
   type CoordinateSystemSolveStatus,
-  getCoordinateSystemAxisValue,
+  getCoordinateSystemNodePose,
   isCoordinateSystemSolutionAtPose,
   PREVIEW_SOLVE_STARTS,
   setCoordinateSystemAxisValue,
@@ -53,7 +53,7 @@ import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-libr
 import { useValidationRules } from "@/composable/useValidationRules";
 import { useNotify } from "@/composable/useNotify";
 import CommittedInput from "@/components/CommittedInput.vue";
-import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
+import CoordinateAxisInputs from "@/components/CoordinateAxisInputs.vue";
 
 // A library probe's identifier paired with its display label. `emit-value`
 // keeps the model the identifier, which `findProbeInterfaceProbeByIdentifier`
@@ -257,14 +257,14 @@ const coordinateSystemOptions = computed<CoordinateSystemOption[]>(() => {
   return options;
 });
 
-/** Root translation the chain hangs off, in atlas ASR mm, or null for the atlas origin. */
+/** Root translation the chain hangs off, in global coordinate system mm, or null for the atlas origin. */
 const referenceOffset = computed(() =>
   selectedCoordinateSystem.value?.offsetByReferenceCoordinate
     ? currentExperimentStore.referenceCoordinate
     : null
 );
 
-/** Origin the Default option's position inputs are relative to, in atlas ASR mm. */
+/** Origin the Default option's position inputs are relative to, in global coordinate system mm. */
 const defaultPositionOffset = computed(
   () => currentExperimentStore.referenceCoordinate
 );
@@ -293,18 +293,14 @@ const surfaceNodeIndex = computed(() => {
 const hasSurfaceNode = computed(() => surfaceNodeIndex.value !== null);
 
 /**
- * Forward-kinematics position of the chain's on-surface node, in atlas ASR mm, or null when the
- * chain has none.
+ * Forward-kinematics position of the chain's on-surface node, in global coordinate system mm, or
+ * null when the chain has none.
  */
 const surfaceNodePosition = computed<[number, number, number] | null>(() => {
   const index = surfaceNodeIndex.value;
   if (index === null) return null;
 
-  const node = directNode.value;
-  const solution = node
-    ? solveDirectNode(node)
-    : solveCoordinateSystemChain(chain.value, referenceOffset.value);
-  return solution.nodePositions[index] ?? null;
+  return solveChain().nodePositions[index] ?? null;
 });
 
 /** This probe's interned interface definition, or null when the experiment has none. */
@@ -400,43 +396,33 @@ const surfaceLabel = computed(() =>
     : t("probeInspector.surface")
 );
 
-/**
- * Write the probe's live pose into the direct chain's single node.
- * @param node Direct chain node to write, mutated in place.
- */
-function writeProbePoseIntoNode(node: CoordinateSystemNode): void {
-  const offset = referenceOffset.value ?? [0, 0, 0];
-  const [ap, dv, ml] = probe.tipPosition;
-  setCoordinateSystemAxisValue(node, "position", 0, ml - offset[2]);
-  setCoordinateSystemAxisValue(node, "position", 1, dv - offset[1]);
-  setCoordinateSystemAxisValue(node, "position", 2, ap - offset[0]);
-  const [roll, yaw, pitch] = probe.rotation;
-  setCoordinateSystemAxisValue(node, "rotation", 0, pitch);
-  setCoordinateSystemAxisValue(node, "rotation", 1, yaw);
-  setCoordinateSystemAxisValue(node, "rotation", 2, roll);
+/** Forward-kinematics pose the working chain reaches at its current values. */
+function solveChain(): CoordinateSystemSolution {
+  return solveCoordinateSystemChain(
+    chain.value,
+    referenceOffset.value,
+    currentExperimentStore.axisDirections,
+    currentExperimentStore.localCoordinateSystem
+  );
 }
 
 /**
- * Solve a direct chain's single node into a probe pose without the matrix chain, so
- * a value reaches the probe exactly as typed.
- * @param node Direct chain node to solve.
+ * Write the probe's live pose into the direct chain's single node, whose values are the
+ * pose expressed in the chain's own rest-oriented frame.
+ * @param node Direct chain node to write, mutated in place.
  */
-function solveDirectNode(node: CoordinateSystemNode): CoordinateSystemSolution {
-  const offset = referenceOffset.value ?? [0, 0, 0];
-  const tipPosition: [number, number, number] = [
-    getCoordinateSystemAxisValue(node, "position", 2) + offset[0],
-    getCoordinateSystemAxisValue(node, "position", 1) + offset[1],
-    getCoordinateSystemAxisValue(node, "position", 0) + offset[2]
-  ];
-  return {
-    tipPosition,
-    rotation: [
-      getCoordinateSystemAxisValue(node, "rotation", 2),
-      getCoordinateSystemAxisValue(node, "rotation", 1),
-      getCoordinateSystemAxisValue(node, "rotation", 0)
-    ],
-    nodePositions: [tipPosition]
-  };
+function writeProbePoseIntoNode(node: CoordinateSystemNode): void {
+  const pose = getCoordinateSystemNodePose(
+    probe.tipPosition,
+    probe.rotation,
+    referenceOffset.value,
+    currentExperimentStore.axisDirections,
+    currentExperimentStore.localCoordinateSystem
+  );
+  for (const axis of [0, 1, 2]) {
+    setCoordinateSystemAxisValue(node, "position", axis, pose.position[axis]!);
+    setCoordinateSystemAxisValue(node, "rotation", axis, pose.rotation[axis]!);
+  }
 }
 
 /**
@@ -510,6 +496,10 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
       chain: toRaw(chain.value),
       target: { tipPosition, rotation, surfacePosition },
       referenceOffsetMillimeters: toRaw(referenceOffset.value),
+      globalDirections: toRaw(currentExperimentStore.axisDirections),
+      localCoordinateSystem: toRaw(
+        currentExperimentStore.localCoordinateSystem
+      ),
       maximumStarts:
         reason === "preview" ? PREVIEW_SOLVE_STARTS : SETTLED_SOLVE_STARTS
     });
@@ -542,6 +532,7 @@ async function runInverseKinematics(reason: SolveReason): Promise<void> {
           solution,
           tipPosition,
           rotation,
+          currentExperimentStore.axisDirections,
           POSE_MATCH_TOLERANCE
         )
       ) {
@@ -640,7 +631,7 @@ function seedChain(): void {
   const node = directNode.value;
   if (node) {
     writeProbePoseIntoNode(node);
-    void verifySurfaceNodes(solveDirectNode(node), "external");
+    void verifySurfaceNodes(solveChain(), "external");
   } else void runInverseKinematics("external");
 }
 
@@ -659,7 +650,7 @@ function cancelMoveToSurface(): void {
 
 /**
  * Move the probe's tip onto the brain surface, or request a path pick when both an
- * along-axis and a down-on-DV move are available.
+ * along-axis and a straight-down move are available.
  */
 async function moveToSurface(): Promise<void> {
   const controller = new AbortController();
@@ -678,24 +669,20 @@ async function moveToSurface(): Promise<void> {
       return;
     }
 
-    const { insideMillimeters, axisMillimeters, dorsoventralMillimeters } =
-      targets;
+    const { insideMillimeters, axisMillimeters, inferiorMillimeters } = targets;
     if (insideMillimeters) {
       setProbeTipMillimeters(probe, insideMillimeters);
       return;
     }
-    if (!axisMillimeters && !dorsoventralMillimeters) {
+    if (!axisMillimeters && !inferiorMillimeters) {
       notifyWarning(
         t("probeInspector.noSurfaceFound"),
         t("probeInspector.noSurfaceFoundCaption")
       );
       return;
     }
-    if (!axisMillimeters || !dorsoventralMillimeters) {
-      setProbeTipMillimeters(
-        probe,
-        axisMillimeters ?? dorsoventralMillimeters!
-      );
+    if (!axisMillimeters || !inferiorMillimeters) {
+      setProbeTipMillimeters(probe, axisMillimeters ?? inferiorMillimeters!);
       return;
     }
 
@@ -704,7 +691,7 @@ async function moveToSurface(): Promise<void> {
       tipPosition: [...probe.tipPosition],
       rotation: [...probe.rotation],
       axisTargetMillimeters: axisMillimeters,
-      dorsoventralTargetMillimeters: dorsoventralMillimeters
+      inferiorTargetMillimeters: inferiorMillimeters
     };
   } finally {
     isFindingSurface.value = false;
@@ -723,10 +710,7 @@ function onSurfaceClick(): void {
 
 /** Re-solve the working chain onto the probe and re-check its on-surface nodes. */
 function applySolve(): void {
-  const node = directNode.value;
-  const solution = node
-    ? solveDirectNode(node)
-    : solveCoordinateSystemChain(chain.value, referenceOffset.value);
+  const solution = solveChain();
   appliedPose = {
     tipPosition: [...solution.tipPosition],
     rotation: [...solution.rotation]
@@ -842,7 +826,7 @@ watch(
       writeProbePoseIntoNode(node);
       clearUnreachable();
       void verifySurfaceNodes(
-        solveDirectNode(node),
+        solveChain(),
         currentExperimentStore.draggedProbeId === probe.id
           ? "preview"
           : "external"
@@ -1032,7 +1016,7 @@ onUnmounted(() => {
               <div class="text-body2 q-pb-xs">{{
                 t("probeInspector.position")
               }}</div>
-              <AtlasAxisInputs
+              <CoordinateAxisInputs
                 :disable="probe.lock"
                 hide-bottom-space
                 kind="position"
@@ -1045,7 +1029,7 @@ onUnmounted(() => {
               <div class="text-body2 q-pb-xs">{{
                 t("probeInspector.rotation")
               }}</div>
-              <AtlasAxisInputs
+              <CoordinateAxisInputs
                 :disable="probe.lock"
                 hide-bottom-space
                 kind="rotation"

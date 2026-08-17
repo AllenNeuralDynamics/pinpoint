@@ -2,11 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { HighlightLayer, MeshBuilder, Vector3 } from "@babylonjs/core";
 import { registerBuiltInLoaders } from "@babylonjs/loaders/dynamic";
 import type { Experiment } from "@/features/experiment";
-import {
-  addProbe,
-  buildExperiment,
-  internProbeInterfaceProbe
-} from "@/features/experiment";
+import { addProbe, internProbeInterfaceProbe } from "@/features/experiment";
 import type { Probe } from "@/features/probe";
 import {
   getProbeAlignmentOffsetMillimeters,
@@ -14,8 +10,9 @@ import {
   getProbeInterfaceIdentifier,
   getProbeShanks
 } from "@/features/probe";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 import {
-  makeAtlas,
+  makeExperiment,
   makeProbe,
   makeProbeGeometry,
   makeProbeInterfaceProbe,
@@ -48,6 +45,13 @@ beforeAll(async () => {
   registerBuiltInLoaders();
 });
 
+/** Global system a new experiment uses, which every fixture here is expressed in. */
+const GLOBAL_DIRECTIONS: AxisDirections = [
+  "Left_to_right",
+  "Posterior_to_anterior",
+  "Inferior_to_superior"
+];
+
 /** Single-shank contour (imec NP1000), in micrometers - mirrors probe.spec.ts. */
 const NP1000_CONTOUR = [
   [-11, 9989],
@@ -79,7 +83,7 @@ function makeExperimentWithProbe(
     Parameters<typeof makeProbeInterfaceProbe>[0]
   > = {}
 ): { experiment: Experiment; probe: Probe } {
-  const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  const experiment = makeExperiment();
   const probeInterfaceProbe = makeProbeInterfaceProbe({
     probe_planar_contour: NP1000_CONTOUR,
     ...probeInterfaceOverrides
@@ -263,6 +267,7 @@ describe("scene entity collision bodies", () => {
     const objectNode = (await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     ))!.node;
@@ -397,6 +402,7 @@ describe("scene entity collision bodies", () => {
     const objectNode = (await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     ))!.node;
@@ -430,6 +436,7 @@ describe("scene entity collision bodies", () => {
     const torusNode = (await buildSceneObjectNode(
       scene,
       torusObject,
+      GLOBAL_DIRECTIONS,
       torusModelFile,
       gizmoManager
     ))!.node;
@@ -440,6 +447,7 @@ describe("scene entity collision bodies", () => {
     const boxNode = (await buildSceneObjectNode(
       scene,
       boxObject,
+      GLOBAL_DIRECTIONS,
       boxModelFile,
       gizmoManager
     ))!.node;
@@ -483,6 +491,7 @@ describe("scene entity collision bodies", () => {
     const objectNode = (await buildSceneObjectNode(
       scene,
       sceneObject,
+      GLOBAL_DIRECTIONS,
       modelFile,
       gizmoManager
     ))!.node;

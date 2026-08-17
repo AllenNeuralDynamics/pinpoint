@@ -11,9 +11,11 @@ import {
 } from "@/test/fixtures";
 import type { TerminologyRow } from "@/features/atlas";
 import { getTerminologyRows } from "@/features/atlas";
-import type { ProbeChannelMapWindow } from "@/features/probe";
+import type { Probe, ProbeChannelMapWindow } from "@/features/probe";
 import { getProbeContour, getProbeShanks } from "@/features/probe";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getChannelMapWidths } from "../api/channel-map-label.api";
+import type { ProbeFrame } from "../api/probe-frame.api";
 import { getProbeFrame, toAtlasMillimeters } from "../api/probe-frame.api";
 import type { SampleGeometry } from "../models/sample-geometry.model";
 import type { SampleResult } from "../models/sample-result.model";
@@ -94,6 +96,16 @@ function makeSampleResult(
   };
 }
 
+/**
+ * Shank-plane frame the canvas resolves for a probe, using the coordinate
+ * systems of the active pinia's experiment.
+ * @param probe Probe to resolve.
+ */
+function makeFrame(probe: Probe): ProbeFrame {
+  const { axisDirections, localCoordinateSystem } = useCurrentExperimentStore();
+  return getProbeFrame(probe, axisDirections, localCoordinateSystem);
+}
+
 describe("ChannelMapCanvas", () => {
   function mountCanvas(
     channelMapWindow: ProbeChannelMapWindow | null = null,
@@ -147,7 +159,7 @@ describe("ChannelMapCanvas", () => {
 
   it("hands the sampler a geometry covering every shank's full extent at the measured size", () => {
     const { probe, contour } = mountCanvas();
-    const frame = getProbeFrame(probe);
+    const frame = makeFrame(probe);
 
     expect(capturedGeometry).toEqual({
       rightMillimeters: frame.rightMillimeters.map(n => -n),
@@ -208,7 +220,7 @@ describe("ChannelMapCanvas", () => {
 
   it("crops the sampled geometry and overlay to the probe's channel map window", () => {
     const { wrapper, probe } = mountCanvas({ min: 2, max: 4 });
-    const frame = getProbeFrame(probe);
+    const frame = makeFrame(probe);
 
     expect(capturedGeometry!.halfHeightMillimeters).toBe(1);
     expect(capturedGeometry!.bands[0]!.centerMillimeters).toEqual(
@@ -304,7 +316,7 @@ describe("ChannelMapCanvas", () => {
       6, 6
     ]);
 
-    const frame = getProbeFrame(probe);
+    const frame = makeFrame(probe);
     expect(capturedGeometry!.bands[0]!.centerMillimeters).toEqual(
       toAtlasMillimeters(frame, -0.95, 5)
     );

@@ -56,7 +56,7 @@ import { getCoordinateSystemSlots } from "@/features/coordinate-system";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { useI18n } from "vue-i18n";
-import { useAtlasAxes } from "@/composable/useAtlasAxes";
+import { useCoordinateAxes } from "@/composable/useCoordinateAxes";
 import type { Mesh, Scene, SSAO2RenderingPipeline } from "@babylonjs/core";
 import {
   endProbeGizmoDrag,
@@ -93,7 +93,18 @@ import {
   syncProbeBodyModels
 } from "../api/probe-body-model.api";
 import { getSceneModel } from "../api/scene-model.api";
-import { setGizmoControls } from "../api/gizmo.api";
+import {
+  buildCoordinateGizmos,
+  disposeCoordinateGizmos,
+  setCoordinateGizmoMode,
+  trackCoordinateGizmoAttachment
+} from "../api/coordinate-gizmo.api";
+import {
+  getGlobalFrameAxes,
+  getLocalFrameAxes,
+  getNodeFrameAxes
+} from "../api/frame-axes.api";
+import type { CoordinateFrame } from "../models/frame-axis.model";
 import type { GizmoCoordinateSpace, GizmoMode } from "../models/gizmo.model";
 import {
   buildProbeSurfacePaths,
@@ -135,10 +146,11 @@ const { notifyError, notifyWarning } = useNotify();
 const currentExperiment = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
 const runtime = useBabylonRuntimeService();
-const atlasAxes = useAtlasAxes();
+const coordinateAxes = useCoordinateAxes();
 useCameraPoseSync(
   runtime.camera,
   () => currentExperiment.atlas,
+  () => currentExperiment.axisDirections,
   () => currentExperiment.experiment.cameraPose,
   () => isNumberDragActive.value,
   () => {
@@ -247,14 +259,55 @@ const areAxisGuidesDrawn = computed(
     selectedCoordinateSystem.value !== null
 );
 
-/** Axis guide label text: the user's atlas axis names, plus the fixed Babylon axis letters. */
-const axisGuideLabels = computed<AxisGuideLabels>(() => {
-  const [ap, dv, ml] = atlasAxes.position.value
-    .slice()
-    .sort((a, b) => a.axis - b.axis)
-    .map(slot => slot.label) as [string, string, string];
-  return { ap, dv, ml, x: t("axis.x"), y: t("axis.y"), z: t("axis.z") };
-});
+/** Name of each of the global coordinate system's position axes, in axis order. */
+const positionAxisNames = computed<[string, string, string]>(
+  () =>
+    coordinateAxes.position.value
+      .slice()
+      .sort((a, b) => a.axis - b.axis)
+      .map(slot => slot.label) as [string, string, string]
+);
+
+/** Whether the selection's own frame is a probe's local one, its body model included. */
+const isProbeFrameSelected = computed(
+  () => currentExperiment.selectedInspectable?.inspectableKind === "probe"
+);
+
+/** A node's own Babylon axes, which the scale gizmo always drags along. */
+const nodeFrame = computed<CoordinateFrame>(() =>
+  getNodeFrameAxes([t("axis.x"), t("axis.y"), t("axis.z")])
+);
+
+/** Local axes of the selection: a probe's local coordinate system, or a plain node's own axes. */
+const localFrame = computed<CoordinateFrame>(() =>
+  isProbeFrameSelected.value
+    ? getLocalFrameAxes(currentExperiment.localCoordinateSystem, [
+        t("axis.depth"),
+        t("axis.forward"),
+        t("axis.right")
+      ])
+    : nodeFrame.value
+);
+
+/** Axes the position and rotation gizmos are drawn and dragged along. */
+const gizmoFrame = computed<CoordinateFrame>(() =>
+  gizmoCoordinateSpace.value === "global"
+    ? getGlobalFrameAxes(
+        currentExperiment.globalCoordinateSystem,
+        positionAxisNames.value
+      )
+    : localFrame.value
+);
+
+/**
+ * Axis guide label text: the global coordinate system's own axis names, plus
+ * the local frame's own axes, so a local guide set marks exactly the
+ * directions the local gizmo drags along.
+ */
+const axisGuideLabels = computed<AxisGuideLabels>(() => ({
+  global: positionAxisNames.value,
+  local: localFrame.value.axes
+}));
 
 /**
  * Label per Babylon axis for the focused node's chosen triple: each value's own name, or that
@@ -485,7 +538,7 @@ function axisGuideFrame(scene: Scene): AxisGuideFrame {
   };
 }
 
-// Draw the atlas's axis guide labels while they are shown, and strip them
+// Draw the coordinate system's axis guide labels while they are shown, and strip them
 // when hidden, keeping the loaded renderers for the next time.
 watchEffect(() => {
   const scene = runtime.scene.value;
@@ -501,6 +554,7 @@ watchEffect(() => {
     scene,
     guides,
     currentExperiment.atlas,
+    currentExperiment.axisDirections,
     axisGuideFrame(scene),
     axisGuideLabels.value
   );
@@ -686,6 +740,8 @@ watchEffect(() => {
     scene,
     currentExperiment.probeGhost,
     currentExperiment.probes,
+    currentExperiment.axisDirections,
+    currentExperiment.localCoordinateSystem,
     rebuiltProbeIds
   );
 
@@ -896,7 +952,7 @@ watchEffect(() => {
     disposeProbeSurfacePaths(scene);
     return;
   }
-  buildProbeSurfacePaths(scene, choice);
+  buildProbeSurfacePaths(scene, choice, currentExperiment.axisDirections);
 });
 
 // Draw the sphere at the inspected probe's solved on-surface node, or strip it once cleared.
@@ -910,6 +966,7 @@ watchEffect(() => {
     selectionOutlineLayer,
     currentExperiment.probeSurfaceMarker,
     currentExperiment.probes,
+    currentExperiment.axisDirections,
     preferences.probeShankThicknessMillimeters
   );
 });
@@ -971,7 +1028,7 @@ watch(runtime.scene, scene => {
       probe,
       kind === "axis"
         ? choice.axisTargetMillimeters
-        : choice.dorsoventralTargetMillimeters
+        : choice.inferiorTargetMillimeters
     );
   });
   onWatcherCleanup(() => observer.remove());
@@ -1000,7 +1057,8 @@ watch(gizmoMode, (mode, previousMode) => {
   spaceBeforeScale.value = null;
 });
 
-// Configure the gizmos from the control bar and keep the probe and scene
+// Build the transform gizmos along the frame the control bar selects, follow
+// the gizmo manager's attachment onto them, and keep the probe and scene
 // object drag observers on them.
 watch(
   [
@@ -1008,17 +1066,23 @@ watch(
     () => currentExperiment.probes,
     () => currentExperiment.sceneObjects,
     gizmoMode,
-    gizmoCoordinateSpace
+    gizmoFrame,
+    nodeFrame
   ],
-  ([gizmoManager, probes, sceneObjects, mode, coordinateSpace]) => {
+  ([gizmoManager, probes, sceneObjects, mode, frame, scaleFrame]) => {
     if (!gizmoManager) return;
 
-    const gizmos = setGizmoControls(gizmoManager, mode, coordinateSpace);
-    if (!gizmos) return;
+    const gizmos = buildCoordinateGizmos(gizmoManager, frame, scaleFrame);
+    const attachmentObservers = trackCoordinateGizmoAttachment(
+      gizmoManager,
+      gizmos
+    );
+    setCoordinateGizmoMode(gizmos, mode);
 
     const probePositionDraggingObserver = setProbePositionFromGizmoDrag(
       gizmos.positionGizmo,
       probes,
+      currentExperiment.axisDirections,
       probeId => {
         currentExperiment.draggedProbeId = probeId;
       }
@@ -1026,6 +1090,8 @@ watch(
     const probeRotationDraggingObserver = setProbeRotationFromGizmoDrag(
       gizmos.rotationGizmo,
       probes,
+      currentExperiment.axisDirections,
+      currentExperiment.localCoordinateSystem,
       probeId => {
         currentExperiment.draggedProbeId = probeId;
       }
@@ -1038,6 +1104,7 @@ watch(
       setSceneObjectPositionFromGizmoDrag(
         gizmos.positionGizmo,
         sceneObjects,
+        currentExperiment.axisDirections,
         sceneObjectId => {
           currentExperiment.draggedSceneObjectId = sceneObjectId;
         }
@@ -1046,6 +1113,7 @@ watch(
       setSceneObjectRotationFromGizmoDrag(
         gizmos.rotationGizmo,
         sceneObjects,
+        currentExperiment.axisDirections,
         sceneObjectId => {
           currentExperiment.draggedSceneObjectId = sceneObjectId;
         }
@@ -1053,6 +1121,7 @@ watch(
     const sceneObjectScaleDraggingObserver = setSceneObjectScaleFromGizmoDrag(
       gizmos.scaleGizmo,
       sceneObjects,
+      currentExperiment.axisDirections,
       sceneObjectId => {
         currentExperiment.draggedSceneObjectId = sceneObjectId;
       }
@@ -1100,6 +1169,8 @@ watch(
       bodyModelRotationDraggingObserver.remove();
       bodyModelScaleDraggingObserver.remove();
       bodyModelDragEndObservers.forEach(observer => observer.remove());
+      attachmentObservers.forEach(observer => observer.remove());
+      disposeCoordinateGizmos(gizmos);
     });
   }
 );
@@ -1205,6 +1276,8 @@ watchEffect(() => {
     selectionOutlineLayer,
     selectedCoordinateSystem.value,
     currentExperiment.referenceCoordinate,
+    currentExperiment.axisDirections,
+    currentExperiment.localCoordinateSystem,
     getAtlasLongestDimensionMillimeters(currentExperiment.atlas),
     currentExperiment.focusedCoordinateSystemNodeIndex,
     probeGeometry.value

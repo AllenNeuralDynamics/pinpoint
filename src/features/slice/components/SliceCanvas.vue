@@ -103,7 +103,11 @@ const sizePixels = computed(() =>
 
 const plane = computed(() => {
   if (!contour.value || sizePixels.value === 0) return null;
-  const frame = getProbeFrame(probe);
+  const frame = getProbeFrame(
+    probe,
+    currentExperiment.axisDirections,
+    currentExperiment.localCoordinateSystem
+  );
   return getProbeSlicePlane(
     frame,
     centerHeightMillimeters.value,

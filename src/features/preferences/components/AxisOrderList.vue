@@ -2,18 +2,17 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useDragReorder } from "@/composable/useDragReorder";
-import { getAxisSlots, moveAxisSlot, type AxisOrder } from "@/utils/axis-order";
+import type { AxisOrder } from "@/utils/axis-order";
 
-const { names, order, defaultNames } = defineProps<{
+const { labels, order } = defineProps<{
   /** Heading shown above the list. */
   label: string;
-  /** Per-axis user names, indexed by axis, mutated in place. */
-  names: [string, string, string];
-  /** Display slot order, mutated in place. */
+  /** Label of each axis, indexed by axis. */
+  labels: [string, string, string];
+  /** Order the rows are shown in, as display slot -> axis index. */
   order: AxisOrder;
-  /** Per-axis built-in labels, indexed by axis. */
-  defaultNames: [string, string, string];
 }>();
+const emit = defineEmits<{ move: [fromSlot: number, toSlot: number] }>();
 
 const { t } = useI18n();
 const {
@@ -23,11 +22,11 @@ const {
   dragOverRow,
   dropRow,
   endDrag
-} = useDragReorder((fromIndex, toIndex) =>
-  moveAxisSlot(order, fromIndex, toIndex)
-);
+} = useDragReorder((fromSlot, toSlot) => emit("move", fromSlot, toSlot));
 
-const slots = computed(() => getAxisSlots(order, names, defaultNames));
+const slots = computed(() =>
+  order.map(axis => ({ axis, label: labels[axis] }))
+);
 </script>
 
 <template>
@@ -38,8 +37,8 @@ const slots = computed(() => getAxisSlots(order, names, defaultNames));
         v-for="(slot, index) of slots"
         :key="slot.axis"
         :class="{
-          'value-row--dragging': draggedIndex === index,
-          'value-row--drop-target':
+          'order-row--dragging': draggedIndex === index,
+          'order-row--drop-target':
             dropTargetIndex === index && draggedIndex !== index
         }"
         @dragover="dragOverRow(index, $event)"
@@ -47,7 +46,7 @@ const slots = computed(() => getAxisSlots(order, names, defaultNames));
       >
         <q-item-section side>
           <div
-            class="value-row__handle"
+            class="order-row__handle"
             draggable="true"
             :title="t('preferences.dragToReorder')"
             @dragend="endDrag"
@@ -56,33 +55,21 @@ const slots = computed(() => getAxisSlots(order, names, defaultNames));
             <q-icon name="drag_indicator" size="sm" />
           </div>
         </q-item-section>
-        <q-item-section>
-          <q-input
-            :aria-label="
-              t('preferences.axisName', { axis: defaultNames[slot.axis] })
-            "
-            dense
-            :label="defaultNames[slot.axis]"
-            :model-value="names[slot.axis]"
-            outlined
-            :rules="[]"
-            @update:model-value="names[slot.axis] = String($event).trim()"
-          />
-        </q-item-section>
+        <q-item-section>{{ slot.label }}</q-item-section>
       </q-item>
     </q-list>
   </div>
 </template>
 
 <style lang="sass" scoped>
-.value-row__handle
+.order-row__handle
   cursor: grab
   display: flex
 
-.value-row--dragging
+.order-row--dragging
   opacity: 0.5
 
-.value-row--drop-target
+.order-row--drop-target
   outline: 2px solid var(--q-primary)
   outline-offset: -2px
 </style>

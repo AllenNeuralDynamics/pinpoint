@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef, watch } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
 import {
   type Atlas,
@@ -10,10 +10,7 @@ import {
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useValidationRules } from "@/composable/useValidationRules";
-import { isFiniteTriple } from "@/utils/type-guards";
-import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
 import { setExperimentProperties } from "../api/experiment.api";
-import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
 
 defineEmits([...useDialogPluginComponent.emits]);
 
@@ -25,19 +22,13 @@ const nameInput = useTemplateRef<QInput>("nameInput");
 
 const name = ref(currentExperimentStore.name);
 const atlas = ref<Atlas | null>({ ...currentExperimentStore.atlas });
-const referenceCoordinate = ref<[number, number, number]>([
-  ...currentExperimentStore.referenceCoordinate
-]);
 const isSaving = ref(false);
 
 /**
  * Whether the Save button should be disabled.
  */
 const isSaveDisabled = computed(
-  () =>
-    name.value.trim().length === 0 ||
-    !atlas.value ||
-    !isFiniteTriple(referenceCoordinate.value)
+  () => name.value.trim().length === 0 || !atlas.value
 );
 
 /**
@@ -48,7 +39,9 @@ function selectName() {
 }
 
 /**
- * Commit the edited properties to the current experiment and close.
+ * Commit the edited properties to the current experiment and close. A changed
+ * atlas re-seeds the reference coordinate, since it is a landmark in the
+ * outgoing atlas's space.
  */
 async function save() {
   if (isSaveDisabled.value || !atlas.value || isSaving.value) return;
@@ -71,20 +64,11 @@ async function save() {
   setExperimentProperties(currentExperimentStore.experiment, {
     name: name.value,
     atlas: pickedAtlas,
-    referenceCoordinate: referenceCoordinate.value,
     defaultStructureIdentifiers
   });
 
   onDialogOK();
 }
-
-// Re-seed the reference coordinate whenever a different atlas is picked: the
-// old value is a landmark in the old atlas's space.
-watch(atlas, (newAtlas, oldAtlas) => {
-  if (!newAtlas || (oldAtlas && isSameAtlas(newAtlas, oldAtlas))) return;
-
-  referenceCoordinate.value = buildInitialReferenceCoordinate(newAtlas);
-});
 </script>
 
 <template>
@@ -107,13 +91,6 @@ watch(atlas, (newAtlas, oldAtlas) => {
         />
 
         <AtlasPicker v-model="atlas" />
-
-        <div>
-          <p class="text-h6">
-            {{ $t("experimentProperties.referenceCoordinate") }}
-          </p>
-          <AtlasAxisInputs kind="position" :tuple="referenceCoordinate" />
-        </div>
       </q-card-section>
       <q-card-actions align="right">
         <q-btn v-close-popup :label="$t('experimentProperties.cancel')" />

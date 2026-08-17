@@ -22,6 +22,10 @@ import {
   isProbeInterfaceProbe
 } from "@/features/probe";
 import { isSceneObject } from "@/features/scene";
+import {
+  isGlobalCoordinateSystem,
+  isLocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import { isFiniteNumber, isFiniteTriple, isRecord } from "@/utils/type-guards";
 
 /** Indentation for written experiment files, so they stay human-diffable. */
@@ -160,7 +164,7 @@ export function buildExperimentFileName(experiment: Experiment): string {
  * cross-references its consumers assume hold.
  * @param value Value to check.
  */
-function isExperiment(value: unknown): value is Experiment {
+export function isExperiment(value: unknown): value is Experiment {
   if (!isRecord(value)) return false;
 
   const {
@@ -170,6 +174,8 @@ function isExperiment(value: unknown): value is Experiment {
     author,
     name,
     atlas,
+    globalCoordinateSystem,
+    localCoordinateSystem,
     referenceCoordinate,
     visibleStructures,
     probeInterfaceProbes,
@@ -188,6 +194,8 @@ function isExperiment(value: unknown): value is Experiment {
   if (!isExperimentAuthorOrNull(author)) return false;
   if (typeof name !== "string") return false;
   if (!isAtlas(atlas)) return false;
+  if (!isGlobalCoordinateSystem(globalCoordinateSystem)) return false;
+  if (!isLocalCoordinateSystem(localCoordinateSystem)) return false;
   if (!isFiniteTriple(referenceCoordinate)) return false;
   if (
     !Array.isArray(visibleStructures) ||

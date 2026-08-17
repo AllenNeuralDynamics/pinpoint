@@ -97,19 +97,19 @@ describe("CameraInspector", () => {
         preferences.decimalPrecision
       )
     );
-    expect(fieldByLabel(wrapper, enUS.axis.ap).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, enUS.axis.ml).props("modelValue")).toBe(
       millimetersToPositionUnit(
         pose.target[0],
         preferences.positionUnit
       ).toFixed(preferences.decimalPrecision)
     );
-    expect(fieldByLabel(wrapper, enUS.axis.dv).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, enUS.axis.ap).props("modelValue")).toBe(
       millimetersToPositionUnit(
         pose.target[1],
         preferences.positionUnit
       ).toFixed(preferences.decimalPrecision)
     );
-    expect(fieldByLabel(wrapper, enUS.axis.ml).props("modelValue")).toBe(
+    expect(fieldByLabel(wrapper, enUS.axis.si).props("modelValue")).toBe(
       millimetersToPositionUnit(
         pose.target[2],
         preferences.positionUnit
@@ -125,12 +125,12 @@ describe("CameraInspector", () => {
     expect(store.experiment.cameraPose.alpha).toBe(0);
   });
 
-  it("editing target AP writes the converted millimeters onto the camera pose's target", async () => {
+  it("editing the target's AP field writes the converted millimeters onto that axis of the camera pose's target", async () => {
     const { wrapper, store } = mountInspector();
 
     await editAndBlur(fieldByLabel(wrapper, enUS.axis.ap), "2");
 
-    expect(store.experiment.cameraPose.target[0]).toBe(2);
+    expect(store.experiment.cameraPose.target[1]).toBe(2);
   });
 
   it("shows the empty hint when there are no saved poses", () => {

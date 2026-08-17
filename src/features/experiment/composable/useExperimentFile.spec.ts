@@ -11,8 +11,8 @@ import {
   mountWithQuasar
 } from "@/test/mount-helper";
 import {
-  makeAtlas,
   makeCoordinateSystem,
+  makeExperiment,
   makeProbe,
   makeProbeInterfaceProbe,
   makeSceneModel,
@@ -20,11 +20,15 @@ import {
 } from "@/test/fixtures";
 import { zipExperiment } from "../api/experiment-file.api";
 import {
-  buildExperiment,
   internCoordinateSystem,
   internProbeInterfaceProbe
 } from "../api/experiment.api";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  buildCoordinateAxis,
+  buildDefaultGlobalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import type { Experiment } from "../models/experiment.model";
 import { getSceneModel } from "@/features/scene";
 import enUS from "@/i18n/en-US";
@@ -159,11 +163,7 @@ describe("useExperimentFile", () => {
     it("loads a valid experiment file into the store", async () => {
       const wrapper = mountHarness();
       const store = useCurrentExperimentStore();
-      const experiment = buildExperiment(
-        "Loaded Experiment",
-        makeAtlas(),
-        [0, 0, 0]
-      );
+      const experiment = makeExperiment({ name: "Loaded Experiment" });
       const file = makeExperimentZipFile(experiment);
       const notifySpy = vi.spyOn(wrapper.vm.$q, "notify");
 
@@ -174,11 +174,52 @@ describe("useExperimentFile", () => {
       expect(notifySpy).not.toHaveBeenCalled();
     });
 
+    it("keeps a file's coordinate systems and geometry, whatever system it was saved in", async () => {
+      mountHarness();
+      const store = useCurrentExperimentStore();
+      const experiment = makeExperiment({
+        name: "Rotated",
+        globalCoordinateSystem: {
+          ...buildDefaultGlobalCoordinateSystem(),
+          axes: [
+            buildCoordinateAxis(ATLAS_AXIS_DIRECTIONS[0]),
+            buildCoordinateAxis(ATLAS_AXIS_DIRECTIONS[1]),
+            buildCoordinateAxis(ATLAS_AXIS_DIRECTIONS[2])
+          ],
+          positionDisplayOrder: [2, 0, 1]
+        },
+        localCoordinateSystem: {
+          depthDirection: "Superior_to_inferior",
+          forwardDirection: "Posterior_to_anterior"
+        },
+        referenceCoordinate: [5.4, 0.33, 5.7]
+      });
+      internProbeInterfaceProbe(experiment, makeProbeInterfaceProbe());
+      experiment.probes = [
+        makeProbe({ tipPosition: [1, 2, 3], rotation: [0.1, 0.2, 0.3] })
+      ];
+
+      await capturedOnChange!(makeFileList(makeExperimentZipFile(experiment)));
+      await flushMicrotasks();
+
+      expect(store.name).toBe("Rotated");
+      expect(store.globalCoordinateSystem).toEqual(
+        experiment.globalCoordinateSystem
+      );
+      expect(store.localCoordinateSystem).toEqual(
+        experiment.localCoordinateSystem
+      );
+      expect(store.axisDirections).toEqual(ATLAS_AXIS_DIRECTIONS);
+      expect(store.referenceCoordinate).toEqual([5.4, 0.33, 5.7]);
+      expect(store.experiment.probes[0]!.tipPosition).toEqual([1, 2, 3]);
+      expect(store.experiment.probes[0]!.rotation).toEqual([0.1, 0.2, 0.3]);
+    });
+
     it("fires onOpened after a successful load", async () => {
       const wrapper = mountHarness();
       const onOpenedSpy = vi.fn();
       wrapper.vm.onOpened(onOpenedSpy);
-      const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
+      const experiment = makeExperiment({ name: "Loaded" });
       const file = makeExperimentZipFile(experiment);
 
       await capturedOnChange!(makeFileList(file));
@@ -255,7 +296,7 @@ describe("useExperimentFile", () => {
       const wrapper = mountHarness();
       const store = useCurrentExperimentStore();
       const experiment = {
-        ...buildExperiment("Loaded", makeAtlas(), [0, 0, 0]),
+        ...makeExperiment({ name: "Loaded" }),
         version: buildOlderMajorVersion()
       };
       const file = makeExperimentZipFile(experiment);
@@ -278,7 +319,7 @@ describe("useExperimentFile", () => {
       const wrapper = mountHarness();
       const store = useCurrentExperimentStore();
       const experiment = {
-        ...buildExperiment("Loaded", makeAtlas(), [0, 0, 0]),
+        ...makeExperiment({ name: "Loaded" }),
         version: buildNewerMinorVersion()
       };
       const file = makeExperimentZipFile(experiment);
@@ -301,7 +342,7 @@ describe("useExperimentFile", () => {
       const wrapper = mountHarness();
       const store = useCurrentExperimentStore();
       const experiment = {
-        ...buildExperiment("Loaded", makeAtlas(), [0, 0, 0]),
+        ...makeExperiment({ name: "Loaded" }),
         version: "5.0"
       };
       const file = makeExperimentZipFile(experiment);
@@ -320,7 +361,7 @@ describe("useExperimentFile", () => {
     });
 
     it("writes a scene object's model file before loading the experiment", async () => {
-      const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
+      const experiment = makeExperiment({ name: "Loaded" });
       const sceneObject = makeSceneObject();
       experiment.sceneObjects = [sceneObject];
       const bytes = new Uint8Array([1, 2, 3, 4]);
@@ -345,7 +386,7 @@ describe("useExperimentFile", () => {
     });
 
     it("writes a probe's body model file before loading the experiment", async () => {
-      const experiment = buildExperiment("Loaded", makeAtlas(), [0, 0, 0]);
+      const experiment = makeExperiment({ name: "Loaded" });
       const probeInterfaceProbe = makeProbeInterfaceProbe();
       internProbeInterfaceProbe(experiment, probeInterfaceProbe);
       internCoordinateSystem(experiment, makeCoordinateSystem());

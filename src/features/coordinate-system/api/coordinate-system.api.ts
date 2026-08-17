@@ -105,26 +105,31 @@ export function getCoordinateSystemIdentifier(
 }
 
 /**
- * Append an all-zero, all-free transform to a coordinate system's chain.
+ * Append an all-zero, all-free transform to a coordinate system's chain, its values named after
+ * the axes they drive.
  * @param coordinateSystem Coordinate system to append to, mutated in place.
  * @param name Display name of the transform.
+ * @param positionAxisNames Name per position axis, indexed by axis.
+ * @param rotationAxisNames Name per rotation axis, indexed by axis.
  */
 export function addCoordinateSystemTransform(
   coordinateSystem: CoordinateSystem,
-  name: string
+  name: string,
+  positionAxisNames: readonly [string, string, string],
+  rotationAxisNames: readonly [string, string, string]
 ): void {
   coordinateSystem.chain.push(
     buildCoordinateSystemNode(
       name,
       [
-        buildCoordinateSystemValue("ML"),
-        buildCoordinateSystemValue("DV"),
-        buildCoordinateSystemValue("AP")
+        buildCoordinateSystemValue(positionAxisNames[0]),
+        buildCoordinateSystemValue(positionAxisNames[1]),
+        buildCoordinateSystemValue(positionAxisNames[2])
       ],
       [
-        buildCoordinateSystemValue("Pitch"),
-        buildCoordinateSystemValue("Yaw"),
-        buildCoordinateSystemValue("Roll")
+        buildCoordinateSystemValue(rotationAxisNames[0]),
+        buildCoordinateSystemValue(rotationAxisNames[1]),
+        buildCoordinateSystemValue(rotationAxisNames[2])
       ]
     )
   );

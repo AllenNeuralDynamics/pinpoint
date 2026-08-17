@@ -1,35 +1,39 @@
 <script lang="ts" setup>
 import { computed } from "vue";
 import {
-  KEYBOARD_CONTROL_AXIS_INDEX,
   KEYBOARD_CONTROL_ROWS,
   KEYBOARD_SPEED_KEYS
 } from "../api/keyboard-control.api";
-import { useAtlasAxes } from "@/composable/useAtlasAxes";
-import type {
-  KeyboardControlAxis,
-  KeyboardControlKind
-} from "../models/keyboard-control.model";
+import { useCoordinateAxes } from "@/composable/useCoordinateAxes";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import {
+  getLineAxisIndex,
+  type AnatomicalLine
+} from "@/utils/coordinate-frame";
+import type { KeyboardControlKind } from "../models/keyboard-control.model";
 
 const { kind } = defineProps<{ kind: KeyboardControlKind }>();
 
-const atlasAxes = useAtlasAxes();
+const currentExperiment = useCurrentExperimentStore();
+const coordinateAxes = useCoordinateAxes();
 
-/** Key pairs the active controls map, one row per axis. */
+/** Key pairs the active controls map, one row per anatomical line. */
 const rows = computed(() => KEYBOARD_CONTROL_ROWS[kind]);
 
 /** Axis labels of the triple the active controls drive, in the user's names. */
 const axisSlots = computed(() =>
-  kind === "rotate" ? atlasAxes.rotation.value : atlasAxes.position.value
+  kind === "rotate"
+    ? coordinateAxes.rotation.value
+    : coordinateAxes.position.value
 );
 
 /**
- * Label for an axis, as the user names it. Every axis has a slot, so the lookup
- * always resolves.
- * @param axis Axis to label.
+ * Label of the axis running along an anatomical line, as the user names it.
+ * Every axis has a slot, so the lookup always resolves.
+ * @param line Anatomical line the row's keys drive.
  */
-function axisLabel(axis: KeyboardControlAxis): string {
-  const index = KEYBOARD_CONTROL_AXIS_INDEX[axis];
+function axisLabel(line: AnatomicalLine): string {
+  const index = getLineAxisIndex(currentExperiment.axisDirections, line);
   return axisSlots.value.find(slot => slot.axis === index)!.label;
 }
 </script>
@@ -38,13 +42,12 @@ function axisLabel(axis: KeyboardControlAxis): string {
   <div class="keyboard-control-legend column q-gutter-y-xs">
     <div
       v-for="row of rows"
-      :key="row.axis"
+      :key="row.line"
       class="row items-center no-wrap q-gutter-x-xs"
-      :class="`axis-${row.axis}`"
+      :class="`axis-${row.line}`"
     >
-      <kbd>{{ row.negative.label }}</kbd>
-      <kbd>{{ row.positive.label }}</kbd>
-      <span class="axis-label">{{ axisLabel(row.axis) }}</span>
+      <kbd v-for="key of row.keys" :key="key.code">{{ key.label }}</kbd>
+      <span class="axis-label">{{ axisLabel(row.line) }}</span>
     </div>
     <div class="row items-center no-wrap q-gutter-x-xs axis-speed">
       <kbd>{{ KEYBOARD_SPEED_KEYS.negative.label }}</kbd>
@@ -76,14 +79,16 @@ kbd
 .axis-label
   opacity: 0.8
 
-// Matched to the scene's axis guide colors: AP blue, DV green, ML red.
-.axis-ap
+// Matched to the scene's axis guide colors, which are keyed to the same
+// anatomical lines: left-right red, inferior-superior green,
+// posterior-anterior blue.
+.axis-posteriorAnterior
   color: #6688ff
 
-.axis-dv
+.axis-inferiorSuperior
   color: #55dd55
 
-.axis-ml
+.axis-leftRight
   color: #ff6666
 
 .axis-speed

@@ -24,18 +24,23 @@ import type { AxisOrder } from "@/utils/axis-order";
 import { makeCoordinateSystem } from "@/test/fixtures";
 
 describe("addCoordinateSystemTransform", () => {
-  it("appends an all-zero, free node to the chain", () => {
+  it("appends an all-zero, free node named after the axes it drives", () => {
     const coordinateSystem = makeCoordinateSystem();
 
-    addCoordinateSystemTransform(coordinateSystem, "Tip");
+    addCoordinateSystemTransform(
+      coordinateSystem,
+      "Tip",
+      ["ML", "AP", "SI"],
+      ["Pitch", "Roll", "Yaw"]
+    );
 
     expect(coordinateSystem.chain).toHaveLength(2);
     const node = coordinateSystem.chain[1]!;
-    expect(node.position.map(value => value.name)).toEqual(["ML", "DV", "AP"]);
+    expect(node.position.map(value => value.name)).toEqual(["ML", "AP", "SI"]);
     expect(node.rotation.map(value => value.name)).toEqual([
       "Pitch",
-      "Yaw",
-      "Roll"
+      "Roll",
+      "Yaw"
     ]);
     for (const value of [...node.position, ...node.rotation]) {
       expect(value.value).toBe(0);
@@ -46,7 +51,12 @@ describe("addCoordinateSystemTransform", () => {
   it("puts the passed name on the appended node", () => {
     const coordinateSystem = makeCoordinateSystem();
 
-    addCoordinateSystemTransform(coordinateSystem, "Depth");
+    addCoordinateSystemTransform(
+      coordinateSystem,
+      "Depth",
+      ["X", "Y", "Z"],
+      ["Pitch", "Yaw", "Roll"]
+    );
 
     expect(coordinateSystem.chain[1]!.name).toBe("Depth");
   });
@@ -54,7 +64,12 @@ describe("addCoordinateSystemTransform", () => {
   it("appends a node to an empty chain", () => {
     const coordinateSystem = makeCoordinateSystem({ chain: [] });
 
-    addCoordinateSystemTransform(coordinateSystem, "Tip");
+    addCoordinateSystemTransform(
+      coordinateSystem,
+      "Tip",
+      ["X", "Y", "Z"],
+      ["Pitch", "Yaw", "Roll"]
+    );
 
     expect(coordinateSystem.chain).toHaveLength(1);
   });
@@ -68,7 +83,7 @@ describe("reorderCoordinateSystemTransform", () => {
           "First",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -81,7 +96,7 @@ describe("reorderCoordinateSystemTransform", () => {
           "Second",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -156,7 +171,7 @@ describe("removeCoordinateSystemTransform", () => {
           "First",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -169,7 +184,7 @@ describe("removeCoordinateSystemTransform", () => {
           "Second",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -185,7 +200,7 @@ describe("removeCoordinateSystemTransform", () => {
           "Third",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -247,7 +262,7 @@ describe("setCoordinateSystemSurfaceNode", () => {
           "Tip",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -263,7 +278,7 @@ describe("setCoordinateSystemSurfaceNode", () => {
           "Second",
           [
             buildCoordinateSystemValue("ML"),
-            buildCoordinateSystemValue("DV"),
+            buildCoordinateSystemValue("SI"),
             buildCoordinateSystemValue("AP")
           ],
           [
@@ -339,7 +354,7 @@ describe("buildCoordinateSystemNode", () => {
   it("defaults both display orders to identity and passes through the values", () => {
     const position = [
       buildCoordinateSystemValue("ML"),
-      buildCoordinateSystemValue("DV"),
+      buildCoordinateSystemValue("SI"),
       buildCoordinateSystemValue("AP")
     ] satisfies Parameters<typeof buildCoordinateSystemNode>[1];
     const rotation = [
@@ -361,7 +376,7 @@ describe("buildCoordinateSystemNode", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML"),
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ],
       [
@@ -408,7 +423,7 @@ describe("isCoordinateSystem", () => {
       CoordinateSystemValue
     ] = [
       buildCoordinateSystemValue("ML"),
-      buildCoordinateSystemValue("DV"),
+      buildCoordinateSystemValue("SI"),
       buildCoordinateSystemValue("AP")
     ],
     positionDisplayOrder: AxisOrder = [0, 1, 2]
@@ -452,7 +467,7 @@ describe("isCoordinateSystem", () => {
     const coordinateSystem = buildCoordinateSystem("CCF", [
       makeNode([
         { ...buildCoordinateSystemValue("ML"), value: NaN },
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ])
     ]);
@@ -467,7 +482,7 @@ describe("isCoordinateSystem", () => {
           ...buildCoordinateSystemValue("ML"),
           mode: "locked" as unknown as CoordinateSystemValueMode
         },
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ])
     ]);
@@ -491,7 +506,7 @@ describe("getCoordinateSystemSlots", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML"),
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ],
       [
@@ -530,7 +545,7 @@ describe("setCoordinateSystemSlotAxis", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML"),
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ],
       [
@@ -588,7 +603,7 @@ describe("reorderCoordinateSystemSlot", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML"),
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ],
       [
@@ -604,7 +619,7 @@ describe("reorderCoordinateSystemSlot", () => {
 
     reorderCoordinateSystemSlot(node, "position", 0, 2);
 
-    expect(node.position.map(value => value.name)).toEqual(["ML", "DV", "AP"]);
+    expect(node.position.map(value => value.name)).toEqual(["ML", "SI", "AP"]);
     expect(node.positionDisplayOrder).toEqual([1, 2, 0]);
   });
 
@@ -634,7 +649,7 @@ describe("reorderCoordinateSystemSlot", () => {
     expect(node.positionDisplayOrder).toEqual([0, 1, 2]);
     expect(
       getCoordinateSystemSlots(node, "position").map(slot => slot.value.name)
-    ).toEqual(["ML", "DV", "AP"]);
+    ).toEqual(["ML", "SI", "AP"]);
   });
 });
 
@@ -644,7 +659,7 @@ describe("getCoordinateSystemAxisValue", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML", 1),
-        buildCoordinateSystemValue("DV", 2),
+        buildCoordinateSystemValue("SI", 2),
         buildCoordinateSystemValue("AP", 3)
       ],
       [
@@ -680,7 +695,7 @@ describe("setCoordinateSystemAxisValue", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML", 1),
-        buildCoordinateSystemValue("DV", 2),
+        buildCoordinateSystemValue("SI", 2),
         buildCoordinateSystemValue("AP", 3)
       ],
       [
@@ -711,7 +726,7 @@ describe("applyCoordinateSystemChainValues", () => {
       "Tip",
       [
         buildCoordinateSystemValue("ML", mlValue),
-        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("SI"),
         buildCoordinateSystemValue("AP")
       ],
       [

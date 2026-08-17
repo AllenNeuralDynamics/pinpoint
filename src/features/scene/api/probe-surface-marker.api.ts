@@ -1,7 +1,8 @@
 import type { Mesh, Scene, SelectionOutlineLayer } from "@babylonjs/core";
 import { Color3, MeshBuilder, StandardMaterial } from "@babylonjs/core";
 import type { Probe, ProbeSurfaceMarker } from "@/features/probe";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import { toSceneVector } from "./coordinate-transforms.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 import { setMaterialEmissiveColor } from "./material.api";
 import { buildAtlasRootNode } from "./structures.api";
 
@@ -20,6 +21,7 @@ const PROBE_SURFACE_MARKER_SEGMENTS = 12;
  * @param selectionOutlineLayer Selection outline layer to add the marker sphere to.
  * @param marker Marker to draw, or null to remove it.
  * @param probes Probes in the experiment, to resolve the marker's own color and visibility.
+ * @param globalDirections Axis directions the marker's position is in.
  * @param shankThicknessMillimeters Probe shank thickness the marker's diameter is scaled from.
  */
 export function syncProbeSurfaceMarker(
@@ -27,6 +29,7 @@ export function syncProbeSurfaceMarker(
   selectionOutlineLayer: SelectionOutlineLayer,
   marker: ProbeSurfaceMarker | null,
   probes: Probe[],
+  globalDirections: AxisDirections,
   shankThicknessMillimeters: number
 ): void {
   const probe = marker
@@ -54,7 +57,7 @@ export function syncProbeSurfaceMarker(
   setMaterialEmissiveColor(material, Color3.FromHexString(probe.color));
   mesh.material = material;
 
-  mesh.position = asrToVector3(marker.position);
+  mesh.position = toSceneVector(globalDirections, marker.position);
 
   // The sphere is a fresh mesh after a rebuild, and outlining is per-mesh
   // reference, so a reused mesh across ticks must not be re-added.

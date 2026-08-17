@@ -15,7 +15,30 @@ import {
   solveCoordinateSystemChainInverse
 } from "./inverse-kinematics.api";
 import type { CoordinateSystemTarget } from "./inverse-kinematics.api";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections
+} from "@/utils/coordinate-frame";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import type { CoordinateSystemNode } from "../model/coordinate-system.model";
+
+/** Directions of the default RAS global coordinate system. */
+const GLOBAL_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
+
+/** Default probe rest: depth posterior, electrodes facing superior. */
+const LOCAL = buildDefaultLocalCoordinateSystem();
+
+/** A probe resting nose-down, whose depth axis points inferior instead of posterior. */
+const DOWNWARD_LOCAL: LocalCoordinateSystem = {
+  depthDirection: "Superior_to_inferior",
+  forwardDirection: "Posterior_to_anterior"
+};
 
 /** Reset every free value in a chain to zero, mutating it in place. */
 function resetFreeValues(chain: CoordinateSystemNode[]): void {
@@ -148,7 +171,12 @@ function buildNewScaleLikeChain(): CoordinateSystemNode[] {
 describe("solveCoordinateSystemChainInverse", () => {
   it("converges a chain of mixed fixed and free values back onto a target pose", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -159,11 +187,18 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
     expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
@@ -172,6 +207,7 @@ describe("solveCoordinateSystemChainInverse", () => {
         solved,
         target.tipPosition,
         target.rotation,
+        GLOBAL_DIRECTIONS,
         1e-4
       )
     ).toBe(true);
@@ -179,7 +215,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("converges a surface-constrained chain onto both the tip pose and the surface point", () => {
     const chain = [buildFreeNode(true), buildPartlyFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     const surfacePosition = target.nodePositions[0]!;
     resetFreeValues(chain);
 
@@ -191,11 +232,18 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
     expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
@@ -206,7 +254,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("treats an all-fixed node between two others as inert", () => {
     const chain = [buildFreeNode(), buildInertNode(), buildPartlyFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -217,11 +270,18 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
     expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
@@ -242,7 +302,12 @@ describe("solveCoordinateSystemChainInverse", () => {
       ]
     );
     const chain = [node];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -253,12 +318,19 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
     expect(getCoordinateSystemAxisValue(node, "position", 0)).toBe(3);
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
     expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
@@ -284,6 +356,8 @@ describe("solveCoordinateSystemChainInverse", () => {
       chain,
       { tipPosition: [0, 0, 0], rotation: [0, 0, 0], surfacePosition: null },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -293,7 +367,12 @@ describe("solveCoordinateSystemChainInverse", () => {
   it("honours a non-null reference offset", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
     const offset: [number, number, number] = [4, -6, 9];
-    const target = solveCoordinateSystemChain(chain, offset);
+    const target = solveCoordinateSystemChain(
+      chain,
+      offset,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -304,11 +383,18 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       offset,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
-    const solved = solveCoordinateSystemChain(chain, offset);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      offset,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
     expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
@@ -339,11 +425,18 @@ describe("solveCoordinateSystemChainInverse", () => {
       chain,
       target,
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).not.toBe("converged");
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(solved.tipPosition[0]).toBeCloseTo(target.tipPosition[0], 4);
     expect(solved.tipPosition[1]).toBeCloseTo(target.tipPosition[1], 4);
     expect(solved.tipPosition[2]).toBeCloseTo(target.tipPosition[2], 4);
@@ -354,7 +447,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("still converges a warm chain with PREVIEW_SOLVE_STARTS", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
     solveCoordinateSystemChainInverse(
       chain,
@@ -364,6 +462,8 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -381,6 +481,8 @@ describe("solveCoordinateSystemChainInverse", () => {
       chain,
       nudgedTarget,
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       PREVIEW_SOLVE_STARTS
     );
 
@@ -407,6 +509,8 @@ describe("solveCoordinateSystemChainInverse", () => {
       chain,
       { tipPosition: [0, 0, 0], rotation: [0, 0, 0], surfacePosition: null },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -421,7 +525,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("leaves a later node's free value at zero when an earlier node can reach the pose alone", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -432,17 +541,25 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
     expect(getCoordinateSystemAxisValue(chain[1]!, "position", 2)).toBe(0);
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(
       isCoordinateSystemSolutionAtPose(
         solved,
         target.tipPosition,
         target.rotation,
+        GLOBAL_DIRECTIONS,
         1e-4
       )
     ).toBe(true);
@@ -450,7 +567,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("spends a later node's free value when a surface goal pins the earlier node", () => {
     const chain = [buildFreeNode(true), buildPartlyFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     const surfacePosition = target.nodePositions[0]!;
     resetFreeValues(chain);
 
@@ -462,6 +584,8 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -474,7 +598,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("uses a later node when the earlier one cannot pose the chain alone", () => {
     const chain = [buildPartlyFreeNode(), buildFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -485,17 +614,25 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
     expect(status).toBe("converged");
     expect(getCoordinateSystemAxisValue(chain[1]!, "position", 0)).not.toBe(0);
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(
       isCoordinateSystemSolutionAtPose(
         solved,
         target.tipPosition,
         target.rotation,
+        GLOBAL_DIRECTIONS,
         1e-4
       )
     ).toBe(true);
@@ -503,7 +640,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("folds a later depth value into the earlier stage axis it shares", () => {
     const chain = buildNewScaleLikeChain();
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -514,6 +656,8 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -524,12 +668,18 @@ describe("solveCoordinateSystemChainInverse", () => {
       12,
       3
     );
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(
       isCoordinateSystemSolutionAtPose(
         solved,
         target.tipPosition,
         target.rotation,
+        GLOBAL_DIRECTIONS,
         1e-4
       )
     ).toBe(true);
@@ -538,7 +688,12 @@ describe("solveCoordinateSystemChainInverse", () => {
   it("keeps a later depth value when the axis it shares is user-constrained", () => {
     const chain = buildNewScaleLikeChain();
     chain[2]!.position[2] = buildCoordinateSystemValue("Z", 5, "user");
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -549,6 +704,8 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -561,7 +718,12 @@ describe("solveCoordinateSystemChainInverse", () => {
 
   it("holds every free value of a redundant later node at zero", () => {
     const chain = [buildFreeNode(), buildFreeNode()];
-    const target = solveCoordinateSystemChain(chain, null);
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     resetFreeValues(chain);
 
     const status = solveCoordinateSystemChainInverse(
@@ -572,6 +734,8 @@ describe("solveCoordinateSystemChainInverse", () => {
         surfacePosition: null
       },
       null,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
 
@@ -580,12 +744,59 @@ describe("solveCoordinateSystemChainInverse", () => {
       expect(getCoordinateSystemAxisValue(chain[1]!, "position", axis)).toBe(0);
       expect(getCoordinateSystemAxisValue(chain[1]!, "rotation", axis)).toBe(0);
     }
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     expect(
       isCoordinateSystemSolutionAtPose(
         solved,
         target.tipPosition,
         target.rotation,
+        GLOBAL_DIRECTIONS,
+        1e-4
+      )
+    ).toBe(true);
+  });
+
+  it("converges onto a pose posed in a rotated local coordinate system", () => {
+    const chain = [buildFreeNode(), buildPartlyFreeNode()];
+    const target = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      DOWNWARD_LOCAL
+    );
+    resetFreeValues(chain);
+
+    const status = solveCoordinateSystemChainInverse(
+      chain,
+      {
+        tipPosition: target.tipPosition,
+        rotation: target.rotation,
+        surfacePosition: null
+      },
+      null,
+      GLOBAL_DIRECTIONS,
+      DOWNWARD_LOCAL,
+      SETTLED_SOLVE_STARTS
+    );
+
+    expect(status).toBe("converged");
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      DOWNWARD_LOCAL
+    );
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        solved,
+        target.tipPosition,
+        target.rotation,
+        GLOBAL_DIRECTIONS,
         1e-4
       )
     ).toBe(true);

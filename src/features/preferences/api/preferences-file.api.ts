@@ -1,7 +1,11 @@
 import type { Appearance } from "./appearance.api";
 import type { CameraProjection } from "@/features/scene";
 import type { Preferences } from "@/stores/preferences.store";
-import { isAxisOrder } from "@/utils/axis-order";
+import {
+  type GlobalCoordinateSystem,
+  isGlobalCoordinateSystem,
+  isLocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import type { PositionUnit, RotationUnit } from "@/utils/math";
 import { isFiniteNumber, isRecord } from "@/utils/type-guards";
 
@@ -123,10 +127,9 @@ function isPreferences(value: unknown): value is Preferences {
     areStructureInteriorsHidden,
     positionUnit,
     rotationUnit,
-    positionAxisNames,
-    rotationAxisNames,
-    positionAxisOrder,
-    rotationAxisOrder
+    newSceneGlobalCoordinateSystem,
+    newSceneLocalCoordinateSystem,
+    areCoordinateSystemsRetained
   } = value;
 
   if (typeof version !== "string") return false;
@@ -160,12 +163,9 @@ function isPreferences(value: unknown): value is Preferences {
   if (typeof appearance !== "string" || !APPEARANCES.includes(appearance)) {
     return false;
   }
-  if (!isAxisNames(positionAxisNames) || !isAxisNames(rotationAxisNames)) {
-    return false;
-  }
-  if (!isAxisOrder(positionAxisOrder) || !isAxisOrder(rotationAxisOrder)) {
-    return false;
-  }
+  if (typeof areCoordinateSystemsRetained !== "boolean") return false;
+  if (!isGlobalCoordinateSystem(newSceneGlobalCoordinateSystem)) return false;
+  if (!isLocalCoordinateSystem(newSceneLocalCoordinateSystem)) return false;
 
   for (const [key, [minimum, maximum]] of Object.entries(
     NUMERIC_PREFERENCE_RANGES
@@ -177,18 +177,6 @@ function isPreferences(value: unknown): value is Preferences {
   }
 
   return Number.isInteger(value.decimalPrecision);
-}
-
-/**
- * Check that a value is a triple of axis name strings.
- * @param value Value to check.
- */
-function isAxisNames(value: unknown): value is [string, string, string] {
-  return (
-    Array.isArray(value) &&
-    value.length === 3 &&
-    value.every(name => typeof name === "string")
-  );
 }
 
 /**
@@ -215,10 +203,11 @@ function pickPreferences(source: Preferences, version: string): Preferences {
     areStructureInteriorsHidden: source.areStructureInteriorsHidden,
     positionUnit: source.positionUnit,
     rotationUnit: source.rotationUnit,
-    positionAxisNames: [...source.positionAxisNames],
-    rotationAxisNames: [...source.rotationAxisNames],
-    positionAxisOrder: [...source.positionAxisOrder],
-    rotationAxisOrder: [...source.rotationAxisOrder],
+    newSceneGlobalCoordinateSystem: copyGlobalCoordinateSystem(
+      source.newSceneGlobalCoordinateSystem
+    ),
+    newSceneLocalCoordinateSystem: { ...source.newSceneLocalCoordinateSystem },
+    areCoordinateSystemsRetained: source.areCoordinateSystemsRetained,
     decimalPrecision: source.decimalPrecision,
     dragSensitivity: source.dragSensitivity,
     probeShankThicknessMillimeters: source.probeShankThicknessMillimeters,
@@ -226,5 +215,29 @@ function pickPreferences(source: Preferences, version: string): Preferences {
     probeHeadStageCutDepthMillimeters: source.probeHeadStageCutDepthMillimeters,
     probeRodDiameterMillimeters: source.probeRodDiameterMillimeters,
     probeRodLengthMillimeters: source.probeRodLengthMillimeters
+  };
+}
+
+/**
+ * Deep copy a global coordinate system, so an exported or imported system
+ * shares nothing with its source.
+ * @param system Coordinate system to copy.
+ */
+function copyGlobalCoordinateSystem(
+  system: GlobalCoordinateSystem
+): GlobalCoordinateSystem {
+  const { axes, positionDisplayOrder, rotationDisplayOrder } = system;
+  return {
+    axes: [{ ...axes[0] }, { ...axes[1] }, { ...axes[2] }],
+    positionDisplayOrder: [
+      positionDisplayOrder[0],
+      positionDisplayOrder[1],
+      positionDisplayOrder[2]
+    ],
+    rotationDisplayOrder: [
+      rotationDisplayOrder[0],
+      rotationDisplayOrder[1],
+      rotationDisplayOrder[2]
+    ]
   };
 }

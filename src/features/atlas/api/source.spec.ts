@@ -727,7 +727,7 @@ describe("getAtlas", () => {
       expect(result?.manifest.atlasLink).toBeNull();
     });
 
-    it("converts the finest variant's bregma index into atlas ASR mm", async () => {
+    it("converts the finest variant's bregma index into atlas millimeters", async () => {
       mockManifests({
         [MANIFEST_URL_100]: rawManifest({
           resolution: [100, 100, 100],
@@ -1216,7 +1216,7 @@ describe("getAtlasLongestDimensionMillimeters", () => {
       })
     });
 
-    // AP: 2, DV: 8, ML: 18 - ML is the longest, not the first axis.
+    // AP: 2, SI: 8, ML: 18 - ML is the longest, not the first axis.
     expect(getAtlasLongestDimensionMillimeters(atlas)).toBe(18);
   });
 
@@ -1263,7 +1263,7 @@ describe("getAtlasAverageDimensionMillimeters", () => {
       })
     });
 
-    // AP: 2, DV: 8, ML: 18 - a float mean, not an exact power of two.
+    // AP: 2, SI: 8, ML: 18 - a float mean, not an exact power of two.
     expect(getAtlasAverageDimensionMillimeters(atlas)).toBeCloseTo(28 / 3);
   });
 

@@ -317,7 +317,7 @@ function createChunkCache(maximumBytes: number): ChunkCache {
  * Cache key for a decoded chunk, scoped to its multiscale level so the same
  * chunk coordinates at different levels never collide.
  * @param levelPath Multiscale dataset path, e.g. `s0`.
- * @param chunkCoordinates Chunk grid coordinates as [ap, dv, ml].
+ * @param chunkCoordinates Chunk grid coordinates as [ap, si, ml].
  */
 function chunkKey(
   levelPath: string,

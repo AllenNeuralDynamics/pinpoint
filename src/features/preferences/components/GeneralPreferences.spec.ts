@@ -34,14 +34,6 @@ describe("GeneralPreferences", () => {
     );
   });
 
-  it("renders the axis preferences", () => {
-    const wrapper = mountWithQuasar(GeneralPreferences);
-
-    expect(wrapper.findComponent({ name: "AxisPreferences" }).exists()).toBe(
-      true
-    );
-  });
-
   it("the skip-splash toggle starts at false", () => {
     const wrapper = mountWithQuasar(GeneralPreferences);
 

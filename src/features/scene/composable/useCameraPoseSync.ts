@@ -9,7 +9,11 @@ import {
   snapCameraToPose,
   trackCameraPose
 } from "../api/camera.api";
-import { atlasToWorld, worldToAtlas } from "../api/coordinate-transforms.api";
+import {
+  fromWorldVector,
+  toWorldVector
+} from "../api/coordinate-transforms.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 
 /** Orbit and target the camera and the experiment last agreed on. */
 interface SyncedPose {
@@ -23,6 +27,7 @@ interface SyncedPose {
  * to the pose, and write the camera's orbit and target back as it moves.
  * @param camera Camera to bind.
  * @param atlas Getter for the atlas anchoring world space.
+ * @param axisDirections Getter for the axis directions the pose's target is expressed in.
  * @param pose Getter for the experiment's live camera pose, mutated in place.
  * @param shouldSnap Getter for whether a pose change should be applied immediately instead of glided to.
  * @param onPoseMoving Called after each live write of a moving camera's pose.
@@ -31,6 +36,7 @@ interface SyncedPose {
 export function useCameraPoseSync(
   camera: Readonly<ShallowRef<ArcRotateCamera | null>>,
   atlas: () => Atlas,
+  axisDirections: () => AxisDirections,
   pose: () => CameraPose,
   shouldSnap: () => boolean,
   onPoseMoving: () => void,
@@ -55,7 +61,7 @@ export function useCameraPoseSync(
       current.radius
     ];
     const target: [number, number, number] = [...current.target];
-    const worldTarget = atlasToWorld(atlas(), target);
+    const worldTarget = toWorldVector(axisDirections(), atlas(), target);
 
     if (!synced) {
       synced = { orbit, target, worldTarget };
@@ -100,7 +106,7 @@ export function useCameraPoseSync(
       const target =
         synced && isSameWorldTarget
           ? synced.target
-          : worldToAtlas(atlas(), worldTarget);
+          : fromWorldVector(axisDirections(), atlas(), worldTarget);
 
       synced = { orbit, target, worldTarget };
       setCameraPose(pose(), orbit, target);

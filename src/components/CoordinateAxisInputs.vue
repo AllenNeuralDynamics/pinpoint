@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed } from "vue";
-import type { AtlasAxisKind } from "@/composable/useAtlasAxes";
-import { useAtlasAxes } from "@/composable/useAtlasAxes";
+import type { CoordinateAxisKind } from "@/composable/useCoordinateAxes";
+import { useCoordinateAxes } from "@/composable/useCoordinateAxes";
 import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericModel } from "@/composable/useNumericModel";
 import { useUnitLabels } from "@/composable/useUnitLabels";
@@ -18,16 +18,16 @@ import CommittedInput from "./CommittedInput.vue";
 defineOptions({ inheritAttrs: false });
 
 const { tuple, kind, offset } = defineProps<{
-  /** Triple to edit in place, in internal [AP, DV, ML] or [roll, yaw, pitch] order. */
+  /** Triple to edit in place, in the experiment's global coordinate system. */
   tuple: [number, number, number];
-  /** Which atlas triple this row edits, selecting its unit and default labels. */
-  kind: AtlasAxisKind;
+  /** Which of the experiment's triples this row edits, selecting its unit and default labels. */
+  kind: CoordinateAxisKind;
   /** Subtracted from each displayed value and added back on write; omit for none. */
   offset?: [number, number, number];
 }>();
 
 const preferences = usePreferencesStore();
-const atlasAxes = useAtlasAxes();
+const coordinateAxes = useCoordinateAxes();
 const unitLabels = useUnitLabels();
 const { positionStep, rotationStep } = useDragSteps();
 const { optionalNumber: numberRules } = useValidationRules();
@@ -49,7 +49,9 @@ const models = ([0, 1, 2] as const).map(axis =>
 );
 
 const slots = computed(() =>
-  kind === "position" ? atlasAxes.position.value : atlasAxes.rotation.value
+  kind === "position"
+    ? coordinateAxes.position.value
+    : coordinateAxes.rotation.value
 );
 const suffix = computed(() =>
   kind === "position"

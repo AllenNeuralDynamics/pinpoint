@@ -13,7 +13,21 @@ import {
   solveCoordinateSystemChainInverse
 } from "../api/inverse-kinematics.api";
 import { handleInverseKinematicsMessage } from "./inverse-kinematics-handler";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections
+} from "@/utils/coordinate-frame";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 import type { CoordinateSystemNode } from "../model/coordinate-system.model";
+
+/** Directions of the default RAS global coordinate system. */
+const GLOBAL_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
+
+/** Default probe rest: depth posterior, electrodes facing superior. */
+const LOCAL = buildDefaultLocalCoordinateSystem();
 
 // Spy on both solves the handler forwards `referenceOffsetMillimeters` to, while still calling
 // through to the real implementation.
@@ -86,7 +100,12 @@ function buildPartlyFreeNode(): CoordinateSystemNode {
 describe("handleInverseKinematicsMessage", () => {
   it("solves a request into its reply message, carrying the requestId through and converging", () => {
     const chain = [buildFreeNode(), buildPartlyFreeNode()];
-    const solved = solveCoordinateSystemChain(chain, null);
+    const solved = solveCoordinateSystemChain(
+      chain,
+      null,
+      GLOBAL_DIRECTIONS,
+      LOCAL
+    );
     const target = {
       tipPosition: solved.tipPosition,
       rotation: solved.rotation,
@@ -100,6 +119,8 @@ describe("handleInverseKinematicsMessage", () => {
       chain,
       target,
       referenceOffsetMillimeters: null,
+      globalDirections: GLOBAL_DIRECTIONS,
+      localCoordinateSystem: LOCAL,
       maximumStarts: SETTLED_SOLVE_STARTS
     });
 
@@ -111,6 +132,7 @@ describe("handleInverseKinematicsMessage", () => {
         result.solution,
         target.tipPosition,
         target.rotation,
+        GLOBAL_DIRECTIONS,
         1e-4
       )
     ).toBe(true);
@@ -121,7 +143,9 @@ describe("handleInverseKinematicsMessage", () => {
     const referenceOffsetMillimeters: [number, number, number] = [1, 2, 3];
     const solved = solveCoordinateSystemChain(
       chain,
-      referenceOffsetMillimeters
+      referenceOffsetMillimeters,
+      GLOBAL_DIRECTIONS,
+      LOCAL
     );
     const target = {
       tipPosition: solved.tipPosition,
@@ -136,6 +160,8 @@ describe("handleInverseKinematicsMessage", () => {
       chain,
       target,
       referenceOffsetMillimeters,
+      globalDirections: GLOBAL_DIRECTIONS,
+      localCoordinateSystem: LOCAL,
       maximumStarts: SETTLED_SOLVE_STARTS
     });
 
@@ -143,11 +169,15 @@ describe("handleInverseKinematicsMessage", () => {
       chain,
       target,
       referenceOffsetMillimeters,
+      GLOBAL_DIRECTIONS,
+      LOCAL,
       SETTLED_SOLVE_STARTS
     );
     expect(solveCoordinateSystemChain).toHaveBeenLastCalledWith(
       chain,
-      referenceOffsetMillimeters
+      referenceOffsetMillimeters,
+      GLOBAL_DIRECTIONS,
+      LOCAL
     );
   });
 });

@@ -1,15 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { Color3, Mesh, StandardMaterial } from "@babylonjs/core";
 import type { Experiment } from "@/features/experiment";
-import {
-  addProbe,
-  buildExperiment,
-  internProbeInterfaceProbe
-} from "@/features/experiment";
+import { addProbe, internProbeInterfaceProbe } from "@/features/experiment";
 import type { Probe, ProbeGhost } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 import {
-  makeAtlas,
+  makeExperiment,
   makeProbe,
   makeProbeGeometry,
   makeProbeInterfaceProbe
@@ -19,7 +15,13 @@ import {
   makeTestSceneWithGizmo
 } from "@/test/mount-helper";
 import { buildProbe, getProbeShankMesh } from "./probe.api";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import { toSceneQuaternion, toSceneVector } from "./coordinate-transforms.api";
+import {
+  getAxisDirections,
+  getProbeRestRotation,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
 import { disposeProbeGhost, syncProbeGhost } from "./probe-ghost.api";
 
 /** Single-shank contour, in micrometers - mirrors probe.spec.ts's NP1000. */
@@ -39,7 +41,7 @@ function makeExperimentWithProbe(probeOverrides: Partial<Probe> = {}): {
   experiment: Experiment;
   probe: Probe;
 } {
-  const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  const experiment = makeExperiment();
   const probeInterfaceProbe = makeProbeInterfaceProbe({
     probe_planar_contour: NP1000_CONTOUR
   });
@@ -83,17 +85,38 @@ describe("syncProbeGhost", () => {
     )!;
     const ghost = makeGhost({ probeId: probe.id });
 
-    syncProbeGhost(scene, ghost, experiment.probes, []);
+    syncProbeGhost(
+      scene,
+      ghost,
+      experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
+      []
+    );
 
     const ghostNode = scene.getTransformNodeByName("probeGhost_node")!;
     expect(ghostNode).toBeTruthy();
     expect(ghostNode.parent).toBe(probeNode.parent);
     expect(ghostNode.position.asArray()).toEqual(
-      asrToVector3(ghost.tipPosition).asArray()
+      toSceneVector(
+        getAxisDirections(experiment.globalCoordinateSystem),
+        ghost.tipPosition
+      ).asArray()
     );
-    expect(ghostNode.rotation.asArray()).toEqual(
-      asrToVector3(ghost.rotation).asArray()
-    );
+    expect(
+      ghostNode.rotationQuaternion!.equalsWithEpsilon(
+        toSceneQuaternion(
+          multiplyMatrices(
+            getRotationMatrix(
+              getAxisDirections(experiment.globalCoordinateSystem),
+              ghost.rotation
+            ),
+            getProbeRestRotation(experiment.localCoordinateSystem)
+          )
+        ),
+        1e-6
+      )
+    ).toBe(true);
 
     const childMeshes = ghostNode.getChildMeshes();
     expect(childMeshes.length).toBeGreaterThan(0);
@@ -113,6 +136,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
@@ -130,6 +155,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
     const firstNode = scene.getTransformNodeByName("probeGhost_node")!;
@@ -138,19 +165,26 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id, tipPosition: [1, 2, 3] }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
     const secondNode = scene.getTransformNodeByName("probeGhost_node")!;
 
     expect(secondNode.uniqueId).toBe(firstNode.uniqueId);
     expect(secondNode.position.asArray()).toEqual(
-      asrToVector3([1, 2, 3]).asArray()
+      toSceneVector(
+        getAxisDirections(experiment.globalCoordinateSystem),
+        [1, 2, 3]
+      ).asArray()
     );
 
     syncProbeGhost(
       scene,
       makeGhost({ probeId: probe.id, tipPosition: [4, 5, 6] }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       [probe.id]
     );
     const thirdNode = scene.getTransformNodeByName("probeGhost_node")!;
@@ -166,10 +200,19 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
-    syncProbeGhost(scene, null, experiment.probes, []);
+    syncProbeGhost(
+      scene,
+      null,
+      experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
+      []
+    );
 
     expect(scene.getTransformNodeByName("probeGhost_node")).toBeNull();
     expect(scene.getMaterialByName("probeGhost_material")).toBeNull();
@@ -183,6 +226,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
@@ -190,6 +235,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: "missing-probe" }),
       [...experiment.probes, makeProbe({ id: "missing-probe" })],
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
@@ -208,6 +255,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
@@ -231,6 +280,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
@@ -239,6 +290,8 @@ describe("syncProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 
@@ -260,6 +313,8 @@ describe("disposeProbeGhost", () => {
       scene,
       makeGhost({ probeId: probe.id }),
       experiment.probes,
+      getAxisDirections(experiment.globalCoordinateSystem),
+      experiment.localCoordinateSystem,
       []
     );
 

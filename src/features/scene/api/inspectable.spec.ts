@@ -53,12 +53,12 @@ describe("isSameInspectable", () => {
 });
 
 describe("moveInspectableToMillimeters", () => {
-  const atlasMillimeters: [number, number, number] = [10, 20, 30];
+  const globalMillimeters: [number, number, number] = [10, 20, 30];
 
   it("moves a probe's tip to the destination", () => {
     const probe = makeProbe();
 
-    moveInspectableToMillimeters(probe, atlasMillimeters);
+    moveInspectableToMillimeters(probe, globalMillimeters);
 
     expect(probe.tipPosition).toEqual([10, 20, 30]);
   });
@@ -66,7 +66,7 @@ describe("moveInspectableToMillimeters", () => {
   it("moves a scene object's position, leaving other fields untouched", () => {
     const sceneObject = makeSceneObject({ rotation: [1, 2, 3] });
 
-    moveInspectableToMillimeters(sceneObject, atlasMillimeters);
+    moveInspectableToMillimeters(sceneObject, globalMillimeters);
 
     expect(sceneObject.position).toEqual([10, 20, 30]);
     expect(sceneObject.rotation).toEqual([1, 2, 3]);
@@ -75,7 +75,7 @@ describe("moveInspectableToMillimeters", () => {
   it("moves a camera's target, leaving its orbit untouched", () => {
     const cameraPose = makeCameraPose({ alpha: 1, beta: 2, radius: 3 });
 
-    moveInspectableToMillimeters(cameraPose, atlasMillimeters);
+    moveInspectableToMillimeters(cameraPose, globalMillimeters);
 
     expect(cameraPose.target).toEqual([10, 20, 30]);
     expect(cameraPose.alpha).toBe(1);
@@ -84,7 +84,7 @@ describe("moveInspectableToMillimeters", () => {
   });
 
   it("leaves the world unchanged", () => {
-    moveInspectableToMillimeters(WORLD_INSPECTABLE, atlasMillimeters);
+    moveInspectableToMillimeters(WORLD_INSPECTABLE, globalMillimeters);
 
     expect(WORLD_INSPECTABLE).toEqual({ inspectableKind: "world" });
   });

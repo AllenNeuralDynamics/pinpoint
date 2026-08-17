@@ -7,6 +7,17 @@ import {
   makeProbe,
   makeProbeInterfaceProbe
 } from "@/test/fixtures";
+import type {
+  AxisDirections,
+  GlobalCoordinateSystem,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections,
+  getDownwardProbeRotation
+} from "@/utils/coordinate-frame";
 import { getProbeFrame, toAtlasMillimeters } from "./probe-frame.api";
 import {
   clampSliceCenterHeight,
@@ -38,17 +49,36 @@ const TWO_SHANK_CONTOUR = [
   [1, 10]
 ];
 
+/** Default RAS global system every probe pose in this spec is expressed in. */
+const RAS: GlobalCoordinateSystem = buildDefaultGlobalCoordinateSystem();
+
+/** Axis directions of {@link RAS}. */
+const RAS_DIRECTIONS: AxisDirections = getAxisDirections(RAS);
+
+/** Default rest: depth posterior, electrodes superior. */
+const DEFAULT_LOCAL: LocalCoordinateSystem =
+  buildDefaultLocalCoordinateSystem();
+
+/**
+ * Rest orientation the app hardcoded before coordinate systems were
+ * configurable: depth anterior, electrodes superior.
+ */
+const LEGACY_LOCAL: LocalCoordinateSystem = {
+  depthDirection: "Posterior_to_anterior",
+  forwardDirection: "Inferior_to_superior"
+};
+
 describe("getProbeSlicePlane", () => {
   it("centers on the given height up the contour from the tip", () => {
     const probe = makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] });
-    const frame = getProbeFrame(probe);
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, DEFAULT_LOCAL);
 
     const tipPlane = getProbeSlicePlane(frame, 0, 1, 16);
     const raisedPlane = getProbeSlicePlane(frame, 5, 1, 16);
 
-    // Default rotation [0,0,0]: right = ML (asrToVector3 x), up = DV, so a
-    // nonzero center height must shift the plane center along the frame's up
-    // axis relative to the tip-centered plane.
+    // At the default rest the shank runs anterior, so a nonzero center height
+    // must shift the plane center along the frame's up axis relative to the
+    // tip-centered plane.
     expect(tipPlane.bands[0]!.centerMillimeters).not.toEqual(
       raisedPlane.bands[0]!.centerMillimeters
     );
@@ -59,7 +89,7 @@ describe("getProbeSlicePlane", () => {
 
   it("sets the band's and plane's half-extents to half the given extent", () => {
     const probe = makeProbe();
-    const frame = getProbeFrame(probe);
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, DEFAULT_LOCAL);
 
     const plane = getProbeSlicePlane(frame, 0, 4, 32);
 
@@ -71,7 +101,7 @@ describe("getProbeSlicePlane", () => {
 
   it("mirrors the frame's right axis and carries up through", () => {
     const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
-    const frame = getProbeFrame(probe);
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, DEFAULT_LOCAL);
 
     const plane = getProbeSlicePlane(frame, 0, 1, 16);
 
@@ -81,7 +111,7 @@ describe("getProbeSlicePlane", () => {
 
   it("emits exactly one band spanning the full output width", () => {
     const probe = makeProbe();
-    const frame = getProbeFrame(probe);
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, DEFAULT_LOCAL);
 
     const plane = getProbeSlicePlane(frame, 0, 4, 32);
 
@@ -92,7 +122,7 @@ describe("getProbeSlicePlane", () => {
 
   it("mirrors the image so its left edge is the probe's greatest-x edge", () => {
     const probe = makeProbe({ rotation: [0, 0, Math.PI / 2] });
-    const frame = getProbeFrame(probe);
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, DEFAULT_LOCAL);
     const centerHeightMillimeters = 3;
     const extentMillimeters = 4;
     const halfWidth = extentMillimeters / 2;
@@ -118,6 +148,50 @@ describe("getProbeSlicePlane", () => {
     expect(leftEdge[0]).toBeCloseTo(expectedLeftEdge[0], 6);
     expect(leftEdge[1]).toBeCloseTo(expectedLeftEdge[1], 6);
     expect(leftEdge[2]).toBeCloseTo(expectedLeftEdge[2], 6);
+  });
+
+  it("looks along the electrode face for a probe pitched down from the default rest", () => {
+    const probe = makeProbe({
+      tipPosition: [0, 0, 0],
+      rotation: getDownwardProbeRotation(RAS, DEFAULT_LOCAL)
+    });
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, DEFAULT_LOCAL);
+
+    const plane = getProbeSlicePlane(frame, 5, 4, 32);
+
+    // Tip down, exactly as the legacy convention placed it: the image climbs
+    // the shank from the tip toward superior, i.e. atlas -SI, spans the
+    // across-the-shanks ML line, and centers 5mm superior of the tip.
+    expectTriple(plane.upMillimeters, [0, -1, 0]);
+    expectTriple(plane.rightMillimeters, [0, 0, 1]);
+    expectTriple(plane.bands[0]!.centerMillimeters, [0, -5, 0]);
+    // The atlas frame is right-handed, so the cross of the image's right and
+    // up axes is the outward normal it looks along. At the default rest the
+    // electrode face ends up posterior once the probe is pitched down.
+    expectTriple(
+      crossMillimeters(plane.rightMillimeters, plane.upMillimeters),
+      [1, 0, 0]
+    );
+  });
+
+  it("reproduces the legacy convention's plane for a pitched-down legacy-rest probe", () => {
+    const probe = makeProbe({
+      tipPosition: [0, 0, 0],
+      rotation: getDownwardProbeRotation(RAS, LEGACY_LOCAL)
+    });
+    const frame = getProbeFrame(probe, RAS_DIRECTIONS, LEGACY_LOCAL);
+
+    const plane = getProbeSlicePlane(frame, 5, 4, 32);
+
+    // The legacy hardcoded frame: tip down, image right the atlas -ML
+    // direction, looking anterior along the electrode face's outward normal.
+    expectTriple(plane.upMillimeters, [0, -1, 0]);
+    expectTriple(plane.rightMillimeters, [0, 0, -1]);
+    expectTriple(plane.bands[0]!.centerMillimeters, [0, -5, 0]);
+    expectTriple(
+      crossMillimeters(plane.rightMillimeters, plane.upMillimeters),
+      [-1, 0, 0]
+    );
   });
 });
 
@@ -229,7 +303,9 @@ describe("getShankSliceGeometry", () => {
   const twoShankContour = getProbeContour(twoShankDefinition)!;
   const shanks = getProbeShanks(twoShankDefinition, twoShankContour);
   const frame = getProbeFrame(
-    makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] })
+    makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] }),
+    RAS_DIRECTIONS,
+    DEFAULT_LOCAL
   );
 
   it("builds one band per shank, centered on its own x and the shared height", () => {
@@ -752,3 +828,34 @@ describe("formatSliceExtentMillimeters", () => {
     expect(formatSliceExtentMillimeters(0.0625)).toBe("0.063");
   });
 });
+
+/**
+ * Assert a triple matches an expected triple within float tolerance.
+ * @param actual Triple to check.
+ * @param expected Triple to check against.
+ */
+function expectTriple(
+  actual: [number, number, number],
+  expected: [number, number, number]
+): void {
+  for (const [index, value] of expected.entries()) {
+    expect(actual[index]).toBeCloseTo(value, 9);
+  }
+}
+
+/**
+ * Cross product of two triples, which in the atlas's right-handed frame is the
+ * geometric cross product.
+ * @param left Left triple.
+ * @param right Right triple.
+ */
+function crossMillimeters(
+  left: [number, number, number],
+  right: [number, number, number]
+): [number, number, number] {
+  return [
+    left[1] * right[2] - left[2] * right[1],
+    left[2] * right[0] - left[0] * right[2],
+    left[0] * right[1] - left[1] * right[0]
+  ];
+}

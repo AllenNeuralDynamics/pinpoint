@@ -113,15 +113,11 @@ export function createBabylonRuntimeService(): BabylonRuntimeService {
     );
     c.attachControl(canvas, true);
 
-    // Setup gizmo manager. Babylon builds each gizmo on its first enable and
-    // leaves `gizmos.positionGizmo` / `gizmos.rotationGizmo` / `gizmos.scaleGizmo`
-    // null until then, so enable all three here: consumers register drag observers
-    // on those instances once and switch modes by toggling the enabled flags, which
-    // only detach.
+    // Setup gizmo manager. Its own composite gizmos stay off: the scene draws
+    // its transform handles along the user's coordinate systems instead
+    // (`buildCoordinateGizmos`), and the manager is kept for the utility
+    // layers, pointer plumbing, and attachment those handles follow.
     const gm = new GizmoManager(s);
-    gm.positionGizmoEnabled = true;
-    gm.rotationGizmoEnabled = true;
-    gm.scaleGizmoEnabled = true;
     gm.attachableMeshes = [];
 
     const light = new HemisphericLight("main_light", Vector3.Up(), s);

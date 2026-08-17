@@ -47,7 +47,7 @@ describe("PreferencesDialog", () => {
     wrappers.unmountAll();
   });
 
-  it("renders the title and the six tabs", async () => {
+  it("renders the title and the seven tabs", async () => {
     const wrapper = await mountDialog();
 
     expect(document.body.textContent).toContain(t.title);
@@ -56,6 +56,7 @@ describe("PreferencesDialog", () => {
       .element.querySelectorAll(".q-tab__label");
     expect(Array.from(tabs).map(tab => tab.textContent)).toEqual([
       t.general,
+      t.coordinates,
       t.scene,
       t.probe,
       t.export,
@@ -78,6 +79,19 @@ describe("PreferencesDialog", () => {
     expect(wrapper.findComponent({ name: "ResetPreferences" }).exists()).toBe(
       true
     );
+  });
+
+  it("switching to the coordinates tab shows the coordinate panel", async () => {
+    const wrapper = await mountDialog();
+
+    await wrapper
+      .findComponent({ name: "QTabs" })
+      .vm.$emit("update:modelValue", "coordinates");
+    await wrapper.vm.$nextTick();
+
+    expect(
+      wrapper.findComponent({ name: "CoordinatePreferences" }).exists()
+    ).toBe(true);
   });
 
   it("still switches tabs when opened with a tab prop", async () => {

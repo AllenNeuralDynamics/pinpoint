@@ -31,11 +31,12 @@ import {
 import { nextTick, shallowRef } from "vue";
 import SceneCanvas from "./SceneCanvas.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
-import type { FakeTextRenderer } from "@/test/mount-helper";
+import type { FakeAxisGuideRenderers } from "@/test/mount-helper";
 import type * as MountHelper from "@/test/mount-helper";
 import {
   createWrapperRegistry,
   initializeTestCSG2,
+  makeFakeAxisGuideRenderers,
   makeFakeTextRenderer,
   makeTestFontAsset,
   makeTestSceneWithGizmo,
@@ -65,7 +66,6 @@ import {
 } from "@/features/atlas";
 import {
   addProbe,
-  buildExperiment,
   internProbeInterfaceProbe,
   setProbeInterface
 } from "@/features/experiment";
@@ -75,6 +75,7 @@ import { BabylonRuntimeServiceKey } from "@/services/babylon-runtime.service";
 import {
   makeAtlas,
   makeCoordinateSystem,
+  makeExperiment,
   makeManifest,
   makeProbe,
   makeProbeInterfaceProbe,
@@ -83,7 +84,23 @@ import {
   makeTerminologyRows
 } from "@/test/fixtures";
 import { getProbeTransformNode } from "../api/probe.api";
-import { asrToVector3, vector3ToAsr } from "../api/coordinate-transforms.api";
+import {
+  toSceneQuaternion,
+  toSceneVector
+} from "../api/coordinate-transforms.api";
+import type { CoordinateFrame } from "../models/frame-axis.model";
+import type { CoordinateGizmos } from "../models/gizmo.model";
+import type * as CoordinateGizmoApi from "../api/coordinate-gizmo.api";
+import { buildCoordinateGizmos } from "../api/coordinate-gizmo.api";
+import {
+  GLOBAL_FRAME_AXIS_COLORS,
+  LOCAL_FRAME_AXIS_COLORS
+} from "../api/frame-axes.api";
+import {
+  getProbeRestRotation,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
 import {
   buildProbeSurfacePaths,
   disposeProbeSurfacePaths
@@ -112,17 +129,15 @@ vi.mock("../api/axis-guide.api", async () => {
   const actual = await vi.importActual<typeof AxisGuideApi>(
     "../api/axis-guide.api"
   );
-  const { makeFakeTextRenderer: makeFake, makeTestFontAsset: makeFontAsset } =
-    await vi.importActual<typeof MountHelper>("@/test/mount-helper");
+  const {
+    makeFakeAxisGuideRenderers: makeFakes,
+    makeTestFontAsset: makeFontAsset
+  } = await vi.importActual<typeof MountHelper>("@/test/mount-helper");
 
   return {
     ...actual,
     createAxisGuides: vi.fn(async (scene: Scene) => ({
-      renderers: {
-        ap: makeFake(),
-        dv: makeFake(),
-        ml: makeFake()
-      },
+      renderers: makeFakes(),
       fontAsset: makeFontAsset(scene),
       dispose: vi.fn()
     }))
@@ -156,6 +171,19 @@ vi.mock("../api/probe-surface-path.api", async () => {
     ...actual,
     buildProbeSurfacePaths: vi.fn(actual.buildProbeSurfacePaths),
     disposeProbeSurfacePaths: vi.fn(actual.disposeProbeSurfacePaths)
+  };
+});
+
+// The gizmos are built inside the component, so keep the real builder and record
+// what it returns: a test reaches the handles' frames and drag observables
+// through it.
+vi.mock("../api/coordinate-gizmo.api", async () => {
+  const actual = await vi.importActual<typeof CoordinateGizmoApi>(
+    "../api/coordinate-gizmo.api"
+  );
+  return {
+    ...actual,
+    buildCoordinateGizmos: vi.fn(actual.buildCoordinateGizmos)
   };
 });
 
@@ -293,6 +321,36 @@ function axisGuidePickMeshCount(scene: Scene): number {
     .length;
 }
 
+/**
+ * The transform gizmos `SceneCanvas` built last, with the frames it built them
+ * along: the position and rotation frame, and the scale one.
+ */
+function lastGizmoBuild(): {
+  gizmos: CoordinateGizmos;
+  frame: CoordinateFrame;
+  scaleFrame: CoordinateFrame;
+} {
+  const { calls, results } = vi.mocked(buildCoordinateGizmos).mock;
+  const call = calls.at(-1)!;
+  return {
+    gizmos: results.at(-1)!.value as CoordinateGizmos,
+    frame: call[1],
+    scaleFrame: call[2]
+  };
+}
+
+/**
+ * Assert a Babylon vector is componentwise close to another, tolerating float
+ * error from axis permutation.
+ * @param actual Vector produced by the code under test.
+ * @param expected Vector to compare against.
+ */
+function expectVectorCloseTo(actual: Vector3, expected: Vector3): void {
+  expect(actual.x).toBeCloseTo(expected.x);
+  expect(actual.y).toBeCloseTo(expected.y);
+  expect(actual.z).toBeCloseTo(expected.z);
+}
+
 describe("SceneCanvas", () => {
   beforeAll(async () => {
     await initializeTestCSG2();
@@ -310,11 +368,7 @@ describe("SceneCanvas", () => {
     vi.mocked(applyCameraProjection).mockReset();
     vi.mocked(createAxisGuides).mockReset();
     vi.mocked(createAxisGuides).mockImplementation(async scene => ({
-      renderers: {
-        ap: makeFakeTextRenderer(),
-        dv: makeFakeTextRenderer(),
-        ml: makeFakeTextRenderer()
-      },
+      renderers: makeFakeAxisGuideRenderers(),
       fontAsset: makeTestFontAsset(scene),
       dispose: vi.fn()
     }));
@@ -327,6 +381,7 @@ describe("SceneCanvas", () => {
       ],
       dispose: vi.fn()
     }));
+    vi.mocked(buildCoordinateGizmos).mockClear();
   });
 
   afterEach(() => {
@@ -511,11 +566,11 @@ describe("SceneCanvas", () => {
     expect(axisGuidePickMeshCount(scene)).toBe(6);
 
     const guides = (await vi.mocked(createAxisGuides).mock.results[0]!
-      .value) as { renderers: Record<"ap" | "dv" | "ml", FakeTextRenderer> };
+      .value) as { renderers: FakeAxisGuideRenderers };
     const texts = Object.values(guides.renderers).flatMap(renderer =>
       renderer.paragraphs.map(paragraph => paragraph.text)
     );
-    expect(texts).toEqual(["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"]);
+    expect(texts).toEqual(["+ML", "-ML", "+SI", "-SI", "+AP", "-AP"]);
   });
 
   it("clears the labels and pick meshes when switched off and reuses the loaded renderers when switched back on", async () => {
@@ -524,7 +579,7 @@ describe("SceneCanvas", () => {
 
     const guides = (await vi.mocked(createAxisGuides).mock.results[0]!
       .value) as AxisGuideApi.AxisGuides & {
-      renderers: Record<"ap" | "dv" | "ml", FakeTextRenderer>;
+      renderers: FakeAxisGuideRenderers;
       dispose: ReturnType<typeof vi.fn>;
     };
     const scene = runtime.scene.value!;
@@ -548,7 +603,7 @@ describe("SceneCanvas", () => {
       Object.values(guides.renderers).flatMap(renderer =>
         renderer.paragraphs.map(paragraph => paragraph.text)
       )
-    ).toEqual(["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"]);
+    ).toEqual(["+ML", "-ML", "+SI", "-SI", "+AP", "-AP"]);
   });
 
   it("forces the axis guides on while a coordinate system is selected, even with the toggle off", async () => {
@@ -573,17 +628,16 @@ describe("SceneCanvas", () => {
     vi.mocked(setAtlasCenterOffset).mockClear();
 
     const store = useCurrentExperimentStore();
-    store.experiment = buildExperiment(
-      "New Experiment",
-      makeAtlas({
+    store.experiment = makeExperiment({
+      name: "New Experiment",
+      atlas: makeAtlas({
         name: "allen_human",
         manifest: makeManifest({
           resolutions: [[0.02, 0.02, 0.02]],
           shape: [[100, 100, 100]]
         })
-      }),
-      [0, 0, 0]
-    );
+      })
+    });
     await flushPromises();
     await flushPromises();
 
@@ -662,16 +716,15 @@ describe("SceneCanvas", () => {
     expect(runtime.camera.value!.minZ).toBeCloseTo(0.132);
     expect(runtime.camera.value!.maxZ).toBeCloseTo(13200);
 
-    useCurrentExperimentStore().experiment = buildExperiment(
-      "New Experiment",
-      makeAtlas({
+    useCurrentExperimentStore().experiment = makeExperiment({
+      name: "New Experiment",
+      atlas: makeAtlas({
         manifest: makeManifest({
           resolutions: [[0.02, 0.02, 0.02]],
           shape: [[100, 100, 100]]
         })
-      }),
-      [0, 0, 0]
-    );
+      })
+    });
     await flushPromises();
     await flushPromises();
 
@@ -735,7 +788,10 @@ describe("SceneCanvas", () => {
 
     const store = useCurrentExperimentStore();
     const newAtlas = makeAtlas({ name: "allen_human" });
-    store.experiment = buildExperiment("New Experiment", newAtlas, [0, 0, 0]);
+    store.experiment = makeExperiment({
+      name: "New Experiment",
+      atlas: newAtlas
+    });
     await flushPromises();
 
     expect(syncStructuresVisibility).toHaveBeenCalledWith(
@@ -904,11 +960,7 @@ describe("SceneCanvas", () => {
       addProbe(store.experiment, oldProbe);
       await flushPromises();
 
-      store.experiment = buildExperiment(
-        "New Experiment",
-        makeAtlas(),
-        [0, 0, 0]
-      );
+      store.experiment = makeExperiment({ name: "New Experiment" });
       const newProbeInterfaceProbe = makeProbeInterfaceProbe({
         probe_planar_contour: contour
       });
@@ -930,9 +982,7 @@ describe("SceneCanvas", () => {
 
       gizmoManager.attachToNode(newNode);
       newNode.position.set(1, 2, 3);
-      gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-        {} as never
-      );
+      lastGizmoBuild().gizmos.positionGizmo.onDragObservable.notifyObservers();
 
       expect(newProbe.tipPosition).not.toEqual([0, 0, 0]);
       expect(store.draggedProbeId).toBe(newProbe.id);
@@ -973,18 +1023,25 @@ describe("SceneCanvas", () => {
     const gizmoManager = runtime.gizmoManager.value!;
     const node = getProbeTransformNode(scene, probe.id)!;
 
+    // The node carries the probe body's whole orientation, so a drag lands the
+    // rest orientation with the user's rotation composed onto it.
+    const dragged: [number, number, number] = [0.1, 0.2, 0.3];
     gizmoManager.attachToNode(node);
-    node.rotation.set(0.1, 0.2, 0.3);
-    gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
-      {} as never
+    node.rotationQuaternion = toSceneQuaternion(
+      multiplyMatrices(
+        getRotationMatrix(store.axisDirections, dragged),
+        getProbeRestRotation(store.localCoordinateSystem)
+      )
     );
+    lastGizmoBuild().gizmos.rotationGizmo.onDragObservable.notifyObservers();
 
-    expect(probe.rotation).toEqual(vector3ToAsr(node.rotation));
+    // Read back as the rotation off the rest orientation the drag applied.
+    expect(probe.rotation[0]).toBeCloseTo(dragged[0]);
+    expect(probe.rotation[1]).toBeCloseTo(dragged[1]);
+    expect(probe.rotation[2]).toBeCloseTo(dragged[2]);
     expect(store.draggedProbeId).toBe(probe.id);
 
-    gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.notifyObservers(
-      {} as never
-    );
+    lastGizmoBuild().gizmos.rotationGizmo.onDragEndObservable.notifyObservers();
 
     expect(store.draggedProbeId).toBeNull();
   });
@@ -1014,16 +1071,16 @@ describe("SceneCanvas", () => {
     const scene = runtime.scene.value!;
     const gizmoManager = runtime.gizmoManager.value!;
     const node = getProbeTransformNode(scene, probe.id)!;
-    const positionGizmo = gizmoManager.gizmos.positionGizmo!;
+    const { positionGizmo } = lastGizmoBuild().gizmos;
 
     gizmoManager.attachToNode(node);
     node.position.set(1, 0, 0);
-    positionGizmo.onDragObservable.notifyObservers({} as never);
+    positionGizmo.onDragObservable.notifyObservers();
     await flushPromises();
     node.position.set(2, 0, 0);
-    positionGizmo.onDragObservable.notifyObservers({} as never);
+    positionGizmo.onDragObservable.notifyObservers();
     await flushPromises();
-    positionGizmo.onDragEndObservable.notifyObservers({} as never);
+    positionGizmo.onDragEndObservable.notifyObservers();
     await flushPromises();
     store.undo();
 
@@ -1054,8 +1111,8 @@ describe("SceneCanvas", () => {
     expect(store.cameraPose.alpha).toBe(alphaBefore);
   });
 
-  it("keeps the position gizmo on the probe in global coordinates", async () => {
-    const { wrapper, runtime } = await mountCanvas();
+  it("builds the handles along the global coordinate system's own axes in global space", async () => {
+    const { wrapper } = await mountCanvas();
     const store = useCurrentExperimentStore();
     store.selectedInspectable = makeProbe();
     await flushPromises();
@@ -1066,18 +1123,101 @@ describe("SceneCanvas", () => {
     await coordinateSpaceToggle.vm.$emit("update:modelValue", "global");
     await flushPromises();
 
-    const gizmoManager = runtime.gizmoManager.value!;
+    const { frame, scaleFrame } = lastGizmoBuild();
+    // World-space handles: they never turn with the node they drag.
+    expect(frame.isNodeLocal).toBe(false);
+    expect(frame.axes.map(axis => axis.label)).toEqual(["ML", "AP", "SI"]);
+    expect(frame.axes.map(axis => axis.color.toHexString())).toEqual([
+      GLOBAL_FRAME_AXIS_COLORS.leftRight.toHexString(),
+      GLOBAL_FRAME_AXIS_COLORS.posteriorAnterior.toHexString(),
+      GLOBAL_FRAME_AXIS_COLORS.inferiorSuperior.toHexString()
+    ]);
+    // Babylon scales along the attached node's own axes, whatever the toolbar says.
+    expect(scaleFrame.isNodeLocal).toBe(true);
+    expect(scaleFrame.axes.map(axis => axis.label)).toEqual(["X", "Y", "Z"]);
+  });
 
-    expect(
-      gizmoManager.gizmos.positionGizmo!.updateGizmoPositionToMatchAttachedMesh
-    ).toBe(true);
-    // `PositionGizmo`'s own `updateGizmoRotationToMatchAttachedMesh` getter
-    // does not reflect `coordinatesMode` (Babylon only keeps the per-axis
-    // `xGizmo` in sync), so assert on that instead.
-    expect(
-      gizmoManager.gizmos.positionGizmo!.xGizmo
-        .updateGizmoRotationToMatchAttachedMesh
-    ).toBe(false);
+  it("builds the handles along a selected probe's own local coordinate system in local space", async () => {
+    const { wrapper } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    store.selectedInspectable = makeProbe();
+    await flushPromises();
+
+    const local = lastGizmoBuild();
+    expect(local.frame.isNodeLocal).toBe(true);
+    expect(local.frame.axes.map(axis => axis.label)).toEqual([
+      "Depth",
+      "Forward",
+      "Right"
+    ]);
+    expect(local.frame.axes.map(axis => axis.color.toHexString())).toEqual(
+      LOCAL_FRAME_AXIS_COLORS.map(color => color.toHexString())
+    );
+    // The electrodes face the probe body's -Y, so the forward handle drags
+    // along -Y: Babylon's own +Y axis points the opposite way.
+    expectVectorCloseTo(local.frame.axes[1].direction, new Vector3(0, -1, 0));
+
+    const coordinateSpaceToggle = wrapper
+      .findAllComponents({ name: "QBtnToggle" })
+      .find(toggle => toggle.props("modelValue") === "local")!;
+    await coordinateSpaceToggle.vm.$emit("update:modelValue", "global");
+    await flushPromises();
+
+    // Switching the space rebuilds every handle along the other frame.
+    const global = lastGizmoBuild();
+    expect(global.gizmos).not.toBe(local.gizmos);
+    expect(global.frame.axes.map(axis => axis.label)).toEqual([
+      "ML",
+      "AP",
+      "SI"
+    ]);
+  });
+
+  it("aims the local forward handle where the local coordinate system's forward direction points, rebuilding when it changes", async () => {
+    await mountCanvas();
+    const store = useCurrentExperimentStore();
+    store.selectedInspectable = makeProbe();
+    await flushPromises();
+
+    // Node-local handles ride the probe's rest orientation, so a frame
+    // direction becomes a scene one through it. Scene space runs y down, so
+    // superior is -y there and the atlas root flips it back up in the world.
+    const sceneForward = () => {
+      const { frame } = lastGizmoBuild();
+      expect(frame.axes[1].label).toBe("Forward");
+      return frame.axes[1].direction.applyRotationQuaternion(
+        toSceneQuaternion(getProbeRestRotation(store.localCoordinateSystem))
+      );
+    };
+    const before = lastGizmoBuild().gizmos;
+
+    expectVectorCloseTo(sceneForward(), new Vector3(0, -1, 0));
+
+    store.experiment.localCoordinateSystem.forwardDirection =
+      "Superior_to_inferior";
+    await flushPromises();
+
+    expect(lastGizmoBuild().gizmos).not.toBe(before);
+    expectVectorCloseTo(sceneForward(), new Vector3(0, 1, 0));
+  });
+
+  it("builds the handles along a scene object's own node axes, which have no anatomical frame", async () => {
+    await mountCanvas();
+    const store = useCurrentExperimentStore();
+    store.selectedInspectable = makeProbe();
+    await flushPromises();
+    const probeBuild = lastGizmoBuild();
+
+    store.selectedInspectable = makeSceneObject();
+    await flushPromises();
+
+    const { gizmos, frame } = lastGizmoBuild();
+    expect(gizmos).not.toBe(probeBuild.gizmos);
+    expect(frame.isNodeLocal).toBe(true);
+    expect(frame.axes.map(axis => axis.label)).toEqual(["X", "Y", "Z"]);
+    expectVectorCloseTo(frame.axes[0].direction, new Vector3(1, 0, 0));
+    expectVectorCloseTo(frame.axes[1].direction, new Vector3(0, 1, 0));
+    expectVectorCloseTo(frame.axes[2].direction, new Vector3(0, 0, 1));
   });
 
   it("switches the axis guide labels between global and local coordinate spaces with the gizmo toolbar", async () => {
@@ -1086,7 +1226,7 @@ describe("SceneCanvas", () => {
     await setAxisGuidesVisible(true);
 
     const guides = (await vi.mocked(createAxisGuides).mock.results[0]!
-      .value) as { renderers: Record<"ap" | "dv" | "ml", FakeTextRenderer> };
+      .value) as { renderers: FakeAxisGuideRenderers };
     const labelTexts = () =>
       Object.values(guides.renderers)
         .flatMap(renderer =>
@@ -1095,13 +1235,15 @@ describe("SceneCanvas", () => {
         .sort();
 
     expect(labelTexts()).toEqual(
-      ["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"].sort()
+      ["+ML", "-ML", "+SI", "-SI", "+AP", "-AP"].sort()
     );
 
     store.selectedInspectable = makeProbe();
     await flushPromises();
 
-    expect(labelTexts()).toEqual(["+X", "-X", "+Y", "-Y", "+Z", "-Z"].sort());
+    expect(labelTexts()).toEqual(
+      ["+Depth", "-Depth", "+Forward", "-Forward", "+Right", "-Right"].sort()
+    );
 
     const coordinateSpaceToggle = wrapper
       .findAllComponents({ name: "QBtnToggle" })
@@ -1110,7 +1252,7 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(labelTexts()).toEqual(
-      ["+AP", "-AP", "+DV", "-DV", "+ML", "-ML"].sort()
+      ["+ML", "-ML", "+SI", "-SI", "+AP", "-AP"].sort()
     );
   });
 
@@ -1264,17 +1406,13 @@ describe("SceneCanvas", () => {
 
     gizmoManager.attachToNode(bodyModelNode);
     bodyModelNode.position.set(1, 2, 3);
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as never
-    );
+    lastGizmoBuild().gizmos.positionGizmo.onDragObservable.notifyObservers();
 
     expect(probe.bodyModel!.position).toEqual([1, 2, 3]);
     expect(probe.tipPosition).toEqual([0, 0, 0]);
     expect(store.draggedProbeId).toBe(probe.id);
 
-    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
-      {} as never
-    );
+    lastGizmoBuild().gizmos.positionGizmo.onDragEndObservable.notifyObservers();
     await flushPromises();
 
     expect(store.draggedProbeId).toBeNull();
@@ -1367,7 +1505,7 @@ describe("SceneCanvas", () => {
       expect.anything(),
       gimbal(),
       expect.any(Number),
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       expect.anything()
     );
 
@@ -1482,19 +1620,20 @@ describe("SceneCanvas", () => {
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
         axisTargetMillimeters: [1, 0, 0],
-        dorsoventralTargetMillimeters: [0, 1, 0]
+        inferiorTargetMillimeters: [0, 1, 0]
       };
       await flushPromises();
 
       expect(buildProbeSurfacePaths).toHaveBeenCalledWith(
         runtime.scene.value,
-        store.probeSurfaceChoice
+        store.probeSurfaceChoice,
+        store.axisDirections
       );
       expect(
         runtime.scene.value!.getMeshByName("probeSurfacePath_axis")
       ).toBeTruthy();
       expect(
-        runtime.scene.value!.getMeshByName("probeSurfacePath_dorsoventral")
+        runtime.scene.value!.getMeshByName("probeSurfacePath_inferior")
       ).toBeTruthy();
     });
 
@@ -1508,7 +1647,7 @@ describe("SceneCanvas", () => {
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
         axisTargetMillimeters: [1, 0, 0],
-        dorsoventralTargetMillimeters: [0, 1, 0]
+        inferiorTargetMillimeters: [0, 1, 0]
       };
       await flushPromises();
       vi.mocked(disposeProbeSurfacePaths).mockClear();
@@ -1525,7 +1664,7 @@ describe("SceneCanvas", () => {
       ).toBeNull();
     });
 
-    it("applies the dorsoventral target and clears the choice on a tube tap", async () => {
+    it("applies the inferior target and clears the choice on a tube tap", async () => {
       const { runtime } = await mountCanvas();
       const store = useCurrentExperimentStore();
       const probe = await addTestProbe(store);
@@ -1539,7 +1678,7 @@ describe("SceneCanvas", () => {
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
         axisTargetMillimeters: [6.7, 0.44, 5.4],
-        dorsoventralTargetMillimeters: [5.7, 2.44, 5.4]
+        inferiorTargetMillimeters: [5.7, 2.44, 5.4]
       };
       await flushPromises();
 
@@ -1566,21 +1705,22 @@ describe("SceneCanvas", () => {
       // `CreateTube` bakes the path into the vertex buffer rather than the
       // mesh's own transform, and the tube is parented under the atlas
       // root (which carries its own 180-degree flip) - project the
-      // midpoint through the atlas root's world matrix, not the raw ASR
-      // millimeters or `mesh.absolutePosition` (just the mesh's origin).
+      // midpoint through the atlas root's world matrix, not the raw
+      // global-system millimeters or `mesh.absolutePosition` (just the mesh's
+      // origin).
       const midMillimeters: [number, number, number] = [
         (store.probeSurfaceChoice!.tipPosition[0] +
-          store.probeSurfaceChoice!.dorsoventralTargetMillimeters[0]) /
+          store.probeSurfaceChoice!.inferiorTargetMillimeters[0]) /
           2,
         (store.probeSurfaceChoice!.tipPosition[1] +
-          store.probeSurfaceChoice!.dorsoventralTargetMillimeters[1]) /
+          store.probeSurfaceChoice!.inferiorTargetMillimeters[1]) /
           2,
         (store.probeSurfaceChoice!.tipPosition[2] +
-          store.probeSurfaceChoice!.dorsoventralTargetMillimeters[2]) /
+          store.probeSurfaceChoice!.inferiorTargetMillimeters[2]) /
           2
       ];
       const midWorld = Vector3.TransformCoordinates(
-        asrToVector3(midMillimeters),
+        toSceneVector(store.axisDirections, midMillimeters),
         atlasRoot.getWorldMatrix()
       );
       const screen = Vector3.Project(
@@ -1656,7 +1796,7 @@ describe("SceneCanvas", () => {
       await nextTick();
 
       expect(node.position.asArray()).toEqual(
-        asrToVector3([5, 0, 0]).asArray()
+        toSceneVector(store.axisDirections, [5, 0, 0]).asArray()
       );
 
       await dragWrapper.trigger("pointerup", { pointerId: 1 });
@@ -1664,7 +1804,7 @@ describe("SceneCanvas", () => {
       await nextTick();
 
       expect(node.position.asArray()).not.toEqual(
-        asrToVector3([10, 0, 0]).asArray()
+        toSceneVector(store.axisDirections, [10, 0, 0]).asArray()
       );
 
       dragWrapper.unmount();

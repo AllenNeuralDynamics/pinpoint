@@ -1,21 +1,12 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import type {
-  DragEvent,
-  DragStartEndEvent,
-  Scene,
-  StandardMaterial
-} from "@babylonjs/core";
-import { Color3, TransformNode } from "@babylonjs/core";
+import type { GizmoManager, Scene, StandardMaterial } from "@babylonjs/core";
+import { Color3, Quaternion, TransformNode, Vector3 } from "@babylonjs/core";
 import type { Experiment } from "@/features/experiment";
-import {
-  addProbe,
-  buildExperiment,
-  internProbeInterfaceProbe
-} from "@/features/experiment";
+import { addProbe, internProbeInterfaceProbe } from "@/features/experiment";
 import type { Probe } from "@/features/probe";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 import {
-  makeAtlas,
+  makeExperiment,
   makeProbe,
   makeProbeGeometry,
   makeProbeInterfaceProbe,
@@ -28,6 +19,8 @@ import {
   tickScene
 } from "@/test/mount-helper";
 import type { ProbeMetadata } from "../models/probe-metadata.model";
+import type { CoordinateFrame } from "../models/frame-axis.model";
+import type { CoordinateGizmos, GizmoMode } from "../models/gizmo.model";
 import {
   attachProbeSelection,
   buildProbe,
@@ -39,7 +32,29 @@ import {
   setProbeRotationFromGizmoDrag,
   syncProbes
 } from "./probe.api";
-import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
+import {
+  fromSceneVector,
+  toSceneQuaternion,
+  toSceneVector
+} from "./coordinate-transforms.api";
+import {
+  buildCoordinateGizmos,
+  setCoordinateGizmoMode,
+  trackCoordinateGizmoAttachment
+} from "./coordinate-gizmo.api";
+import {
+  getGlobalFrameAxes,
+  getLocalFrameAxes,
+  getNodeFrameAxes
+} from "./frame-axes.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import {
+  getAxisDirections,
+  getDownwardProbeRotation,
+  getProbeRestRotation,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
 
 // The head stage is CSG2-subtracted; initialize it once for every test in
 // this file, mirroring what `babylon-runtime.service.ts` does at startup.
@@ -102,7 +117,7 @@ function makeExperimentWithProbe(
     Parameters<typeof makeProbeInterfaceProbe>[0]
   > = {}
 ): { experiment: Experiment; probe: Probe } {
-  const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  const experiment = makeExperiment();
   const probeInterfaceProbe = makeProbeInterfaceProbe({
     probe_planar_contour: NP1000_CONTOUR,
     ...probeInterfaceOverrides
@@ -116,6 +131,69 @@ function makeExperimentWithProbe(
   addProbe(experiment, probe);
 
   return { experiment, probe };
+}
+
+/**
+ * Axis directions an experiment's stored coordinates are in.
+ * @param experiment Experiment to read.
+ */
+function directionsOf(experiment: Experiment): AxisDirections {
+  return getAxisDirections(experiment.globalCoordinateSystem);
+}
+
+/** Axis labels the frames under test are built with, which no drag reads. */
+const AXIS_LABELS: [string, string, string] = ["one", "two", "three"];
+
+/**
+ * Build the three transform gizmos as the runtime does, following the gizmo
+ * manager's attachment and showing the one under test, since a hidden gizmo is
+ * deliberately detached.
+ * @param gizmoManager Gizmo manager whose layers and attachment to follow.
+ * @param mode Gizmo the test drags; the other two stay hidden.
+ * @param frame Frame the position and rotation handles are drawn along.
+ */
+function makeGizmos(
+  gizmoManager: GizmoManager,
+  mode: GizmoMode,
+  frame: CoordinateFrame
+): CoordinateGizmos {
+  const gizmos = buildCoordinateGizmos(
+    gizmoManager,
+    frame,
+    getNodeFrameAxes(AXIS_LABELS)
+  );
+  trackCoordinateGizmoAttachment(gizmoManager, gizmos);
+  setCoordinateGizmoMode(gizmos, mode);
+  return gizmos;
+}
+
+/**
+ * Scene position a probe tip sits at in an experiment's coordinate systems.
+ * @param experiment Experiment the tip is expressed in.
+ * @param tipPosition Probe tip position to convert.
+ */
+function scenePosition(
+  experiment: Experiment,
+  tipPosition: [number, number, number]
+): Vector3 {
+  return toSceneVector(directionsOf(experiment), tipPosition);
+}
+
+/**
+ * Scene quaternion a probe's rest-relative rotation orients its node with.
+ * @param experiment Experiment the rotation is expressed in.
+ * @param rotation Rest-relative rotation triple to convert.
+ */
+function sceneOrientation(
+  experiment: Experiment,
+  rotation: [number, number, number]
+): Quaternion {
+  return toSceneQuaternion(
+    multiplyMatrices(
+      getRotationMatrix(directionsOf(experiment), rotation),
+      getProbeRestRotation(experiment.localCoordinateSystem)
+    )
+  );
 }
 
 /** Shank, head stage, and rod mesh names for a probe. */
@@ -519,7 +597,7 @@ describe("buildProbe", () => {
 
   it("returns null and adds nothing when the probe interface definition is not interned", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
     const probe = makeProbe({
       probeInterfaceIdentifier: "missing manufacturer"
     });
@@ -540,7 +618,7 @@ describe("buildProbe", () => {
 
   it("returns null and adds nothing when the probe interface definition has no contour", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
     const probeInterfaceProbe = makeProbeInterfaceProbe();
     internProbeInterfaceProbe(experiment, probeInterfaceProbe);
     const probe = makeProbe({
@@ -1029,7 +1107,7 @@ describe("syncProbes", () => {
 
     expect(node.position.asArray()).toEqual(firstPass.asArray());
     expect(node.position.asArray()).toEqual(
-      asrToVector3(probe.tipPosition).asArray()
+      scenePosition(experiment, probe.tipPosition).asArray()
     );
   });
 
@@ -1047,12 +1125,15 @@ describe("syncProbes", () => {
       const node = getProbeTransformNode(scene, probe.id)!;
 
       // Exactly what setProbePositionFromGizmoDrag's readback does.
-      probe.tipPosition = vector3ToAsr(node.position);
+      probe.tipPosition = fromSceneVector(
+        directionsOf(experiment),
+        node.position
+      );
       syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
       expect(probe.tipPosition).toEqual([1, 2, 3]);
       expect(node.position.asArray()).toEqual(
-        asrToVector3(probe.tipPosition).asArray()
+        scenePosition(experiment, probe.tipPosition).asArray()
       );
     }
   );
@@ -1068,14 +1149,14 @@ describe("syncProbes", () => {
     syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(node.position.asArray()).not.toEqual(
-      asrToVector3([0.1, 0, 0]).asArray()
+      scenePosition(experiment, [0.1, 0, 0]).asArray()
     );
 
     tickScene(scene, 100);
     tickScene(scene, 100);
 
     expect(node.position.asArray()).toEqual(
-      asrToVector3([0.1, 0, 0]).asArray()
+      scenePosition(experiment, [0.1, 0, 0]).asArray()
     );
   });
 
@@ -1089,16 +1170,77 @@ describe("syncProbes", () => {
     probe.rotation = [0, 0, Math.PI / 2];
     syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
-    expect(node.rotation.asArray()).not.toEqual(
-      asrToVector3([0, 0, Math.PI / 2]).asArray()
+    const turned = sceneOrientation(experiment, [0, 0, Math.PI / 2]);
+    expect(node.rotationQuaternion!.equalsWithEpsilon(turned, 1e-6)).toBe(
+      false
     );
 
     tickScene(scene, 100);
     tickScene(scene, 100);
 
-    expect(node.rotation.asArray()).toEqual(
-      asrToVector3([0, 0, Math.PI / 2]).asArray()
+    expect(node.rotationQuaternion!.equalsWithEpsilon(turned, 1e-6)).toBe(true);
+  });
+
+  it("rests a probe in its local coordinate system's own orientation", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    // Before coordinate systems were configurable a probe rested with its tip
+    // pointing anterior and its electrodes facing superior, which is the frame
+    // the scene renders in, so that rest leaves the node unrotated.
+    const { experiment, probe } = makeExperimentWithProbe();
+    experiment.localCoordinateSystem = {
+      depthDirection: "Posterior_to_anterior",
+      forwardDirection: "Inferior_to_superior"
+    };
+    probe.rotation = [0, 0, 0];
+
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+
+    const node = getProbeTransformNode(scene, probe.id)!;
+    expect(
+      node.rotationQuaternion!.equalsWithEpsilon(Quaternion.Identity(), 1e-9)
+    ).toBe(true);
+  });
+
+  it("aims the shank where the coordinate systems say, in world space", () => {
+    const { scene, gizmoManager } = makeTestSceneWithGizmo();
+    const { experiment, probe } = makeExperimentWithProbe();
+    probe.rotation = [0, 0, 0];
+
+    syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
+
+    // Babylon world y points superior and world z anterior. The default rest
+    // drives the probe's depth posterior, so the shank (body +z, away from the
+    // tip) runs anteriorly out of the brain.
+    const node = getProbeTransformNode(scene, probe.id)!;
+    const atRest = Vector3.TransformNormal(
+      new Vector3(0, 0, 1),
+      node.computeWorldMatrix(true)
     );
+    expect(atRest.x).toBeCloseTo(0);
+    expect(atRest.y).toBeCloseTo(0);
+    expect(atRest.z).toBeCloseTo(1);
+
+    // A new probe starts pitched to drive its depth axis downward, which stands
+    // the shank up superiorly.
+    probe.rotation = getDownwardProbeRotation(
+      experiment.globalCoordinateSystem,
+      experiment.localCoordinateSystem
+    );
+    syncProbes(
+      scene,
+      experiment,
+      gizmoManager,
+      null,
+      makeProbeGeometry(),
+      true
+    );
+    const pointedDown = Vector3.TransformNormal(
+      new Vector3(0, 0, 1),
+      node.computeWorldMatrix(true)
+    );
+    expect(pointedDown.x).toBeCloseTo(0);
+    expect(pointedDown.y).toBeCloseTo(1);
+    expect(pointedDown.z).toBeCloseTo(0);
   });
 
   it("neither animates nor snaps the probe being dragged", () => {
@@ -1114,8 +1256,13 @@ describe("syncProbes", () => {
     tickScene(scene, 100);
     tickScene(scene, 100);
 
-    expect(node.position.asArray()).toEqual([0, 0, 0]);
-    expect(node.rotation.asArray()).toEqual([0, 0, 0]);
+    expect(node.position.equals(Vector3.Zero())).toBe(true);
+    expect(
+      node.rotationQuaternion!.equalsWithEpsilon(
+        sceneOrientation(experiment, [0, 0, 0]),
+        1e-9
+      )
+    ).toBe(true);
   });
 
   it("snaps a freshly built probe rather than flying it from the origin", () => {
@@ -1126,7 +1273,9 @@ describe("syncProbes", () => {
     syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     const node = getProbeTransformNode(scene, probe.id)!;
 
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+    expect(node.position.asArray()).toEqual(
+      scenePosition(experiment, [5, 0, 0]).asArray()
+    );
   });
 
   it("does not let an unrelated sync cut a glide short", () => {
@@ -1144,13 +1293,15 @@ describe("syncProbes", () => {
     syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
 
     expect(node.position.asArray()).not.toEqual(
-      asrToVector3([5, 0, 0]).asArray()
+      scenePosition(experiment, [5, 0, 0]).asArray()
     );
 
     tickScene(scene, 100);
     tickScene(scene, 100);
 
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+    expect(node.position.asArray()).toEqual(
+      scenePosition(experiment, [5, 0, 0]).asArray()
+    );
   });
 
   it("snaps a probe's pose immediately when snapPoses is true, with no tick", () => {
@@ -1170,7 +1321,9 @@ describe("syncProbes", () => {
       true
     );
 
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+    expect(node.position.asArray()).toEqual(
+      scenePosition(experiment, [5, 0, 0]).asArray()
+    );
   });
 
   it("stops an in-flight glide and snaps to the new goal when snapPoses is true", () => {
@@ -1184,7 +1337,7 @@ describe("syncProbes", () => {
     syncProbes(scene, experiment, gizmoManager, null, makeProbeGeometry());
     tickScene(scene, 100);
     expect(node.position.asArray()).not.toEqual(
-      asrToVector3([5, 0, 0]).asArray()
+      scenePosition(experiment, [5, 0, 0]).asArray()
     );
 
     syncProbes(
@@ -1195,10 +1348,14 @@ describe("syncProbes", () => {
       makeProbeGeometry(),
       true
     );
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+    expect(node.position.asArray()).toEqual(
+      scenePosition(experiment, [5, 0, 0]).asArray()
+    );
 
     tickScene(scene, 100);
-    expect(node.position.asArray()).toEqual(asrToVector3([5, 0, 0]).asArray());
+    expect(node.position.asArray()).toEqual(
+      scenePosition(experiment, [5, 0, 0]).asArray()
+    );
   });
 
   it("stops the glide on a gizmo drag", () => {
@@ -1213,15 +1370,19 @@ describe("syncProbes", () => {
     tickScene(scene, 100);
     const midway = node.position.clone();
 
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     setProbePositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       experiment.probes,
+      directionsOf(experiment),
       () => {}
     );
     gizmoManager.attachToNode(node);
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
     tickScene(scene, 100);
 
     expect(node.position.asArray()).toEqual(midway.asArray());
@@ -1454,20 +1615,26 @@ describe("setProbePositionFromGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(node);
     node.position.set(1, 2, 3);
     const onDrag = vi.fn();
 
     setProbePositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       experiment.probes,
+      directionsOf(experiment),
       onDrag
     );
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
 
-    expect(probe.tipPosition).toEqual(vector3ToAsr(node.position));
+    expect(probe.tipPosition).toEqual(
+      fromSceneVector(directionsOf(experiment), node.position)
+    );
     expect(onDrag).toHaveBeenCalledWith(probe.id);
   });
 
@@ -1475,17 +1642,21 @@ describe("setProbePositionFromGizmoDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment } = makeExperimentWithProbe();
     const unrelatedNode = new TransformNode("unrelated", scene);
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(unrelatedNode);
     const onDrag = vi.fn();
 
     setProbePositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       experiment.probes,
+      directionsOf(experiment),
       onDrag
     );
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
 
     expect(onDrag).not.toHaveBeenCalled();
   });
@@ -1497,18 +1668,22 @@ describe("setProbePositionFromGizmoDrag", () => {
       `${probe.id}_probe_body-model_node`,
       scene
     );
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(bodyModelNode);
     bodyModelNode.position.set(1, 2, 3);
     const onDrag = vi.fn();
 
     setProbePositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       experiment.probes,
+      directionsOf(experiment),
       onDrag
     );
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
 
     expect(probe.tipPosition).toEqual([0, 0, 0]);
     expect(onDrag).not.toHaveBeenCalled();
@@ -1516,7 +1691,7 @@ describe("setProbePositionFromGizmoDrag", () => {
 });
 
 describe("setProbeRotationFromGizmoDrag", () => {
-  it("writes the attached probe's rotation and notifies onDrag", () => {
+  it("writes the attached probe's rotation as a rest-relative triple and notifies onDrag", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
     const { experiment, probe } = makeExperimentWithProbe();
     const node = buildProbe(
@@ -1526,21 +1701,97 @@ describe("setProbeRotationFromGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "rotation",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(node);
-    node.rotation.set(0.1, 0.2, 0.3);
+    // Orient the node exactly as this rotation would, so the readback has to
+    // divide the rest orientation back out to recover it.
+    const rotation: [number, number, number] = [0.1, 0.2, 0.3];
+    node.rotationQuaternion = sceneOrientation(experiment, rotation);
     const onDrag = vi.fn();
 
     setProbeRotationFromGizmoDrag(
-      gizmoManager.gizmos.rotationGizmo!,
+      gizmos.rotationGizmo,
       experiment.probes,
+      directionsOf(experiment),
+      experiment.localCoordinateSystem,
       onDrag
     );
-    gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
+    gizmos.rotationGizmo.onDragObservable.notifyObservers();
+
+    for (const [index, value] of rotation.entries()) {
+      expect(probe.rotation[index]!).toBeCloseTo(value, 6);
+    }
+    expect(onDrag).toHaveBeenCalledWith(probe.id);
+  });
+
+  /**
+   * The handles only pick which direction a drag runs along; the stored
+   * rotation comes from the node's resulting quaternion. So building them
+   * along the global frame or along the probe's own left-handed local frame
+   * must read back the very same triple.
+   */
+  it("reads back one rotation whether the handles run along the global or the local frame", () => {
+    /**
+     * Rotation stored after a rotation drag on gizmos built along a frame.
+     * @param frame Frame the rotation handles are drawn along.
+     */
+    const rotationAfterDrag = (
+      frame: (experiment: Experiment) => CoordinateFrame
+    ): [number, number, number] => {
+      const { scene, gizmoManager } = makeTestSceneWithGizmo();
+      const { experiment, probe } = makeExperimentWithProbe();
+      const node = buildProbe(
+        scene,
+        probe,
+        experiment,
+        gizmoManager,
+        makeProbeGeometry()
+      )!;
+      const gizmos = makeGizmos(gizmoManager, "rotation", frame(experiment));
+      gizmoManager.attachToNode(node);
+      node.rotationQuaternion = sceneOrientation(experiment, [0.1, 0.2, 0.3]);
+
+      setProbeRotationFromGizmoDrag(
+        gizmos.rotationGizmo,
+        experiment.probes,
+        directionsOf(experiment),
+        experiment.localCoordinateSystem,
+        () => {}
+      );
+      gizmos.rotationGizmo.onDragObservable.notifyObservers();
+
+      return probe.rotation;
+    };
+
+    // The two frames really do run along different axes, so an equal readback
+    // is a property of the readback and not of two identical setups.
+    const { experiment } = makeExperimentWithProbe();
+    expect(
+      getLocalFrameAxes(experiment.localCoordinateSystem, AXIS_LABELS).axes.map(
+        axis => axis.direction.asArray()
+      )
+    ).not.toEqual(
+      getGlobalFrameAxes(
+        experiment.globalCoordinateSystem,
+        AXIS_LABELS
+      ).axes.map(axis => axis.direction.asArray())
     );
 
-    expect(probe.rotation).toEqual(vector3ToAsr(node.rotation));
-    expect(onDrag).toHaveBeenCalledWith(probe.id);
+    const alongGlobal = rotationAfterDrag(experiment =>
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
+    const alongLocal = rotationAfterDrag(experiment =>
+      getLocalFrameAxes(experiment.localCoordinateSystem, AXIS_LABELS)
+    );
+
+    expect(alongLocal).toEqual(alongGlobal);
+    for (const [index, value] of [0.1, 0.2, 0.3].entries()) {
+      expect(alongGlobal[index]!).toBeCloseTo(value, 6);
+    }
   });
 });
 
@@ -1560,20 +1811,16 @@ describe("endProbeGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "rotation",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
-    endProbeGizmoDrag(
-      {
-        positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-      },
-      onDragEnd
-    );
-    gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    endProbeGizmoDrag(gizmos, onDragEnd);
+    gizmos.rotationGizmo.onDragEndObservable.notifyObservers();
 
     expect(onDragEnd).toHaveBeenCalledTimes(1);
   });
@@ -1588,20 +1835,16 @@ describe("endProbeGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
-    endProbeGizmoDrag(
-      {
-        positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-      },
-      onDragEnd
-    );
-    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    endProbeGizmoDrag(gizmos, onDragEnd);
+    gizmos.positionGizmo.onDragEndObservable.notifyObservers();
 
     expect(onDragEnd).toHaveBeenCalledTimes(1);
   });
@@ -1616,24 +1859,18 @@ describe("endProbeGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(node);
     const onDragEnd = vi.fn();
 
-    const observers = endProbeGizmoDrag(
-      {
-        positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-      },
-      onDragEnd
-    );
+    const observers = endProbeGizmoDrag(gizmos, onDragEnd);
     observers.forEach(observer => observer.remove());
-    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
-    gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    gizmos.positionGizmo.onDragEndObservable.notifyObservers();
+    gizmos.rotationGizmo.onDragEndObservable.notifyObservers();
 
     expect(onDragEnd).not.toHaveBeenCalled();
   });
@@ -1648,53 +1885,51 @@ describe("endProbeGizmoDrag", () => {
       gizmoManager,
       makeProbeGeometry()
     )!;
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "rotation",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(node);
 
     let draggedProbeId: string | null = null;
     setProbeRotationFromGizmoDrag(
-      gizmoManager.gizmos.rotationGizmo!,
+      gizmos.rotationGizmo,
       experiment.probes,
+      directionsOf(experiment),
+      experiment.localCoordinateSystem,
       id => {
         draggedProbeId = id;
       }
     );
     setProbePositionFromGizmoDrag(
-      gizmoManager.gizmos.positionGizmo!,
+      gizmos.positionGizmo,
       experiment.probes,
+      directionsOf(experiment),
       id => {
         draggedProbeId = id;
       }
     );
-    endProbeGizmoDrag(
-      {
-        positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-      },
-      () => {
-        draggedProbeId = null;
-      }
-    );
+    endProbeGizmoDrag(gizmos, () => {
+      draggedProbeId = null;
+    });
 
     // Rotate, then release. Without watching the rotation gizmo's drag-end,
     // draggedProbeId would stay stuck on this probe forever.
-    node.rotation.set(0, 0, Math.PI / 2);
-    gizmoManager.gizmos.rotationGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
+    node.rotationQuaternion = Quaternion.RotationAxis(
+      Vector3.Forward(),
+      Math.PI / 2
     );
-    gizmoManager.gizmos.rotationGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    gizmos.rotationGizmo.onDragObservable.notifyObservers();
+    gizmos.rotationGizmo.onDragEndObservable.notifyObservers();
     expect(draggedProbeId).toBeNull();
 
-    // Now drag position, release, and sync: the transform must not snap.
+    // Now switch to the position gizmo, as the toolbar does, drag, release,
+    // and sync: the transform must not snap.
+    setCoordinateGizmoMode(gizmos, "position");
     node.position.set(5, 0, 0);
-    gizmoManager.gizmos.positionGizmo!.onDragObservable.notifyObservers(
-      {} as DragEvent
-    );
-    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    gizmos.positionGizmo.onDragObservable.notifyObservers();
+    gizmos.positionGizmo.onDragEndObservable.notifyObservers();
     expect(draggedProbeId).toBeNull();
 
     const beforeSync = node.position.clone();
@@ -1710,25 +1945,21 @@ describe("endProbeGizmoDrag", () => {
 
   it("does not fire when the gizmo is attached to a probe's body-model node (regression: `_probe_` substring match)", () => {
     const { scene, gizmoManager } = makeTestSceneWithGizmo();
-    const { probe } = makeExperimentWithProbe();
+    const { experiment, probe } = makeExperimentWithProbe();
     const bodyModelNode = new TransformNode(
       `${probe.id}_probe_body-model_node`,
       scene
     );
+    const gizmos = makeGizmos(
+      gizmoManager,
+      "position",
+      getGlobalFrameAxes(experiment.globalCoordinateSystem, AXIS_LABELS)
+    );
     gizmoManager.attachToNode(bodyModelNode);
     const onDragEnd = vi.fn();
 
-    endProbeGizmoDrag(
-      {
-        positionGizmo: gizmoManager.gizmos.positionGizmo!,
-        rotationGizmo: gizmoManager.gizmos.rotationGizmo!,
-        scaleGizmo: gizmoManager.gizmos.scaleGizmo!
-      },
-      onDragEnd
-    );
-    gizmoManager.gizmos.positionGizmo!.onDragEndObservable.notifyObservers(
-      {} as DragStartEndEvent
-    );
+    endProbeGizmoDrag(gizmos, onDragEnd);
+    gizmos.positionGizmo.onDragEndObservable.notifyObservers();
 
     expect(onDragEnd).not.toHaveBeenCalled();
   });

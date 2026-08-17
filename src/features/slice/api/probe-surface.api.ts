@@ -1,3 +1,10 @@
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  CANONICAL_AXIS_DIRECTIONS,
+  convertCoordinate,
+  getDirectionVector
+} from "@/utils/coordinate-frame";
 import type { AnnotationLevel } from "../models/annotation-level.model";
 import type { SampleGeometry } from "../models/sample-geometry.model";
 import type { ProbeFrame } from "./probe-frame.api";
@@ -7,14 +14,17 @@ export type RaySampler = (
   geometry: SampleGeometry
 ) => Promise<Uint32Array | null>;
 
-/** Tip targets that put a probe on the brain surface, in atlas ASR mm. */
+/**
+ * Tip targets that put a probe on the brain surface, in the experiment's
+ * global coordinate system mm.
+ */
 export interface ProbeSurfaceTargets {
-  /** Target when the probe already crosses brain along local +Z, else null. */
+  /** Target when the probe already crosses brain up its shank, i.e. along body +Z, else null. */
   insideMillimeters: [number, number, number] | null;
-  /** Target moving forward along probe-local -Z, else null. */
+  /** Target moving forward along the probe's depth axis, i.e. body -Z, else null. */
   axisMillimeters: [number, number, number] | null;
-  /** Target moving down on DV (global -Y), else null. */
-  dorsoventralMillimeters: [number, number, number] | null;
+  /** Target moving along the inferior direction, else null. */
+  inferiorMillimeters: [number, number, number] | null;
 }
 
 /** A ray's one-column sampling geometry plus the mapping from output row to distance. */
@@ -26,63 +36,73 @@ interface RayMarch {
   stepMillimeters: number;
 }
 
-/** Direction of increasing atlas DV (inferior, global -Y), in atlas ASR mm. */
-const DORSOVENTRAL_DIRECTION: [number, number, number] = [0, 1, 0];
+/** Unit inferior direction, in atlas millimeters, which a probe is dropped along. */
+const INFERIOR_DIRECTION: [number, number, number] = convertCoordinate(
+  CANONICAL_AXIS_DIRECTIONS,
+  ATLAS_AXIS_DIRECTIONS,
+  getDirectionVector("Superior_to_inferior")
+);
 
 /** Ray samples per voxel along a level's finest axis, so a sample can't skip a voxel. */
 const RAY_SAMPLES_PER_VOXEL = 2;
 
-/** Pitch at which probe-local -Z is the DV direction, collapsing the two paths into one. */
-const PITCH_ALONG_DORSOVENTRAL = Math.PI / 2;
+/** How far a dot product may sit from 1 before two unit directions count as unequal. */
+const PARALLEL_TOLERANCE = 1e-9;
 
 /**
  * Resolve where a probe's tip must move to sit on the brain surface.
- * @param frame Probe's shank-plane frame, in atlas ASR mm.
- * @param pitchRadians Probe's pitch, i.e. `probe.rotation[2]`.
+ * @param frame Probe's shank-plane frame, in atlas millimeters.
+ * @param globalDirections Axis directions the returned targets are expressed in.
  * @param level Annotation level to march through.
  * @param sampleRay Samples one ray geometry.
  */
 export async function findProbeSurfaceTargets(
   frame: ProbeFrame,
-  pitchRadians: number,
+  globalDirections: AxisDirections,
   level: AnnotationLevel,
   sampleRay: RaySampler
 ): Promise<ProbeSurfaceTargets> {
   const origin = frame.originMillimeters;
   const up = frame.upMillimeters;
+  const depth: [number, number, number] = [-up[0], -up[1], -up[2]];
 
   const inside = await findRayTarget(level, origin, up, "furthest", sampleRay);
   if (inside) {
     return {
-      insideMillimeters: inside,
+      insideMillimeters: convertCoordinate(
+        ATLAS_AXIS_DIRECTIONS,
+        globalDirections,
+        inside
+      ),
       axisMillimeters: null,
-      dorsoventralMillimeters: null
+      inferiorMillimeters: null
     };
   }
 
-  // At this exact pitch probe-local -Z and the DV direction are the same
-  // line, so marching the axis too would just repeat the DV march.
-  if (pitchRadians === PITCH_ALONG_DORSOVENTRAL) {
-    return {
-      insideMillimeters: null,
-      axisMillimeters: null,
-      dorsoventralMillimeters: await findRayTarget(
-        level,
-        origin,
-        DORSOVENTRAL_DIRECTION,
-        "nearest",
-        sampleRay
-      )
-    };
-  }
+  // The probe's depth axis already runs inferior, so marching it would just
+  // repeat the drop ray.
+  const isDepthInferior =
+    depth[0] * INFERIOR_DIRECTION[0] +
+      depth[1] * INFERIOR_DIRECTION[1] +
+      depth[2] * INFERIOR_DIRECTION[2] >
+    1 - PARALLEL_TOLERANCE;
 
-  const down: [number, number, number] = [-up[0], -up[1], -up[2]];
-  const [axisMillimeters, dorsoventralMillimeters] = await Promise.all([
-    findRayTarget(level, origin, down, "nearest", sampleRay),
-    findRayTarget(level, origin, DORSOVENTRAL_DIRECTION, "nearest", sampleRay)
+  const [axis, inferior] = await Promise.all([
+    isDepthInferior
+      ? null
+      : findRayTarget(level, origin, depth, "nearest", sampleRay),
+    findRayTarget(level, origin, INFERIOR_DIRECTION, "nearest", sampleRay)
   ]);
 
-  return { insideMillimeters: null, axisMillimeters, dorsoventralMillimeters };
+  return {
+    insideMillimeters: null,
+    axisMillimeters: axis
+      ? convertCoordinate(ATLAS_AXIS_DIRECTIONS, globalDirections, axis)
+      : null,
+    inferiorMillimeters: inferior
+      ? convertCoordinate(ATLAS_AXIS_DIRECTIONS, globalDirections, inferior)
+      : null
+  };
 }
 
 /** Build a ray's sampling geometry, clipped to a level's voxel bounds. Null when it misses. */
@@ -191,8 +211,8 @@ async function findRayTarget(
   if (distance <= 0) return null;
 
   // Snap to the voxel center, then project back onto the ray so the move
-  // stays purely along the requested axis (a DV move must change only DV,
-  // an axis move only the axis).
+  // stays purely along the requested axis (a drop must change only the
+  // inferior-superior axis, an axis move only the depth axis).
   const point = pointOnRay(originMillimeters, directionMillimeters, distance);
   const center: [number, number, number] = [0, 0, 0];
   for (let axis = 0; axis < 3; axis++) {
@@ -215,8 +235,8 @@ async function findRayTarget(
 
 /**
  * Point at a distance along a ray from its origin.
- * @param originMillimeters Ray origin, in atlas ASR mm.
- * @param directionMillimeters Unit ray direction, in atlas ASR mm.
+ * @param originMillimeters Ray origin, in atlas millimeters.
+ * @param directionMillimeters Unit ray direction, in atlas millimeters.
  * @param distance Distance along the ray, in mm.
  */
 function pointOnRay(
@@ -232,23 +252,32 @@ function pointOnRay(
 }
 
 // Face neighbours of the center voxel (index 13) in the 3x3x3 sampling below,
-// where index = (1 - dDV) * 9 + (dAP + 1) * 3 + (dML + 1): -AP, +AP, +DV, -DV, -ML, +ML.
+// where index = (1 - dSI) * 9 + (dAP + 1) * 3 + (dML + 1): -AP, +AP, +SI, -SI, -ML, +ML.
 const FACE_NEIGHBOR_INDEXES = [10, 16, 4, 22, 12, 14];
 
 /**
  * Is a point inside an annotated voxel that touches background on at least one
  * face, i.e. on the atlas's outer shell. Null when the volume can't be sampled.
  * @param level Annotation level to test against, finest first.
- * @param pointMillimeters Point to test, in atlas ASR mm.
+ * @param globalDirections Axis directions the point is expressed in.
+ * @param pointMillimeters Point to test, in global coordinate system mm.
  * @param sampleNeighborhood Samples the 3x3x3 voxel block around the point.
  */
 export async function isOnAnnotationSurface(
   level: AnnotationLevel,
+  globalDirections: AxisDirections,
   pointMillimeters: [number, number, number],
   sampleNeighborhood: RaySampler
 ): Promise<boolean | null> {
   const values = await sampleNeighborhood(
-    getVoxelNeighborhoodGeometry(level, pointMillimeters)
+    getVoxelNeighborhoodGeometry(
+      level,
+      convertCoordinate(
+        globalDirections,
+        ATLAS_AXIS_DIRECTIONS,
+        pointMillimeters
+      )
+    )
   );
   if (!values) return null;
 
@@ -257,7 +286,7 @@ export async function isOnAnnotationSurface(
   );
 }
 
-/** Center of the voxel a point falls in, in atlas ASR mm. */
+/** Center of the voxel a point falls in, in atlas millimeters. */
 function getVoxelCenterMillimeters(
   level: AnnotationLevel,
   pointMillimeters: [number, number, number]

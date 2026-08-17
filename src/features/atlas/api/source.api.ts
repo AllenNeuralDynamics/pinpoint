@@ -439,16 +439,18 @@ async function buildManifest(manifestUrls: string[]): Promise<Manifest | null> {
     atlasLink: finest.atlas_link || null,
     bregma: bregmaMillimeters(finest),
     resolutions: variants.map(variant => {
-      const [ap, dv, ml] = variant.resolution;
-      return [ap / 1000, dv / 1000, ml / 1000];
+      const [ap, si, ml] = variant.resolution;
+      return [ap / 1000, si / 1000, ml / 1000];
     }),
     shape: variants.map(variant => variant.shape)
   };
 }
 
 /**
- * Convert a variant manifest's bregma voxel index into atlas ASR mm, or null
- * when the manifest omits it.
+ * Convert a variant manifest's bregma voxel index into atlas mm, or null when
+ * the manifest omits it. Always the atlas's own axes, i.e.
+ * [anterior-to-posterior, superior-to-inferior, left-to-right] as
+ * `ATLAS_AXIS_DIRECTIONS` declares them, never the user's coordinate system.
  * @param manifest Variant manifest to read the bregma index from.
  */
 function bregmaMillimeters(
@@ -457,10 +459,10 @@ function bregmaMillimeters(
   const index = manifest.bregma_index_ap_dv_ml;
   if (!isFiniteTriple(index)) return null;
 
-  const [ap, dv, ml] = manifest.resolution;
+  const [ap, si, ml] = manifest.resolution;
   return [
     (index[0] * ap) / 1000,
-    (index[1] * dv) / 1000,
+    (index[1] * si) / 1000,
     (index[2] * ml) / 1000
   ];
 }
@@ -554,8 +556,10 @@ function resolveSourcePath(source: string, path: string): string {
 }
 
 /**
- * Compute the atlas volume's extent along each ASR axis, in mm, or all zeros
- * if unknown.
+ * Compute the atlas volume's extent along each of its own axes, in mm, or all
+ * zeros if unknown. Always the atlas's own axes, i.e. [anterior-to-posterior,
+ * superior-to-inferior, left-to-right] as `ATLAS_AXIS_DIRECTIONS` declares
+ * them, never the user's coordinate system.
  * @param atlas Atlas to compute the dimensions for.
  */
 export function getAtlasDimensionsMillimeters(
@@ -565,23 +569,26 @@ export function getAtlasDimensionsMillimeters(
     return [0, 0, 0];
   }
 
-  const [apResolution, dvResolution, mlResolution] =
+  const [apResolution, siResolution, mlResolution] =
     atlas.manifest.resolutions[0];
-  const [apShape, dvShape, mlShape] = atlas.manifest.shape[0];
+  const [apShape, siShape, mlShape] = atlas.manifest.shape[0];
   return [
     apResolution * apShape,
-    dvResolution * dvShape,
+    siResolution * siShape,
     mlResolution * mlShape
   ];
 }
 
 /**
- * Computes the center of the atlas volume in mm.
+ * Center of the atlas volume, in atlas mm relative to the atlas origin. Always
+ * the atlas's own axes, i.e. [anterior-to-posterior, superior-to-inferior,
+ * left-to-right] as `ATLAS_AXIS_DIRECTIONS` declares them, never the user's
+ * coordinate system.
  * @param atlas Atlas to compute the center for.
  */
 export function getAtlasCenter(atlas: Atlas): [number, number, number] {
-  const [ap, dv, ml] = getAtlasDimensionsMillimeters(atlas);
-  return [ap / 2, dv / 2, ml / 2];
+  const [ap, si, ml] = getAtlasDimensionsMillimeters(atlas);
+  return [ap / 2, si / 2, ml / 2];
 }
 
 /**
@@ -599,6 +606,6 @@ export function getAtlasLongestDimensionMillimeters(atlas: Atlas): number {
  * @param atlas Atlas to compute the average dimension for.
  */
 export function getAtlasAverageDimensionMillimeters(atlas: Atlas): number {
-  const [ap, dv, ml] = getAtlasDimensionsMillimeters(atlas);
-  return (ap + dv + ml) / 3;
+  const [ap, si, ml] = getAtlasDimensionsMillimeters(atlas);
+  return (ap + si + ml) / 3;
 }

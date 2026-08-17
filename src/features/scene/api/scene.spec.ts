@@ -9,37 +9,30 @@ import {
   TransformNode,
   Vector3
 } from "@babylonjs/core";
-import {
-  addProbe,
-  buildExperiment,
-  internProbeInterfaceProbe
-} from "@/features/experiment";
+import { addProbe, internProbeInterfaceProbe } from "@/features/experiment";
 import { getProbeInterfaceIdentifier } from "@/features/probe";
 import {
   makeAtlas,
   makeCameraPose,
   makeCoordinateSystem,
+  makeExperiment,
   makeProbe,
   makeProbeGeometry,
   makeProbeInterfaceProbe,
   makeSceneModel,
   makeSceneObject
 } from "@/test/fixtures";
-import type { FakeTextRenderer } from "@/test/mount-helper";
 import {
   initializeTestCSG2,
-  makeFakeTextRenderer,
+  makeFakeAxisGuideRenderers,
   makeTestFontAsset,
   makeTestScene,
   makeTestSceneWithGizmo
 } from "@/test/mount-helper";
 import { buildProbe } from "./probe.api";
-import type {
-  AxisGuideAxis,
-  AxisGuideLabels,
-  AxisGuides
-} from "./axis-guide.api";
+import type { AxisGuideLabels, AxisGuides } from "./axis-guide.api";
 import { buildAxisGuides } from "./axis-guide.api";
+import { getNodeFrameAxes } from "./frame-axes.api";
 import { buildSceneEntityName } from "./scene-entity.api";
 import { WORLD_INSPECTABLE } from "../models/inspectable.model";
 import {
@@ -50,15 +43,21 @@ import {
   setSceneEntitiesHidden
 } from "./scene.api";
 import { buildAtlasRootNode } from "./structures.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  getAxisDirections
+} from "@/utils/coordinate-frame";
 
-/** Built-in axis guide labels, matching `+AP`/`-AP` etc. */
+/** Axis directions new experiments start in: x right, y anterior, z superior. */
+const RAS_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
+
+/** Built-in axis guide labels for `RAS_DIRECTIONS`, matching `+AP`/`-AP` etc. */
 const AXIS_LABELS: AxisGuideLabels = {
-  ap: "AP",
-  dv: "DV",
-  ml: "ML",
-  x: "X",
-  y: "Y",
-  z: "Z"
+  global: ["ML", "AP", "SI"],
+  local: getNodeFrameAxes(["X", "Y", "Z"]).axes
 };
 
 // buildProbe's head stage is CSG2-subtracted.
@@ -78,7 +77,7 @@ const NP1000_CONTOUR = [
 function makeProbeInScene() {
   const { scene, gizmoManager, selectionOutlineLayer } =
     makeTestSceneWithGizmo();
-  const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+  const experiment = makeExperiment();
   const probeInterfaceProbe = makeProbeInterfaceProbe({
     probe_planar_contour: NP1000_CONTOUR
   });
@@ -338,13 +337,8 @@ describe("deselectFromPointerDown", () => {
  * @param scene Scene the font asset's texture is hosted in.
  */
 function makeTestAxisGuides(scene: Scene): AxisGuides {
-  const renderers: Record<AxisGuideAxis, FakeTextRenderer> = {
-    ap: makeFakeTextRenderer(),
-    dv: makeFakeTextRenderer(),
-    ml: makeFakeTextRenderer()
-  };
   return {
-    renderers,
+    renderers: makeFakeAxisGuideRenderers(),
     fontAsset: makeTestFontAsset(scene),
     dispose: () => {}
   };
@@ -398,6 +392,7 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
       scene,
       makeTestAxisGuides(scene),
       makeAtlas(),
+      RAS_DIRECTIONS,
       { kind: "global" },
       AXIS_LABELS
     );
@@ -407,9 +402,9 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     return { scene, camera, interpolateTo, onOrbit };
   }
 
-  it("orbits to face +AP when the -AP label is double-clicked", () => {
+  it("orbits to face the anterior view when the +AP label is double-clicked", () => {
     const { scene, camera, interpolateTo, onOrbit } = makeOrbitScene();
-    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_-AP");
+    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_1+");
     scene.pointerX = screen.x;
     scene.pointerY = screen.y;
 
@@ -451,9 +446,9 @@ describe("orbitCameraFromAxisGuideDoubleTap", () => {
     expect(onOrbit).not.toHaveBeenCalled();
   });
 
-  it("does nothing on a single tap at the -AP label's screen position", () => {
+  it("does nothing on a single tap at the +AP label's screen position", () => {
     const { scene, camera, interpolateTo } = makeOrbitScene();
-    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_-AP");
+    const screen = projectPickMeshToScreen(scene, camera, "axisGuidePick_1+");
     scene.pointerX = screen.x;
     scene.pointerY = screen.y;
 

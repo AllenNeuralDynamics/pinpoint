@@ -1,12 +1,21 @@
 import type { Observer, Scene, TransformNode } from "@babylonjs/core";
-import { Quaternion, TmpVectors, Vector3 } from "@babylonjs/core";
+import { Quaternion, Vector3 } from "@babylonjs/core";
 
-/** Position, Euler rotation, and scale a node is interpolated between. */
+/** Position, orientation, and scale a node is interpolated between. */
 export interface NodePose {
   position: Vector3;
-  rotation: Vector3;
+  rotation: Quaternion;
   scaling: Vector3;
 }
+
+/**
+ * How far a node's orientation may sit from a goal and still count as already
+ * there. Decomposing a quaternion into a rotation triple and recomposing it,
+ * as a gizmo readback and the next sync do, runs through Babylon's 32-bit
+ * matrices, so it only agrees to about a millionth of a radian - which is
+ * thousands of times finer than a pixel of a turn.
+ */
+export const POSE_ROTATION_EPSILON = 1e-6;
 
 /** Duration of a pose interpolation, in seconds. */
 const DURATION_SECONDS = 0.2;
@@ -36,7 +45,7 @@ export function interpolateNodePose(
   const existing = interpolations.get(node);
   if (existing) {
     existing.start.position.copyFrom(node.position);
-    existing.start.rotation.copyFrom(node.rotation);
+    existing.start.rotation.copyFrom(nodeRotation(node));
     existing.start.scaling.copyFrom(node.scaling);
     existing.goal.position.copyFrom(goal.position);
     existing.goal.rotation.copyFrom(goal.rotation);
@@ -48,7 +57,7 @@ export function interpolateNodePose(
   const interpolation: NodeInterpolation = {
     start: {
       position: node.position.clone(),
-      rotation: node.rotation.clone(),
+      rotation: nodeRotation(node).clone(),
       scaling: node.scaling.clone()
     },
     goal: {
@@ -69,7 +78,7 @@ export function interpolateNodePose(
     interpolation.elapsedSeconds += scene.getEngine().getDeltaTime() / 1000;
     if (interpolation.elapsedSeconds >= DURATION_SECONDS) {
       node.position.copyFrom(interpolation.goal.position);
-      node.rotation.copyFrom(interpolation.goal.rotation);
+      nodeRotation(node).copyFrom(interpolation.goal.rotation);
       node.scaling.copyFrom(interpolation.goal.scaling);
       stopNodePoseInterpolation(node);
       return;
@@ -90,22 +99,14 @@ export function interpolateNodePose(
       amount,
       node.scaling
     );
-    // Slerp the orientation: an Euler lerp takes the long way round whenever
-    // two angles straddle a wrap.
+    // Slerp the orientation: a component-wise lerp of two quaternions leaves
+    // the axis of rotation drifting through the turn.
     Quaternion.SlerpToRef(
-      Quaternion.FromEulerVectorToRef(
-        interpolation.start.rotation,
-        TmpVectors.Quaternion[0]
-      ),
-      Quaternion.FromEulerVectorToRef(
-        interpolation.goal.rotation,
-        TmpVectors.Quaternion[1]
-      ),
+      interpolation.start.rotation,
+      interpolation.goal.rotation,
       amount,
-      TmpVectors.Quaternion[2]
-    )
-      .normalize()
-      .toEulerAnglesToRef(node.rotation);
+      nodeRotation(node)
+    ).normalize();
   });
 }
 
@@ -119,4 +120,14 @@ export function stopNodePoseInterpolation(node: TransformNode): void {
 
   interpolation.observer?.remove();
   interpolations.delete(node);
+}
+
+/**
+ * Quaternion a node's orientation is driven by, converting a node that still
+ * carries Euler angles so an interpolation always writes one representation.
+ * @param node Node whose orientation to read.
+ */
+function nodeRotation(node: TransformNode): Quaternion {
+  node.rotationQuaternion ??= Quaternion.FromEulerVector(node.rotation);
+  return node.rotationQuaternion;
 }

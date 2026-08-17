@@ -1,18 +1,14 @@
-import type {
-  IPositionGizmo,
-  IRotationGizmo,
-  IScaleGizmo
-} from "@babylonjs/core";
+import type { CoordinateGizmo } from "../api/coordinate-gizmo.api";
 
 /** Which transform gizmo is exposed for the selected node. */
 export type GizmoMode = "position" | "rotation" | "scale";
 
-/** Axis frame the transform gizmos drag in. */
+/** Which coordinate system the transform gizmos drag along. */
 export type GizmoCoordinateSpace = "local" | "global";
 
-/** A gizmo manager's three transform gizmos. */
-export interface TransformGizmos {
-  positionGizmo: IPositionGizmo;
-  rotationGizmo: IRotationGizmo;
-  scaleGizmo: IScaleGizmo;
+/** The three transform gizmos, each drawn along a coordinate system's own axes. */
+export interface CoordinateGizmos {
+  positionGizmo: CoordinateGizmo;
+  rotationGizmo: CoordinateGizmo;
+  scaleGizmo: CoordinateGizmo;
 }

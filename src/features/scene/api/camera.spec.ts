@@ -15,6 +15,34 @@ import { getAtlasLongestDimensionMillimeters } from "@/features/atlas";
 import { buildCameraPose } from "@/features/experiment";
 import { makeAtlas, makeCameraPose, makeManifest } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
+import type { AnatomicalDirection } from "@/utils/coordinate-frame";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  CANONICAL_AXIS_DIRECTIONS,
+  getDirectionVector
+} from "@/utils/coordinate-frame";
+import { toWorldVector } from "./coordinate-transforms.api";
+
+/** Atlas anchoring the world conversion every direction below goes through. */
+const WORLD_ATLAS = makeAtlas();
+
+/**
+ * Babylon world direction an anatomical direction points, taken from the same
+ * conversion the axis guides use, so this table never hardcodes world axes.
+ * @param direction Anatomical direction to convert.
+ */
+function worldDirection(direction: AnatomicalDirection): Vector3 {
+  const origin = toWorldVector(
+    CANONICAL_AXIS_DIRECTIONS,
+    WORLD_ATLAS,
+    [0, 0, 0]
+  );
+  return toWorldVector(
+    CANONICAL_AXIS_DIRECTIONS,
+    WORLD_ATLAS,
+    getDirectionVector(direction)
+  ).subtractInPlace(origin);
+}
 
 describe("snapCameraToPose", () => {
   it("writes alpha/beta/radius, sets the world target, and stops any interpolation", () => {
@@ -201,48 +229,42 @@ describe("orbitCameraTowards", () => {
   }
 
   const cases: Array<{
-    label: string;
-    direction: Vector3;
+    direction: AnatomicalDirection;
     expected: [number, number];
   }> = [
     {
-      label: "+AP",
-      direction: new Vector3(0, 0, -1),
+      direction: "Anterior_to_posterior",
       expected: [-Math.PI / 2, Math.PI / 2]
     },
     {
-      label: "-AP",
-      direction: new Vector3(0, 0, 1),
+      direction: "Posterior_to_anterior",
       expected: [Math.PI / 2, Math.PI / 2]
     },
     {
-      label: "+ML",
-      direction: new Vector3(1, 0, 0),
+      // World x is the animal's right, and its azimuth is atan2(0, 1) = 0.
+      direction: "Left_to_right",
       expected: [0, Math.PI / 2]
     },
     {
-      label: "-ML",
-      direction: new Vector3(-1, 0, 0),
+      direction: "Right_to_left",
       expected: [Math.PI, Math.PI / 2]
     },
     {
-      label: "-DV",
-      direction: new Vector3(0, 1, 0),
+      direction: "Inferior_to_superior",
       expected: [-Math.PI / 2, 0]
     },
     {
-      label: "+DV",
-      direction: new Vector3(0, -1, 0),
+      direction: "Superior_to_inferior",
       expected: [-Math.PI / 2, Math.PI]
     }
   ];
 
   it.each(cases)(
-    "orbits to $label with (alpha, beta) = interpolateTo's arguments",
+    "orbits towards $direction with (alpha, beta) = interpolateTo's arguments",
     ({ direction, expected }) => {
       const { camera, interpolateTo } = makeStubCamera();
 
-      orbitCameraTowards(camera, direction);
+      orbitCameraTowards(camera, worldDirection(direction));
 
       expect(interpolateTo).toHaveBeenCalledTimes(1);
       const call = interpolateTo.mock.calls[0]!;
@@ -252,11 +274,11 @@ describe("orbitCameraTowards", () => {
     }
   );
 
-  it("uses a fixed alpha at the DV poles, ignoring the camera's prior alpha", () => {
+  it("uses a fixed alpha at the vertical poles, ignoring the camera's prior alpha", () => {
     const { camera, interpolateTo } = makeStubCamera();
     camera.alpha = 2.5;
 
-    orbitCameraTowards(camera, new Vector3(0, -1, 0));
+    orbitCameraTowards(camera, worldDirection("Superior_to_inferior"));
 
     const call = interpolateTo.mock.calls[0]!;
     expect(call[0]).toBeCloseTo(-Math.PI / 2);
@@ -408,7 +430,9 @@ describe("scaleCameraClipPlanesToAtlas", () => {
       getAtlasLongestDimensionMillimeters(atlas)
     );
 
-    expect(camera.minZ).toBeLessThan(buildCameraPose(atlas).radius);
+    expect(camera.minZ).toBeLessThan(
+      buildCameraPose(atlas, buildDefaultGlobalCoordinateSystem()).radius
+    );
   });
 });
 
@@ -417,33 +441,42 @@ describe("isCameraAlignedWith", () => {
     return { alpha, beta, radius } as unknown as ArcRotateCamera;
   }
 
-  it("is aligned with +AP when facing it, and not aligned with DV", () => {
+  it("is aligned with the posterior view when facing it, and not with the superior one", () => {
     const camera = makeStubCamera(-Math.PI / 2, Math.PI / 2);
 
-    expect(isCameraAlignedWith(camera, new Vector3(0, 0, -1))).toBe(true);
-    expect(isCameraAlignedWith(camera, new Vector3(0, 1, 0))).toBe(false);
+    expect(
+      isCameraAlignedWith(camera, worldDirection("Anterior_to_posterior"))
+    ).toBe(true);
+    expect(
+      isCameraAlignedWith(camera, worldDirection("Inferior_to_superior"))
+    ).toBe(false);
   });
 
-  it("stays aligned with DV across every alpha, at Babylon's own beta lower limit", () => {
+  it("stays aligned with the superior view across every alpha, at Babylon's own beta lower limit", () => {
     for (const alpha of [-Math.PI / 2, 0, 1.7, Math.PI]) {
       const camera = makeStubCamera(alpha, 0.01);
-      expect(isCameraAlignedWith(camera, new Vector3(0, 1, 0))).toBe(true);
+      expect(
+        isCameraAlignedWith(camera, worldDirection("Inferior_to_superior"))
+      ).toBe(true);
     }
   });
 
-  it("breaks DV alignment once beta pitches past the tolerance, regardless of alpha", () => {
+  it("breaks the superior view's alignment once beta pitches past the tolerance, regardless of alpha", () => {
     for (const alpha of [-Math.PI / 2, 0, 1.7, Math.PI]) {
       const camera = makeStubCamera(alpha, 0.05);
-      expect(isCameraAlignedWith(camera, new Vector3(0, 1, 0))).toBe(false);
+      expect(
+        isCameraAlignedWith(camera, worldDirection("Inferior_to_superior"))
+      ).toBe(false);
     }
   });
 
   it("ignores radius", () => {
     const near = makeStubCamera(-Math.PI / 2, Math.PI / 2, 10);
     const far = makeStubCamera(-Math.PI / 2, Math.PI / 2, 1000);
+    const direction = worldDirection("Anterior_to_posterior");
 
-    expect(isCameraAlignedWith(near, new Vector3(0, 0, -1))).toBe(
-      isCameraAlignedWith(far, new Vector3(0, 0, -1))
+    expect(isCameraAlignedWith(near, direction)).toBe(
+      isCameraAlignedWith(far, direction)
     );
   });
 
@@ -455,10 +488,13 @@ describe("isCameraAlignedWith", () => {
 });
 
 describe("trackAxisViewProjection", () => {
-  /** +AP, -DV, and +DV world directions, matching `orbitCameraTowards`'s convention. */
-  const PLUS_AP = new Vector3(0, 0, -1);
-  const MINUS_DV = new Vector3(0, 1, 0);
-  const PLUS_DV = new Vector3(0, -1, 0);
+  /**
+   * The posterior, superior, and inferior world views, matching
+   * `orbitCameraTowards`'s convention.
+   */
+  const POSTERIOR = worldDirection("Anterior_to_posterior");
+  const SUPERIOR = worldDirection("Inferior_to_superior");
+  const INFERIOR = worldDirection("Superior_to_inferior");
 
   /** Mutable orbit fields plus a real observable, matching what the tracker reads and reacts to. */
   type StubCamera = {
@@ -494,7 +530,7 @@ describe("trackAxisViewProjection", () => {
     };
   }
 
-  it("engages orthographic once the camera settles on the axis it was sent to from perspective, stays through a DV spin, and reverts once it pitches off", () => {
+  it("engages orthographic once the camera settles on the axis it was sent to from perspective, stays through a spin about the vertical axis, and reverts once it pitches off", () => {
     const camera = makeStubCamera();
     const cell = makeProjectionCell("perspective");
     const tracker = trackAxisViewProjection(
@@ -503,7 +539,7 @@ describe("trackAxisViewProjection", () => {
       cell.set
     );
 
-    tracker.sendTo(MINUS_DV);
+    tracker.sendTo(SUPERIOR);
     camera.isInterpolating = true;
     notify(camera);
     expect(cell.get()).toBe("perspective");
@@ -532,7 +568,7 @@ describe("trackAxisViewProjection", () => {
       cell.set
     );
 
-    tracker.sendTo(PLUS_AP);
+    tracker.sendTo(POSTERIOR);
     camera.isInterpolating = false;
     notify(camera);
     expect(cell.get()).toBe("perspective");
@@ -551,7 +587,7 @@ describe("trackAxisViewProjection", () => {
       cell.set
     );
 
-    tracker.sendTo(PLUS_DV);
+    tracker.sendTo(INFERIOR);
     camera.alpha = -Math.PI / 2;
     camera.beta = Math.PI;
     camera.isInterpolating = false;
@@ -572,14 +608,14 @@ describe("trackAxisViewProjection", () => {
       cell.set
     );
 
-    tracker.sendTo(PLUS_DV);
+    tracker.sendTo(INFERIOR);
     camera.alpha = -Math.PI / 2;
     camera.beta = Math.PI;
     camera.isInterpolating = false;
     notify(camera);
     expect(cell.get()).toBe("orthographic");
 
-    tracker.sendTo(PLUS_AP);
+    tracker.sendTo(POSTERIOR);
     camera.isInterpolating = true;
     notify(camera);
     expect(cell.get()).toBe("orthographic");

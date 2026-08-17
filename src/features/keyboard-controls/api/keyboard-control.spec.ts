@@ -9,6 +9,8 @@ import {
   stepKeyboardControlIndex
 } from "./keyboard-control.api";
 import { makeProbe } from "@/test/fixtures";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import { CANONICAL_AXIS_DIRECTIONS } from "@/utils/coordinate-frame";
 import type { KeyboardControlStep } from "../models/keyboard-control.model";
 
 /** Step used wherever a test needs a distinctive distance and angle. */
@@ -16,6 +18,16 @@ const STEP: KeyboardControlStep = {
   translationMicrometers: 10,
   rotationDegrees: 15
 };
+
+/** Default global coordinate system's axes: x right, y anterior, z superior. */
+const RAS: AxisDirections = CANONICAL_AXIS_DIRECTIONS;
+
+/** Axes running the other way along every line: x left, y posterior, z inferior. */
+const LPI: AxisDirections = [
+  "Right_to_left",
+  "Anterior_to_posterior",
+  "Superior_to_inferior"
+];
 
 describe("resolveKeyboardControlKind", () => {
   it("maps the position gizmo to translation and the rotation gizmo to rotation", () => {
@@ -29,38 +41,50 @@ describe("resolveKeyboardControlKind", () => {
 });
 
 describe("resolveKeyboardControlAction", () => {
-  it("drives AP with W and S, ML with A and D, and DV with Q and E", () => {
+  it("moves anteriorly on W, rightwards on A, and superiorly on Q", () => {
     expect(resolveKeyboardControlAction("KeyW", "translate")).toEqual({
       kind: "translate",
-      axis: "ap",
-      sign: -1
+      direction: "Posterior_to_anterior"
     });
     expect(resolveKeyboardControlAction("KeyS", "translate")).toEqual({
       kind: "translate",
-      axis: "ap",
-      sign: 1
+      direction: "Anterior_to_posterior"
     });
-    expect(resolveKeyboardControlAction("KeyA", "translate")?.axis).toBe("ml");
-    expect(resolveKeyboardControlAction("KeyD", "translate")?.sign).toBe(1);
-    expect(resolveKeyboardControlAction("KeyQ", "translate")?.axis).toBe("dv");
-    expect(resolveKeyboardControlAction("KeyE", "translate")?.sign).toBe(1);
+    expect(resolveKeyboardControlAction("KeyA", "translate")?.direction).toBe(
+      "Left_to_right"
+    );
+    expect(resolveKeyboardControlAction("KeyD", "translate")?.direction).toBe(
+      "Right_to_left"
+    );
+    expect(resolveKeyboardControlAction("KeyQ", "translate")?.direction).toBe(
+      "Inferior_to_superior"
+    );
+    expect(resolveKeyboardControlAction("KeyE", "translate")?.direction).toBe(
+      "Superior_to_inferior"
+    );
   });
 
-  it("turns around the vertical axis with 1 and 3, left-right with F and R, and forward with , and .", () => {
+  it("turns about the inferior-superior line with 1 and 3, left-right with F and R, and posterior-anterior with , and .", () => {
     expect(resolveKeyboardControlAction("Digit1", "rotate")).toEqual({
       kind: "rotate",
-      axis: "dv",
-      sign: -1
+      direction: "Inferior_to_superior"
     });
-    expect(resolveKeyboardControlAction("Digit3", "rotate")?.sign).toBe(1);
-    expect(resolveKeyboardControlAction("KeyF", "rotate")?.axis).toBe("ml");
-    expect(resolveKeyboardControlAction("KeyR", "rotate")?.sign).toBe(1);
+    expect(resolveKeyboardControlAction("Digit3", "rotate")?.direction).toBe(
+      "Superior_to_inferior"
+    );
+    expect(resolveKeyboardControlAction("KeyF", "rotate")?.direction).toBe(
+      "Left_to_right"
+    );
+    expect(resolveKeyboardControlAction("KeyR", "rotate")?.direction).toBe(
+      "Right_to_left"
+    );
     expect(resolveKeyboardControlAction("Comma", "rotate")).toEqual({
       kind: "rotate",
-      axis: "ap",
-      sign: -1
+      direction: "Posterior_to_anterior"
     });
-    expect(resolveKeyboardControlAction("Period", "rotate")?.sign).toBe(1);
+    expect(resolveKeyboardControlAction("Period", "rotate")?.direction).toBe(
+      "Anterior_to_posterior"
+    );
   });
 
   it("ignores the other kind's keys, so the mapping follows the enabled gizmo", () => {
@@ -115,57 +139,84 @@ describe("stepKeyboardControlIndex", () => {
 });
 
 describe("applyKeyboardControlAction", () => {
-  it("moves the probe's tip along one axis by the step, in millimeters", () => {
+  it("moves the probe's tip along the axis running the key's line, in millimeters", () => {
     const probe = makeProbe({ tipPosition: [1, 2, 3] });
 
     applyKeyboardControlAction(
       probe,
-      { kind: "translate", axis: "dv", sign: 1 },
+      RAS,
+      { kind: "translate", direction: "Inferior_to_superior" },
       STEP
     );
 
-    expect(probe.tipPosition).toEqual([1, 2.01, 3]);
+    expect(probe.tipPosition).toEqual([1, 2, 3.01]);
   });
 
-  it("moves the opposite way on a negative step", () => {
+  it("moves the opposite way along the axis of the opposite direction", () => {
     const probe = makeProbe({ tipPosition: [1, 2, 3] });
 
     applyKeyboardControlAction(
       probe,
-      { kind: "translate", axis: "ap", sign: -1 },
+      RAS,
+      { kind: "translate", direction: "Anterior_to_posterior" },
       STEP
     );
 
-    expect(probe.tipPosition).toEqual([0.99, 2, 3]);
+    expect(probe.tipPosition).toEqual([1, 1.99, 3]);
   });
 
-  it("turns the probe around one axis by the step, in radians", () => {
+  it("keeps W moving the probe anteriorly when the global axis points posteriorly", () => {
+    const anterior = makeProbe({ tipPosition: [1, 2, 3] });
+    const posterior = makeProbe({ tipPosition: [1, 2, 3] });
+    const action = resolveKeyboardControlAction("KeyW", "translate")!;
+
+    applyKeyboardControlAction(anterior, RAS, action, STEP);
+    applyKeyboardControlAction(posterior, LPI, action, STEP);
+
+    // Same anatomical move, opposite arithmetic: the RAS axis counts anterior
+    // up while the LPI axis counts it down, and both tips end up 10 µm further
+    // anterior in the brain.
+    expect(anterior.tipPosition).toEqual([1, 2.01, 3]);
+    expect(posterior.tipPosition).toEqual([1, 1.99, 3]);
+  });
+
+  it("finds the line's axis wherever the coordinate system puts it", () => {
+    const probe = makeProbe({ tipPosition: [1, 2, 3] });
+
+    applyKeyboardControlAction(
+      probe,
+      ["Anterior_to_posterior", "Superior_to_inferior", "Right_to_left"],
+      { kind: "translate", direction: "Left_to_right" },
+      STEP
+    );
+
+    expect(probe.tipPosition).toEqual([1, 2, 2.99]);
+  });
+
+  it("turns the probe about the axis running the key's line, in radians", () => {
     const probe = makeProbe({ rotation: [0, 0, 0] });
 
     applyKeyboardControlAction(
       probe,
-      { kind: "rotate", axis: "dv", sign: 1 },
+      RAS,
+      { kind: "rotate", direction: "Inferior_to_superior" },
       STEP
     );
 
-    expect(probe.rotation).toEqual([0, Math.PI / 12, 0]);
+    expect(probe.rotation).toEqual([0, 0, Math.PI / 12]);
   });
 
-  it("turns around the forward axis for AP and the left-right axis for ML", () => {
+  it("turns the other way when the axis runs against the key's direction", () => {
     const probe = makeProbe({ rotation: [0, 0, 0] });
 
     applyKeyboardControlAction(
       probe,
-      { kind: "rotate", axis: "ap", sign: 1 },
-      STEP
-    );
-    applyKeyboardControlAction(
-      probe,
-      { kind: "rotate", axis: "ml", sign: -1 },
+      LPI,
+      { kind: "rotate", direction: "Inferior_to_superior" },
       STEP
     );
 
-    expect(probe.rotation).toEqual([Math.PI / 12, 0, -Math.PI / 12]);
+    expect(probe.rotation).toEqual([0, 0, -Math.PI / 12]);
   });
 
   it("leaves the probe's other pose triple alone", () => {
@@ -173,7 +224,8 @@ describe("applyKeyboardControlAction", () => {
 
     applyKeyboardControlAction(
       probe,
-      { kind: "translate", axis: "ml", sign: 1 },
+      RAS,
+      { kind: "translate", direction: "Left_to_right" },
       STEP
     );
 

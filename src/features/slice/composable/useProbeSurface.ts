@@ -1,4 +1,5 @@
 import type { Probe } from "@/features/probe";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getProbeFrame } from "../api/probe-frame.api";
 import {
   findProbeSurfaceTargets,
@@ -19,6 +20,7 @@ export function useProbeSurface(): {
   ) => Promise<boolean | null>;
 } {
   const { getFinestLevel, sampleOnce } = useAnnotationSampler();
+  const experimentStore = useCurrentExperimentStore();
 
   /**
    * Resolve a probe's brain-surface tip targets, or null when the annotation
@@ -33,9 +35,10 @@ export function useProbeSurface(): {
     const level = await getFinestLevel();
     if (!level) return null;
 
+    const { axisDirections, localCoordinateSystem } = experimentStore;
     return findProbeSurfaceTargets(
-      getProbeFrame(probe),
-      probe.rotation[2],
+      getProbeFrame(probe, axisDirections, localCoordinateSystem),
+      axisDirections,
       level,
       geometry => sampleOnce(geometry, 0, signal)
     );
@@ -44,7 +47,7 @@ export function useProbeSurface(): {
   /**
    * Is a point on the brain's outer surface at the finest atlas level, or null when
    * the annotation volume can't be opened or the sampling was aborted.
-   * @param pointMillimeters Point to test, in atlas ASR mm.
+   * @param pointMillimeters Point to test, in global coordinate system mm.
    * @param signal Aborts the in-flight sampling.
    */
   async function isOnSurface(
@@ -53,8 +56,11 @@ export function useProbeSurface(): {
   ): Promise<boolean | null> {
     const level = await getFinestLevel();
     if (!level) return null;
-    return isOnAnnotationSurface(level, pointMillimeters, geometry =>
-      sampleOnce(geometry, 0, signal)
+    return isOnAnnotationSurface(
+      level,
+      experimentStore.axisDirections,
+      pointMillimeters,
+      geometry => sampleOnce(geometry, 0, signal)
     );
   }
 

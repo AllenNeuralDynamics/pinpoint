@@ -1,14 +1,4 @@
-import type {
-  DragEvent,
-  DragStartEndEvent,
-  GizmoManager,
-  IGizmo,
-  IPositionGizmo,
-  IRotationGizmo,
-  IScaleGizmo,
-  Observer,
-  Scene
-} from "@babylonjs/core";
+import type { GizmoManager, Observer, Scene } from "@babylonjs/core";
 import {
   ImportMeshAsync,
   Mesh,
@@ -20,7 +10,8 @@ import {
 import type { Experiment } from "@/features/experiment";
 import type { Probe } from "@/features/probe";
 import type { SceneModel } from "../models/scene-model.model";
-import type { TransformGizmos } from "../models/gizmo.model";
+import type { CoordinateGizmos } from "../models/gizmo.model";
+import type { CoordinateGizmo } from "./coordinate-gizmo.api";
 import {
   buildCollisionBody,
   buildColliderMesh,
@@ -155,10 +146,10 @@ export function getProbeGizmoNode(
  * @param onDrag Callback invoked with the probe id the drag is happening to.
  */
 export function setProbeBodyModelPositionFromGizmoDrag(
-  positionGizmo: IPositionGizmo,
+  positionGizmo: CoordinateGizmo,
   probes: Probe[],
   onDrag: (probeId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return positionGizmo.onDragObservable.add(() => {
     const attached = attachedProbeBodyModelFromGizmo(positionGizmo, probes);
     if (!attached) return;
@@ -174,10 +165,10 @@ export function setProbeBodyModelPositionFromGizmoDrag(
  * @param onDrag Callback invoked with the probe id the drag is happening to.
  */
 export function setProbeBodyModelRotationFromGizmoDrag(
-  rotationGizmo: IRotationGizmo,
+  rotationGizmo: CoordinateGizmo,
   probes: Probe[],
   onDrag: (probeId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return rotationGizmo.onDragObservable.add(() => {
     const attached = attachedProbeBodyModelFromGizmo(rotationGizmo, probes);
     if (!attached) return;
@@ -193,10 +184,10 @@ export function setProbeBodyModelRotationFromGizmoDrag(
  * @param onDrag Callback invoked with the probe id the drag is happening to.
  */
 export function setProbeBodyModelScaleFromGizmoDrag(
-  scaleGizmo: IScaleGizmo,
+  scaleGizmo: CoordinateGizmo,
   probes: Probe[],
   onDrag: (probeId: string) => void
-): Observer<DragEvent> {
+): Observer<void> {
   return scaleGizmo.onDragObservable.add(() => {
     const attached = attachedProbeBodyModelFromGizmo(scaleGizmo, probes);
     if (!attached) return;
@@ -221,10 +212,10 @@ export function setProbeBodyModelScaleFromGizmoDrag(
  * @param onDragEnd Callback invoked to confirm the body model drag ended.
  */
 export function endProbeBodyModelGizmoDrag(
-  gizmos: TransformGizmos,
+  gizmos: CoordinateGizmos,
   onDragEnd: () => void
-): Observer<DragStartEndEvent>[] {
-  const onEnd = (gizmo: IGizmo) => () => {
+): Observer<void>[] {
+  const onEnd = (gizmo: CoordinateGizmo) => () => {
     if (!gizmo.attachedNode?.name.endsWith(BODY_MODEL_NODE_SUFFIX)) return;
     onDragEnd();
   };
@@ -451,10 +442,11 @@ export async function syncProbeBodyModels(
     // the released pose.
     if (probe.id === draggedProbeId) continue;
 
-    // Applied verbatim, not through `asrToVector3`: these are Babylon local
-    // XYZ relative to the probe node, not ASR. Set before cooking the hull,
-    // which reads world matrices. The scale lives on the child scale node,
-    // keeping the body-model node the gizmo attaches to unscaled.
+    // Applied verbatim, not through the scene's coordinate conversions: these
+    // are Babylon local XYZ relative to the probe node, not coordinates in the
+    // experiment's global system. Set before cooking the hull, which reads
+    // world matrices. The scale lives on the child scale node, keeping the
+    // body-model node the gizmo attaches to unscaled.
     node.position = new Vector3(...bodyModel.position);
     node.rotation = new Vector3(...bodyModel.rotation);
     buildProbeBodyModelScaleNode(node, probe.id).scaling = new Vector3(
@@ -510,7 +502,7 @@ function vector3ToTriple(vector: Vector3): [number, number, number] {
  * @param probes Experiment probes to resolve the attached node against.
  */
 function attachedProbeBodyModelFromGizmo(
-  gizmo: IGizmo,
+  gizmo: CoordinateGizmo,
   probes: Probe[]
 ): { probe: Probe; bodyModel: SceneModel; node: TransformNode } | null {
   const node = gizmo.attachedNode;

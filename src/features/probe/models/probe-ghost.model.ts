@@ -2,8 +2,16 @@
 export interface ProbeGhost {
   /** Probe whose meshes the ghost clones. */
   probeId: string;
-  /** Ghost tip, in atlas ASR mm as [ap, dv, ml]. */
+  /**
+   * Ghost tip, in the experiment's global coordinate system, mm, relative to
+   * the atlas origin.
+   */
   tipPosition: [number, number, number];
-  /** Ghost rotation as [roll, yaw, pitch], in radians. */
+  /**
+   * Ghost orientation, as a rest-relative rotation triple about the
+   * experiment's global coordinate system's axes, in radians, pivoting on the
+   * tip. At all zeros the ghost sits in the experiment's local coordinate
+   * system's rest orientation.
+   */
   rotation: [number, number, number];
 }

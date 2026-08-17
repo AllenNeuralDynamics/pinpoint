@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { effectScope } from "vue";
 import { solveCoordinateSystemChainInverse } from "../api/inverse-kinematics.api";
 import { createInverseKinematicsSolver } from "./useInverseKinematicsSolver";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections
+} from "@/utils/coordinate-frame";
 import type { CoordinateSystemSolution } from "../api/forward-kinematics.api";
 import type {
   InboundInverseKinematicsMessage,
@@ -55,6 +60,8 @@ function makeRequest(x: number): InverseKinematicsSolveRequest {
       surfacePosition: null
     },
     referenceOffsetMillimeters: null,
+    globalDirections: getAxisDirections(buildDefaultGlobalCoordinateSystem()),
+    localCoordinateSystem: buildDefaultLocalCoordinateSystem(),
     maximumStarts: 1
   };
 }

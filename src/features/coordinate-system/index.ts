@@ -8,7 +8,9 @@ export type {
 } from "./model/coordinate-system.model";
 export type { CoordinateSystemSolution } from "./api/forward-kinematics.api";
 export {
+  getCoordinateSystemNodePose,
   isCoordinateSystemSolutionAtPose,
+  SOLVER_AXIS_DIRECTIONS,
   solveCoordinateSystemChain
 } from "./api/forward-kinematics.api";
 export type { CoordinateSystemSolveStatus } from "./api/inverse-kinematics.api";

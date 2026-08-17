@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed, ref, useTemplateRef } from "vue";
+import { computed, ref, toRaw, useTemplateRef } from "vue";
 import { type QInput, useDialogPluginComponent } from "quasar";
 import {
   type Atlas,
@@ -8,6 +8,7 @@ import {
   getTerminologyRows
 } from "@/features/atlas";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
 import { buildInitialReferenceCoordinate } from "../api/reference-coordinate.api";
 import { buildExperiment } from "../api/experiment.api";
 import { useValidationRules } from "@/composable/useValidationRules";
@@ -16,6 +17,7 @@ defineEmits([...useDialogPluginComponent.emits]);
 
 const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
 const currentExperimentStore = useCurrentExperimentStore();
+const preferences = usePreferencesStore();
 const { requiredName: nameRules } = useValidationRules();
 
 const name = ref<string | null>(null);
@@ -29,8 +31,9 @@ const nameInput = useTemplateRef<QInput>("nameInput");
 const isCreateDisabled = computed(() => !name.value || !atlas.value);
 
 /**
- * Create a new experiment with the given name and atlas, seeding its reference
- * coordinate and default structures from the picked atlas.
+ * Create a new experiment with the given name and atlas, in the coordinate
+ * systems new scenes start in, seeding its reference coordinate and default
+ * structures from the picked atlas.
  */
 async function create() {
   if (!name.value || !atlas.value || isCreating.value) return;
@@ -42,12 +45,19 @@ async function create() {
   );
   isCreating.value = false;
 
-  const referenceCoordinate = buildInitialReferenceCoordinate(atlas.value);
+  const globalCoordinateSystem = structuredClone(
+    toRaw(preferences.newSceneGlobalCoordinateSystem)
+  );
+  const localCoordinateSystem = structuredClone(
+    toRaw(preferences.newSceneLocalCoordinateSystem)
+  );
   currentExperimentStore.loadExperiment(
     buildExperiment(
       name.value,
       atlas.value,
-      referenceCoordinate,
+      globalCoordinateSystem,
+      localCoordinateSystem,
+      buildInitialReferenceCoordinate(atlas.value, globalCoordinateSystem),
       defaultStructureIdentifiers
     )
   );

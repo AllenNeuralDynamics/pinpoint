@@ -1,7 +1,16 @@
 import type { Scene } from "@babylonjs/core";
 import { Color3, StandardMaterial } from "@babylonjs/core";
 import type { Probe, ProbeGhost } from "@/features/probe";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import { toSceneQuaternion, toSceneVector } from "./coordinate-transforms.api";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import {
+  getProbeRestRotation,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
 import { setMaterialDiffuseColor } from "./material.api";
 import { getProbeTransformNode } from "./probe.api";
 
@@ -19,12 +28,16 @@ const PROBE_GHOST_ALPHA = 0.35;
  * @param scene Scene holding the probes.
  * @param ghost Ghost to draw, or null to remove it.
  * @param probes Probes in the experiment, to resolve the ghost's own color.
+ * @param globalDirections Axis directions the ghost's pose is in.
+ * @param localCoordinateSystem Local coordinate system the probe rests in.
  * @param rebuiltProbeIds Probe ids rebuilt this pass, whose ghost must be re-cloned.
  */
 export function syncProbeGhost(
   scene: Scene,
   ghost: ProbeGhost | null,
   probes: Probe[],
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   rebuiltProbeIds: string[]
 ): void {
   if (!ghost) {
@@ -68,8 +81,13 @@ export function syncProbeGhost(
     }
   }
 
-  node.position = asrToVector3(ghost.tipPosition);
-  node.rotation = asrToVector3(ghost.rotation);
+  node.position = toSceneVector(globalDirections, ghost.tipPosition);
+  node.rotationQuaternion = toSceneQuaternion(
+    multiplyMatrices(
+      getRotationMatrix(globalDirections, ghost.rotation),
+      getProbeRestRotation(localCoordinateSystem)
+    )
+  );
 }
 
 /**

@@ -2,6 +2,9 @@
 export interface ProbeSurfaceMarker {
   /** Probe whose color the marker takes. */
   probeId: string;
-  /** Marker center, in atlas ASR mm as [ap, dv, ml]. */
+  /**
+   * Marker center, in the experiment's global coordinate system, mm, relative
+   * to the atlas origin.
+   */
   position: [number, number, number];
 }

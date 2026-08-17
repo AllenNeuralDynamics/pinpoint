@@ -161,7 +161,8 @@ async function moveToRegionCenter(item: HierarchyItem): Promise<void> {
       centers = await getStructureHemisphereCenters(
         scene,
         currentExperiment.atlas,
-        structure
+        structure,
+        currentExperiment.axisDirections
       );
     } catch {
       notifyWarning(

@@ -17,7 +17,8 @@ import {
 import axios from "axios";
 import type { Atlas, StructureEntity } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
-import { asrToBabylon } from "./coordinate-transforms.api";
+import { toSceneVector } from "./coordinate-transforms.api";
+import { ATLAS_AXIS_DIRECTIONS } from "@/utils/coordinate-frame";
 import {
   exemptMaterialFromSurfaceSettings,
   setMaterialAlpha
@@ -59,7 +60,9 @@ const STRUCTURE_EMISSIVE_SHARE = 0.55;
 const STRUCTURE_DIFFUSE_SHARE = 1 - STRUCTURE_EMISSIVE_SHARE;
 
 /**
- * Build the atlas root node or return the existing one.
+ * Build the atlas root node or return the existing one. Its half turn about x
+ * is what makes Babylon world space anatomically upright: the node's own local
+ * space is `SCENE_AXIS_DIRECTIONS`, whose y points inferior.
  * @param scene Babylon scene to get the atlas root node from.
  */
 export function buildAtlasRootNode(scene: Scene): TransformNode {
@@ -73,16 +76,20 @@ export function buildAtlasRootNode(scene: Scene): TransformNode {
 }
 
 /**
- * Offset the atlas root node so the atlas is centered on the origin.
+ * Offset the atlas root node so the atlas is centered on the origin, which
+ * puts the atlas origin where the offset leaves it in world space.
  * @param scene Scene containing the atlas root.
- * @param centerCoordinate Coordinates of the center of the atlas.
+ * @param centerCoordinate Center of the atlas, in atlas mm.
  */
 export function setAtlasCenterOffset(
   scene: Scene,
   centerCoordinate: [number, number, number]
 ) {
   const atlasRootNode = buildAtlasRootNode(scene);
-  atlasRootNode.position = asrToBabylon(centerCoordinate).negate();
+  const center = toSceneVector(ATLAS_AXIS_DIRECTIONS, centerCoordinate);
+  // The root's half turn about x already negates y and z, so undoing the
+  // center in world space negates x alone.
+  atlasRootNode.position = new Vector3(-center.x, center.y, center.z);
 }
 
 /**
@@ -217,7 +224,8 @@ export function removeAllStructures(scene: Scene) {
 }
 
 /**
- * Read a structure's vertex positions in atlas-local mm (ML, DV, AP), reusing its
+ * Read a structure's vertex positions in the atlas root node's local space
+ * (`SCENE_AXIS_DIRECTIONS`), in mm, relative to the atlas origin, reusing its
  * in-scene mesh when that already has geometry and otherwise fetching and decoding
  * its Draco mesh without adding anything drawable to the scene.
  * @param scene Scene to decode into and to look for an existing mesh in.

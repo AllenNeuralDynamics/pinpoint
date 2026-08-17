@@ -140,7 +140,8 @@ export function stepPhysics(scene: Scene, deltaSeconds: number): void {
 }
 
 /**
- * Build a real Babylon `Scene`, `GizmoManager` (all three gizmos enabled), and
+ * Build a real Babylon `Scene`, `GizmoManager` (both utility layers wired, its
+ * own composite gizmos off, as the runtime builds it), and
  * `SelectionOutlineLayer`, for tests exercising probe gizmo attachment.
  */
 export function makeTestSceneWithGizmo(): {
@@ -155,9 +156,6 @@ export function makeTestSceneWithGizmo(): {
     new UtilityLayerRenderer(scene),
     new UtilityLayerRenderer(scene)
   );
-  gizmoManager.positionGizmoEnabled = true;
-  gizmoManager.rotationGizmoEnabled = true;
-  gizmoManager.scaleGizmoEnabled = true;
   const selectionOutlineLayer = new SelectionOutlineLayer(
     "selection_outline_layer",
     scene
@@ -298,28 +296,80 @@ export function makeFakeTextRenderer(): FakeTextRenderer {
 }
 
 /**
+ * One fake text renderer per axis-guide palette key: the three anatomical lines
+ * a global guide set is coloured by, plus the three axes of a local set.
+ */
+export type FakeAxisGuideRenderers = Record<
+  | "leftRight"
+  | "inferiorSuperior"
+  | "posteriorAnterior"
+  | "localAxis0"
+  | "localAxis1"
+  | "localAxis2",
+  FakeTextRenderer
+>;
+
+/** Build the six fake text renderers an `AxisGuides` object draws its two sets on. */
+export function makeFakeAxisGuideRenderers(): FakeAxisGuideRenderers {
+  return {
+    leftRight: makeFakeTextRenderer(),
+    inferiorSuperior: makeFakeTextRenderer(),
+    posteriorAnterior: makeFakeTextRenderer(),
+    localAxis0: makeFakeTextRenderer(),
+    localAxis1: makeFakeTextRenderer(),
+    localAxis2: makeFakeTextRenderer()
+  };
+}
+
+/**
  * Build a real `FontAsset` from a minimal MSDF definition: em size 100, every
  * glyph 50 units wide with a 50-unit advance, so each three-character axis
- * label lays out exactly 1.52 em wide.
+ * label lays out exactly 1.52 em wide. Carries the global axis letters plus the
+ * letters the local axis names are spelled with.
  * @param scene Scene hosting the font's atlas texture.
  */
 export function makeTestFontAsset(scene: Scene): FontAsset {
-  const chars = ["+", "-", "A", "P", "D", "V", "M", "L", "X", "Y", "Z"].map(
-    (char, index) => ({
-      id: char.charCodeAt(0),
-      index,
-      char,
-      width: 50,
-      height: 60,
-      xoffset: 0,
-      yoffset: 10,
-      xadvance: 50,
-      chnl: 15,
-      x: index * 50,
-      y: 0,
-      page: 0
-    })
-  );
+  const chars = [
+    "+",
+    "-",
+    "A",
+    "P",
+    "D",
+    "V",
+    "M",
+    "L",
+    "S",
+    "I",
+    "X",
+    "Y",
+    "Z",
+    "F",
+    "R",
+    "a",
+    "d",
+    "e",
+    "g",
+    "h",
+    "i",
+    "o",
+    "p",
+    "r",
+    "t",
+    "w"
+  ].map((char, index) => ({
+    id: char.charCodeAt(0),
+    index,
+    char,
+    width: 50,
+    height: 60,
+    xoffset: 0,
+    yoffset: 10,
+    xadvance: 50,
+    chnl: 15,
+    x: index * 50,
+    y: 0,
+    page: 0
+  }));
 
   return new FontAsset(
     JSON.stringify({

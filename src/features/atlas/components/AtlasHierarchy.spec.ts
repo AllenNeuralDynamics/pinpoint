@@ -13,12 +13,19 @@ import {
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { setStructureVisibility } from "@/features/experiment";
 import { getDefaultStructureIdentifiers } from "../api/hierarchy.api";
-import { getTerminologyRows } from "../api/source.api";
+import { getAtlasCenter, getTerminologyRows } from "../api/source.api";
 import {
   makeProbe,
   makeTerminologyRow,
   makeTerminologyRows
 } from "@/test/fixtures";
+import type { Atlas } from "../models/atlas.model";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  CANONICAL_AXIS_DIRECTIONS,
+  convertCoordinate
+} from "@/utils/coordinate-frame";
 
 /**
  * `QVirtualScroll` only renders the rows that fit its measured scroll
@@ -85,8 +92,11 @@ function findRow(wrapper: VueWrapper, identifier: number) {
 }
 
 /**
- * Put a structure mesh with known (ML, DV, AP) mm vertices under the scene's atlas root,
- * so region centers resolve without any network or Draco decode.
+ * Put a structure mesh with known (ML, SI, AP) mm vertices under the scene's
+ * atlas root, so region centers resolve without any network or Draco decode.
+ * The scene frame's first axis points to the animal's right, so the high-ML
+ * pair is its right hemisphere, averaging to (8, 3, 5) there, against the left
+ * hemisphere's (2, 3, 5).
  */
 function seedStructureMesh(scene: Scene, identifier: number): void {
   const atlasRoot =
@@ -97,6 +107,43 @@ function seedStructureMesh(scene: Scene, identifier: number): void {
   const vertexData = new VertexData();
   vertexData.positions = [7, 2, 4, 9, 4, 6, 3, 2, 4, 1, 4, 6];
   vertexData.applyToMesh(mesh);
+}
+
+/**
+ * Center the seeded mesh's right hemisphere averages to, in the experiment's
+ * default right-anterior-superior mm: the scene frame's (8, 3, 5), whose AP and
+ * SI values negate on the way into a posterior-to-anterior,
+ * inferior-to-superior frame.
+ */
+const RIGHT_HEMISPHERE_TARGET: [number, number, number] = [8, -5, -3];
+
+/** Center the seeded mesh's left hemisphere averages to, in the same mm. */
+const LEFT_HEMISPHERE_TARGET: [number, number, number] = [2, -5, -3];
+
+/**
+ * How far to the animal's right of the atlas midline a coordinate sits, in mm,
+ * negative on its left, so a hemisphere expectation can state an anatomical
+ * side rather than a bare sign.
+ * @param atlas Atlas whose center marks the midline.
+ * @param directions Axis directions the coordinate is expressed in.
+ * @param coordinate Coordinate to measure.
+ */
+function rightwardOfMidlineMillimeters(
+  atlas: Atlas,
+  directions: AxisDirections,
+  coordinate: [number, number, number]
+): number {
+  const midline = convertCoordinate(
+    ATLAS_AXIS_DIRECTIONS,
+    CANONICAL_AXIS_DIRECTIONS,
+    getAtlasCenter(atlas)
+  );
+  const canonical = convertCoordinate(
+    directions,
+    CANONICAL_AXIS_DIRECTIONS,
+    coordinate
+  );
+  return canonical[0] - midline[0];
 }
 
 describe("AtlasHierarchy", () => {
@@ -354,15 +401,31 @@ describe("AtlasHierarchy", () => {
 
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    // The first click targets the hemisphere the app labels `right`, which is
+    // the animal's right, so its center sits right of the atlas midline.
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
+    expect(
+      rightwardOfMidlineMillimeters(
+        store.atlas,
+        store.axisDirections,
+        store.cameraPose.target
+      )
+    ).toBeGreaterThan(0);
 
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
-    expect(store.cameraPose.target).toEqual([5, 3, 2]);
+    expect(store.cameraPose.target).toEqual(LEFT_HEMISPHERE_TARGET);
+    expect(
+      rightwardOfMidlineMillimeters(
+        store.atlas,
+        store.axisDirections,
+        store.cameraPose.target
+      )
+    ).toBeLessThan(0);
 
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
 
     expect(store.cameraPose.alpha).toBe(alpha);
     expect(store.cameraPose.beta).toBe(beta);
@@ -379,15 +442,15 @@ describe("AtlasHierarchy", () => {
 
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
 
     await findRow(wrapper, 567).trigger("click");
     await flushPromises();
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
 
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
   });
 
   it("moves a selected, unlocked probe's tip to the region center", async () => {
@@ -402,7 +465,7 @@ describe("AtlasHierarchy", () => {
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
 
-    expect(probe.tipPosition).toEqual([5, 3, 8]);
+    expect(probe.tipPosition).toEqual(RIGHT_HEMISPHERE_TARGET);
   });
 
   it("leaves a locked probe's tip untouched and its row not clickable", async () => {
@@ -458,12 +521,12 @@ describe("AtlasHierarchy", () => {
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
     expect(store.isLoadingRegionCenter).toBe(false);
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
 
     store.isLoadingRegionCenter = true;
     await findRow(wrapper, 8).trigger("click");
     await flushPromises();
 
-    expect(store.cameraPose.target).toEqual([5, 3, 8]);
+    expect(store.cameraPose.target).toEqual(RIGHT_HEMISPHERE_TARGET);
   });
 });

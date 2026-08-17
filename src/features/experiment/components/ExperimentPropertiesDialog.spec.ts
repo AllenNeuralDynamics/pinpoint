@@ -9,9 +9,12 @@ import {
 } from "@/test/mount-helper";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getTerminologyRows } from "@/features/atlas";
-import { makeAtlas, makeManifest, makeTerminologyRows } from "@/test/fixtures";
-import CommittedInput from "@/components/CommittedInput.vue";
-import { buildExperiment } from "../api/experiment.api";
+import {
+  makeAtlas,
+  makeExperiment,
+  makeManifest,
+  makeTerminologyRows
+} from "@/test/fixtures";
 
 // `useCurrentExperimentStore`'s `terminologyRows` is `computedAsync`,
 // refetching from the real atlas API whenever the atlas changes, so it must
@@ -40,7 +43,9 @@ let pinia: Pinia;
  */
 async function mountDialog(): Promise<DialogWrapper> {
   const store = useCurrentExperimentStore();
-  store.loadExperiment(buildExperiment("Seeded", makeAtlas(), [1, 2, 3]));
+  store.loadExperiment(
+    makeExperiment({ name: "Seeded", referenceCoordinate: [1, 2, 3] })
+  );
 
   const wrapper = wrappers.track(
     (await mountDialogWithQuasar(ExperimentPropertiesDialog, {
@@ -75,14 +80,6 @@ function nameInput(wrapper: DialogWrapper) {
 }
 
 /**
- * Locate the dialog's AP/DV/ML coordinate fields, in that order.
- * @param wrapper Mounted dialog wrapper.
- */
-function coordinateInputs(wrapper: DialogWrapper) {
-  return wrapper.findAllComponents(CommittedInput);
-}
-
-/**
  * Locate the dialog's Save button.
  * @param wrapper Mounted dialog wrapper.
  */
@@ -112,19 +109,14 @@ describe("ExperimentPropertiesDialog", () => {
     wrappers.unmountAll();
   });
 
-  it("seeds all three fields from the store", async () => {
+  it("seeds the name and atlas from the store", async () => {
     const wrapper = await mountDialog();
 
     expect(nameInput(wrapper).find("input").element.value).toBe("Seeded");
     expect(atlasPicker(wrapper).props("modelValue")).toEqual(makeAtlas());
-
-    const coordinates = coordinateInputs(wrapper);
-    expect(coordinates[0]!.find("input").element.value).toBe("1.000");
-    expect(coordinates[1]!.find("input").element.value).toBe("2.000");
-    expect(coordinates[2]!.find("input").element.value).toBe("3.000");
   });
 
-  it("commits name, atlas, and coordinates to the store and emits ok on Save", async () => {
+  it("commits the name and atlas to the store and emits ok on Save", async () => {
     const wrapper = await mountDialog();
     const store = useCurrentExperimentStore();
 
@@ -134,7 +126,6 @@ describe("ExperimentPropertiesDialog", () => {
 
     expect(store.name).toBe("New Name");
     expect(store.atlas).toEqual(makeAtlas());
-    expect(store.referenceCoordinate).toEqual([1, 2, 3]);
     expect(wrapper.emitted("ok")).toBeTruthy();
   });
 
@@ -157,29 +148,9 @@ describe("ExperimentPropertiesDialog", () => {
     expect(saveButton(wrapper).props("disable")).toBe(false);
   });
 
-  it("auto-zeros an emptied coordinate field", async () => {
-    const wrapper = await mountDialog();
-    const ap = coordinateInputs(wrapper)[0]!;
-
-    await editAndBlur(ap, "");
-
-    expect(ap.find("input").element.value).toBe("0.000");
-  });
-
-  it("rejects non-numeric coordinate text, leaving the stored value untouched", async () => {
+  it("re-seeds the reference coordinate when a different atlas is picked and saved", async () => {
     const wrapper = await mountDialog();
     const store = useCurrentExperimentStore();
-    const ap = coordinateInputs(wrapper)[0]!;
-
-    await editAndBlur(ap, "abc");
-    await saveButton(wrapper).trigger("click");
-    await flushMicrotasks();
-
-    expect(store.referenceCoordinate[0]).toBe(1);
-  });
-
-  it("re-seeds the reference coordinate when a different atlas is picked", async () => {
-    const wrapper = await mountDialog();
 
     await atlasPicker(wrapper).vm.$emit(
       "update:modelValue",
@@ -192,11 +163,17 @@ describe("ExperimentPropertiesDialog", () => {
       })
     );
     await flushMicrotasks();
+    await saveButton(wrapper).trigger("click");
+    await flushMicrotasks();
 
-    const coordinates = coordinateInputs(wrapper);
-    expect(coordinates[0]!.find("input").element.value).toBe("1.000");
-    expect(coordinates[1]!.find("input").element.value).toBe("0.000");
-    expect(coordinates[2]!.find("input").element.value).toBe("1.000");
+    // The new atlas's centre is 1 mm along each of its own axes. The
+    // experiment's default right-anterior-superior system reads the atlas's ml
+    // axis, which already points to the animal's right, as its own x, and
+    // negates the anterior-posterior axis; the reference coordinate sits at
+    // the top of the atlas, so its superior-inferior value is 0.
+    expect(store.referenceCoordinate[0]).toBeCloseTo(1);
+    expect(store.referenceCoordinate[1]).toBeCloseTo(-1);
+    expect(store.referenceCoordinate[2]).toBeCloseTo(0);
   });
 
   it("re-seeds default structures when a different atlas is picked and saved", async () => {
@@ -215,16 +192,15 @@ describe("ExperimentPropertiesDialog", () => {
     expect(store.visibleStructures).toEqual([{ id: 8, isTransparent: true }]);
   });
 
-  it("does not re-seed when re-picking an equal but distinct atlas object", async () => {
+  it("keeps the reference coordinate when re-picking an equal but distinct atlas object", async () => {
     const wrapper = await mountDialog();
-    const ap = coordinateInputs(wrapper)[0]!;
-    await editAndBlur(ap, "42");
+    const store = useCurrentExperimentStore();
 
     await atlasPicker(wrapper).vm.$emit("update:modelValue", makeAtlas());
     await flushMicrotasks();
+    await saveButton(wrapper).trigger("click");
+    await flushMicrotasks();
 
-    expect(coordinateInputs(wrapper)[0]!.find("input").element.value).toBe(
-      "42.000"
-    );
+    expect(store.referenceCoordinate).toEqual([1, 2, 3]);
   });
 });

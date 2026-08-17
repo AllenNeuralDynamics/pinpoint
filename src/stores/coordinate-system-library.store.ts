@@ -11,6 +11,9 @@ import { ref } from "vue";
 export const useCoordinateSystemLibraryStore = defineStore(
   "coordinate-system-library",
   () => {
+    // Every chain starts in the probe's rest orientation: axis 0 runs along the
+    // probe's left-right line, axis 1 along its forward axis, and axis 2 along
+    // its depth axis, so a positive depth value always drives the probe deeper.
     const library = ref<CoordinateSystem[]>([
       buildCoordinateSystem(
         "Surface Coordinate & Depth",
@@ -18,9 +21,9 @@ export const useCoordinateSystemLibraryStore = defineStore(
           buildCoordinateSystemNode(
             "Surface Coordinate",
             [
-              buildCoordinateSystemValue("ML"),
-              buildCoordinateSystemValue("DV"),
-              buildCoordinateSystemValue("AP")
+              buildCoordinateSystemValue("X"),
+              buildCoordinateSystemValue("Y"),
+              buildCoordinateSystemValue("Z")
             ],
             [
               buildCoordinateSystemValue("Pitch"),

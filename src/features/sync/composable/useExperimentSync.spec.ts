@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { buildExperiment, type Experiment } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { useSyncStore } from "@/stores/sync.store";
-import { makeAtlas } from "@/test/fixtures";
+import { makeExperiment } from "@/test/fixtures";
 import { useExperimentSync } from "./useExperimentSync";
 import {
   fetchSyncedArchive,
@@ -44,14 +43,6 @@ vi.mock("../api/experiment-archive.api", () => ({
   buildExperimentArchive: vi.fn(),
   restoreExperimentArchive: vi.fn()
 }));
-
-/**
- * Build an experiment held on this computer.
- * @param overrides Fields to apply on top of a fresh experiment.
- */
-function makeExperiment(overrides: Partial<Experiment> = {}): Experiment {
-  return { ...buildExperiment("A", makeAtlas(), [0, 0, 0]), ...overrides };
-}
 
 beforeEach(() => {
   setActivePinia(createPinia());

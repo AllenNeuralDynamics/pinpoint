@@ -1,6 +1,12 @@
 import { type Atlas, getAtlasCenter } from "@/features/atlas";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  convertCoordinate,
+  getAxisDirections,
+  type GlobalCoordinateSystem
+} from "@/utils/coordinate-frame";
 
-/** Allen Mouse's default reference coordinate, in atlas ASR mm. */
+/** Allen Mouse's default reference coordinate, in atlas millimeters. */
 export const ALLEN_MOUSE_REFERENCE_COORDINATE: [number, number, number] = [
   5.4, 0.33, 5.7
 ];
@@ -13,9 +19,10 @@ const DEFAULT_REFERENCE_COORDINATE_OVERRIDES: Record<
 };
 
 /**
- * Resolve a coordinate stored relative to the reference coordinate into atlas ASR mm.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
- * @param relativeCoordinate Coordinate relative to the reference coordinate, in ASR mm.
+ * Resolve a coordinate stored relative to the reference coordinate into
+ * coordinates relative to the atlas origin.
+ * @param referenceCoordinate Experiment reference coordinate.
+ * @param relativeCoordinate Coordinate relative to the reference coordinate, in the same frame.
  */
 export function referenceRelativeToAtlas(
   referenceCoordinate: [number, number, number],
@@ -29,9 +36,10 @@ export function referenceRelativeToAtlas(
 }
 
 /**
- * Express an atlas ASR coordinate relative to the reference coordinate.
- * @param referenceCoordinate Experiment reference coordinate, in atlas ASR mm.
- * @param atlasCoordinate Coordinate relative to the atlas origin, in ASR mm.
+ * Express a coordinate relative to the atlas origin relative to the reference
+ * coordinate instead.
+ * @param referenceCoordinate Experiment reference coordinate.
+ * @param atlasCoordinate Coordinate relative to the atlas origin, in the same frame.
  */
 export function atlasToReferenceRelative(
   referenceCoordinate: [number, number, number],
@@ -46,17 +54,22 @@ export function atlasToReferenceRelative(
 
 /**
  * Compute the initial reference coordinate for an atlas, preferring the
- * manifest's bregma, then a known override, otherwise the atlas center.
+ * manifest's bregma, then a known override, otherwise the top of the atlas
+ * center, expressed in the given coordinate system.
  * @param atlas Atlas to build reference coordinate info from.
+ * @param globalCoordinateSystem Coordinate system to express the result in.
  */
 export function buildInitialReferenceCoordinate(
-  atlas: Atlas
+  atlas: Atlas,
+  globalCoordinateSystem: GlobalCoordinateSystem
 ): [number, number, number] {
-  if (atlas.manifest.bregma) return [...atlas.manifest.bregma];
-
-  const override = DEFAULT_REFERENCE_COORDINATE_OVERRIDES[atlas.name];
-  if (override) return [...override];
-
   const [ap, , ml] = getAtlasCenter(atlas);
-  return [ap, 0, ml];
+  const atlasCoordinate = atlas.manifest.bregma ??
+    DEFAULT_REFERENCE_COORDINATE_OVERRIDES[atlas.name] ?? [ap, 0, ml];
+
+  return convertCoordinate(
+    ATLAS_AXIS_DIRECTIONS,
+    getAxisDirections(globalCoordinateSystem),
+    atlasCoordinate
+  );
 }

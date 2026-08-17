@@ -10,10 +10,11 @@ import {
 } from "@/features/scene";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
+import { useCoordinateAxes } from "@/composable/useCoordinateAxes";
 import { useDragSteps } from "@/composable/useDragSteps";
 import { useNumericTupleModel } from "@/composable/useNumericTupleModel";
 import { useValidationRules } from "@/composable/useValidationRules";
-import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
+import CoordinateAxisInputs from "@/components/CoordinateAxisInputs.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
 
 const { sceneObject } = defineProps<{
@@ -22,12 +23,13 @@ const { sceneObject } = defineProps<{
 
 const currentExperimentStore = useCurrentExperimentStore();
 const preferences = usePreferencesStore();
+const coordinateAxes = useCoordinateAxes();
 const { unitlessStep } = useDragSteps();
 const { requiredName: nameRules, positiveNumber: scaleRules } =
   useValidationRules();
 const { t } = useI18n();
 
-/** Whether AP/DV/ML fields display the position offset by the reference coordinate. */
+/** Whether the position fields display the position offset by the reference coordinate. */
 const isPositionRelativeToReference = ref(false);
 
 const name = computed({
@@ -35,33 +37,26 @@ const name = computed({
   set: (value: string) => (sceneObject.name = value.trim())
 });
 
-/** Reference coordinate to subtract from/add back to AP/DV/ML when the toggle is on, else zero. */
+/**
+ * Reference coordinate to subtract from, and add back to, the position when the
+ * toggle is on, else zero; both are in the experiment's global coordinate system.
+ */
 const positionOffset = computed<[number, number, number]>(() =>
   isPositionRelativeToReference.value
     ? currentExperimentStore.referenceCoordinate
     : [0, 0, 0]
 );
 
-const scaleZ = useNumericTupleModel(
-  () => sceneObject.scale,
-  0,
-  value => value,
-  value => value,
-  () => preferences.decimalPrecision
-);
-const scaleY = useNumericTupleModel(
-  () => sceneObject.scale,
-  1,
-  value => value,
-  value => value,
-  () => preferences.decimalPrecision
-);
-const scaleX = useNumericTupleModel(
-  () => sceneObject.scale,
-  2,
-  value => value,
-  value => value,
-  () => preferences.decimalPrecision
+// A scale is an axis-wise magnitude along the same global coordinate system
+// axes as the position, so each field keeps its own axis's slot.
+const scaleModels = ([0, 1, 2] as const).map(axis =>
+  useNumericTupleModel(
+    () => sceneObject.scale,
+    axis,
+    value => value,
+    value => value,
+    () => preferences.decimalPrecision
+  )
 );
 
 const lockIcon = computed(() =>
@@ -114,7 +109,7 @@ const lockLabel = computed(() =>
       :label="t('sceneObjectInspector.relativeToReferenceCoordinate')"
     />
 
-    <AtlasAxisInputs
+    <CoordinateAxisInputs
       :disable="sceneObject.lock"
       hide-bottom-space
       kind="position"
@@ -123,7 +118,7 @@ const lockLabel = computed(() =>
       :tuple="sceneObject.position"
     />
 
-    <AtlasAxisInputs
+    <CoordinateAxisInputs
       :disable="sceneObject.lock"
       hide-bottom-space
       kind="rotation"
@@ -133,32 +128,12 @@ const lockLabel = computed(() =>
 
     <div class="row q-gutter-x-sm">
       <CommittedInput
-        v-model="scaleZ"
+        v-for="slot of coordinateAxes.position.value"
+        :key="slot.axis"
+        v-model="scaleModels[slot.axis]!.value"
         :disable="sceneObject.lock"
         :drag-step="unitlessStep"
-        :label="t('axis.z')"
-        :rules="scaleRules"
-        :suffix="t('sceneObjectInspector.scaleSuffix')"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-      <CommittedInput
-        v-model="scaleY"
-        :disable="sceneObject.lock"
-        :drag-step="unitlessStep"
-        :label="t('axis.y')"
-        :rules="scaleRules"
-        :suffix="t('sceneObjectInspector.scaleSuffix')"
-        class="col"
-        hide-bottom-space
-        outlined
-      />
-      <CommittedInput
-        v-model="scaleX"
-        :disable="sceneObject.lock"
-        :drag-step="unitlessStep"
-        :label="t('axis.x')"
+        :label="t('sceneObjectInspector.scaleAxis', { axis: slot.label })"
         :rules="scaleRules"
         :suffix="t('sceneObjectInspector.scaleSuffix')"
         class="col"

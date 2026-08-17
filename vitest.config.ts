@@ -27,6 +27,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "happy-dom",
+    // The heaviest component specs mount a full Quasar dialog per test, which
+    // takes ~1s alone but several times that while the whole suite competes for
+    // cores; the default 5s times those out on a loaded machine.
+    testTimeout: 20000,
     exclude: [
       ...configDefaults.exclude,
       "**/.direnv/**",

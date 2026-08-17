@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import AtlasAxisInputs from "@/components/AtlasAxisInputs.vue";
+import CoordinateAxisInputs from "@/components/CoordinateAxisInputs.vue";
 import CommittedInput from "@/components/CommittedInput.vue";
 import { useDragReorder } from "@/composable/useDragReorder";
 import { useDragSteps } from "@/composable/useDragSteps";
@@ -79,10 +79,15 @@ const positionSuffix = computed(() =>
 );
 
 /**
- * Reset the live camera pose to the current atlas's default orbit, target, and radius.
+ * Reset the live camera pose to the current atlas's default orbit, target, and
+ * radius, with the target in the experiment's global coordinate system.
  */
 function resetCamera(): void {
-  resetCameraPose(pose.value, currentExperiment.atlas);
+  resetCameraPose(
+    pose.value,
+    currentExperiment.atlas,
+    currentExperiment.globalCoordinateSystem
+  );
 }
 
 /**
@@ -96,7 +101,8 @@ function savePose(): void {
 }
 
 /**
- * Move the live camera to a saved pose's orbit and target.
+ * Move the live camera to a saved pose's orbit and target, both already in the
+ * experiment's global coordinate system.
  * @param savedPose Camera pose to apply.
  */
 function applyPose(savedPose: CameraPose): void {
@@ -122,7 +128,7 @@ function applyPose(savedPose: CameraPose): void {
     />
     <div>
       <div class="text-body2 q-pb-xs">{{ t("cameraInspector.target") }}</div>
-      <AtlasAxisInputs
+      <CoordinateAxisInputs
         hide-bottom-space
         kind="position"
         outlined

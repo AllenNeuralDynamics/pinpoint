@@ -7,12 +7,15 @@ import {
   positionUnitToMillimeters,
   rotationUnitToRadians
 } from "@/utils/math";
+import {
+  getDirectionLine,
+  getLineAxisIndex,
+  type AxisDirections
+} from "@/utils/coordinate-frame";
 import type { Probe } from "@/features/probe";
 import type { GizmoMode } from "@/features/scene";
-import type { AxisIndex } from "@/utils/axis-order";
 import type {
   KeyboardControlAction,
-  KeyboardControlAxis,
   KeyboardControlKey,
   KeyboardControlKind,
   KeyboardControlRow,
@@ -44,7 +47,11 @@ export const KEYBOARD_SPEED_KEYS: {
   positive: { code: "Equal", label: "+" }
 };
 
-/** Key pairs per control kind, in the order the legend lists them. */
+/**
+ * Key pairs per control kind, in the order the legend lists them. Each key
+ * names the anatomical direction it drives, so a press means the same thing to
+ * the animal whatever the global coordinate system's axes are.
+ */
 export const KEYBOARD_CONTROL_ROWS: Record<
   KeyboardControlKind,
   readonly KeyboardControlRow[]
@@ -52,41 +59,53 @@ export const KEYBOARD_CONTROL_ROWS: Record<
   translate: [
     {
       kind: "translate",
-      axis: "ap",
-      negative: { code: "KeyW", label: "W" },
-      positive: { code: "KeyS", label: "S" }
+      line: "posteriorAnterior",
+      keys: [
+        { code: "KeyW", label: "W", direction: "Posterior_to_anterior" },
+        { code: "KeyS", label: "S", direction: "Anterior_to_posterior" }
+      ]
     },
     {
       kind: "translate",
-      axis: "ml",
-      negative: { code: "KeyA", label: "A" },
-      positive: { code: "KeyD", label: "D" }
+      line: "leftRight",
+      keys: [
+        { code: "KeyA", label: "A", direction: "Left_to_right" },
+        { code: "KeyD", label: "D", direction: "Right_to_left" }
+      ]
     },
     {
       kind: "translate",
-      axis: "dv",
-      negative: { code: "KeyQ", label: "Q" },
-      positive: { code: "KeyE", label: "E" }
+      line: "inferiorSuperior",
+      keys: [
+        { code: "KeyQ", label: "Q", direction: "Inferior_to_superior" },
+        { code: "KeyE", label: "E", direction: "Superior_to_inferior" }
+      ]
     }
   ],
   rotate: [
     {
       kind: "rotate",
-      axis: "dv",
-      negative: { code: "Digit1", label: "1" },
-      positive: { code: "Digit3", label: "3" }
+      line: "inferiorSuperior",
+      keys: [
+        { code: "Digit1", label: "1", direction: "Inferior_to_superior" },
+        { code: "Digit3", label: "3", direction: "Superior_to_inferior" }
+      ]
     },
     {
       kind: "rotate",
-      axis: "ml",
-      negative: { code: "KeyF", label: "F" },
-      positive: { code: "KeyR", label: "R" }
+      line: "leftRight",
+      keys: [
+        { code: "KeyF", label: "F", direction: "Left_to_right" },
+        { code: "KeyR", label: "R", direction: "Right_to_left" }
+      ]
     },
     {
       kind: "rotate",
-      axis: "ap",
-      negative: { code: "Comma", label: "," },
-      positive: { code: "Period", label: "." }
+      line: "posteriorAnterior",
+      keys: [
+        { code: "Comma", label: ",", direction: "Posterior_to_anterior" },
+        { code: "Period", label: ".", direction: "Anterior_to_posterior" }
+      ]
     }
   ]
 };
@@ -95,19 +114,6 @@ export const KEYBOARD_CONTROL_ROWS: Record<
 const NUMPAD_SPEED_CODES: Record<string, -1 | 1> = {
   NumpadSubtract: -1,
   NumpadAdd: 1
-};
-
-/**
- * Index into a probe's `tipPosition` (AP, DV, ML) and `rotation` (roll, yaw,
- * pitch) triples, per axis; the two triples order their axes alike.
- */
-export const KEYBOARD_CONTROL_AXIS_INDEX: Record<
-  KeyboardControlAxis,
-  AxisIndex
-> = {
-  ap: 0,
-  dv: 1,
-  ml: 2
 };
 
 /** Every key press, by kind then `KeyboardEvent.code`. */
@@ -168,20 +174,28 @@ export function stepKeyboardControlIndex(index: number, delta: number): number {
 /**
  * Move or turn a probe by one key press, in place.
  * @param probe Probe to drive.
- * @param action Axis and direction the pressed key drives.
+ * @param globalDirections Axis directions the probe's triples are expressed in.
+ * @param action Anatomical direction the pressed key drives.
  * @param step Distance and angle one key press covers.
  */
 export function applyKeyboardControlAction(
   probe: Probe,
+  globalDirections: AxisDirections,
   action: KeyboardControlAction,
   step: KeyboardControlStep
 ): void {
-  const index = KEYBOARD_CONTROL_AXIS_INDEX[action.axis];
+  const index = getLineAxisIndex(
+    globalDirections,
+    getDirectionLine(action.direction)
+  );
+  // The key drives an anatomical direction, so a triple whose axis runs the
+  // other way along that line takes the opposite sign.
+  const sign = globalDirections[index] === action.direction ? 1 : -1;
 
   if (action.kind === "translate") {
     const tipPosition = [...probe.tipPosition] as [number, number, number];
     tipPosition[index] +=
-      action.sign *
+      sign *
       positionUnitToMillimeters(step.translationMicrometers, "micrometer");
     setProbeTipMillimeters(probe, tipPosition);
     return;
@@ -189,7 +203,7 @@ export function applyKeyboardControlAction(
 
   const rotation = [...probe.rotation] as [number, number, number];
   rotation[index] +=
-    action.sign * rotationUnitToRadians(step.rotationDegrees, "degree");
+    sign * rotationUnitToRadians(step.rotationDegrees, "degree");
   setProbeRotationRadians(probe, rotation);
 }
 
@@ -201,11 +215,11 @@ function buildActionsByCode(
   kind: KeyboardControlKind
 ): Record<string, KeyboardControlAction> {
   return Object.fromEntries(
-    KEYBOARD_CONTROL_ROWS[kind].flatMap(
-      ({ axis, negative, positive }): [string, KeyboardControlAction][] => [
-        [negative.code, { kind, axis, sign: -1 }],
-        [positive.code, { kind, axis, sign: 1 }]
-      ]
+    KEYBOARD_CONTROL_ROWS[kind].flatMap(({ keys }) =>
+      keys.map(({ code, direction }): [string, KeyboardControlAction] => [
+        code,
+        { kind, direction }
+      ])
     )
   );
 }

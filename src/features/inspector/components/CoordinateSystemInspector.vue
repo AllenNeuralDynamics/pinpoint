@@ -10,16 +10,19 @@ import {
   setCoordinateSystemSurfaceNode
 } from "@/features/coordinate-system";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { useCoordinateAxes } from "@/composable/useCoordinateAxes";
 import { useDragReorder } from "@/composable/useDragReorder";
 import { useValidationRules } from "@/composable/useValidationRules";
 import CommittedInput from "@/components/CommittedInput.vue";
 import CoordinateSystemNodeInspector from "./CoordinateSystemNodeInspector.vue";
+import type { AxisSlot } from "@/utils/axis-order";
 
 const { coordinateSystem } = defineProps<{
   coordinateSystem: CoordinateSystem;
 }>();
 
 const currentExperiment = useCurrentExperimentStore();
+const coordinateAxes = useCoordinateAxes();
 
 const { requiredName: nameRules } = useValidationRules();
 const { t } = useI18n();
@@ -36,6 +39,32 @@ const name = computed({
   get: () => coordinateSystem.name,
   set: (value: string) => (coordinateSystem.name = value.trim())
 });
+
+/**
+ * Append a transform to the chain, its values seeded with the names of the
+ * global coordinate system's axes they line up with.
+ */
+function addTransform(): void {
+  addCoordinateSystemTransform(
+    coordinateSystem,
+    t("coordinateSystemInspector.newTransformName", {
+      index: coordinateSystem.chain.length + 1
+    }),
+    getAxisIndexedNames(coordinateAxes.position.value),
+    getAxisIndexedNames(coordinateAxes.rotation.value)
+  );
+}
+
+/**
+ * Axis slot labels indexed by the axis each addresses, since the coordinate
+ * system's display order may list them in any order.
+ * @param slots Display-ordered axis slots to index.
+ */
+function getAxisIndexedNames(slots: AxisSlot[]): [string, string, string] {
+  const names: [string, string, string] = ["", "", ""];
+  for (const { axis, label } of slots) names[axis] = label;
+  return names;
+}
 
 /**
  * Move a transform within the chain, dropping the focused-node highlight so it never
@@ -100,14 +129,7 @@ onUnmounted(() => {
       color="primary"
       icon="add"
       :label="t('coordinateSystemInspector.addTransform')"
-      @click="
-        addCoordinateSystemTransform(
-          coordinateSystem,
-          t('coordinateSystemInspector.newTransformName', {
-            index: coordinateSystem.chain.length + 1
-          })
-        )
-      "
+      @click="addTransform"
     />
     <q-list class="col scroll" separator>
       <CoordinateSystemNodeInspector

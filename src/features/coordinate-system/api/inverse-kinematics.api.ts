@@ -1,5 +1,5 @@
 // Deep-import to avoid the side-effectful root barrel, which would drag the whole Babylon engine into this solver's worker chunk.
-import { Matrix, Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { Quaternion } from "@babylonjs/core/Maths/math.vector";
 import {
   DOF,
   Goal,
@@ -13,23 +13,37 @@ import {
   getCoordinateSystemAxisValue,
   setCoordinateSystemAxisValue
 } from "./coordinate-system.api";
-import { solveCoordinateSystemChain } from "./forward-kinematics.api";
+import {
+  getSolverMatrix,
+  SOLVER_AXIS_DIRECTIONS,
+  solveCoordinateSystemChain
+} from "./forward-kinematics.api";
+import {
+  convertCoordinate,
+  getChainRestRotation,
+  getOrientationInFrame,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
 import type { IkGoal, IkJoint, IkLink } from "./closed-chain-ik";
-import type { CoordinateSystemSolution } from "./forward-kinematics.api";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import type {
   CoordinateSystemNode,
   CoordinateSystemNodeComponent
 } from "../model/coordinate-system.model";
 
-/** Pose an inverse-kinematics solve drives a chain onto, in atlas ASR millimeters and radians. */
+/** Pose an inverse-kinematics solve drives a chain onto, in global coordinate system millimeters and radians. */
 export interface CoordinateSystemTarget {
-  /** Probe tip, in atlas ASR mm as [ap, dv, ml]. */
+  /** Probe tip, in global coordinate system mm. */
   tipPosition: [number, number, number];
-  /** Probe rotation as [roll, yaw, pitch], in radians. */
+  /** Probe rotation about the global coordinate system's axes, relative to its rest orientation, in radians. */
   rotation: [number, number, number];
   /**
-   * Point the chain's `onSurface` node must sit at, in atlas ASR mm. Null leaves that node
-   * unconstrained.
+   * Point the chain's `onSurface` node must sit at, in global coordinate system mm. Null leaves
+   * that node unconstrained.
    */
   surfacePosition: [number, number, number] | null;
 }
@@ -130,13 +144,17 @@ const FAILURE_STATUS_NAMES: Record<number, CoordinateSystemSolveStatus> = {
  * @param chain Transform chain to solve, mutated in place with the closest result the solver
  * reached even when it does not converge.
  * @param target Pose to solve for.
- * @param referenceOffsetMillimeters Root translation in atlas ASR mm, or null for the atlas origin.
+ * @param referenceOffsetMillimeters Root translation in global coordinate system mm, or null for the atlas origin.
+ * @param globalDirections Axis directions the target pose is expressed in.
+ * @param localCoordinateSystem Local coordinate system the chain rests in.
  * @param maximumStarts Re-seeded attempts before the closest result is kept.
  */
 export function solveCoordinateSystemChainInverse(
   chain: CoordinateSystemNode[],
   target: CoordinateSystemTarget,
   referenceOffsetMillimeters: [number, number, number] | null,
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   maximumStarts: number
 ): CoordinateSystemSolveStatus {
   const bindings = collectFreeValueBindings(chain);
@@ -146,12 +164,10 @@ export function solveCoordinateSystemChainInverse(
 
   const surfaceIndex = chain.findIndex(node => node.onSurface);
   const useSurfaceGoal = surfaceIndex !== -1 && target.surfacePosition !== null;
-  const goalQuaternion = Quaternion.FromRotationMatrix(
-    Matrix.RotationYawPitchRoll(
-      target.rotation[1],
-      target.rotation[2],
-      target.rotation[0]
-    )
+  const goalQuaternion = getChainFrameQuaternion(
+    target.rotation,
+    globalDirections,
+    localCoordinateSystem
   );
   // The incoming values are the fallback best, so a solve with no starts -- or one whose every
   // error evaluation is NaN -- still writes back a well-defined chain.
@@ -167,7 +183,13 @@ export function solveCoordinateSystemChainInverse(
   const zeroableBindings = useSurfaceGoal
     ? []
     : collectZeroableBindings(
-        buildPoseJacobianColumns(chain, referenceOffsetMillimeters, bindings),
+        buildPoseJacobianColumns(
+          chain,
+          referenceOffsetMillimeters,
+          globalDirections,
+          localCoordinateSystem,
+          bindings
+        ),
         bindings
       );
   // Every value zeroable at once would leave the solver no DoF to move at all.
@@ -175,33 +197,47 @@ export function solveCoordinateSystemChainInverse(
     zeroableBindings.length > 0 &&
     zeroableBindings.length < bindings.length
   ) {
-    const staged = runSolvePass(chain, target, referenceOffsetMillimeters, {
+    const staged = runSolvePass(
+      chain,
+      target,
+      referenceOffsetMillimeters,
+      globalDirections,
+      localCoordinateSystem,
+      {
+        bindings,
+        activeBindings: bindings.filter(
+          binding => !zeroableBindings.includes(binding)
+        ),
+        incomingValues,
+        goalQuaternion,
+        surfaceIndex,
+        useSurfaceGoal,
+        maximumStarts: 1,
+        solveCalls: STAGE_SOLVE_CALLS,
+        best
+      }
+    );
+    if (staged === "converged") return "converged";
+  }
+
+  const status = runSolvePass(
+    chain,
+    target,
+    referenceOffsetMillimeters,
+    globalDirections,
+    localCoordinateSystem,
+    {
       bindings,
-      activeBindings: bindings.filter(
-        binding => !zeroableBindings.includes(binding)
-      ),
       incomingValues,
       goalQuaternion,
       surfaceIndex,
       useSurfaceGoal,
-      maximumStarts: 1,
-      solveCalls: STAGE_SOLVE_CALLS,
+      activeBindings: bindings,
+      maximumStarts,
+      solveCalls: SOLVE_CALLS_PER_START,
       best
-    });
-    if (staged === "converged") return "converged";
-  }
-
-  const status = runSolvePass(chain, target, referenceOffsetMillimeters, {
-    bindings,
-    incomingValues,
-    goalQuaternion,
-    surfaceIndex,
-    useSurfaceGoal,
-    activeBindings: bindings,
-    maximumStarts,
-    solveCalls: SOLVE_CALLS_PER_START,
-    best
-  });
+    }
+  );
   if (status === "converged") return "converged";
 
   for (let index = 0; index < bindings.length; index++) {
@@ -220,13 +256,17 @@ export function solveCoordinateSystemChainInverse(
  * Run one solver pass over a chain, keeping the closest pose it reaches in `options.best`.
  * @param chain Transform chain to solve, mutated in place.
  * @param target Pose to solve for.
- * @param referenceOffsetMillimeters Root translation in atlas ASR mm, or null for the atlas origin.
+ * @param referenceOffsetMillimeters Root translation in global coordinate system mm, or null for the atlas origin.
+ * @param globalDirections Axis directions the target pose is expressed in.
+ * @param localCoordinateSystem Local coordinate system the chain rests in.
  * @param options Which nodes may move, the pass's budget, and the shared best pose.
  */
 function runSolvePass(
   chain: CoordinateSystemNode[],
   target: CoordinateSystemTarget,
   referenceOffsetMillimeters: [number, number, number] | null,
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   options: SolvePassOptions
 ): "converged" | null {
   const {
@@ -238,7 +278,11 @@ function runSolvePass(
     activeBindings,
     best
   } = options;
-  const [targetAp, targetDv, targetMl] = target.tipPosition;
+  const [targetX, targetY, targetZ] = convertCoordinate(
+    globalDirections,
+    SOLVER_AXIS_DIRECTIONS,
+    target.tipPosition
+  );
   const seedRandom = createSeedRandom();
 
   for (let start = 0; start < options.maximumStarts; start++) {
@@ -254,11 +298,13 @@ function runSolvePass(
     const tree = buildSolverTree(
       chain,
       referenceOffsetMillimeters,
+      globalDirections,
+      localCoordinateSystem,
       activeBindings
     );
 
     const goal: IkGoal = new Goal();
-    goal.setPosition(targetMl, targetDv, targetAp);
+    goal.setPosition(targetX, targetY, targetZ);
     goal.setQuaternion(
       goalQuaternion.x,
       goalQuaternion.y,
@@ -270,8 +316,12 @@ function runSolvePass(
     if (useSurfaceGoal) {
       const surfaceGoal: IkGoal = new Goal();
       surfaceGoal.setGoalDoF(DOF.X, DOF.Y, DOF.Z);
-      const [surfaceAp, surfaceDv, surfaceMl] = target.surfacePosition!;
-      surfaceGoal.setPosition(surfaceMl, surfaceDv, surfaceAp);
+      const [surfaceX, surfaceY, surfaceZ] = convertCoordinate(
+        globalDirections,
+        SOLVER_AXIS_DIRECTIONS,
+        target.surfacePosition!
+      );
+      surfaceGoal.setPosition(surfaceX, surfaceY, surfaceZ);
       surfaceGoal.makeClosure(tree.nodeLinks[surfaceIndex]!);
     }
 
@@ -288,6 +338,8 @@ function runSolvePass(
       chain,
       target,
       referenceOffsetMillimeters,
+      globalDirections,
+      localCoordinateSystem,
       surfaceIndex,
       goalQuaternion
     );
@@ -311,6 +363,8 @@ function runSolvePass(
         chain,
         target,
         referenceOffsetMillimeters,
+        globalDirections,
+        localCoordinateSystem,
         surfaceIndex,
         goalQuaternion
       );
@@ -352,16 +406,26 @@ function collectFreeValueBindings(
 }
 
 /**
- * A solved chain's orientation as a quaternion, rebuilt from its Euler triple so equivalent Euler
- * branches compare equal.
- * @param solution Solved chain to convert.
+ * Quaternion of the chain-tip frame a rest-relative probe rotation drives the chain onto, in the
+ * solver's own coordinates, which is what the solver's goal and every rotation comparison speak.
+ * @param rotation Rest-relative probe rotation, in radians.
+ * @param globalDirections Axis directions the rotation turns about.
+ * @param localCoordinateSystem Local coordinate system the chain rests in.
  */
-function getSolutionQuaternion(solution: CoordinateSystemSolution): Quaternion {
+function getChainFrameQuaternion(
+  rotation: [number, number, number],
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem
+): Quaternion {
   return Quaternion.FromRotationMatrix(
-    Matrix.RotationYawPitchRoll(
-      solution.rotation[1],
-      solution.rotation[2],
-      solution.rotation[0]
+    getSolverMatrix(
+      getOrientationInFrame(
+        SOLVER_AXIS_DIRECTIONS,
+        multiplyMatrices(
+          getRotationMatrix(globalDirections, rotation),
+          getChainRestRotation(localCoordinateSystem)
+        )
+      )
     )
   );
 }
@@ -370,12 +434,16 @@ function getSolutionQuaternion(solution: CoordinateSystemSolution): Quaternion {
  * Pose Jacobian of a chain at its current values, one column per free value: the tip position and
  * orientation rate, by central difference through forward kinematics.
  * @param chain Transform chain to differentiate, restored to its current values before returning.
- * @param referenceOffsetMillimeters Root translation in atlas ASR mm, or null for the atlas origin.
+ * @param referenceOffsetMillimeters Root translation in global coordinate system mm, or null for the atlas origin.
+ * @param globalDirections Axis directions the solved pose is expressed in.
+ * @param localCoordinateSystem Local coordinate system the chain rests in.
  * @param bindings Free value bindings to differentiate against.
  */
 function buildPoseJacobianColumns(
   chain: CoordinateSystemNode[],
   referenceOffsetMillimeters: [number, number, number] | null,
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   bindings: FreeValueBinding[]
 ): number[][] {
   return bindings.map(binding => {
@@ -392,18 +460,36 @@ function buildPoseJacobianColumns(
       binding.axis,
       value + JACOBIAN_STEP
     );
-    const plus = solveCoordinateSystemChain(chain, referenceOffsetMillimeters);
+    const plus = solveCoordinateSystemChain(
+      chain,
+      referenceOffsetMillimeters,
+      globalDirections,
+      localCoordinateSystem
+    );
     setCoordinateSystemAxisValue(
       node,
       binding.component,
       binding.axis,
       value - JACOBIAN_STEP
     );
-    const minus = solveCoordinateSystemChain(chain, referenceOffsetMillimeters);
+    const minus = solveCoordinateSystemChain(
+      chain,
+      referenceOffsetMillimeters,
+      globalDirections,
+      localCoordinateSystem
+    );
     setCoordinateSystemAxisValue(node, binding.component, binding.axis, value);
 
-    const plusRotation = getSolutionQuaternion(plus);
-    const minusRotation = getSolutionQuaternion(minus);
+    const plusRotation = getChainFrameQuaternion(
+      plus.rotation,
+      globalDirections,
+      localCoordinateSystem
+    );
+    const minusRotation = getChainFrameQuaternion(
+      minus.rotation,
+      globalDirections,
+      localCoordinateSystem
+    );
     // Two nearby poses can rebuild as q and -q, which would read as a half turn instead of a
     // small step, so align the pair before differencing them.
     if (Quaternion.Dot(plusRotation, minusRotation) < 0) {
@@ -555,21 +641,43 @@ function mapSolveStatuses(statuses: number[]): CoordinateSystemSolveStatus {
 }
 
 /**
- * Build the solver tree reproducing a chain's forward kinematics: a translation joint then one
- * single-axis rotation joint per axis in Y, X, Z order, per node.
+ * Build the solver tree reproducing a chain's forward kinematics: a root frame at the reference
+ * offset in the chain's rest orientation, then a translation joint and one single-axis rotation
+ * joint per axis in Y, X, Z order, per node.
  * @param chain Transform chain to mirror.
- * @param referenceOffsetMillimeters Root translation in atlas ASR mm, or null for the atlas origin.
+ * @param referenceOffsetMillimeters Root translation in global coordinate system mm, or null for the atlas origin.
+ * @param globalDirections Axis directions the reference offset is expressed in.
+ * @param localCoordinateSystem Local coordinate system the chain rests in.
  * @param activeBindings Free values that get a solver DoF; every other free value is baked as fixed.
  */
 function buildSolverTree(
   chain: CoordinateSystemNode[],
   referenceOffsetMillimeters: [number, number, number] | null,
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   activeBindings: FreeValueBinding[]
 ): SolverTree {
   const root: IkLink = new Link();
+  // The chain hangs off its rest orientation, exactly as forward kinematics seeds it, so a
+  // solved value means the same thing in both.
+  const restQuaternion = getChainFrameQuaternion(
+    [0, 0, 0],
+    globalDirections,
+    localCoordinateSystem
+  );
+  root.setQuaternion(
+    restQuaternion.x,
+    restQuaternion.y,
+    restQuaternion.z,
+    restQuaternion.w
+  );
   if (referenceOffsetMillimeters) {
-    const [offsetAp, offsetDv, offsetMl] = referenceOffsetMillimeters;
-    root.setPosition(offsetMl, offsetDv, offsetAp);
+    const [offsetX, offsetY, offsetZ] = convertCoordinate(
+      globalDirections,
+      SOLVER_AXIS_DIRECTIONS,
+      referenceOffsetMillimeters
+    );
+    root.setPosition(offsetX, offsetY, offsetZ);
   }
 
   const nodeLinks: IkLink[] = [];
@@ -670,25 +778,35 @@ function buildSolverTree(
  * position, orientation, and surface error, used only to pick the best solve attempt.
  * @param chain Transform chain to score.
  * @param target Pose being solved for.
- * @param referenceOffsetMillimeters Root translation in atlas ASR mm, or null for the atlas origin.
+ * @param referenceOffsetMillimeters Root translation in global coordinate system mm, or null for the atlas origin.
+ * @param globalDirections Axis directions the target pose is expressed in.
+ * @param localCoordinateSystem Local coordinate system the chain rests in.
  * @param surfaceIndex Index of the chain's surface node, or -1 when there is none.
- * @param targetRotation Target pose's rotation as a quaternion, precomputed once per solve.
+ * @param targetRotation Target pose's chain-frame rotation as a quaternion, precomputed once per solve.
  */
 function getTargetError(
   chain: CoordinateSystemNode[],
   target: CoordinateSystemTarget,
   referenceOffsetMillimeters: [number, number, number] | null,
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   surfaceIndex: number,
   targetRotation: Quaternion
 ): number {
   const solution = solveCoordinateSystemChain(
     chain,
-    referenceOffsetMillimeters
+    referenceOffsetMillimeters,
+    globalDirections,
+    localCoordinateSystem
   );
 
-  let error = getAsrDistance(solution.tipPosition, target.tipPosition);
+  let error = getPositionDistance(solution.tipPosition, target.tipPosition);
 
-  const solvedRotation = getSolutionQuaternion(solution);
+  const solvedRotation = getChainFrameQuaternion(
+    solution.rotation,
+    globalDirections,
+    localCoordinateSystem
+  );
   error +=
     2 *
     Math.acos(
@@ -696,7 +814,7 @@ function getTargetError(
     );
 
   if (surfaceIndex !== -1 && target.surfacePosition !== null) {
-    error += getAsrDistance(
+    error += getPositionDistance(
       solution.nodePositions[surfaceIndex]!,
       target.surfacePosition
     );
@@ -717,16 +835,16 @@ function createSeedRandom(): () => number {
 }
 
 /**
- * Euclidean distance between two atlas ASR millimeter triples.
- * @param a First triple, as [ap, dv, ml].
- * @param b Second triple, as [ap, dv, ml].
+ * Euclidean distance between two millimeter triples in the same orthonormal frame.
+ * @param a First triple.
+ * @param b Second triple.
  */
-function getAsrDistance(
+function getPositionDistance(
   a: [number, number, number],
   b: [number, number, number]
 ): number {
-  const deltaAp = a[0] - b[0];
-  const deltaDv = a[1] - b[1];
-  const deltaMl = a[2] - b[2];
-  return Math.sqrt(deltaMl * deltaMl + deltaDv * deltaDv + deltaAp * deltaAp);
+  const deltaX = a[0] - b[0];
+  const deltaY = a[1] - b[1];
+  const deltaZ = a[2] - b[2];
+  return Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
 }

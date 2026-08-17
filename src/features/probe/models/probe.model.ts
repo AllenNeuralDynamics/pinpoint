@@ -48,23 +48,20 @@ export interface Probe {
   coordinateSystemIdentifier: string | null;
 
   /**
-   * Internal position representation of the probe tip.
-   * - AP, DV, ML order.
-   * - ASR orientation.
-   * - Relative to the atlas origin.
-   * - In mm.
+   * Probe tip position, in the experiment's global coordinate system, mm,
+   * relative to the atlas origin.
    *
    * UI may convert this information for different displays.
    */
   tipPosition: [number, number, number];
 
   /**
-   * Internal orientation representation of the probe.
-   * - Roll, yaw, pitch order (aligned to AP, DV, ML order;
-   * at zero rotation the tip points along -AP and the head-stage cut-out,
-   * i.e. the contact face, is on the -DV side of the shanks).
-   * - Pivot on tip.
-   * - In radians.
+   * Probe orientation, as a rest-relative rotation triple about the
+   * experiment's global coordinate system's axes, in radians, pivoting on the
+   * tip. Component `i` turns right-handed about global axis `i`'s own positive
+   * direction, composed as `getRotationMatrix` documents. At all zeros the
+   * probe sits in the experiment's local coordinate system's rest
+   * orientation.
    */
   rotation: [number, number, number];
 

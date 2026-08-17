@@ -1,8 +1,16 @@
 import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 
-/** A probe's planar contour in millimeters, re-origined on its center tip. */
+/**
+ * A probe's planar contour in millimeters, re-origined on its center tip. Its
+ * frame is the probe body's own fixed frame, which no coordinate system
+ * changes: the experiment's local coordinate system only orients that frame in
+ * space.
+ */
 export interface ProbeContour {
-  /** Contour points in probe-local mm: x across the shanks, y up from the tip. */
+  /**
+   * Contour points in the probe body's own mm: x across the shanks, y up the
+   * shanks away from the tip.
+   */
   points: { x: number; y: number }[];
   /** Full x extent of the contour, in mm. */
   widthMillimeters: number;

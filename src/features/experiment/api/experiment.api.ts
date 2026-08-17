@@ -8,6 +8,7 @@ import {
   buildCameraPose,
   getAtlasFramingRadiusMillimeters
 } from "./camera-pose.api";
+import { buildInitialReferenceCoordinate } from "./reference-coordinate.api";
 import type { VisibleStructure } from "../models/visible-structure.model";
 import type { Experiment } from "../models/experiment.model";
 import type { Probe, ProbeInterfaceProbe } from "@/features/probe";
@@ -17,6 +18,15 @@ import {
   detachProbeInterfaceProbes,
   getProbeInterfaceIdentifier
 } from "@/features/probe";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  convertCoordinate,
+  convertMagnitudes,
+  convertRotation,
+  getAxisDirections,
+  type GlobalCoordinateSystem,
+  type LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
 
 /**
  * Build the visible-structure entries an experiment starts with: every default
@@ -30,16 +40,21 @@ export function buildDefaultVisibleStructures(
 }
 
 /**
- * Returns a new experiment with the given name, atlas, and reference coordinate,
- * seeded with the atlas's default structures as transparent.
+ * Returns a new experiment with the given name, atlas, coordinate systems, and
+ * reference coordinate, seeded with the atlas's default structures as
+ * transparent.
  * @param name Experiment name.
  * @param atlas Full atlas object.
- * @param referenceCoordinate Reference coordinate of atlas (in ASR, mm).
+ * @param globalCoordinateSystem Coordinate system the experiment's coordinates are in.
+ * @param localCoordinateSystem Orientation the experiment's probes rest in.
+ * @param referenceCoordinate Reference coordinate, in global coordinate system mm.
  * @param defaultStructureIdentifiers Identifiers of the atlas's default structures.
  */
 export function buildExperiment(
   name: string,
   atlas: Atlas,
+  globalCoordinateSystem: GlobalCoordinateSystem,
+  localCoordinateSystem: LocalCoordinateSystem,
   referenceCoordinate: [number, number, number],
   defaultStructureIdentifiers: number[] = []
 ): Experiment {
@@ -50,6 +65,8 @@ export function buildExperiment(
     author: null,
     name,
     atlas,
+    globalCoordinateSystem,
+    localCoordinateSystem,
     referenceCoordinate,
     visibleStructures: buildDefaultVisibleStructures(
       defaultStructureIdentifiers
@@ -58,9 +75,59 @@ export function buildExperiment(
     coordinateSystems: {},
     probes: [],
     sceneObjects: [],
-    cameraPose: buildCameraPose(atlas),
+    cameraPose: buildCameraPose(atlas, globalCoordinateSystem),
     cameraPoses: []
   };
+}
+
+/**
+ * Re-express every coordinate an experiment holds in a new global coordinate
+ * system, in place, so its geometry stays where it is while its numbers change.
+ * Transform chains are left alone: their axes follow the probes' local
+ * coordinate system, not this one.
+ * @param experiment Experiment to re-express, mutated in place.
+ * @param globalCoordinateSystem Coordinate system to express coordinates in.
+ */
+export function setExperimentGlobalCoordinateSystem(
+  experiment: Experiment,
+  globalCoordinateSystem: GlobalCoordinateSystem
+): void {
+  const from = getAxisDirections(experiment.globalCoordinateSystem);
+  const to = getAxisDirections(globalCoordinateSystem);
+
+  experiment.referenceCoordinate = convertCoordinate(
+    from,
+    to,
+    experiment.referenceCoordinate
+  );
+  for (const probe of experiment.probes) {
+    probe.tipPosition = convertCoordinate(from, to, probe.tipPosition);
+    probe.rotation = convertRotation(from, to, probe.rotation);
+  }
+  for (const sceneObject of experiment.sceneObjects) {
+    sceneObject.position = convertCoordinate(from, to, sceneObject.position);
+    sceneObject.rotation = convertRotation(from, to, sceneObject.rotation);
+    sceneObject.scale = convertMagnitudes(from, to, sceneObject.scale);
+  }
+  for (const cameraPose of [experiment.cameraPose, ...experiment.cameraPoses]) {
+    cameraPose.target = convertCoordinate(from, to, cameraPose.target);
+  }
+
+  experiment.globalCoordinateSystem = globalCoordinateSystem;
+}
+
+/**
+ * Point an experiment's probes at a new resting orientation, in place. Probe
+ * poses are relative to it, so every probe reorients; that is the point of the
+ * setting.
+ * @param experiment Experiment to update, mutated in place.
+ * @param localCoordinateSystem Orientation the experiment's probes rest in.
+ */
+export function setExperimentLocalCoordinateSystem(
+  experiment: Experiment,
+  localCoordinateSystem: LocalCoordinateSystem
+): void {
+  experiment.localCoordinateSystem = localCoordinateSystem;
 }
 
 /**
@@ -78,22 +145,20 @@ export function cloneExperiment(experiment: Experiment): Experiment {
  * Commit edited properties onto an experiment in place, re-seeding the shown
  * structures when the atlas changed since their identifiers are atlas-specific,
  * and, on an atlas change, rebasing probes/scene objects/camera target onto the
- * new atlas origin and re-framing the camera for the new atlas.
+ * new atlas origin, re-framing the camera for the new atlas, and re-seeding the
+ * reference coordinate, which is a landmark in the outgoing atlas's space.
  * @param experiment Experiment to update.
- * @param properties Name, atlas, reference coordinate, and default structure
- * identifiers to commit.
+ * @param properties Name, atlas, and default structure identifiers to commit.
  */
 export function setExperimentProperties(
   experiment: Experiment,
   properties: {
     name: string;
     atlas: Atlas;
-    referenceCoordinate: [number, number, number];
     defaultStructureIdentifiers: number[];
   }
 ) {
-  const { name, atlas, referenceCoordinate, defaultStructureIdentifiers } =
-    properties;
+  const { name, atlas, defaultStructureIdentifiers } = properties;
   const isNewAtlas = !isSameAtlas(atlas, experiment.atlas);
   const previousCenter = getAtlasCenter(experiment.atlas);
 
@@ -102,12 +167,15 @@ export function setExperimentProperties(
   }
 
   experiment.name = name.trim();
-  experiment.referenceCoordinate = [...referenceCoordinate];
   experiment.atlas = { ...atlas };
 
   if (isNewAtlas) {
     rebaseOntoAtlasOrigin(experiment, previousCenter, getAtlasCenter(atlas));
     experiment.cameraPose.radius = getAtlasFramingRadiusMillimeters(atlas);
+    experiment.referenceCoordinate = buildInitialReferenceCoordinate(
+      atlas,
+      experiment.globalCoordinateSystem
+    );
   }
 }
 
@@ -117,19 +185,23 @@ export function setExperimentProperties(
  * camera poses are deliberately left alone: they are user-set snapshots and
  * keep the exact values they were saved with.
  * @param experiment Experiment to rebase, mutated in place.
- * @param previousCenter Center of the outgoing atlas, in its own ASR mm.
- * @param center Center of the incoming atlas, in its own ASR mm.
+ * @param previousCenter Center of the outgoing atlas, in its own millimeters.
+ * @param center Center of the incoming atlas, in its own millimeters.
  */
 function rebaseOntoAtlasOrigin(
   experiment: Experiment,
   previousCenter: [number, number, number],
   center: [number, number, number]
 ) {
-  const offset: [number, number, number] = [
-    center[0] - previousCenter[0],
-    center[1] - previousCenter[1],
-    center[2] - previousCenter[2]
-  ];
+  const offset = convertCoordinate(
+    ATLAS_AXIS_DIRECTIONS,
+    getAxisDirections(experiment.globalCoordinateSystem),
+    [
+      center[0] - previousCenter[0],
+      center[1] - previousCenter[1],
+      center[2] - previousCenter[2]
+    ]
+  );
   for (const probe of experiment.probes) {
     probe.tipPosition = shiftTriple(probe.tipPosition, offset);
   }

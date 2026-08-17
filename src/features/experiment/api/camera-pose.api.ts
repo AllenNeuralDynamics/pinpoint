@@ -4,6 +4,13 @@ import {
   getAtlasDimensionsMillimeters
 } from "@/features/atlas";
 import type { CameraPose } from "../models/camera-pose.model";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  convertCoordinate,
+  getAxisDirections,
+  getLineAxisIndex,
+  type GlobalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import { isFiniteNumber, isFiniteTriple, isRecord } from "@/utils/type-guards";
 
 /** Initial orbit azimuth of a camera pose, in radians. */
@@ -16,20 +23,29 @@ const INITIAL_BETA = Math.PI / 8;
 const RADIUS_AP_MULTIPLIER = 1.5;
 
 /**
- * Camera radius that frames an atlas's full AP extent, in mm.
+ * Camera radius that frames an atlas's full anterior-posterior extent, in mm.
+ * The extent is read off the atlas's own posterior-anterior axis, which is
+ * fixed by the atlas, rather than off a fixed index of a user-orderable triple.
  * @param atlas Atlas to frame.
  */
 export function getAtlasFramingRadiusMillimeters(atlas: Atlas): number {
+  const apIndex = getLineAxisIndex(ATLAS_AXIS_DIRECTIONS, "posteriorAnterior");
+
   return (
-    Math.max(getAtlasDimensionsMillimeters(atlas)[0], 0) * RADIUS_AP_MULTIPLIER
+    Math.max(getAtlasDimensionsMillimeters(atlas)[apIndex], 0) *
+    RADIUS_AP_MULTIPLIER
   );
 }
 
 /**
  * Build an experiment's live camera pose: the default orbit, framed on the atlas.
  * @param atlas Atlas to frame the pose on.
+ * @param globalCoordinateSystem Coordinate system the pose's target is expressed in.
  */
-export function buildCameraPose(atlas: Atlas): CameraPose {
+export function buildCameraPose(
+  atlas: Atlas,
+  globalCoordinateSystem: GlobalCoordinateSystem
+): CameraPose {
   const pose: CameraPose = {
     inspectableKind: "camera",
     id: crypto.randomUUID(),
@@ -39,7 +55,7 @@ export function buildCameraPose(atlas: Atlas): CameraPose {
     radius: 0,
     target: [0, 0, 0]
   };
-  resetCameraPose(pose, atlas);
+  resetCameraPose(pose, atlas, globalCoordinateSystem);
   return pose;
 }
 
@@ -47,12 +63,21 @@ export function buildCameraPose(atlas: Atlas): CameraPose {
  * Reset a camera pose to an atlas's default view: the initial orbit angles, framed on the atlas.
  * @param pose Camera pose to reset in place.
  * @param atlas Atlas to frame the pose on.
+ * @param globalCoordinateSystem Coordinate system the pose's target is expressed in.
  */
-export function resetCameraPose(pose: CameraPose, atlas: Atlas): void {
+export function resetCameraPose(
+  pose: CameraPose,
+  atlas: Atlas,
+  globalCoordinateSystem: GlobalCoordinateSystem
+): void {
   pose.alpha = INITIAL_ALPHA;
   pose.beta = INITIAL_BETA;
   pose.radius = getAtlasFramingRadiusMillimeters(atlas);
-  pose.target = getAtlasCenter(atlas);
+  pose.target = convertCoordinate(
+    ATLAS_AXIS_DIRECTIONS,
+    getAxisDirections(globalCoordinateSystem),
+    getAtlasCenter(atlas)
+  );
 }
 
 /**
@@ -73,7 +98,7 @@ export function copyCameraPose(pose: CameraPose, name: string): CameraPose {
  * Write an orbit and target onto a camera pose in place, keeping its id and name.
  * @param pose Camera pose to update.
  * @param orbit Alpha/beta in radians and radius in mm.
- * @param target Point the camera orbits, in atlas ASR mm.
+ * @param target Point the camera orbits, in the experiment's global coordinate system mm.
  */
 export function setCameraPose(
   pose: CameraPose,

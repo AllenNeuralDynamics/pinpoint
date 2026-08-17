@@ -8,8 +8,16 @@ import {
   disposeProbeSurfacePaths,
   getProbeSurfacePathKind
 } from "./probe-surface-path.api";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import { toSceneVector } from "./coordinate-transforms.api";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 import { buildAtlasRootNode } from "./structures.api";
+
+/** Global system the choice's coordinates are expressed in, matching a new experiment's. */
+const GLOBAL_DIRECTIONS: AxisDirections = [
+  "Left_to_right",
+  "Posterior_to_anterior",
+  "Inferior_to_superior"
+];
 
 function makeChoice(
   overrides: Partial<ProbeSurfaceChoice> = {}
@@ -19,7 +27,7 @@ function makeChoice(
     tipPosition: [5, 3, 5],
     rotation: [0, 0, 0],
     axisTargetMillimeters: [5.1, 3.2, 5],
-    dorsoventralTargetMillimeters: [5, 3.5, 5],
+    inferiorTargetMillimeters: [5, 3.5, 5],
     ...overrides
   };
 }
@@ -28,26 +36,24 @@ describe("buildProbeSurfacePaths", () => {
   it("creates exactly two tubes, parented to the atlas root, colored by kind", () => {
     const scene = makeTestScene();
 
-    buildProbeSurfacePaths(scene, makeChoice());
+    buildProbeSurfacePaths(scene, makeChoice(), GLOBAL_DIRECTIONS);
 
     const atlasRoot = buildAtlasRootNode(scene);
     const axisMesh = scene.getMeshByName("probeSurfacePath_axis");
-    const dorsoventralMesh = scene.getMeshByName(
-      "probeSurfacePath_dorsoventral"
-    );
+    const inferiorMesh = scene.getMeshByName("probeSurfacePath_inferior");
 
     expect(axisMesh).toBeTruthy();
-    expect(dorsoventralMesh).toBeTruthy();
+    expect(inferiorMesh).toBeTruthy();
     expect(axisMesh!.parent).toBe(atlasRoot);
-    expect(dorsoventralMesh!.parent).toBe(atlasRoot);
+    expect(inferiorMesh!.parent).toBe(atlasRoot);
     expect(
       scene.meshes.filter(mesh => mesh.name.startsWith("probeSurfacePath_"))
     ).toHaveLength(4);
 
     const axisMaterial = axisMesh!.material as StandardMaterial;
-    const dorsoventralMaterial = dorsoventralMesh!.material as StandardMaterial;
+    const inferiorMaterial = inferiorMesh!.material as StandardMaterial;
     expect(axisMaterial.emissiveColor).toEqual(Color3.FromHexString("#2196f3"));
-    expect(dorsoventralMaterial.emissiveColor).toEqual(
+    expect(inferiorMaterial.emissiveColor).toEqual(
       Color3.FromHexString("#4caf50")
     );
   });
@@ -55,8 +61,12 @@ describe("buildProbeSurfacePaths", () => {
   it("replaces rather than duplicates the tubes on a second call", () => {
     const scene = makeTestScene();
 
-    buildProbeSurfacePaths(scene, makeChoice());
-    buildProbeSurfacePaths(scene, makeChoice({ tipPosition: [1, 2, 3] }));
+    buildProbeSurfacePaths(scene, makeChoice(), GLOBAL_DIRECTIONS);
+    buildProbeSurfacePaths(
+      scene,
+      makeChoice({ tipPosition: [1, 2, 3] }),
+      GLOBAL_DIRECTIONS
+    );
 
     expect(
       scene.meshes.filter(mesh => mesh.name.startsWith("probeSurfacePath_"))
@@ -66,36 +76,37 @@ describe("buildProbeSurfacePaths", () => {
   it("adds a directional arrowhead cone to each tube, parented to and sharing the tube's material", () => {
     const scene = makeTestScene();
 
-    buildProbeSurfacePaths(scene, makeChoice());
+    buildProbeSurfacePaths(scene, makeChoice(), GLOBAL_DIRECTIONS);
 
     const axisTube = scene.getMeshByName("probeSurfacePath_axis")!;
     const axisArrowhead = scene.getMeshByName(
       "probeSurfacePath_axis_arrowhead"
     );
-    const dorsoventralTube = scene.getMeshByName(
-      "probeSurfacePath_dorsoventral"
-    )!;
-    const dorsoventralArrowhead = scene.getMeshByName(
-      "probeSurfacePath_dorsoventral_arrowhead"
+    const inferiorTube = scene.getMeshByName("probeSurfacePath_inferior")!;
+    const inferiorArrowhead = scene.getMeshByName(
+      "probeSurfacePath_inferior_arrowhead"
     );
 
     expect(axisArrowhead).toBeTruthy();
-    expect(dorsoventralArrowhead).toBeTruthy();
+    expect(inferiorArrowhead).toBeTruthy();
     expect(axisArrowhead!.parent).toBe(axisTube);
-    expect(dorsoventralArrowhead!.parent).toBe(dorsoventralTube);
+    expect(inferiorArrowhead!.parent).toBe(inferiorTube);
     expect(axisArrowhead!.material).toBe(axisTube.material);
-    expect(dorsoventralArrowhead!.material).toBe(dorsoventralTube.material);
+    expect(inferiorArrowhead!.material).toBe(inferiorTube.material);
   });
 
   it("positions the arrowhead cone past the target, pointing along the tip-to-target direction", () => {
     const scene = makeTestScene();
     const choice = makeChoice();
 
-    buildProbeSurfacePaths(scene, choice);
+    buildProbeSurfacePaths(scene, choice, GLOBAL_DIRECTIONS);
 
     const arrowhead = scene.getMeshByName("probeSurfacePath_axis_arrowhead")!;
-    const tip = asrToVector3(choice.tipPosition);
-    const target = asrToVector3(choice.axisTargetMillimeters);
+    const tip = toSceneVector(GLOBAL_DIRECTIONS, choice.tipPosition);
+    const target = toSceneVector(
+      GLOBAL_DIRECTIONS,
+      choice.axisTargetMillimeters
+    );
     const direction = target.subtract(tip).normalize();
     const expectedPosition = target.add(direction.scale(0.375));
 
@@ -116,7 +127,8 @@ describe("buildProbeSurfacePaths", () => {
 
     buildProbeSurfacePaths(
       scene,
-      makeChoice({ axisTargetMillimeters: [5, 3, 5] })
+      makeChoice({ axisTargetMillimeters: [5, 3, 5] }),
+      GLOBAL_DIRECTIONS
     );
 
     expect(scene.getMeshByName("probeSurfacePath_axis")).toBeTruthy();
@@ -127,21 +139,21 @@ describe("buildProbeSurfacePaths", () => {
 describe("disposeProbeSurfacePaths", () => {
   it("removes both meshes and both materials", () => {
     const scene = makeTestScene();
-    buildProbeSurfacePaths(scene, makeChoice());
+    buildProbeSurfacePaths(scene, makeChoice(), GLOBAL_DIRECTIONS);
 
     disposeProbeSurfacePaths(scene);
 
     expect(scene.getMeshByName("probeSurfacePath_axis")).toBeNull();
-    expect(scene.getMeshByName("probeSurfacePath_dorsoventral")).toBeNull();
+    expect(scene.getMeshByName("probeSurfacePath_inferior")).toBeNull();
     expect(scene.getMeshByName("probeSurfacePath_axis_arrowhead")).toBeNull();
     expect(
-      scene.getMeshByName("probeSurfacePath_dorsoventral_arrowhead")
+      scene.getMeshByName("probeSurfacePath_inferior_arrowhead")
     ).toBeNull();
     expect(
       scene.getMaterialByName("probeSurfacePath_axis_material")
     ).toBeNull();
     expect(
-      scene.getMaterialByName("probeSurfacePath_dorsoventral_material")
+      scene.getMaterialByName("probeSurfacePath_inferior_material")
     ).toBeNull();
   });
 
@@ -155,9 +167,9 @@ describe("disposeProbeSurfacePaths", () => {
 describe("getProbeSurfacePathKind", () => {
   it.each([
     ["probeSurfacePath_axis", "axis"],
-    ["probeSurfacePath_dorsoventral", "dorsoventral"],
+    ["probeSurfacePath_inferior", "inferior"],
     ["probeSurfacePath_axis_arrowhead", "axis"],
-    ["probeSurfacePath_dorsoventral_arrowhead", "dorsoventral"]
+    ["probeSurfacePath_inferior_arrowhead", "inferior"]
   ] as const)("maps %s to %s", (name, kind) => {
     expect(getProbeSurfacePathKind(name)).toBe(kind);
   });

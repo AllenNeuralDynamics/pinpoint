@@ -11,10 +11,28 @@ import {
 } from "@babylonjs/core";
 import {
   type CoordinateSystem,
-  getCoordinateSystemAxisValue
+  getCoordinateSystemAxisValue,
+  SOLVER_AXIS_DIRECTIONS
 } from "@/features/coordinate-system";
 import type { ProbeContour } from "@/features/probe";
-import { asrToVector3 } from "./coordinate-transforms.api";
+import type {
+  AxisDirections,
+  LocalCoordinateSystem,
+  Matrix3
+} from "@/utils/coordinate-frame";
+import {
+  getChainRestRotation,
+  getOrientationFromFrame,
+  getProbeRestRotation,
+  multiplyMatrices,
+  transposeMatrix
+} from "@/utils/coordinate-frame";
+import {
+  SCENE_AXIS_DIRECTIONS,
+  toSceneQuaternion,
+  toSceneVector
+} from "./coordinate-transforms.api";
+import { LOCAL_FRAME_AXIS_COLORS } from "./frame-axes.api";
 import { buildAtlasRootNode } from "./structures.api";
 import {
   buildHeadStageMesh,
@@ -25,12 +43,16 @@ import type { ProbeGeometry } from "../models/probe-geometry.model";
 
 /** Name of the node the whole chain visualization hangs off. */
 const GIMBAL_ROOT_NODE_NAME = "coordinateSystemGimbalRoot_node";
+/** Name of the node carrying the probe's resting chain orientation, which the chain hangs off. */
+const GIMBAL_REST_NODE_NAME = "coordinateSystemGimbalRest_node";
 /** Prefix of a chain node's gimbal node and its own meshes; the segment after it is the chain index. */
 const GIMBAL_NAME_PREFIX = "coordinateSystemGimbal_";
 /** Prefix of a chain node's link arrow meshes; the segment after it is the chain index. */
 const GIMBAL_LINK_NAME_PREFIX = "coordinateSystemGimbalLink_";
 /** Name of the atlas-origin-to-reference-coordinate arrow's shaft. */
 const GIMBAL_REFERENCE_MESH_NAME = "coordinateSystemGimbalReference_mesh";
+/** Name of the node carrying the chain-tip probe marker's resting orientation. */
+const GIMBAL_POSE_NODE_NAME = "coordinateSystemGimbalPose_node";
 /** Name of the probe-shank arrow's shaft, at the end of the chain. */
 const GIMBAL_POSE_MESH_NAME = "coordinateSystemGimbalPose_mesh";
 /** Suffix naming an arrow's cone head; the shaft carries the bare arrow name. */
@@ -62,12 +84,6 @@ export const GIMBAL_AXIS_DIRECTIONS: [Vector3, Vector3, Vector3] = [
   Vector3.Right(),
   Vector3.Up(),
   new Vector3(0, 0, 1)
-];
-/** Axis colours, indexed by Babylon axis: X red, Y green, Z blue — Quasar's `red`/`green`/`blue`, matching the inspector's axis toggles. */
-export const GIMBAL_AXIS_COLORS: [Color3, Color3, Color3] = [
-  Color3.FromHexString("#f44336"),
-  Color3.FromHexString("#4caf50"),
-  Color3.FromHexString("#2196f3")
 ];
 /** Names of the three axis cylinder materials, indexed by Babylon axis. */
 const GIMBAL_AXIS_MATERIAL_NAMES: [string, string, string] = [
@@ -120,7 +136,9 @@ const GIMBAL_POSE_HEAD_STAGE_TEMPLATE_MESH_NAME =
  * @param scene Scene to build the gimbals in.
  * @param selectionOutlineLayer Selection outline layer the focused node's gimbal is added to.
  * @param coordinateSystem Coordinate system to visualize, or null to strip the visualization.
- * @param referenceCoordinateMillimeters Experiment reference coordinate, in atlas ASR mm.
+ * @param referenceCoordinateMillimeters Experiment reference coordinate, in global coordinate system mm.
+ * @param globalDirections Axis directions the reference coordinate is expressed in.
+ * @param localCoordinateSystem Orientation the probe, and so the chain, rests in.
  * @param atlasScaleMillimeters Atlas's longest dimension in mm, sizing every gimbal part.
  * @param focusedNodeIndex Chain index whose gimbal is outlined, or null for none.
  * @param probeGeometry Probe body geometry the chain-tip probe marker is sized from.
@@ -130,6 +148,8 @@ export function syncCoordinateSystemGimbals(
   selectionOutlineLayer: SelectionOutlineLayer,
   coordinateSystem: CoordinateSystem | null,
   referenceCoordinateMillimeters: [number, number, number],
+  globalDirections: AxisDirections,
+  localCoordinateSystem: LocalCoordinateSystem,
   atlasScaleMillimeters: number,
   focusedNodeIndex: number | null,
   probeGeometry: ProbeGeometry
@@ -151,7 +171,10 @@ export function syncCoordinateSystemGimbals(
   const axisLength = getCoordinateSystemGimbalAxisLength(atlasScaleMillimeters);
 
   if (coordinateSystem.offsetByReferenceCoordinate) {
-    root.position = asrToVector3(referenceCoordinateMillimeters);
+    root.position = toSceneVector(
+      globalDirections,
+      referenceCoordinateMillimeters
+    );
     buildGimbalArrow(
       scene,
       root,
@@ -169,27 +192,35 @@ export function syncCoordinateSystemGimbals(
     root.position = Vector3.Zero();
   }
 
+  // The solver starts its frame from the probe's resting chain orientation
+  // without rotating the reference offset by it, so that orientation is its own
+  // node under the translated root rather than a rotation on the root itself.
+  const rest = new TransformNode(GIMBAL_REST_NODE_NAME, scene);
+  rest.parent = root;
+  rest.rotationQuaternion = toSceneQuaternion(
+    getChainRestRotation(localCoordinateSystem)
+  );
+
   const neutralMaterial = buildGimbalMaterial(
     scene,
     GIMBAL_NEUTRAL_MATERIAL_NAME,
     GIMBAL_NEUTRAL_COLOR
   );
+  // A chain is a probe-local visualization, so its axes borrow the local
+  // frame's palette rather than speaking a third colour language beside the
+  // transform gizmos and the axis guides.
   const axisMaterials = GIMBAL_AXIS_MATERIAL_NAMES.map((name, index) =>
-    buildGimbalMaterial(scene, name, GIMBAL_AXIS_COLORS[index]!)
+    buildGimbalMaterial(scene, name, LOCAL_FRAME_AXIS_COLORS[index]!)
   );
 
-  let parent: TransformNode = root;
+  let parent: TransformNode = rest;
   for (const [index, node] of coordinateSystem.chain.entries()) {
-    const position = new Vector3(
+    // A chain's own axes are the solver's, so its triples are scene triples.
+    const position = toSceneVector(SOLVER_AXIS_DIRECTIONS, [
       getCoordinateSystemAxisValue(node, "position", 0),
       getCoordinateSystemAxisValue(node, "position", 1),
       getCoordinateSystemAxisValue(node, "position", 2)
-    );
-    const rotation = new Vector3(
-      getCoordinateSystemAxisValue(node, "rotation", 0),
-      getCoordinateSystemAxisValue(node, "rotation", 1),
-      getCoordinateSystemAxisValue(node, "rotation", 2)
-    );
+    ]);
 
     // The chain's translation is expressed in the parent's frame, so this
     // segment is straight in `parent`'s local space.
@@ -211,7 +242,13 @@ export function syncCoordinateSystemGimbals(
     );
     gimbal.parent = parent;
     gimbal.position = position;
-    gimbal.rotation = rotation;
+    // Mirrors the solver's own `Matrix.RotationYawPitchRoll(y, x, z)`: value 0
+    // pitches about the node's x, 1 yaws about its y, and 2 rolls about its z.
+    gimbal.rotationQuaternion = Quaternion.RotationYawPitchRoll(
+      getCoordinateSystemAxisValue(node, "rotation", 1),
+      getCoordinateSystemAxisValue(node, "rotation", 0),
+      getCoordinateSystemAxisValue(node, "rotation", 2)
+    );
 
     const origin = MeshBuilder.CreateSphere(
       `${GIMBAL_NAME_PREFIX}${index}_origin_mesh`,
@@ -249,10 +286,11 @@ export function syncCoordinateSystemGimbals(
     parent = gimbal;
   }
 
-  // Lands on the last gimbal, or on `root` for an empty chain.
+  // Lands on the last gimbal, or on the rest node for an empty chain.
   buildGimbalPoseProbe(
     scene,
     parent,
+    localCoordinateSystem,
     probeGeometry,
     buildGimbalPoseMaterial(scene)
   );
@@ -371,34 +409,64 @@ function buildGimbalArrow(
 
 /**
  * Build the chain-tip probe marker: an NP1000 shank extruded from its planar contour plus the
- * head stage cone above it, tip on the parent's origin and body along its local +Z.
+ * head stage cone above it, resting on the chain's tip exactly as a real probe rests on its
+ * solved pose.
  * @param scene Scene to build the meshes in.
- * @param parent Node the marker's meshes are parented to.
+ * @param parent Node the marker hangs off, whose frame is the chain's tip.
+ * @param localCoordinateSystem Orientation the probe rests in.
  * @param geometry Probe body geometry the shank thickness and head stage are sized from.
  * @param material Lit material shared by the shank and the head stage.
  */
 function buildGimbalPoseProbe(
   scene: Scene,
   parent: TransformNode,
+  localCoordinateSystem: LocalCoordinateSystem,
   geometry: ProbeGeometry,
   material: StandardMaterial
 ): void {
+  const pose = new TransformNode(GIMBAL_POSE_NODE_NAME, scene);
+  pose.parent = parent;
+  pose.rotationQuaternion = toSceneQuaternion(
+    // A chain-relative orientation is already in the chain's own coordinates,
+    // and the chain's are the scene's, so undo the basis change
+    // `toSceneQuaternion` applies and keep only its row-major conversion.
+    getOrientationFromFrame(
+      SCENE_AXIS_DIRECTIONS,
+      getGimbalPoseRestRotation(localCoordinateSystem)
+    )
+  );
+
   const shank = buildShankMesh(
     scene,
     GIMBAL_POSE_CONTOUR,
     GIMBAL_POSE_MESH_NAME,
     geometry
   );
-  shank.parent = parent;
+  shank.parent = pose;
   shank.material = material;
 
   // Cloned, not rebuilt: the notch is a CSG2 subtract and this runs on every value edit.
   const headStage = buildGimbalPoseHeadStageTemplate(scene, geometry).clone(
     GIMBAL_POSE_HEAD_STAGE_MESH_NAME,
-    parent
+    pose
   );
   headStage.setEnabled(true);
   headStage.material = material;
+}
+
+/**
+ * Orientation the chain-tip probe marker's body takes in its parent chain node's
+ * own coordinates: the probe's rest orientation seen from the chain's, which is
+ * the same constant a real probe carries between its solved chain and its body.
+ * @param localCoordinateSystem Orientation the probe rests in.
+ */
+function getGimbalPoseRestRotation(
+  localCoordinateSystem: LocalCoordinateSystem
+): Matrix3 {
+  return multiplyMatrices(
+    transposeMatrix(getChainRestRotation(localCoordinateSystem)),
+    getProbeRestRotation(localCoordinateSystem)
+  );
 }
 
 /** Metadata on the cached head-stage template: the geometry its notch was cut for. */

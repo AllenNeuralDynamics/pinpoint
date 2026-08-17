@@ -5,12 +5,12 @@ export interface AnnotationLevel {
   /** Multiscale dataset path, e.g. `s0`. */
   path: string;
   array: ZarrArray<DataType, Readable>;
-  /** Voxel counts as [ap, dv, ml], matching the zarr [z, y, x] axis order. */
+  /** Voxel counts as [ap, si, ml], matching the zarr [z, y, x] axis order. */
   shapeVoxels: [number, number, number];
   chunkShapeVoxels: [number, number, number];
-  /** Per-axis voxel size in mm, as [ap, dv, ml]. Never a scalar - atlases are anisotropic. */
+  /** Per-axis voxel size in mm, as [ap, si, ml]. Never a scalar - atlases are anisotropic. */
   scaleMillimeters: [number, number, number];
-  /** Per-axis origin offset in mm, as [ap, dv, ml]. */
+  /** Per-axis origin offset in mm, as [ap, si, ml]. */
   translationMillimeters: [number, number, number];
 }
 

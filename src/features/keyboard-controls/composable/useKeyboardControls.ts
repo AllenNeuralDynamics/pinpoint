@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { useEventListener } from "@vueuse/core";
 import { isEditableTarget } from "@/utils/type-guards";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import {
   applyKeyboardControlAction,
   DEFAULT_KEYBOARD_CONTROL_STEP_INDEX,
@@ -32,6 +33,7 @@ export function useKeyboardControls(
   getProbe: () => Probe | null,
   getKind: () => KeyboardControlKind | null
 ): KeyboardControls {
+  const currentExperiment = useCurrentExperimentStore();
   const isActive = ref(false);
   const stepIndex = ref(DEFAULT_KEYBOARD_CONTROL_STEP_INDEX);
 
@@ -63,7 +65,12 @@ export function useKeyboardControls(
 
     isActive.value = true;
     event.preventDefault();
-    applyKeyboardControlAction(probe, action, step.value);
+    applyKeyboardControlAction(
+      probe,
+      currentExperiment.axisDirections,
+      action,
+      step.value
+    );
   }
 
   useEventListener(window, "keydown", onKeyDown);

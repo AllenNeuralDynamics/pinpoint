@@ -1,12 +1,15 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, ref, toRaw, watch } from "vue";
 import { computedAsync, useRefHistory } from "@vueuse/core";
 import { i18n } from "@/services/i18n.service";
 import {
-  ALLEN_MOUSE_REFERENCE_COORDINATE,
   buildExperiment,
+  buildInitialReferenceCoordinate,
   cloneExperiment,
   type Experiment,
+  isExperiment,
+  setExperimentGlobalCoordinateSystem,
+  setExperimentLocalCoordinateSystem,
   updateInternedCoordinateSystem
 } from "@/features/experiment";
 import {
@@ -26,6 +29,14 @@ import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
 import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
+import { usePreferencesStore } from "@/stores/preferences.store";
+import {
+  getAxisDirections,
+  type AxisDirections,
+  type GlobalCoordinateSystem,
+  type LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import { isRecord } from "@/utils/type-guards";
 
 /** Store actions reachable through the hydration hook's untyped `context.store`. */
 interface HydratedCurrentExperimentStore {
@@ -37,20 +48,36 @@ export const useCurrentExperimentStore = defineStore(
   () => {
     const recentExperimentsStore = useRecentExperimentsStore();
     const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
+    const preferencesStore = usePreferencesStore();
 
     /**
      * Current experiment instance.
      */
-    const experiment = ref<Experiment>(
-      buildExperiment(
+    const experiment = ref<Experiment>(buildInitialExperiment());
+
+    /**
+     * Build the experiment the app opens with, in the coordinate systems new
+     * scenes start in.
+     */
+    function buildInitialExperiment(): Experiment {
+      const atlas = structuredClone(DEFAULT_ATLAS);
+      const globalCoordinateSystem = structuredClone(
+        toRaw(preferencesStore.newSceneGlobalCoordinateSystem)
+      );
+      const localCoordinateSystem = structuredClone(
+        toRaw(preferencesStore.newSceneLocalCoordinateSystem)
+      );
+      return buildExperiment(
         i18n.global.t("currentExperiment.defaultName"),
-        structuredClone(DEFAULT_ATLAS),
-        [...ALLEN_MOUSE_REFERENCE_COORDINATE],
+        atlas,
+        globalCoordinateSystem,
+        localCoordinateSystem,
+        buildInitialReferenceCoordinate(atlas, globalCoordinateSystem),
         // `allen_mouse` has a known default-structure list, so no terminology
         // rows are needed to resolve it.
         getDefaultStructureIdentifiers(DEFAULT_ATLAS.name, [])
-      )
-    );
+      );
+    }
 
     /** Currently selected inspectable, or null if nothing is selected. */
     const selectedInspectable = ref<Inspectable | null>(null);
@@ -160,6 +187,56 @@ export const useCurrentExperimentStore = defineStore(
     const referenceCoordinate = computed(
       () => experiment.value.referenceCoordinate
     );
+
+    /**
+     * Coordinate system this experiment's coordinates are expressed in.
+     */
+    const globalCoordinateSystem = computed(
+      () => experiment.value.globalCoordinateSystem
+    );
+
+    /**
+     * Directions of the current coordinate system's axes, which every
+     * conversion into atlas or scene space takes.
+     */
+    const axisDirections = computed<AxisDirections>(() =>
+      getAxisDirections(experiment.value.globalCoordinateSystem)
+    );
+
+    /**
+     * Orientation this experiment's probes rest in before their own transforms.
+     */
+    const localCoordinateSystem = computed(
+      () => experiment.value.localCoordinateSystem
+    );
+
+    /**
+     * Re-express the experiment in another coordinate system, keeping its
+     * geometry in place, and retain it for new scenes when asked to.
+     * @param system Coordinate system to express coordinates in.
+     */
+    function setGlobalCoordinateSystem(system: GlobalCoordinateSystem): void {
+      setExperimentGlobalCoordinateSystem(experiment.value, system);
+      if (preferencesStore.areCoordinateSystemsRetained) {
+        preferencesStore.newSceneGlobalCoordinateSystem = structuredClone(
+          toRaw(system)
+        );
+      }
+    }
+
+    /**
+     * Point the experiment's probes at another resting orientation, and retain
+     * it for new scenes when asked to.
+     * @param system Orientation the experiment's probes rest in.
+     */
+    function setLocalCoordinateSystem(system: LocalCoordinateSystem): void {
+      setExperimentLocalCoordinateSystem(experiment.value, system);
+      if (preferencesStore.areCoordinateSystemsRetained) {
+        preferencesStore.newSceneLocalCoordinateSystem = structuredClone(
+          toRaw(system)
+        );
+      }
+    }
 
     /**
      * List of structure identifiers actively being shown in the atlas.
@@ -349,6 +426,9 @@ export const useCurrentExperimentStore = defineStore(
       atlas,
       terminologyRows,
       referenceCoordinate,
+      globalCoordinateSystem,
+      localCoordinateSystem,
+      axisDirections,
       visibleStructures,
       probeInterfaceProbes,
       coordinateSystems,
@@ -361,6 +441,8 @@ export const useCurrentExperimentStore = defineStore(
     };
     const actions = {
       isInspectableSelected,
+      setGlobalCoordinateSystem,
+      setLocalCoordinateSystem,
       loadExperiment,
       undo,
       redo,
@@ -374,6 +456,20 @@ export const useCurrentExperimentStore = defineStore(
   {
     persist: {
       pick: ["experiment"],
+
+      // Hydration deep-merges the stored payload into the store's defaults, so a
+      // scene written by an incompatible build would silently pick up default
+      // coordinate systems and have its geometry reinterpreted in them. Reject
+      // such a payload outright and keep the fresh scene instead.
+      serializer: {
+        serialize: JSON.stringify,
+        deserialize: (value: string) => {
+          const stored: unknown = JSON.parse(value);
+          if (isRecord(stored) && isExperiment(stored.experiment))
+            return stored;
+          return {};
+        }
+      },
 
       // Re-mark probe interface definitions as raw to prevent tracking.
       afterHydrate: context => {

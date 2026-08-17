@@ -28,9 +28,14 @@ import {
   solveCoordinateSystemChainInverse
 } from "@/features/coordinate-system";
 import type { InverseKinematicsSolveRequest } from "@/features/coordinate-system";
+import {
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections
+} from "@/utils/coordinate-frame";
+import type { AxisDirections } from "@/utils/coordinate-frame";
 import { getTerminologyRows } from "@/features/atlas";
 import {
-  ALLEN_MOUSE_REFERENCE_COORDINATE,
   internProbeInterfaceProbe,
   setProbeCoordinateSystem
 } from "@/features/experiment";
@@ -48,6 +53,14 @@ import enUS from "@/i18n/en-US";
 const t = enUS.probeInspector;
 const axis = enUS.axis;
 const validation = enUS.validation;
+
+/** Directions of the default RAS global coordinate system every experiment here uses. */
+const GLOBAL_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
+
+/** Default probe rest: depth posterior, electrodes facing superior. */
+const LOCAL = buildDefaultLocalCoordinateSystem();
 
 /** Injected Babylon runtime, so `useModelFileImport` can read `engine.value`. */
 const babylonRuntimeProvide = {
@@ -137,17 +150,27 @@ vi.mock(
   () => ({
     useInverseKinematicsSolver: () => ({
       solve: (request: InverseKinematicsSolveRequest) => {
-        const { chain, target, referenceOffsetMillimeters, maximumStarts } =
-          structuredClone(request);
+        const {
+          chain,
+          target,
+          referenceOffsetMillimeters,
+          globalDirections,
+          localCoordinateSystem,
+          maximumStarts
+        } = structuredClone(request);
         const status = solveCoordinateSystemChainInverse(
           chain,
           target,
           referenceOffsetMillimeters,
+          globalDirections,
+          localCoordinateSystem,
           maximumStarts
         );
         const solution = solveCoordinateSystemChain(
           chain,
-          referenceOffsetMillimeters
+          referenceOffsetMillimeters,
+          globalDirections,
+          localCoordinateSystem
         );
         return Promise.resolve({ status, chain, solution });
       }
@@ -197,7 +220,7 @@ function findTargetsCrossingBrain(
   return vi.fn().mockResolvedValue({
     insideMillimeters,
     axisMillimeters: null,
-    dorsoventralMillimeters: null
+    inferiorMillimeters: null
   } satisfies ProbeSurfaceTargets);
 }
 
@@ -206,7 +229,7 @@ function findTargetsMissingBrain() {
   return vi.fn().mockResolvedValue({
     insideMillimeters: null,
     axisMillimeters: [1, 2, 3],
-    dorsoventralMillimeters: null
+    inferiorMillimeters: null
   } satisfies ProbeSurfaceTargets);
 }
 
@@ -251,6 +274,30 @@ async function editAndEnter(field: VueWrapper, value: string) {
   await native.trigger("focusin");
   await native.setValue(value);
   await native.trigger("keyup", { key: "Enter" });
+}
+
+/** A single all-adjustable node, which the inspector mirrors the probe's pose into directly. */
+function buildDirectChain() {
+  return makeCoordinateSystem({
+    id: "direct-tip",
+    name: "Direct Tip",
+    offsetByReferenceCoordinate: false,
+    chain: [
+      buildCoordinateSystemNode(
+        "Tip",
+        [
+          buildCoordinateSystemValue("X"),
+          buildCoordinateSystemValue("Y"),
+          buildCoordinateSystemValue("Z")
+        ],
+        [
+          buildCoordinateSystemValue("Pitch"),
+          buildCoordinateSystemValue("Yaw"),
+          buildCoordinateSystemValue("Roll")
+        ]
+      )
+    ]
+  });
 }
 
 describe("ProbeInspector", () => {
@@ -370,7 +417,7 @@ describe("ProbeInspector", () => {
   });
 
   it("rejects a non-numeric value in a numeric field", async () => {
-    const { wrapper } = mountInspector();
+    const { wrapper, store } = mountInspector();
 
     const field = fieldByLabel(wrapper, axis.ml);
     await editAndBlur(field, "abc");
@@ -384,7 +431,7 @@ describe("ProbeInspector", () => {
     usePreferencesStore().decimalPrecision = 1;
     await wrapper.vm.$nextTick();
     expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
-      (0 - ALLEN_MOUSE_REFERENCE_COORDINATE[2]).toFixed(1)
+      (0 - store.referenceCoordinate[0]).toFixed(1)
     );
   });
 
@@ -454,7 +501,7 @@ describe("ProbeInspector", () => {
 
     expect(fieldByLabel(wrapper, t.name).props("modelValue")).toBe("B");
     expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
-      (0 - ALLEN_MOUSE_REFERENCE_COORDINATE[2]).toFixed(3)
+      (0 - store.referenceCoordinate[0]).toFixed(3)
     );
   });
 
@@ -656,51 +703,53 @@ describe("ProbeInspector", () => {
     });
 
     it("shows the probe's current tip and rotation, local to the reference coordinate", () => {
-      const { wrapper } = mountInspector(
+      const { wrapper, store } = mountInspector(
         makeProbe({
           tipPosition: [7, 8, 9],
           rotation: [Math.PI / 2, Math.PI, Math.PI / 4]
         })
       );
-      const [apRef, dvRef, mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
+      // The default global system is RAS, so the triple reads out as ML, AP, SI,
+      // and its rotations turn about those same axes: pitch, roll, yaw.
+      const [mlRef, apRef, siRef] = store.referenceCoordinate;
 
-      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
-        (7 - apRef).toFixed(3)
-      );
-      expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe(
-        (8 - dvRef).toFixed(3)
-      );
       expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
-        (9 - mlRef).toFixed(3)
+        (7 - mlRef).toFixed(3)
       );
-      expect(fieldByLabel(wrapper, axis.roll).props("modelValue")).toBe(
-        "90.000"
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (8 - apRef).toFixed(3)
       );
-      expect(fieldByLabel(wrapper, axis.yaw).props("modelValue")).toBe(
-        "180.000"
+      expect(fieldByLabel(wrapper, axis.si).props("modelValue")).toBe(
+        (9 - siRef).toFixed(3)
       );
       expect(fieldByLabel(wrapper, axis.pitch).props("modelValue")).toBe(
+        "90.000"
+      );
+      expect(fieldByLabel(wrapper, axis.roll).props("modelValue")).toBe(
+        "180.000"
+      );
+      expect(fieldByLabel(wrapper, axis.yaw).props("modelValue")).toBe(
         "45.000"
       );
     });
 
     it("mirrors an external probe pose change into the default node's fields, local to the reference coordinate", async () => {
-      const { wrapper, probe } = mountInspector(
+      const { wrapper, store, probe } = mountInspector(
         makeProbe({ tipPosition: [0, 0, 0] })
       );
-      const [apRef, dvRef, mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
+      const [mlRef, apRef, siRef] = store.referenceCoordinate;
 
       probe.tipPosition = [1, 2, 3];
       await wrapper.vm.$nextTick();
 
-      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
-        (1 - apRef).toFixed(3)
-      );
-      expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe(
-        (2 - dvRef).toFixed(3)
-      );
       expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
-        (3 - mlRef).toFixed(3)
+        (1 - mlRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
+        (2 - apRef).toFixed(3)
+      );
+      expect(fieldByLabel(wrapper, axis.si).props("modelValue")).toBe(
+        (3 - siRef).toFixed(3)
       );
     });
 
@@ -708,7 +757,7 @@ describe("ProbeInspector", () => {
       const { wrapper, store, probe } = mountInspector(
         makeProbe({ tipPosition: [0, 0, 0] })
       );
-      const [apRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
+      const [mlRef] = store.referenceCoordinate;
       const preDragTip = [...probe.tipPosition];
       // Mounting seeds the probe into the store, which commits its own history
       // point; reset that baseline so only the drag's history is under test.
@@ -721,8 +770,8 @@ describe("ProbeInspector", () => {
       await wrapper.vm.$nextTick();
 
       expect(store.canUndo).toBe(false);
-      expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe(
-        (2 - apRef).toFixed(3)
+      expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe(
+        (2 - mlRef).toFixed(3)
       );
 
       store.endProbeDrag();
@@ -732,17 +781,17 @@ describe("ProbeInspector", () => {
     });
 
     it("does not renormalize rotation on commit, matching the old six-input system", async () => {
-      const { wrapper, probe } = mountInspector(
+      const { wrapper, store, probe } = mountInspector(
         makeProbe({
           tipPosition: [7, 8, 9],
           rotation: [0, (3 * Math.PI) / 2, 0]
         })
       );
-      const [, , mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
+      const [mlRef] = store.referenceCoordinate;
 
       await editAndBlur(fieldByLabel(wrapper, axis.ml), "20");
 
-      expect(probe.tipPosition).toEqual([7, 8, 20 + mlRef]);
+      expect(probe.tipPosition).toEqual([20 + mlRef, 8, 9]);
       expect(probe.rotation).toEqual([0, (3 * Math.PI) / 2, 0]);
     });
 
@@ -766,15 +815,15 @@ describe("ProbeInspector", () => {
       expect(probe.tipPosition).not.toEqual(tipBeforeDrag);
     });
 
-    it("commits the ML field to the probe's tip, leaving AP and DV alone", async () => {
-      const { wrapper, probe } = mountInspector(
+    it("commits the ML field to the probe's tip, leaving AP and SI alone", async () => {
+      const { wrapper, store, probe } = mountInspector(
         makeProbe({ tipPosition: [7, 8, 9] })
       );
-      const [, , mlRef] = ALLEN_MOUSE_REFERENCE_COORDINATE;
+      const [mlRef] = store.referenceCoordinate;
 
       await editAndBlur(fieldByLabel(wrapper, axis.ml), "20");
 
-      expect(probe.tipPosition).toEqual([7, 8, 20 + mlRef]);
+      expect(probe.tipPosition).toEqual([20 + mlRef, 8, 9]);
     });
 
     it("does not move the probe when switching to a multi-node coordinate system", async () => {
@@ -792,6 +841,41 @@ describe("ProbeInspector", () => {
 
       expect(probe.tipPosition).toEqual([7, 8, 9]);
       expect(probe.rotation).toEqual([0.1, 0.2, 0.3]);
+    });
+
+    it("mirrors the probe's pose into a single all-adjustable node, in the chain's rest frame", async () => {
+      const { wrapper, store, probe } = mountInspector(
+        makeProbe({ tipPosition: [1, 2, 3], rotation: [0, 0, 0] })
+      );
+      setProbeCoordinateSystem(store.experiment, probe, buildDirectChain());
+      await flushPromises();
+
+      // The default rest puts chain axis 0 on the animal's left, axis 1 superior,
+      // and axis 2 posterior, so the RAS tip [1, 2, 3] reads out as [-1, 3, -2].
+      expect(fieldByLabel(wrapper, "X").props("modelValue")).toBe("-1.000");
+      expect(fieldByLabel(wrapper, "Y").props("modelValue")).toBe("3.000");
+      expect(fieldByLabel(wrapper, "Z").props("modelValue")).toBe("-2.000");
+      expect(probe.tipPosition).toEqual([1, 2, 3]);
+      expect(probe.rotation).toEqual([0, 0, 0]);
+    });
+
+    it("drives the probe along the local depth direction when the direct node's depth axis is committed", async () => {
+      const { wrapper, store, probe } = mountInspector(
+        makeProbe({ tipPosition: [1, 2, 3], rotation: [0, 0, 0] })
+      );
+      setProbeCoordinateSystem(store.experiment, probe, buildDirectChain());
+      await flushPromises();
+
+      await editAndBlur(fieldByLabel(wrapper, "Z"), "0");
+
+      // Depth is chain axis 2, which the default rest points posterior, so dropping
+      // 2 mm of depth moves the tip 2 mm anterior and turns the probe not at all.
+      expect(probe.tipPosition[0]).toBeCloseTo(1);
+      expect(probe.tipPosition[1]).toBeCloseTo(0);
+      expect(probe.tipPosition[2]).toBeCloseTo(3);
+      expect(probe.rotation[0]).toBeCloseTo(0);
+      expect(probe.rotation[1]).toBeCloseTo(0);
+      expect(probe.rotation[2]).toBeCloseTo(0);
     });
   });
 
@@ -819,7 +903,12 @@ describe("ProbeInspector", () => {
       }
       const referenceOffset =
         useCurrentExperimentStore(pinia).referenceCoordinate;
-      return solveCoordinateSystemChain(chain, referenceOffset);
+      return solveCoordinateSystemChain(
+        chain,
+        referenceOffset,
+        GLOBAL_DIRECTIONS,
+        LOCAL
+      );
     }
 
     /**
@@ -873,7 +962,7 @@ describe("ProbeInspector", () => {
         return {
           insideMillimeters: [1, 2, 3],
           axisMillimeters: null,
-          dorsoventralMillimeters: null
+          inferiorMillimeters: null
         } satisfies ProbeSurfaceTargets;
       });
       vi.mocked(useProbeSurface).mockReturnValue({
@@ -918,7 +1007,7 @@ describe("ProbeInspector", () => {
       findTargets.mockResolvedValue({
         insideMillimeters: entryPoint,
         axisMillimeters: null,
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       } satisfies ProbeSurfaceTargets);
       // Drive the tip 10 mm further along the shank, past the entry point's far side: the old
       // in-brain gate dropped the goal here, while the entry point above the tip stays reachable.
@@ -1081,7 +1170,7 @@ describe("ProbeInspector", () => {
       findTargets.mockResolvedValue({
         insideMillimeters: null,
         axisMillimeters: [1, 2, 3],
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       });
       const surfaceAndDepth =
         useCoordinateSystemLibraryStore(pinia).library[0]!;
@@ -1113,6 +1202,7 @@ describe("ProbeInspector", () => {
           solution,
           probe.tipPosition,
           probe.rotation,
+          GLOBAL_DIRECTIONS,
           1e-3
         )
       ).toBe(true);
@@ -1187,6 +1277,7 @@ describe("ProbeInspector", () => {
           solution,
           probe.tipPosition,
           probe.rotation,
+          GLOBAL_DIRECTIONS,
           1e-3
         )
       ).toBe(true);
@@ -1340,6 +1431,7 @@ describe("ProbeInspector", () => {
           solution,
           probe.tipPosition,
           probe.rotation,
+          GLOBAL_DIRECTIONS,
           1e-3
         )
       ).toBe(true);
@@ -1466,7 +1558,11 @@ describe("ProbeInspector", () => {
     });
 
     it("routes a single-node chain with a user-constrained value through the solver instead of the direct fast path", async () => {
-      const { store, probe } = mountInspector();
+      const { store, probe } = mountInspector(
+        makeProbe({ tipPosition: [0, 0, 0], rotation: [0, 0, 0] })
+      );
+      // The chain can only translate across the rest frame's forward and depth axes, so a
+      // tip far along the animal's right is out of its reach at the probe's rest rotation.
       const bounded = makeCoordinateSystem({
         id: "bounded-tip",
         name: "Bounded Tip",
@@ -1474,9 +1570,9 @@ describe("ProbeInspector", () => {
           buildCoordinateSystemNode(
             "Tip",
             [
-              buildCoordinateSystemValue("ML", 0, "user"),
-              buildCoordinateSystemValue("DV"),
-              buildCoordinateSystemValue("AP")
+              buildCoordinateSystemValue("X", 0, "user"),
+              buildCoordinateSystemValue("Y"),
+              buildCoordinateSystemValue("Z")
             ],
             [
               buildCoordinateSystemValue("Pitch"),
@@ -1492,17 +1588,17 @@ describe("ProbeInspector", () => {
       await flushPromises();
 
       store.draggedProbeId = probe.id;
-      probe.tipPosition = [0, 0, 300];
+      probe.tipPosition = [300, 0, 0];
       await flushPromises();
       expect(store.probeGhost).toBeNull();
-      probe.tipPosition = [0, 0, 300.01];
+      probe.tipPosition = [300.01, 0, 0];
       await flushPromises();
-      probe.tipPosition = [0, 0, 300.02];
+      probe.tipPosition = [300.02, 0, 0];
       await flushPromises();
 
       expect(store.probeGhost).not.toBeNull();
       expect(store.probeGhost?.probeId).toBe(probe.id);
-      expect(probe.tipPosition).toEqual([0, 0, 300.02]);
+      expect(probe.tipPosition).toEqual([300.02, 0, 0]);
     });
 
     it("does not rewrite the probe pose or drop the ghost when a field is re-committed with a different-text same-value edit", async () => {
@@ -1604,7 +1700,7 @@ describe("ProbeInspector", () => {
         });
       });
 
-      it("moves the marker through a forward-kinematics edit of the surface node's AP field, keeping the probeId", async () => {
+      it("moves the marker through a forward-kinematics edit of the surface node's X field, keeping the probeId", async () => {
         vi.mocked(useProbeSurface).mockReturnValue({
           findTargets: findTargetsCrossingBrain(),
           isOnSurface: vi.fn().mockResolvedValue(true)
@@ -1613,7 +1709,7 @@ describe("ProbeInspector", () => {
         await selectMultiNodeSystem(wrapper, pinia);
         const before = [...store.probeSurfaceMarker!.position];
 
-        await editAndBlur(fieldByLabel(wrapper, "AP"), "2");
+        await editAndBlur(fieldByLabel(wrapper, "X"), "2");
 
         expect(store.probeSurfaceMarker?.probeId).toBe(probe.id);
         expect(store.probeSurfaceMarker?.position).not.toEqual(before);
@@ -1644,7 +1740,7 @@ describe("ProbeInspector", () => {
         findTargets.mockResolvedValue({
           insideMillimeters: null,
           axisMillimeters: [1, 2, 3],
-          dorsoventralMillimeters: null
+          inferiorMillimeters: null
         });
         probe.tipPosition = [9, 9, 9];
         await flushPromises();
@@ -1704,7 +1800,7 @@ describe("ProbeInspector", () => {
         const findTargets = vi.fn().mockResolvedValue({
           insideMillimeters: [1, 2, 3],
           axisMillimeters: null,
-          dorsoventralMillimeters: null
+          inferiorMillimeters: null
         });
         vi.mocked(useProbeSurface).mockReturnValue({
           findTargets,
@@ -1724,7 +1820,7 @@ describe("ProbeInspector", () => {
                 "Tip",
                 [
                   buildCoordinateSystemValue("ML"),
-                  buildCoordinateSystemValue("DV"),
+                  buildCoordinateSystemValue("SI"),
                   buildCoordinateSystemValue("AP")
                 ],
                 [
@@ -1830,7 +1926,7 @@ describe("ProbeInspector", () => {
       await flushPromises();
 
       expect(solveCoordinateSystemChainInverse).toHaveBeenCalledTimes(1);
-      const [, target, , maximumStarts] = vi.mocked(
+      const [, target, , , , maximumStarts] = vi.mocked(
         solveCoordinateSystemChainInverse
       ).mock.calls[0]!;
       expect(maximumStarts).toBe(SETTLED_SOLVE_STARTS);
@@ -1851,7 +1947,7 @@ describe("ProbeInspector", () => {
             "Tip",
             [
               buildCoordinateSystemValue("ML"),
-              buildCoordinateSystemValue("DV"),
+              buildCoordinateSystemValue("SI"),
               buildCoordinateSystemValue("AP")
             ],
             [
@@ -2104,12 +2200,12 @@ describe("ProbeInspector", () => {
     it("disables the pose fields and the home/pin buttons while locked, leaving name and copy editable", () => {
       const { wrapper } = mountInspector(makeProbe({ lock: true }));
       const valueNames = [
-        axis.ap,
-        axis.dv,
         axis.ml,
+        axis.ap,
+        axis.si,
+        axis.pitch,
         axis.roll,
-        axis.yaw,
-        axis.pitch
+        axis.yaw
       ];
 
       for (const label of valueNames) {
@@ -2140,7 +2236,7 @@ describe("ProbeInspector", () => {
       const findTargets = vi.fn().mockResolvedValue({
         insideMillimeters: [1, 2, 3],
         axisMillimeters: null,
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
@@ -2159,7 +2255,7 @@ describe("ProbeInspector", () => {
       const findTargets = vi.fn().mockResolvedValue({
         insideMillimeters: null,
         axisMillimeters: [1, 2, 3],
-        dorsoventralMillimeters: [4, 5, 6]
+        inferiorMillimeters: [4, 5, 6]
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
@@ -2176,7 +2272,7 @@ describe("ProbeInspector", () => {
       expect(store.probeSurfaceChoice).toMatchObject({
         probeId: probe.id,
         axisTargetMillimeters: [1, 2, 3],
-        dorsoventralTargetMillimeters: [4, 5, 6]
+        inferiorTargetMillimeters: [4, 5, 6]
       });
     });
 
@@ -2184,7 +2280,7 @@ describe("ProbeInspector", () => {
       const findTargets = vi.fn().mockResolvedValue({
         insideMillimeters: null,
         axisMillimeters: [1, 2, 3],
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
@@ -2203,7 +2299,7 @@ describe("ProbeInspector", () => {
       const findTargets = vi.fn().mockResolvedValue({
         insideMillimeters: null,
         axisMillimeters: null,
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       } satisfies ProbeSurfaceTargets);
       vi.mocked(useProbeSurface).mockReturnValue({
         findTargets,
@@ -2267,7 +2363,7 @@ describe("ProbeInspector", () => {
       resolveTargets({
         insideMillimeters: null,
         axisMillimeters: null,
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       });
       await flushPromises();
 
@@ -2305,7 +2401,7 @@ describe("ProbeInspector", () => {
       resolveTargets({
         insideMillimeters: [9, 9, 9],
         axisMillimeters: null,
-        dorsoventralMillimeters: null
+        inferiorMillimeters: null
       });
       await flushPromises();
 
@@ -2323,7 +2419,7 @@ describe("ProbeInspector", () => {
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
         axisTargetMillimeters: [1, 0, 0],
-        dorsoventralTargetMillimeters: [0, 1, 0]
+        inferiorTargetMillimeters: [0, 1, 0]
       };
       await wrapper.vm.$nextTick();
 
@@ -2341,7 +2437,7 @@ describe("ProbeInspector", () => {
         tipPosition: [...probe.tipPosition],
         rotation: [...probe.rotation],
         axisTargetMillimeters: [1, 0, 0],
-        dorsoventralTargetMillimeters: [0, 1, 0]
+        inferiorTargetMillimeters: [0, 1, 0]
       };
       await wrapper.vm.$nextTick();
 

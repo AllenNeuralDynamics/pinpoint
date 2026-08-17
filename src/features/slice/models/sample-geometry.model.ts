@@ -3,7 +3,7 @@
  * image's up axis and height, mapped onto a contiguous run of output columns.
  */
 export interface SampleBand {
-  /** Band center, in atlas ASR mm. */
+  /** Band center, in atlas millimeters. */
   centerMillimeters: [number, number, number];
   /** Half the band's u extent, in mm. */
   halfWidthMillimeters: number;
@@ -19,12 +19,14 @@ export interface SampleBand {
  * arranged left to right across `widthPixels`, possibly with unsampled gaps
  * between them; a one-band geometry with no gap is a plain rectangle, and a
  * square is additionally `halfHeightMillimeters === bands[0].halfWidthMillimeters`
- * with `heightPixels === widthPixels`.
+ * with `heightPixels === widthPixels`. Every coordinate is in the atlas's own
+ * own frame, which callers convert into from whatever coordinate system their
+ * own values are stored in.
  */
 export interface SampleGeometry {
-  /** Unit ASR direction of the +u (rightward) axis, shared by every band. */
+  /** Unit atlas direction of the +u (rightward) axis, shared by every band. */
   rightMillimeters: [number, number, number];
-  /** Unit ASR direction of the +v (upward) axis, shared by every band. */
+  /** Unit atlas direction of the +v (upward) axis, shared by every band. */
   upMillimeters: [number, number, number];
   /** Half the v extent, in mm, shared by every band. */
   halfHeightMillimeters: number;

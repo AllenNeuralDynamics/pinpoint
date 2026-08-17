@@ -43,13 +43,13 @@ describe("buildGimbalAxisLabels", () => {
       labels,
       gimbal,
       AXIS_LENGTH_MILLIMETERS,
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       fontAsset
     );
 
     for (const [renderer, text] of [
       [renderers[0], "ML"],
-      [renderers[1], "DV"],
+      [renderers[1], "SI"],
       [renderers[2], "AP"]
     ] as const) {
       expect(renderer.paragraphs).toHaveLength(1);
@@ -68,7 +68,7 @@ describe("buildGimbalAxisLabels", () => {
       labels,
       gimbal,
       AXIS_LENGTH_MILLIMETERS,
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       fontAsset
     );
 
@@ -95,14 +95,14 @@ describe("buildGimbalAxisLabels", () => {
       labels,
       gimbal,
       AXIS_LENGTH_MILLIMETERS,
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       fontAsset
     );
     buildGimbalAxisLabels(
       labels,
       gimbal,
       AXIS_LENGTH_MILLIMETERS,
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       fontAsset
     );
 
@@ -122,7 +122,7 @@ describe("buildGimbalAxisLabels", () => {
       short.labels,
       gimbal,
       AXIS_LENGTH_MILLIMETERS,
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       fontAsset
     );
     buildGimbalAxisLabels(
@@ -162,7 +162,7 @@ describe("buildGimbalAxisLabels", () => {
         labels,
         gimbal,
         AXIS_LENGTH_MILLIMETERS,
-        ["ML", "DV", "AP"],
+        ["ML", "SI", "AP"],
         fontAsset
       );
     } finally {
@@ -186,7 +186,7 @@ describe("clearGimbalAxisLabels", () => {
       labels,
       gimbal,
       AXIS_LENGTH_MILLIMETERS,
-      ["ML", "DV", "AP"],
+      ["ML", "SI", "AP"],
       fontAsset
     );
     clearGimbalAxisLabels(labels);

@@ -3,12 +3,24 @@ import { defineComponent, nextTick, reactive, shallowRef } from "vue";
 import { mount } from "@vue/test-utils";
 import { ArcRotateCamera, Vector3 } from "@babylonjs/core";
 import { useCameraPoseSync } from "./useCameraPoseSync";
-import { atlasToWorld } from "../api/coordinate-transforms.api";
+import { toWorldVector } from "../api/coordinate-transforms.api";
 import type { Atlas } from "@/features/atlas";
 import { getAtlasCenter } from "@/features/atlas";
 import type { CameraPose } from "@/features/experiment";
+import type { AxisDirections } from "@/utils/coordinate-frame";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  buildDefaultGlobalCoordinateSystem,
+  convertCoordinate,
+  getAxisDirections
+} from "@/utils/coordinate-frame";
 import { makeAtlas, makeCameraPose, makeManifest } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
+
+/** Axis directions new experiments start in: x right, y anterior, z superior. */
+const RAS_DIRECTIONS: AxisDirections = getAxisDirections(
+  buildDefaultGlobalCoordinateSystem()
+);
 
 /**
  * Mount a throwaway component running the composable over reactive sources,
@@ -16,14 +28,17 @@ import { makeTestScene } from "@/test/mount-helper";
  * runtime becoming available.
  * @param pose Reactive camera pose the composable binds to.
  * @param atlas Reactive atlas the composable reads.
+ * @param shouldSnap Whether a pose change is applied immediately.
+ * @param axisDirections Axis directions the pose's target is expressed in.
  */
 function mountSync(
   pose: CameraPose,
   atlas: Atlas,
-  shouldSnap: () => boolean = () => false
+  shouldSnap: () => boolean = () => false,
+  axisDirections: AxisDirections = RAS_DIRECTIONS
 ) {
   const cameraRef = shallowRef<ArcRotateCamera | null>(null);
-  const state = reactive({ pose, atlas });
+  const state = reactive({ pose, atlas, axisDirections });
   const onPoseMoving = vi.fn();
   const onPoseSettled = vi.fn();
 
@@ -33,6 +48,7 @@ function mountSync(
         useCameraPoseSync(
           cameraRef,
           () => state.atlas,
+          () => state.axisDirections,
           () => state.pose,
           shouldSnap,
           onPoseMoving,
@@ -84,8 +100,43 @@ describe("useCameraPoseSync", () => {
     state.pose.alpha = 4;
     await nextTick();
 
-    const expectedWorldTarget = atlasToWorld(atlas, [0, 0, 0]);
+    const expectedWorldTarget = toWorldVector(RAS_DIRECTIONS, atlas, [0, 0, 0]);
     expect(interpolateTo).toHaveBeenCalledWith(4, 2, 3, expectedWorldTarget);
+  });
+
+  it("reads the pose's target in the coordinate system it is expressed in", async () => {
+    const atlas = makeAtlas();
+    const target: [number, number, number] = [1, 2, 3];
+    const pose = reactive(makeCameraPose({ target }));
+    const { cameraRef } = mountSync(pose, atlas, () => false, RAS_DIRECTIONS);
+    const camera = makeCamera();
+
+    cameraRef.value = camera;
+    await nextTick();
+
+    expect(
+      camera.target.equals(toWorldVector(RAS_DIRECTIONS, atlas, target))
+    ).toBe(true);
+
+    // The same numbers in an atlas-ordered system land somewhere else entirely.
+    const atlasPose = reactive(makeCameraPose({ target }));
+    const other = mountSync(
+      atlasPose,
+      atlas,
+      () => false,
+      ATLAS_AXIS_DIRECTIONS
+    );
+    const otherCamera = makeCamera();
+
+    other.cameraRef.value = otherCamera;
+    await nextTick();
+
+    expect(
+      otherCamera.target.equals(
+        toWorldVector(ATLAS_AXIS_DIRECTIONS, atlas, target)
+      )
+    ).toBe(true);
+    expect(otherCamera.target.equals(camera.target)).toBe(false);
   });
 
   it("snaps a later pose change immediately when shouldSnap returns true", async () => {
@@ -136,6 +187,24 @@ describe("useCameraPoseSync", () => {
     await nextTick();
     expect(onPoseSettled).toHaveBeenCalledTimes(1);
     expect(interpolateTo).not.toHaveBeenCalled();
+  });
+
+  it("writes a dragged target back in the pose's own coordinate system", async () => {
+    const atlas = makeAtlas();
+    const pose = reactive(makeCameraPose({ target: [0, 0, 0] }));
+    const { cameraRef, state } = mountSync(pose, atlas);
+    const camera = makeCamera();
+    cameraRef.value = camera;
+    await nextTick();
+
+    const worldTarget = toWorldVector(RAS_DIRECTIONS, atlas, [1, 2, 3]);
+    camera.setTarget(worldTarget.clone(), false, false, true);
+    camera.onAfterCheckInputsObservable.notifyObservers(camera);
+    await nextTick();
+
+    expect(state.pose.target[0]).toBeCloseTo(1);
+    expect(state.pose.target[1]).toBeCloseTo(2);
+    expect(state.pose.target[2]).toBeCloseTo(3);
   });
 
   it("does not write the pose while the camera glides to one the experiment set", async () => {
@@ -202,17 +271,23 @@ describe("useCameraPoseSync", () => {
     cameraRef.value = camera;
     await nextTick();
 
-    const originalWorldTarget = atlasToWorld(atlas, [0, 0, 0]);
+    const originalWorldTarget = toWorldVector(RAS_DIRECTIONS, atlas, [0, 0, 0]);
     const interpolateTo = vi.spyOn(camera, "interpolateTo");
 
     // Mirrors `rebaseOntoAtlasOrigin`'s compensation: the target shifts by
-    // the atlas center delta so both stay at the same world point.
+    // the atlas center delta, re-expressed in the pose's own axes, so both
+    // stay at the same world point.
     const newAtlas = makeAtlas({
       name: "allen_human",
       manifest: makeManifest({ shape: [[1000, 320, 456]] })
     });
-    const delta = getAtlasCenter(newAtlas).map(
+    const atlasDelta = getAtlasCenter(newAtlas).map(
       (value, index) => value - getAtlasCenter(atlas)[index]!
+    ) as [number, number, number];
+    const delta = convertCoordinate(
+      ATLAS_AXIS_DIRECTIONS,
+      RAS_DIRECTIONS,
+      atlasDelta
     );
     state.atlas = newAtlas;
     state.pose.target = state.pose.target.map(

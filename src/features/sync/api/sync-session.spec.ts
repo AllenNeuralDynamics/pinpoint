@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { buildExperiment, type Experiment } from "@/features/experiment";
-import { makeAtlas } from "@/test/fixtures";
+import type { Experiment } from "@/features/experiment";
+import { makeExperiment } from "@/test/fixtures";
 import { SYNC_ARCHIVE_CONTENT_TYPE, type SyncListing } from "./sync.api";
 import {
   type PullDependencies,
@@ -10,14 +10,6 @@ import {
 
 const ALICE = { orcid: "0000-0001-2345-6789", name: "Alice" };
 const BOB = { orcid: "0000-0002-9999-0000", name: "Bob" };
-
-/**
- * Build an experiment with an explicit author and edit timestamp.
- * @param overrides Author and `updatedAt` to apply.
- */
-function makeExperiment(overrides: Partial<Experiment> = {}): Experiment {
-  return { ...buildExperiment("A", makeAtlas(), [0, 0, 0]), ...overrides };
-}
 
 /**
  * Build a synced-archive listing entry.

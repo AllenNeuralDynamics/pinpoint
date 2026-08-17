@@ -42,6 +42,11 @@ function toggleByLabel(wrapper: VueWrapper, label: string) {
     .find(toggle => toggle.props("label") === label)!;
 }
 
+/** Label the scale field for an axis carries, as the component interpolates it. */
+function scaleLabel(axisName: string) {
+  return t.scaleAxis.replace("{axis}", axisName);
+}
+
 /**
  * Focus, replace a field's text, and blur it -- the sequence a real user
  * produces, which `use-field`'s handlers require in this order.
@@ -78,14 +83,14 @@ describe("SceneObjectInspector", () => {
     expect(sceneObject.name).toBe("Renamed");
   });
 
-  it("writes AP into position[0] converted from the active position unit", async () => {
+  it("writes the AP field into the axis running the posterior-anterior line, converted from the active position unit", async () => {
     const { wrapper, sceneObject } = mountInspector(
       makeSceneObject({ position: [0, 0, 0] })
     );
 
     await editAndBlur(fieldByLabel(wrapper, axis.ap), "-2.5");
 
-    expect(sceneObject.position[0]).toBeCloseTo(-2.5, 6);
+    expect(sceneObject.position[1]).toBeCloseTo(-2.5, 6);
   });
 
   it("toggles lock on lock button click", async () => {
@@ -117,30 +122,30 @@ describe("SceneObjectInspector", () => {
     const { wrapper } = mountInspector(makeSceneObject({ lock: true }));
 
     for (const label of [
-      axis.ap,
-      axis.dv,
       axis.ml,
+      axis.ap,
+      axis.si,
       axis.roll,
       axis.yaw,
       axis.pitch,
-      axis.z,
-      axis.y,
-      axis.x
+      scaleLabel(axis.ml),
+      scaleLabel(axis.ap),
+      scaleLabel(axis.si)
     ]) {
       expect(fieldByLabel(wrapper, label).props("disable")).toBe(true);
     }
     expect(fieldByLabel(wrapper, t.name).props("disable")).toBeFalsy();
   });
 
-  it("writes the scale row into scale[0] (Z) and scale[2] (X), not transposed", async () => {
+  it("writes each scale field into its own axis, not transposed", async () => {
     const { wrapper, sceneObject } = mountInspector(
       makeSceneObject({ scale: [1, 1, 1] })
     );
 
-    await editAndBlur(fieldByLabel(wrapper, axis.z), "2");
+    await editAndBlur(fieldByLabel(wrapper, scaleLabel(axis.ml)), "2");
     expect(sceneObject.scale[0]).toBeCloseTo(2, 6);
 
-    await editAndBlur(fieldByLabel(wrapper, axis.x), "3");
+    await editAndBlur(fieldByLabel(wrapper, scaleLabel(axis.si)), "3");
     expect(sceneObject.scale[2]).toBeCloseTo(3, 6);
   });
 
@@ -154,19 +159,19 @@ describe("SceneObjectInspector", () => {
     expect(sceneObject.collidable).toBe(false);
   });
 
-  it("shows the atlas-absolute AP/DV/ML values when relative mode is off", async () => {
+  it("shows the position as stored in the global coordinate system when relative mode is off", async () => {
     const { wrapper, store } = mountInspector(
       makeSceneObject({ position: [1, 2, 3] })
     );
     store.experiment.referenceCoordinate = [10, 20, 30];
     await wrapper.vm.$nextTick();
 
-    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("1.000");
-    expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe("2.000");
-    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("3.000");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("1.000");
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("2.000");
+    expect(fieldByLabel(wrapper, axis.si).props("modelValue")).toBe("3.000");
   });
 
-  it("offsets the displayed AP/DV/ML by the reference coordinate once relative mode is enabled, without touching the stored position", async () => {
+  it("offsets each displayed axis by the reference coordinate once relative mode is enabled, without touching the stored position", async () => {
     const { wrapper, store, sceneObject } = mountInspector(
       makeSceneObject({ position: [1, 2, 3] })
     );
@@ -176,13 +181,13 @@ describe("SceneObjectInspector", () => {
       true
     );
 
-    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("-9.000");
-    expect(fieldByLabel(wrapper, axis.dv).props("modelValue")).toBe("-18.000");
-    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("-27.000");
+    expect(fieldByLabel(wrapper, axis.ml).props("modelValue")).toBe("-9.000");
+    expect(fieldByLabel(wrapper, axis.ap).props("modelValue")).toBe("-18.000");
+    expect(fieldByLabel(wrapper, axis.si).props("modelValue")).toBe("-27.000");
     expect(sceneObject.position).toEqual([1, 2, 3]);
   });
 
-  it("writes back the atlas-absolute position when a field is edited in relative mode", async () => {
+  it("writes back the absolute global-system position when a field is edited in relative mode", async () => {
     const { wrapper, store, sceneObject } = mountInspector(
       makeSceneObject({ position: [1, 2, 3] })
     );
@@ -193,6 +198,6 @@ describe("SceneObjectInspector", () => {
 
     await editAndBlur(fieldByLabel(wrapper, axis.ap), "5");
 
-    expect(sceneObject.position[0]).toBeCloseTo(15, 6);
+    expect(sceneObject.position[1]).toBeCloseTo(25, 6);
   });
 });

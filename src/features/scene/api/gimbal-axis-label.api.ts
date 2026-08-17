@@ -2,10 +2,8 @@ import { Matrix } from "@babylonjs/core";
 import type { IMatrixLike, Scene, TransformNode } from "@babylonjs/core";
 import { TextRenderer } from "@babylonjs/addons";
 import type { FontAsset, INodeLike, ParagraphOptions } from "@babylonjs/addons";
-import {
-  GIMBAL_AXIS_COLORS,
-  GIMBAL_AXIS_DIRECTIONS
-} from "./coordinate-system-gimbal.api";
+import { GIMBAL_AXIS_DIRECTIONS } from "./coordinate-system-gimbal.api";
+import { LOCAL_FRAME_AXIS_COLORS } from "./frame-axes.api";
 import { labelSizeEm } from "./axis-guide.api";
 
 /** MSDF text renderer surface a gimbal axis label drives. */
@@ -38,7 +36,7 @@ const GIMBAL_AXIS_LABEL_WIDTH_FRACTION = 0.6;
 const GIMBAL_AXIS_LABEL_GAP_EM = 0.2;
 
 /**
- * Label orientation per Babylon axis, reusing `AXIS_GUIDE_LOCAL_SPECS`' positive-axis
+ * Label orientation per Babylon axis, reusing the local axis guides' positive-axis
  * convention: X and Y lie flat in the local X/Y plane, Z stands upright.
  */
 const GIMBAL_AXIS_LABEL_ROTATIONS: [
@@ -63,7 +61,7 @@ export async function createGimbalAxisLabels(
 ): Promise<GimbalAxisLabels> {
   const engine = scene.getEngine();
   const renderers = (await Promise.all(
-    GIMBAL_AXIS_COLORS.map(async color => {
+    LOCAL_FRAME_AXIS_COLORS.map(async color => {
       const renderer = await TextRenderer.CreateTextRendererAsync(
         fontAsset,
         engine

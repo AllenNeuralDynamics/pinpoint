@@ -1,137 +1,235 @@
 import { describe, expect, it } from "vitest";
-import { TransformNode, Vector3 } from "@babylonjs/core";
+import { Quaternion, TransformNode, Vector3 } from "@babylonjs/core";
 import {
-  asrToBabylon,
-  asrToVector3,
-  atlasToWorld,
-  babylonToAsr,
-  vector3ToAsr,
-  worldToAtlas
+  fromSceneMagnitudes,
+  fromSceneQuaternion,
+  fromSceneVector,
+  fromWorldVector,
+  SCENE_AXIS_DIRECTIONS,
+  toSceneMagnitudes,
+  toSceneQuaternion,
+  toSceneVector,
+  toWorldVector
 } from "./coordinate-transforms.api";
 import { buildAtlasRootNode, setAtlasCenterOffset } from "./structures.api";
 import { getAtlasCenter } from "@/features/atlas";
+import type {
+  AnatomicalDirection,
+  AxisDirections,
+  Matrix3
+} from "@/utils/coordinate-frame";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  CANONICAL_AXIS_DIRECTIONS,
+  getDirectionVector,
+  getProbeRestRotation,
+  isOrthogonalAxisDirections
+} from "@/utils/coordinate-frame";
 import { makeAtlas } from "@/test/fixtures";
 import { makeTestScene } from "@/test/mount-helper";
 
-describe("asrToBabylon", () => {
-  it("maps A -> -Z, S -> -Y, R -> +X", () => {
-    const result = asrToBabylon([1, 2, 3]);
-    expect(result).toBeInstanceOf(Vector3);
-    expect(result.x).toBe(3);
-    expect(result.y).toBe(-2);
-    expect(result.z).toBe(-1);
-  });
+/** Global system a user could pick that is neither the scene's nor the atlas's. */
+const RAS_AXIS_DIRECTIONS: AxisDirections = [
+  "Left_to_right",
+  "Posterior_to_anterior",
+  "Inferior_to_superior"
+];
 
-  it("handles the zero vector", () => {
-    // -0 for the negated axes is expected (matches asrToBabylon's
-    // `[r, -s, -a]` mapping); `.toEqual` treats -0 and +0 as equal.
-    const result = asrToBabylon([0, 0, 0]);
-    expect([result.x, result.y, result.z]).toEqual([0, -0, -0]);
-  });
+/** Coordinates exercised through every round trip. */
+const CASES: [number, number, number][] = [
+  [0, 0, 0],
+  [1, 2, 3],
+  [-1, -2, -3],
+  [0.3, 0.4, 0.5]
+];
 
-  it("negates through negative inputs", () => {
-    const result = asrToBabylon([-1, -2, -3]);
-    expect(result.x).toBe(-3);
-    expect(result.y).toBe(2);
-    expect(result.z).toBe(1);
-  });
-});
-
-describe("asrToVector3", () => {
-  it("swaps A -> Z, S -> Y, R -> X with no negation", () => {
-    const result = asrToVector3([1, 2, 3]);
-    expect(result).toBeInstanceOf(Vector3);
-    expect(result.x).toBe(3);
-    expect(result.y).toBe(2);
-    expect(result.z).toBe(1);
-  });
-
-  it("handles the zero vector", () => {
-    expect(asrToVector3([0, 0, 0]).asArray()).toEqual([0, 0, 0]);
+describe("SCENE_AXIS_DIRECTIONS", () => {
+  it("is the atlas root node's own frame: x right, y inferior, z posterior", () => {
+    expect(SCENE_AXIS_DIRECTIONS).toEqual([
+      "Left_to_right",
+      "Superior_to_inferior",
+      "Anterior_to_posterior"
+    ]);
+    expect(isOrthogonalAxisDirections(SCENE_AXIS_DIRECTIONS)).toBe(true);
   });
 });
 
-describe("vector3ToAsr", () => {
-  it("swaps Z -> A, Y -> S, X -> R (inverse of asrToVector3)", () => {
-    const result = vector3ToAsr(new Vector3(3, 2, 1));
-    expect(result).toEqual([1, 2, 3]);
+describe("toSceneVector", () => {
+  it("puts an atlas coordinate's ML on x, SI on y, and AP on z, unsigned", () => {
+    const vector = toSceneVector(ATLAS_AXIS_DIRECTIONS, [1, 2, 3]);
+
+    expect(vector).toBeInstanceOf(Vector3);
+    expect(vector.asArray()).toEqual([3, 2, 1]);
   });
 
-  it("handles the zero vector", () => {
-    expect(vector3ToAsr(new Vector3(0, 0, 0))).toEqual([0, 0, 0]);
+  it("puts the animal's right on scene +x", () => {
+    // The mirror this pins is the one users see: a coordinate one mm toward the
+    // animal's right must land one mm along scene x, never against it.
+    // `equals` is exact, and unlike an array comparison it reads the negated
+    // zeros the axis permutation leaves behind as the zeros they are.
+    expect(
+      toSceneVector(
+        CANONICAL_AXIS_DIRECTIONS,
+        getDirectionVector("Left_to_right")
+      ).equals(new Vector3(1, 0, 0))
+    ).toBe(true);
   });
-});
 
-describe("asrToVector3 / vector3ToAsr round-trip", () => {
-  // These two are what both probe gizmo bugs hinge on: syncProbes writes
-  // `asrToVector3(probe.tipPosition)` as a plain position, and the drag
-  // observer reads it back with `vector3ToAsr(node.position)`. If they ever
-  // stop being exact inverses, a probe would drift every time it's dragged.
-  const cases: [number, number, number][] = [
-    [0, 0, 0],
-    [1, 2, 3],
-    [-1, -2, -3],
-    [0, 0, Math.PI / 2],
-    [0.3, 0.4, 0.5]
-  ];
+  it("negates the axes a global system points the opposite way", () => {
+    // RAS x and the scene's both run rightward, so that value carries over; RAS
+    // y is anterior and the scene's z is posterior; RAS z is superior and the
+    // scene's y is inferior.
+    expect(toSceneVector(RAS_AXIS_DIRECTIONS, [1, 2, 3]).asArray()).toEqual([
+      1, -3, -2
+    ]);
+  });
 
-  it.each(cases.map(coordinate => [coordinate] as const))(
-    "round-trips %j through a Vector3",
+  it.each(CASES.map(coordinate => [coordinate] as const))(
+    "round-trips %j back out of the scene frame",
     coordinate => {
-      const roundTripped = vector3ToAsr(asrToVector3(coordinate));
-      expect(roundTripped).toEqual(coordinate);
+      // syncProbes writes a stored coordinate in and the gizmo drag observer
+      // reads it back out; drift here would move a probe on every drag.
+      expect(
+        fromSceneVector(
+          RAS_AXIS_DIRECTIONS,
+          toSceneVector(RAS_AXIS_DIRECTIONS, coordinate)
+        )
+      ).toEqual(coordinate);
     }
   );
 });
 
-describe("asrToBabylon / babylonToAsr round-trip", () => {
-  // asrToBabylon is used to place probe tips, scene objects, and camera
-  // poses; babylonToAsr must exactly invert it or a value written and read
-  // back through it would drift.
-  const cases: [number, number, number][] = [
-    [0, 0, 0],
-    [1, 2, 3],
-    [-1, -2, -3],
-    [0.3, 0.4, 0.5]
-  ];
+describe("toSceneMagnitudes", () => {
+  it("permutes a scale onto the scene's axes without changing signs", () => {
+    // A scale is unsigned, so the shared rightward x factor stays put and the
+    // permuted anterior and superior factors swap places without flipping.
+    const scaling = toSceneMagnitudes(RAS_AXIS_DIRECTIONS, [2, 3, 4]);
 
-  it.each(cases.map(coordinate => [coordinate] as const))(
-    "round-trips %j through a Vector3",
-    coordinate => {
-      const roundTripped = babylonToAsr(asrToBabylon(coordinate));
-      expect(roundTripped).toEqual(coordinate);
-    }
-  );
+    expect(scaling.asArray()).toEqual([2, 4, 3]);
+  });
+
+  it("round-trips a scale back out of the scene frame", () => {
+    expect(
+      fromSceneMagnitudes(
+        RAS_AXIS_DIRECTIONS,
+        toSceneMagnitudes(RAS_AXIS_DIRECTIONS, [2, 3, 4])
+      )
+    ).toEqual([2, 3, 4]);
+  });
 });
 
-describe("atlasToWorld / worldToAtlas round-trip", () => {
+describe("toWorldVector", () => {
   const atlas = makeAtlas();
 
-  it("round-trips a relative coordinate through world space", () => {
-    const coordinate: [number, number, number] = [1, 2, 3];
-
-    const world = atlasToWorld(atlas, coordinate);
-    const roundTripped = worldToAtlas(atlas, world);
-
-    expect(roundTripped).toEqual(coordinate);
-  });
-
-  it("matches where the real scene hierarchy places the atlas coordinate", () => {
+  it("matches where the real scene hierarchy places the coordinate", () => {
     const scene = makeTestScene();
     setAtlasCenterOffset(scene, getAtlasCenter(atlas));
     const coordinate: [number, number, number] = [1, 2, 3];
     const child = new TransformNode("child", scene);
     child.parent = buildAtlasRootNode(scene);
-    child.position = asrToVector3(coordinate);
+    child.position = toSceneVector(ATLAS_AXIS_DIRECTIONS, coordinate);
     child.computeWorldMatrix(true);
 
-    const expectedWorld = atlasToWorld(atlas, coordinate);
-
-    // The arithmetic shortcut derives world position from the atlas centre
-    // directly; this pins it to the real node hierarchy `setAtlasCenterOffset`
-    // builds.
+    // The arithmetic shortcut derives world position from the atlas center
+    // directly; this pins it to the node hierarchy `setAtlasCenterOffset` builds.
     expect(
-      Vector3.Distance(child.absolutePosition, expectedWorld)
+      Vector3.Distance(
+        child.absolutePosition,
+        toWorldVector(ATLAS_AXIS_DIRECTIONS, atlas, coordinate)
+      )
     ).toBeLessThan(1e-6);
+  });
+
+  it("keeps world space anatomically upright whatever the global system is", () => {
+    const origin = toWorldVector(CANONICAL_AXIS_DIRECTIONS, atlas, [0, 0, 0]);
+    const worldOf = (direction: AnatomicalDirection) =>
+      toWorldVector(
+        CANONICAL_AXIS_DIRECTIONS,
+        atlas,
+        getDirectionVector(direction)
+      )
+        .subtract(origin)
+        .asArray();
+
+    // Babylon world y is up, world z is forward past the animal's nose, and
+    // world x runs across the midline toward the animal's right.
+    expect(worldOf("Inferior_to_superior")).toEqual([0, 1, 0]);
+    expect(worldOf("Posterior_to_anterior")).toEqual([0, 0, 1]);
+    expect(worldOf("Left_to_right")).toEqual([1, 0, 0]);
+  });
+
+  it.each(CASES.map(coordinate => [coordinate] as const))(
+    "round-trips %j through world space",
+    coordinate => {
+      const roundTripped = fromWorldVector(
+        RAS_AXIS_DIRECTIONS,
+        atlas,
+        toWorldVector(RAS_AXIS_DIRECTIONS, atlas, coordinate)
+      );
+
+      // Subtracting and re-adding the atlas center costs a few bits, so this
+      // pins the inverse, not bit equality.
+      for (const [index, value] of coordinate.entries()) {
+        expect(roundTripped[index]!).toBeCloseTo(value, 10);
+      }
+    }
+  );
+});
+
+describe("toSceneQuaternion", () => {
+  it("is the identity for the legacy probe rest orientation", () => {
+    // A probe used to rest with its tip pointing anterior and its electrodes
+    // facing superior, which is exactly the frame the scene renders in, so
+    // picking that local system must leave a zero-rotation probe unturned.
+    const quaternion = toSceneQuaternion(
+      getProbeRestRotation({
+        depthDirection: "Posterior_to_anterior",
+        forwardDirection: "Inferior_to_superior"
+      })
+    );
+
+    expect(quaternion.equalsWithEpsilon(Quaternion.Identity(), 1e-9)).toBe(
+      true
+    );
+  });
+
+  it("turns a body axis onto the direction the orientation gives it", () => {
+    // The default rest points the shank (body +z) anterior and the electrode
+    // face (body -y) superior.
+    const quaternion = toSceneQuaternion(
+      getProbeRestRotation({
+        depthDirection: "Anterior_to_posterior",
+        forwardDirection: "Inferior_to_superior"
+      })
+    );
+
+    const shank = new Vector3(0, 0, 1).applyRotationQuaternion(quaternion);
+    const face = new Vector3(0, -1, 0).applyRotationQuaternion(quaternion);
+
+    expect(
+      Vector3.Distance(
+        shank,
+        toSceneVector(CANONICAL_AXIS_DIRECTIONS, [0, 1, 0])
+      )
+    ).toBeLessThan(1e-9);
+    expect(
+      Vector3.Distance(
+        face,
+        toSceneVector(CANONICAL_AXIS_DIRECTIONS, [0, 0, 1])
+      )
+    ).toBeLessThan(1e-9);
+  });
+
+  it("round-trips an orientation through a quaternion", () => {
+    const orientation: Matrix3 = getProbeRestRotation({
+      depthDirection: "Superior_to_inferior",
+      forwardDirection: "Posterior_to_anterior"
+    });
+
+    const roundTripped = fromSceneQuaternion(toSceneQuaternion(orientation));
+
+    for (const [index, value] of orientation.entries()) {
+      expect(roundTripped[index]!).toBeCloseTo(value, 9);
+    }
   });
 });

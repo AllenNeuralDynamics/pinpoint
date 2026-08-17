@@ -29,7 +29,7 @@ export interface Manifest {
    */
   atlasLink: string | null;
   /**
-   * Location of bregma in atlas ASR mm, converted from the finest size
+   * Location of bregma in atlas millimeters, converted from the finest size
    * variant's `bregma_index_ap_dv_ml` voxel index, or null when the source
    * omits it.
    */

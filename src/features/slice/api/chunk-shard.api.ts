@@ -29,7 +29,7 @@ export function getWorkerCount(hardwareConcurrency: number): number {
 
 /**
  * Owning worker index for a chunk, from a bit-mixed hash of its coordinates.
- * @param chunkCoordinates Chunk grid coordinates as [ap, dv, ml].
+ * @param chunkCoordinates Chunk grid coordinates as [ap, si, ml].
  * @param workerCount Number of workers in the pool.
  */
 function getChunkShard(

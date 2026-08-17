@@ -1,10 +1,29 @@
 import { nextTick } from "vue";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import KeyboardControls from "./KeyboardControls.vue";
 import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { makeProbe } from "@/test/fixtures";
+import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
+import { getTerminologyRows } from "@/features/atlas";
+import { buildCoordinateAxis } from "@/utils/coordinate-frame";
 import type { Probe } from "@/features/probe";
 import type { GizmoMode } from "@/features/scene";
+
+// The controls read the current experiment's coordinate system, whose
+// terminology rows would otherwise be fetched from the atlas source.
+vi.mock("@/features/atlas/api/source.api", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/features/atlas/api/source.api")
+  >("@/features/atlas/api/source.api");
+  return {
+    ...actual,
+    getTerminologyRows: vi.fn()
+  };
+});
+
+beforeEach(() => {
+  vi.mocked(getTerminologyRows).mockResolvedValue([]);
+});
 
 const wrappers = createWrapperRegistry<ReturnType<typeof mountWithQuasar>>();
 
@@ -68,7 +87,7 @@ describe("KeyboardControls", () => {
 
     const event = await pressKey("KeyW");
 
-    expect(probe.tipPosition).toEqual([0.99, 2, 3]);
+    expect(probe.tipPosition).toEqual([1, 2.01, 3]);
     expect(event.defaultPrevented).toBe(true);
     expect(wrapper.text()).toContain("Speed 10 µm/click");
     expect(wrapper.findAll("kbd").map(key => key.text())).toEqual([
@@ -83,10 +102,10 @@ describe("KeyboardControls", () => {
     ]);
     expect(wrapper.text()).toContain("AP");
     expect(wrapper.text()).toContain("ML");
-    expect(wrapper.text()).toContain("DV");
+    expect(wrapper.text()).toContain("SI");
   });
 
-  it("colors each key pair by the axis it drives, matching the scene's axis guides", async () => {
+  it("colors each key pair by the anatomical line it drives, matching the scene's axis guides", async () => {
     const wrapper = await mountKeyboardControls(makeDrivenProbe());
 
     await pressKey("KeyW");
@@ -95,11 +114,35 @@ describe("KeyboardControls", () => {
       .findAll(".keyboard-control-legend > div")
       .map(row => row.classes().find(name => name.startsWith("axis-")));
     expect(axisClasses).toEqual([
-      "axis-ap",
-      "axis-ml",
-      "axis-dv",
+      "axis-posteriorAnterior",
+      "axis-leftRight",
+      "axis-inferiorSuperior",
       "axis-speed"
     ]);
+  });
+
+  it("labels each key pair with the coordinate system's own axis name", async () => {
+    const wrapper = await mountKeyboardControls(makeDrivenProbe());
+    const system = useCurrentExperimentStore().globalCoordinateSystem;
+    system.axes[1].positionName = "Bregma AP";
+
+    await pressKey("KeyW");
+
+    expect(wrapper.text()).toContain("Bregma AP");
+  });
+
+  it("keeps W moving the probe anteriorly when the global axis points posteriorly", async () => {
+    const probe = makeDrivenProbe();
+    await mountKeyboardControls(probe);
+    const currentExperiment = useCurrentExperimentStore();
+    currentExperiment.globalCoordinateSystem.axes[1] = buildCoordinateAxis(
+      "Anterior_to_posterior"
+    );
+
+    await pressKey("KeyW");
+
+    // The axis now counts anterior down, so the same anatomical move subtracts.
+    expect(probe.tipPosition).toEqual([1, 1.99, 3]);
   });
 
   it("walks the speed ladder with - and +, stopping at its finest step", async () => {
@@ -116,7 +159,7 @@ describe("KeyboardControls", () => {
     expect(wrapper.text()).toContain("Speed 0.1 µm/click");
 
     await pressKey("KeyD");
-    expect(probe.tipPosition[2]).toBeCloseTo(3.0001, 10);
+    expect(probe.tipPosition[0]).toBeCloseTo(0.9999, 10);
   });
 
   it("remaps to the rotation controls when the rotation gizmo is enabled", async () => {
@@ -128,7 +171,7 @@ describe("KeyboardControls", () => {
     expect(wrapper.text()).toBe("");
 
     await pressKey("Digit3");
-    expect(probe.rotation).toEqual([0, Math.PI / 12, 0]);
+    expect(probe.rotation).toEqual([0, 0, -Math.PI / 12]);
     expect(wrapper.text()).toContain("Speed 15°/click");
     expect(wrapper.findAll("kbd").map(key => key.text())).toEqual([
       "1",

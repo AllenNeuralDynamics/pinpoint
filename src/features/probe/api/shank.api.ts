@@ -2,7 +2,10 @@ import type { ProbeInterfaceProbe } from "../models/probe-interface.model";
 import type { ProbeContactOutline, ProbeContour } from "./contour.api";
 import { getProbeContactOutlines } from "./contour.api";
 
-/** One shank of a probe, in the same probe-local mm frame as its contour. */
+/**
+ * One shank of a probe, in the same probe-body mm frame as its contour, which
+ * no coordinate system changes.
+ */
 export interface ProbeShank {
   /** `shank_ids` value this shank groups, or null when the definition has none. */
   id: string | number | null;
@@ -139,9 +142,10 @@ export function getProbeAlignmentOffsetMillimeters(
 }
 
 /**
- * Probe-local position of the aligned shank's base, where the default head
- * stage begins, in mm.
- * @param contour Probe contour whose height sets the base's depth.
+ * Position of the aligned shank's base, where the default head stage begins,
+ * in the probe body's own mm: x across the shanks, y along the electrode face
+ * normal, z up the shanks away from the tip.
+ * @param contour Probe contour whose height sets how far up the base sits.
  * @param shanks Probe's shanks, left to right.
  * @param shankAlignmentIndex Index of the shank the probe is aligned on, or null for the contour center.
  */

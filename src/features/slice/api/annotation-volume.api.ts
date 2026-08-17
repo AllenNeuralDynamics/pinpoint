@@ -81,10 +81,10 @@ export async function openAnnotationVolume(
 }
 
 /**
- * Read one annotation chunk as a flat uint32 array in [ap, dv, ml] order.
+ * Read one annotation chunk as a flat uint32 array in [ap, si, ml] order.
  * Missing chunks come back filled with the array's fill value.
  * @param level Level to read from.
- * @param chunkCoordinates Chunk grid coordinates as [ap, dv, ml].
+ * @param chunkCoordinates Chunk grid coordinates as [ap, si, ml].
  * @param signal Abort signal for the request.
  */
 export async function readAnnotationChunk(

@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { useDialogPluginComponent } from "quasar";
 import GeneralPreferences from "./GeneralPreferences.vue";
+import CoordinatePreferences from "./CoordinatePreferences.vue";
 import ScenePreferences from "./ScenePreferences.vue";
 import ProbePreferences from "./ProbePreferences.vue";
 import ExportPreferences from "./ExportPreferences.vue";
@@ -22,6 +23,7 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
       <q-card-section class="column no-wrap preferences__content q-pt-none">
         <q-tabs v-model="tab">
           <q-tab name="general" :label="$t('preferences.general')" />
+          <q-tab name="coordinates" :label="$t('preferences.coordinates')" />
           <q-tab name="scene" :label="$t('preferences.scene')" />
           <q-tab name="probe" :label="$t('preferences.probe')" />
           <q-tab name="export" :label="$t('preferences.export')" />
@@ -31,6 +33,9 @@ const { dialogRef, onDialogHide, onDialogOK } = useDialogPluginComponent();
         <q-separator />
         <q-tab-panels v-model="tab" animated class="col preferences__panels">
           <q-tab-panel name="general"><GeneralPreferences /></q-tab-panel>
+          <q-tab-panel name="coordinates">
+            <CoordinatePreferences />
+          </q-tab-panel>
           <q-tab-panel name="scene">
             <ScenePreferences @inspect-world="onDialogOK()" />
           </q-tab-panel>

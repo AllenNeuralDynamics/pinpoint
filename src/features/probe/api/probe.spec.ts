@@ -18,6 +18,20 @@ import {
   toggleProbeLock
 } from "./probe.api";
 import { addProbe, buildExperiment } from "@/features/experiment";
+import type {
+  GlobalCoordinateSystem,
+  LocalCoordinateSystem
+} from "@/utils/coordinate-frame";
+import {
+  buildCoordinateAxis,
+  buildDefaultGlobalCoordinateSystem,
+  buildDefaultLocalCoordinateSystem,
+  getAxisDirections,
+  getDirectionVector,
+  getProbeRestRotation,
+  getRotationMatrix,
+  multiplyMatrices
+} from "@/utils/coordinate-frame";
 import {
   makeAtlas,
   makeProbe,
@@ -25,25 +39,79 @@ import {
   makeSceneModel
 } from "@/test/fixtures";
 
+/** Global coordinate system the probe specs place their probes in: RAS. */
+const GLOBAL_SYSTEM = buildDefaultGlobalCoordinateSystem();
+
+/** Local coordinate system a probe rests in by default: depth posterior. */
+const LOCAL_SYSTEM = buildDefaultLocalCoordinateSystem();
+
+/**
+ * Canonical anatomical direction a built probe's depth axis ends up pointing
+ * along, read off the body orientation its rotation and rest orientation
+ * compose to.
+ * @param probe Probe to read the rotation from.
+ * @param global Global coordinate system the rotation turns about.
+ * @param local Local coordinate system the probe rests in.
+ */
+function getProbeDepthVector(
+  probe: Probe,
+  global: GlobalCoordinateSystem,
+  local: LocalCoordinateSystem
+): [number, number, number] {
+  const orientation = multiplyMatrices(
+    getRotationMatrix(getAxisDirections(global), probe.rotation),
+    getProbeRestRotation(local)
+  );
+  // The body's third axis runs up the shank away from the tip, so the depth
+  // axis is its negation.
+  return [-orientation[2], -orientation[5], -orientation[8]];
+}
+
+/**
+ * Assert that a probe's depth axis points inferior, i.e. down canonical z.
+ * @param depth Depth axis vector in canonical anatomical coordinates.
+ */
+function expectPointsInferior(depth: [number, number, number]) {
+  const inferior = getDirectionVector("Superior_to_inferior");
+  expect(depth[0]).toBeCloseTo(inferior[0], 12);
+  expect(depth[1]).toBeCloseTo(inferior[1], 12);
+  expect(depth[2]).toBeCloseTo(inferior[2], 12);
+}
+
+/**
+ * Build an experiment the probe specs can add probes to.
+ */
+function makeProbeExperiment() {
+  return buildExperiment(
+    "experiment",
+    makeAtlas(),
+    GLOBAL_SYSTEM,
+    LOCAL_SYSTEM,
+    [0, 0, 0]
+  );
+}
+
 describe("buildProbe", () => {
   it("references the given probe identifier", () => {
     const spec = makeProbeInterfaceProbe({
       annotations: { manufacturer: "imec", model_name: "np1" }
     });
-    const probe = buildProbe(spec, [0, 0, 0]);
+    const probe = buildProbe(spec, [0, 0, 0], GLOBAL_SYSTEM, LOCAL_SYSTEM);
     expect(probe.probeInterfaceIdentifier).toBe("imec np1");
   });
 
-  it("builds a probe with sensible defaults, starting pitched inferiorly", () => {
-    const probe = buildProbe(makeProbeInterfaceProbe(), [1, 2, 3]);
+  it("builds a probe with sensible defaults", () => {
+    const probe = buildProbe(
+      makeProbeInterfaceProbe(),
+      [1, 2, 3],
+      GLOBAL_SYSTEM,
+      LOCAL_SYSTEM
+    );
 
     expect(probe.inspectableKind).toBe("probe");
     expect(probe.visibility).toBe("visible");
     expect(probe.lock).toBe(false);
     expect(probe.tipPosition).toEqual([1, 2, 3]);
-    // A pitch of 0 would lie flat, pointing anteriorly; PI/2 is the intended
-    // starting default so a new probe points inferiorly.
-    expect(probe.rotation).toEqual([0, 0, Math.PI / 2]);
     expect(probe.id).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
     );
@@ -57,23 +125,100 @@ describe("buildProbe", () => {
     expect(probe.bodyModel).toBeNull();
   });
 
+  it("starts pointing inferior for the experiment's coordinate systems", () => {
+    const probe = buildProbe(
+      makeProbeInterfaceProbe(),
+      [0, 0, 0],
+      GLOBAL_SYSTEM,
+      LOCAL_SYSTEM
+    );
+
+    expectPointsInferior(
+      getProbeDepthVector(probe, GLOBAL_SYSTEM, LOCAL_SYSTEM)
+    );
+    // Resting depth is posterior, so it takes a quarter turn about the
+    // left-right axis, which RAS puts first.
+    expect(probe.rotation).toEqual([Math.PI / 2, 0, 0]);
+  });
+
+  it("starts unrotated when the local coordinate system's depth axis is already inferior", () => {
+    const local: LocalCoordinateSystem = {
+      depthDirection: "Superior_to_inferior",
+      forwardDirection: "Posterior_to_anterior"
+    };
+
+    const probe = buildProbe(
+      makeProbeInterfaceProbe(),
+      [0, 0, 0],
+      GLOBAL_SYSTEM,
+      local
+    );
+
+    expect(probe.rotation).toEqual([0, 0, 0]);
+    expectPointsInferior(getProbeDepthVector(probe, GLOBAL_SYSTEM, local));
+  });
+
+  it("turns about whichever axis the global coordinate system runs left to right along", () => {
+    const global: GlobalCoordinateSystem = {
+      ...GLOBAL_SYSTEM,
+      axes: [
+        buildCoordinateAxis("Anterior_to_posterior"),
+        buildCoordinateAxis("Superior_to_inferior"),
+        buildCoordinateAxis("Right_to_left")
+      ]
+    };
+
+    const probe = buildProbe(
+      makeProbeInterfaceProbe(),
+      [0, 0, 0],
+      global,
+      LOCAL_SYSTEM
+    );
+
+    expectPointsInferior(getProbeDepthVector(probe, global, LOCAL_SYSTEM));
+    // Only the left-right axis, which this system puts last, may turn.
+    expect(probe.rotation[0]).toBe(0);
+    expect(probe.rotation[1]).toBe(0);
+    expect(probe.rotation[2]).not.toBe(0);
+  });
+
   it("does not alias the given tip position array", () => {
     const tipPosition: [number, number, number] = [1, 2, 3];
 
-    const probe = buildProbe(makeProbeInterfaceProbe(), tipPosition);
+    const probe = buildProbe(
+      makeProbeInterfaceProbe(),
+      tipPosition,
+      GLOBAL_SYSTEM,
+      LOCAL_SYSTEM
+    );
     tipPosition[0] = 99;
 
     expect(probe.tipPosition).toEqual([1, 2, 3]);
   });
 
   it("gives each probe a unique id", () => {
-    const a = buildProbe(makeProbeInterfaceProbe(), [0, 0, 0]);
-    const b = buildProbe(makeProbeInterfaceProbe(), [0, 0, 0]);
+    const a = buildProbe(
+      makeProbeInterfaceProbe(),
+      [0, 0, 0],
+      GLOBAL_SYSTEM,
+      LOCAL_SYSTEM
+    );
+    const b = buildProbe(
+      makeProbeInterfaceProbe(),
+      [0, 0, 0],
+      GLOBAL_SYSTEM,
+      LOCAL_SYSTEM
+    );
     expect(a.id).not.toBe(b.id);
   });
 
   it("leaves the coordinate system identifier null", () => {
-    const probe = buildProbe(makeProbeInterfaceProbe(), [0, 0, 0]);
+    const probe = buildProbe(
+      makeProbeInterfaceProbe(),
+      [0, 0, 0],
+      GLOBAL_SYSTEM,
+      LOCAL_SYSTEM
+    );
     expect(probe.coordinateSystemIdentifier).toBeNull();
   });
 });
@@ -174,7 +319,7 @@ describe("homeProbe", () => {
 
 describe("copyProbe", () => {
   it("inserts a copy directly after the source, with a fresh id and a copy-suffixed name", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeProbeExperiment();
     const first = makeProbe({ name: "A" });
     const second = makeProbe({ name: "B" });
     addProbe(experiment, first);
@@ -190,7 +335,7 @@ describe("copyProbe", () => {
   });
 
   it("copies a locked source as locked", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeProbeExperiment();
     const probe = makeProbe({ lock: true });
     addProbe(experiment, probe);
 
@@ -200,7 +345,7 @@ describe("copyProbe", () => {
   });
 
   it("deep-copies mutable fields, independent of the source", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeProbeExperiment();
     const probe = makeProbe({ tipPosition: [1, 2, 3] });
     addProbe(experiment, probe);
 
@@ -211,7 +356,7 @@ describe("copyProbe", () => {
   });
 
   it("returns null and leaves the experiment untouched when the probe isn't there", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeProbeExperiment();
     const probe = makeProbe();
 
     const copy = copyProbe(experiment, probe);

@@ -8,8 +8,8 @@ import {
   toggleSceneObjectVisibility
 } from "./scene-object.api";
 import { STANDARD_COLORS } from "../models/standard-colors.model";
-import { addSceneObject, buildExperiment } from "@/features/experiment";
-import { makeAtlas, makeSceneObject } from "@/test/fixtures";
+import { addSceneObject } from "@/features/experiment";
+import { makeExperiment, makeSceneObject } from "@/test/fixtures";
 
 describe("buildSceneObject", () => {
   it("names the object after the file, dropping the last extension", () => {
@@ -64,7 +64,7 @@ describe("buildSceneObject", () => {
 
 describe("copySceneObject", () => {
   it("inserts the copy directly after the source, with a fresh id and a copy-suffixed name", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
     const a = makeSceneObject({ name: "A" });
     const b = makeSceneObject({ name: "B" });
     addSceneObject(experiment, a);
@@ -80,7 +80,7 @@ describe("copySceneObject", () => {
   });
 
   it("shares the source's stored model file", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
     const a = makeSceneObject();
     addSceneObject(experiment, a);
 
@@ -90,7 +90,7 @@ describe("copySceneObject", () => {
   });
 
   it("returns null and leaves the experiment untouched when the object isn't there", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
 
     const copy = copySceneObject(experiment, makeSceneObject());
 
@@ -99,7 +99,7 @@ describe("copySceneObject", () => {
   });
 
   it("copies a locked source as locked", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
     const sceneObject = makeSceneObject({ lock: true });
     addSceneObject(experiment, sceneObject);
 
@@ -109,7 +109,7 @@ describe("copySceneObject", () => {
   });
 
   it("deep-copies mutable fields, independent of the source", () => {
-    const experiment = buildExperiment("experiment", makeAtlas(), [0, 0, 0]);
+    const experiment = makeExperiment();
     const sceneObject = makeSceneObject({ position: [1, 2, 3] });
     addSceneObject(experiment, sceneObject);
 

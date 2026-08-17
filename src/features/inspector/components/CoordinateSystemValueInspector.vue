@@ -11,8 +11,11 @@ import {
   type CoordinateSystemValueMode
 } from "@/features/coordinate-system";
 
-// One axis-mapping choice. `attrs` puts a stable aria-label on the rendered
-// button (Quasar spreads it onto each `q-btn`).
+// One chain-axis-mapping choice. A value drives one of the probe's chain axes,
+// which are rooted in the experiment's local coordinate system rather than the
+// global coordinate system's anatomical axes, so they are labelled X, Y, Z.
+// `attrs` puts a stable aria-label on the rendered button (Quasar spreads it
+// onto each `q-btn`).
 interface AxisOption {
   label: string;
   value: number;

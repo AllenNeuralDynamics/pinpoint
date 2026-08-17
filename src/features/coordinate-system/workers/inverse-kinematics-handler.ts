@@ -12,11 +12,18 @@ import type {
 export function handleInverseKinematicsMessage(
   message: SolveInverseKinematicsMessage
 ): SolvedInverseKinematicsMessage {
-  const { chain, referenceOffsetMillimeters } = message;
+  const {
+    chain,
+    referenceOffsetMillimeters,
+    globalDirections,
+    localCoordinateSystem
+  } = message;
   const status = solveCoordinateSystemChainInverse(
     chain,
     message.target,
     referenceOffsetMillimeters,
+    globalDirections,
+    localCoordinateSystem,
     message.maximumStarts
   );
   return {
@@ -24,6 +31,11 @@ export function handleInverseKinematicsMessage(
     requestId: message.requestId,
     status,
     chain,
-    solution: solveCoordinateSystemChain(chain, referenceOffsetMillimeters)
+    solution: solveCoordinateSystemChain(
+      chain,
+      referenceOffsetMillimeters,
+      globalDirections,
+      localCoordinateSystem
+    )
   };
 }

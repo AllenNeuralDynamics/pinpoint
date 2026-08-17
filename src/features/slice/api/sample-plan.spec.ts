@@ -105,8 +105,8 @@ describe("planSamples", () => {
   });
 
   it("puts row 0 at the +up edge of the plane", () => {
-    // up = -DV (superior). Row 0 should read the smallest DV (most superior)
-    // voxel, row (size-1) the largest DV voxel.
+    // up = -SI (superior). Row 0 should read the smallest SI (most superior)
+    // voxel, row (size-1) the largest SI voxel.
     const level = makeAnnotationLevel({
       shapeVoxels: [100, 100, 100],
       chunkShapeVoxels: [10, 10, 10]

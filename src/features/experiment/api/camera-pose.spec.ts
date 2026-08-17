@@ -11,7 +11,29 @@ import {
   getAtlasCenter,
   getAtlasDimensionsMillimeters
 } from "@/features/atlas";
+import {
+  ATLAS_AXIS_DIRECTIONS,
+  buildCoordinateAxis,
+  buildDefaultGlobalCoordinateSystem,
+  type GlobalCoordinateSystem
+} from "@/utils/coordinate-frame";
 import { makeAtlas, makeCameraPose, makeManifest } from "@/test/fixtures";
+
+/** Default right-anterior-superior coordinate system every pose is built in. */
+const RAS = buildDefaultGlobalCoordinateSystem();
+
+/**
+ * Coordinate system whose axes are the atlas's own, so an atlas coordinate
+ * crosses into it unchanged however `ATLAS_AXIS_DIRECTIONS` is defined.
+ */
+const ATLAS_ALIGNED: GlobalCoordinateSystem = {
+  ...buildDefaultGlobalCoordinateSystem(),
+  axes: [
+    buildCoordinateAxis(ATLAS_AXIS_DIRECTIONS[0]),
+    buildCoordinateAxis(ATLAS_AXIS_DIRECTIONS[1]),
+    buildCoordinateAxis(ATLAS_AXIS_DIRECTIONS[2])
+  ]
+};
 
 describe("getAtlasFramingRadiusMillimeters", () => {
   it("frames the radius at 1.5x the atlas AP length", () => {
@@ -31,36 +53,39 @@ describe("buildCameraPose", () => {
   it("frames the radius at 1.5x the atlas AP length", () => {
     const atlas = makeAtlas();
 
-    const pose = buildCameraPose(atlas);
+    const pose = buildCameraPose(atlas, RAS);
 
     expect(pose.radius).toBe(getAtlasDimensionsMillimeters(atlas)[0] * 1.5);
   });
 
-  it("sets the target to the atlas centre", () => {
+  it("expresses the atlas centre in the given coordinate system", () => {
     const atlas = makeAtlas();
+    const [ap, si, ml] = getAtlasCenter(atlas);
 
-    const pose = buildCameraPose(atlas);
-
-    expect(pose.target).toEqual(getAtlasCenter(atlas));
+    expect(buildCameraPose(atlas, ATLAS_ALIGNED).target).toEqual([ap, si, ml]);
+    // Right-anterior-superior reads the atlas's ml, ap, si axes in that order.
+    // The atlas's ml axis already points to the animal's right, so it carries
+    // over unchanged, while the other two negate.
+    expect(buildCameraPose(atlas, RAS).target).toEqual([ml, -ap, -si]);
   });
 
   it("carries the camera inspectable kind and an empty name", () => {
-    const pose = buildCameraPose(makeAtlas());
+    const pose = buildCameraPose(makeAtlas(), RAS);
 
     expect(pose.inspectableKind).toBe("camera");
     expect(pose.name).toBe("");
   });
 
   it("mints a distinct id across calls", () => {
-    const a = buildCameraPose(makeAtlas());
-    const b = buildCameraPose(makeAtlas());
+    const a = buildCameraPose(makeAtlas(), RAS);
+    const b = buildCameraPose(makeAtlas(), RAS);
 
     expect(a.id).not.toBe(b.id);
   });
 
   it("keeps the initial orbit angles fixed regardless of atlas, unlike radius and target", () => {
-    const a = buildCameraPose(makeAtlas());
-    const b = buildCameraPose(makeAtlas({ name: "allen_human" }));
+    const a = buildCameraPose(makeAtlas(), RAS);
+    const b = buildCameraPose(makeAtlas({ name: "allen_human" }), RAS);
 
     expect(a.alpha).toBe(b.alpha);
     expect(a.beta).toBe(b.beta);
@@ -77,9 +102,9 @@ describe("resetCameraPose", () => {
       target: [9, 9, 9]
     });
 
-    resetCameraPose(pose, atlas);
+    resetCameraPose(pose, atlas, RAS);
 
-    const initialized = buildCameraPose(atlas);
+    const initialized = buildCameraPose(atlas, RAS);
     expect(pose.alpha).toBe(initialized.alpha);
     expect(pose.beta).toBe(initialized.beta);
     expect(pose.radius).toBe(initialized.radius);
@@ -89,7 +114,7 @@ describe("resetCameraPose", () => {
   it("keeps the pose's id and name", () => {
     const pose = makeCameraPose({ id: "kept-id", name: "Kept" });
 
-    resetCameraPose(pose, makeAtlas());
+    resetCameraPose(pose, makeAtlas(), RAS);
 
     expect(pose.id).toBe("kept-id");
     expect(pose.name).toBe("Kept");
