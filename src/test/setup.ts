@@ -1,4 +1,10 @@
 import { afterEach, beforeEach } from "vitest";
+import { Storage as HappyDomStorage } from "happy-dom";
+
+Object.defineProperty(globalThis, "localStorage", {
+  configurable: true,
+  value: new HappyDomStorage()
+});
 
 /**
  * Fail fast on any un-mocked network I/O.
