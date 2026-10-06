@@ -1,11 +1,34 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { createApp } from "vue";
 import { createPinia, setActivePinia } from "pinia";
+import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import { useCoordinateSystemLibraryStore } from "./coordinate-system-library.store";
 import { makeCoordinateSystem } from "@/test/fixtures";
 
 describe("useCoordinateSystemLibraryStore", () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    localStorage.removeItem("coordinate-system-library");
+  });
+
+  it("defaults old library entries' root brain transform setting during hydration", () => {
+    const coordinateSystem = makeCoordinateSystem();
+    const legacyCoordinateSystem = { ...coordinateSystem };
+    delete (legacyCoordinateSystem as Partial<typeof coordinateSystem>)
+      .applyRootTransformToBrain;
+    localStorage.setItem(
+      "coordinate-system-library",
+      JSON.stringify({ library: [legacyCoordinateSystem] })
+    );
+
+    const pinia = createPinia();
+    pinia.use(piniaPluginPersistedstate);
+    createApp({}).use(pinia);
+    setActivePinia(pinia);
+    const store = useCoordinateSystemLibraryStore();
+
+    expect(store.library).toHaveLength(1);
+    expect(store.library[0]!.applyRootTransformToBrain).toBe(false);
   });
 
   describe("remove", () => {

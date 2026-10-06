@@ -12,6 +12,7 @@ import type {
   Scene,
   SelectionOutlineLayer
 } from "@babylonjs/core";
+import type { Matrix } from "@babylonjs/core";
 import {
   Color3,
   CSG2,
@@ -69,6 +70,9 @@ const ROD_MESH_SUFFIX = sceneEntityNameSuffix("probe", "rod_mesh");
 
 /** Name of the shared gray material used by every probe's rod mesh. */
 const ROD_MATERIAL_NAME = "probe_rod_material";
+
+/** Last atlas display frame used to place each probe, so frame changes do not animate its native pose. */
+const probeDisplayFrames = new WeakMap<TransformNode, Matrix>();
 
 /**
  * Get a probe's transform node by ID.
@@ -284,6 +288,12 @@ export function syncProbes(
       buildProbe(scene, probe, experiment, gizmoManager, geometry);
     if (!node) continue;
 
+    const displayFrame = atlasRootNode.computeWorldMatrix(true);
+    const previousFrame = probeDisplayFrames.get(node);
+    const frameChanged =
+      previousFrame !== undefined && !previousFrame.equals(displayFrame);
+    probeDisplayFrames.set(node, displayFrame.clone());
+
     const meshes = node.getChildMeshes(false);
     const shankMesh = meshes.find(mesh =>
       mesh.name.endsWith(SHANK_MESH_SUFFIX)
@@ -332,7 +342,7 @@ export function syncProbes(
     }
     // A freshly built probe snaps, so it doesn't fly in from the origin, and a
     // scrubbed one snaps so it tracks the pointer. Anything else glides.
-    if (!existingNode || snapPoses) {
+    if (!existingNode || snapPoses || frameChanged) {
       stopNodePoseInterpolation(node);
       node.position = goalPosition;
       node.rotation = goalRotation;

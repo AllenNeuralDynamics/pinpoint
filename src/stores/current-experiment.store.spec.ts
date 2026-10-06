@@ -13,6 +13,7 @@ import type { TerminologyRow } from "@/features/atlas";
 import {
   addProbe,
   buildExperiment,
+  internCoordinateSystem,
   internProbeInterfaceProbe,
   setProbeCoordinateSystem
 } from "@/features/experiment";
@@ -153,6 +154,31 @@ describe("useCurrentExperimentStore", () => {
       expect(store.terminologyRows).toEqual(terminologyRows);
       const persisted = JSON.parse(localStorage.getItem("current-experiment")!);
       expect(Object.keys(persisted)).toEqual(["experiment"]);
+    });
+
+    it("defaults the root brain transform setting when hydrating an older experiment", () => {
+      const experiment = buildExperiment("Saved", makeAtlas(), [0, 0, 0]);
+      const coordinateSystem = makeCoordinateSystem();
+      internCoordinateSystem(experiment, coordinateSystem);
+      const legacyCoordinateSystem = {
+        ...experiment.coordinateSystems[coordinateSystem.id]!
+      };
+      delete (legacyCoordinateSystem as Partial<typeof coordinateSystem>)
+        .applyRootTransformToBrain;
+      experiment.coordinateSystems[coordinateSystem.id] =
+        legacyCoordinateSystem as typeof coordinateSystem;
+      localStorage.setItem(
+        "current-experiment",
+        JSON.stringify({ experiment })
+      );
+
+      usePersistedPinia();
+      const store = useCurrentExperimentStore();
+
+      expect(
+        store.experiment.coordinateSystems[coordinateSystem.id]
+          ?.applyRootTransformToBrain
+      ).toBe(false);
     });
   });
 
@@ -651,12 +677,19 @@ describe("useCurrentExperimentStore", () => {
         coordinateSystemLibraryStore.library[1]!
       );
 
-      coordinateSystemLibraryStore.library[1]!.chain[0]!.name = "Edited";
+      const libraryCoordinateSystem = coordinateSystemLibraryStore.library[1]!;
+      libraryCoordinateSystem.applyRootTransformToBrain = true;
+      libraryCoordinateSystem.chain[0]!.rotation[0]!.value = 0.25;
       await nextTick();
 
       expect(
-        store.experiment.coordinateSystems[identifier]!.chain[0]!.name
-      ).toBe("Edited");
+        store.experiment.coordinateSystems[identifier]!
+          .applyRootTransformToBrain
+      ).toBe(true);
+      expect(
+        store.experiment.coordinateSystems[identifier]!.chain[0]!.rotation[0]!
+          .value
+      ).toBe(0.25);
     });
 
     it("leaves a library system the experiment does not intern out of coordinateSystems", async () => {

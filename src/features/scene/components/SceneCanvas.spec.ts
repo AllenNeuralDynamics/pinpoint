@@ -22,6 +22,7 @@ import type {
 import {
   ArcRotateCamera,
   Matrix,
+  MeshBuilder,
   Observable,
   PointerEventTypes,
   PointerInfo,
@@ -66,6 +67,7 @@ import {
 import {
   addProbe,
   buildExperiment,
+  internCoordinateSystem,
   internProbeInterfaceProbe,
   setProbeInterface
 } from "@/features/experiment";
@@ -566,6 +568,91 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(axisGuidePickMeshCount(runtime.scene.value!)).toBe(0);
+  });
+
+  it("uses a selected probe's coordinate system to transform atlas anatomy", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    const coordinateSystem = makeCoordinateSystem({
+      applyRootTransformToBrain: true
+    });
+    coordinateSystem.chain[0]!.rotation[0].value = Math.PI / 12;
+    internCoordinateSystem(store.experiment, coordinateSystem);
+    store.selectedInspectable = makeProbe({
+      coordinateSystemIdentifier: coordinateSystem.id
+    });
+
+    await flushPromises();
+
+    expect(
+      buildAtlasRootNode(runtime.scene.value!)
+        .computeWorldMatrix(true)
+        .equalsWithEpsilon(Matrix.RotationX(Math.PI - Math.PI / 12), 1e-5)
+    ).toBe(true);
+  });
+
+  it("keeps the brain matrix fixed through deselection, probe translation, and probe rotation", async () => {
+    const { runtime } = await mountCanvas();
+    const scene = runtime.scene.value!;
+    const structure = MeshBuilder.CreateBox("1_structure_mesh", {}, scene);
+    structure.parent = buildAtlasRootNode(scene);
+    const store = useCurrentExperimentStore();
+    const system = makeCoordinateSystem({ applyRootTransformToBrain: true });
+    system.chain[0]!.rotation[0]!.value = Math.PI / 12;
+    internCoordinateSystem(store.experiment, system);
+    const spec = makeProbeInterfaceProbe();
+    internProbeInterfaceProbe(store.experiment, spec);
+    addProbe(
+      store.experiment,
+      makeProbe({
+        coordinateSystemIdentifier: system.id,
+        probeInterfaceIdentifier: getProbeInterfaceIdentifier(spec),
+        tipPosition: [6, 5, 4],
+        rotation: [0, 0, 0]
+      })
+    );
+    const probe = store.probes[0]!;
+    store.selectedInspectable = probe;
+    await flushPromises();
+    const tilted = structure.computeWorldMatrix(true).clone();
+    for (const selection of [null, probe]) {
+      store.selectedInspectable = selection;
+      await flushPromises();
+      expect(structure.computeWorldMatrix(true).asArray()).toEqual(
+        tilted.asArray()
+      );
+    }
+    for (const [tipPosition, rotation] of [
+      [
+        [8, 7, 6],
+        [0, 0, 0]
+      ],
+      [
+        [8, 7, 6],
+        [0.4, -0.7, 0.3]
+      ],
+      [
+        [1, 2, 3],
+        [-0.2, 0.1, -0.5]
+      ]
+    ] as [[number, number, number], [number, number, number]][]) {
+      probe.tipPosition = tipPosition;
+      probe.rotation = rotation;
+      await flushPromises();
+      expect(structure.computeWorldMatrix(true).asArray()).toEqual(
+        tilted.asArray()
+      );
+    }
+    store.coordinateSystems[system.id]!.applyRootTransformToBrain = false;
+    await flushPromises();
+    expect(structure.computeWorldMatrix(true).asArray()).not.toEqual(
+      tilted.asArray()
+    );
+    expect(
+      structure
+        .computeWorldMatrix(true)
+        .equalsWithEpsilon(Matrix.RotationX(Math.PI), 1e-5)
+    ).toBe(true);
   });
 
   it("re-offsets when the experiment's atlas changes", async () => {

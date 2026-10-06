@@ -1,5 +1,5 @@
 // Deep-import to avoid the side-effectful root barrel, which would drag the whole Babylon engine into this solver's worker chunk.
-import { Matrix, Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import {
   DOF,
   Goal,
@@ -139,6 +139,12 @@ export function solveCoordinateSystemChainInverse(
   referenceOffsetMillimeters: [number, number, number] | null,
   maximumStarts: number
 ): CoordinateSystemSolveStatus {
+  if (
+    maximumStarts > 0 &&
+    solveSurfaceDepthChain(chain, target, referenceOffsetMillimeters)
+  ) {
+    return "converged";
+  }
   const bindings = collectFreeValueBindings(chain);
   if (bindings.length === 0) {
     return "noFreeValues";
@@ -214,6 +220,101 @@ export function solveCoordinateSystemChainInverse(
     );
   }
   return mapSolveStatuses(best.statuses);
+}
+
+/**
+ * Solve a free surface pose followed by axial depth exactly, preserving the target's Euler branch.
+ * @param chain Chain to update only when this exact solution satisfies its constraints.
+ * @param target Requested tip pose and optional surface position.
+ * @param referenceOffsetMillimeters Parent reference translation in ASR millimeters.
+ */
+function solveSurfaceDepthChain(
+  chain: CoordinateSystemNode[],
+  target: CoordinateSystemTarget,
+  referenceOffsetMillimeters: [number, number, number] | null
+): boolean {
+  const surface = chain.at(-2);
+  const depth = chain.at(-1);
+  const prefix = chain.slice(0, -2);
+  if (
+    !surface?.onSurface ||
+    !depth ||
+    depth.onSurface ||
+    [...surface.position, ...surface.rotation].some(
+      value => value.mode !== "free"
+    ) ||
+    depth.position[2].mode !== "free" ||
+    [...depth.position.slice(0, 2), ...depth.rotation].some(
+      value => value.mode === "free" || value.value !== 0
+    ) ||
+    prefix.some(
+      node =>
+        node.onSurface ||
+        [...node.position, ...node.rotation].some(
+          value => value.mode === "free"
+        )
+    )
+  )
+    return false;
+
+  const parent = solveCoordinateSystemChain(prefix, referenceOffsetMillimeters);
+  const parentFrame = Matrix.RotationYawPitchRoll(
+    parent.rotation[1],
+    parent.rotation[2],
+    parent.rotation[0]
+  ).multiply(
+    Matrix.Translation(
+      parent.tipPosition[2],
+      parent.tipPosition[1],
+      parent.tipPosition[0]
+    )
+  );
+  const inverseParent = parentFrame.invert();
+  const tip = Vector3.TransformCoordinates(
+    new Vector3(
+      target.tipPosition[2],
+      target.tipPosition[1],
+      target.tipPosition[0]
+    ),
+    inverseParent
+  );
+  const localRotation = Matrix.RotationYawPitchRoll(
+    target.rotation[1],
+    target.rotation[2],
+    target.rotation[0]
+  ).multiply(inverseParent.getRotationMatrix());
+  const rotation = prefix.every(node =>
+    node.rotation.every(value => value.value === 0)
+  )
+    ? new Vector3(target.rotation[2], target.rotation[1], target.rotation[0])
+    : Quaternion.FromRotationMatrix(localRotation).toEulerAngles();
+  const position = target.surfacePosition
+    ? Vector3.TransformCoordinates(
+        new Vector3(
+          target.surfacePosition[2],
+          target.surfacePosition[1],
+          target.surfacePosition[0]
+        ),
+        inverseParent
+      )
+    : tip.clone();
+  const direction = Vector3.TransformNormal(
+    new Vector3(0, 0, 1),
+    localRotation
+  );
+  const displacement = tip.subtract(position);
+  const distance = Vector3.Dot(displacement, direction);
+  if (
+    !Number.isFinite(distance) ||
+    displacement.subtract(direction.scale(distance)).length() > 1e-5
+  )
+    return false;
+  for (const axis of [0, 1, 2]) {
+    surface.position[axis]!.value = position.asArray()[axis]!;
+    surface.rotation[axis]!.value = rotation.asArray()[axis]!;
+  }
+  depth.position[2].value = distance;
+  return true;
 }
 
 /**

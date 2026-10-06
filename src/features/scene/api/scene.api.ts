@@ -19,7 +19,7 @@ import {
   attachSceneObjectSelection,
   getSceneObjectTransformNode
 } from "./scene-object-node.api";
-import { buildAtlasRootNode } from "./structures.api";
+import { buildAtlasRootNode, buildSceneWorldRootNode } from "./structures.api";
 
 /** Suffix applied to a probe's id to name its parenting transform node. */
 const PROBE_NODE_SUFFIX = sceneEntityNameSuffix("probe", "node");
@@ -198,10 +198,13 @@ export function setHemisphericLightIntensity(
  */
 export function setSceneEntitiesHidden(scene: Scene, areHidden: boolean): void {
   const atlasRootNode = buildAtlasRootNode(scene);
-  for (const node of atlasRootNode.getChildren(
-    child =>
-      child.name.endsWith(PROBE_NODE_SUFFIX) ||
-      child.name.endsWith(SCENE_OBJECT_NODE_SUFFIX)
+  for (const node of [atlasRootNode, buildSceneWorldRootNode(scene)].flatMap(
+    root =>
+      root.getChildren(
+        child =>
+          child.name.endsWith(PROBE_NODE_SUFFIX) ||
+          child.name.endsWith(SCENE_OBJECT_NODE_SUFFIX)
+      )
   )) {
     node.setEnabled(!areHidden);
   }

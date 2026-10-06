@@ -2,7 +2,11 @@ import { toRaw } from "vue";
 import type { Atlas } from "@/features/atlas";
 import { getAtlasCenter, isSameAtlas } from "@/features/atlas";
 import type { CoordinateSystem } from "@/features/coordinate-system";
-import { getCoordinateSystemIdentifier } from "@/features/coordinate-system";
+import {
+  getCoordinateSystemIdentifier,
+  getCoordinateSystemBrainTransform,
+  transformCoordinateSystemPose
+} from "@/features/coordinate-system";
 import type { CameraPose } from "../models/camera-pose.model";
 import {
   buildCameraPose,
@@ -295,10 +299,21 @@ export function internCoordinateSystem(
 ) {
   const identifier = getCoordinateSystemIdentifier(coordinateSystem);
   if (!experiment.coordinateSystems[identifier]) {
-    experiment.coordinateSystems[identifier] = structuredClone(
-      toRaw(coordinateSystem)
-    );
+    experiment.coordinateSystems[identifier] =
+      cloneCoordinateSystem(coordinateSystem);
   }
+}
+
+/**
+ * Deep-copy a coordinate system, including any nested Vue proxies.
+ * @param coordinateSystem Coordinate system to copy.
+ */
+function cloneCoordinateSystem(
+  coordinateSystem: CoordinateSystem
+): CoordinateSystem {
+  return JSON.parse(
+    JSON.stringify(toRaw(coordinateSystem))
+  ) as CoordinateSystem;
 }
 
 /**
@@ -315,9 +330,44 @@ export function updateInternedCoordinateSystem(
   const interned = experiment.coordinateSystems[identifier];
   if (!interned) return;
 
-  const next = structuredClone(toRaw(coordinateSystem));
+  const next = cloneCoordinateSystem(coordinateSystem);
   if (JSON.stringify(interned) === JSON.stringify(next)) return;
+  for (const probe of experiment.probes) {
+    if (probe.coordinateSystemIdentifier === identifier) {
+      reframeProbe(probe, interned, next, experiment.referenceCoordinate);
+    }
+  }
   experiment.coordinateSystems[identifier] = next;
+}
+
+/**
+ * Preserve a probe's displayed pose when its fixed atlas frame changes.
+ * @param probe Probe whose native atlas pose is updated in place.
+ * @param previous Previous coordinate system, or null for the atlas frame.
+ * @param next Destination coordinate system, or null for the atlas frame.
+ * @param referenceCoordinate Experiment reference origin in ASR millimeters.
+ */
+function reframeProbe(
+  probe: Probe,
+  previous: CoordinateSystem | null,
+  next: CoordinateSystem | null,
+  referenceCoordinate: [number, number, number]
+): void {
+  const previousFrame = getCoordinateSystemBrainTransform(
+    previous,
+    referenceCoordinate
+  );
+  const nextFrame = getCoordinateSystemBrainTransform(
+    next,
+    referenceCoordinate
+  );
+  if (previousFrame.equals(nextFrame)) return;
+  const pose = transformCoordinateSystemPose(
+    probe,
+    previousFrame.multiply(nextFrame.invert())
+  );
+  probe.tipPosition = pose.tipPosition;
+  probe.rotation = pose.rotation;
 }
 
 /**
@@ -356,11 +406,34 @@ export function setProbeCoordinateSystem(
 ) {
   const oldIdentifier = probe.coordinateSystemIdentifier;
 
+  reframeProbe(
+    probe,
+    oldIdentifier
+      ? (experiment.coordinateSystems[oldIdentifier] ?? null)
+      : null,
+    coordinateSystem,
+    experiment.referenceCoordinate
+  );
+
   if (coordinateSystem) {
     const newIdentifier = getCoordinateSystemIdentifier(coordinateSystem);
-    experiment.coordinateSystems[newIdentifier] = structuredClone(
-      toRaw(coordinateSystem)
-    );
+    const previousDefinition =
+      experiment.coordinateSystems[newIdentifier] ?? null;
+    for (const other of experiment.probes) {
+      if (
+        other.id !== probe.id &&
+        other.coordinateSystemIdentifier === newIdentifier
+      ) {
+        reframeProbe(
+          other,
+          previousDefinition,
+          coordinateSystem,
+          experiment.referenceCoordinate
+        );
+      }
+    }
+    experiment.coordinateSystems[newIdentifier] =
+      cloneCoordinateSystem(coordinateSystem);
     probe.coordinateSystemIdentifier = newIdentifier;
   } else {
     probe.coordinateSystemIdentifier = null;

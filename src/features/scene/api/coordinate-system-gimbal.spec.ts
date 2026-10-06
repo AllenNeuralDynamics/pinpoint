@@ -14,7 +14,7 @@ import {
 } from "@/test/mount-helper";
 import { makeProbeGeometry } from "@/test/fixtures";
 import { asrToVector3 } from "./coordinate-transforms.api";
-import { buildAtlasRootNode } from "./structures.api";
+import { buildAtlasRootNode, setAtlasBrainTransform } from "./structures.api";
 import { syncCoordinateSystemGimbals } from "./coordinate-system-gimbal.api";
 
 /** Atlas longest-dimension stand-in for every test: an axis length of 18mm. */
@@ -98,6 +98,43 @@ describe("syncCoordinateSystemGimbals", () => {
     expectVectorCloseTo(
       childGimbal.computeWorldMatrix(true).getTranslation(),
       expectedWorldPosition
+    );
+  });
+
+  it("keeps the probe-coordinate gimbals stationary in the fixed root frame", () => {
+    const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
+    const system = buildCoordinateSystem(
+      "Fixture",
+      [
+        makeNode("Brain", [4, 5, 6], [Math.PI / 4, 0.2, 0.3]),
+        makeNode("Probe", [1, 2, 3])
+      ],
+      false,
+      true
+    );
+    setAtlasBrainTransform(scene, system, null);
+    syncCoordinateSystemGimbals(
+      scene,
+      selectionOutlineLayer,
+      system,
+      [0, 0, 0],
+      ATLAS_SCALE_MILLIMETERS,
+      null,
+      makeProbeGeometry()
+    );
+    const brainGimbal = scene.getTransformNodeByName(
+      "coordinateSystemGimbal_0_node"
+    )!;
+    const probeGimbal = scene.getTransformNodeByName(
+      "coordinateSystemGimbal_1_node"
+    )!;
+    expectVectorCloseTo(
+      brainGimbal.computeWorldMatrix(true).getTranslation(),
+      Vector3.Zero()
+    );
+    expectVectorCloseTo(
+      probeGimbal.computeWorldMatrix(true).getTranslation(),
+      new Vector3(1, -2, -3)
     );
   });
 

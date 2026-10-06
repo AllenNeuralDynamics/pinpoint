@@ -21,7 +21,10 @@ import {
   type ProbeSurfaceChoice,
   type ProbeSurfaceMarker
 } from "@/features/probe";
-import type { CoordinateSystemNodeComponent } from "@/features/coordinate-system";
+import {
+  type CoordinateSystemNodeComponent,
+  withRootTransformToBrainDefault
+} from "@/features/coordinate-system";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
 import { useRecentExperimentsStore } from "@/stores/recent-experiments.store";
@@ -378,6 +381,12 @@ export const useCurrentExperimentStore = defineStore(
       // Re-mark probe interface definitions as raw to prevent tracking.
       afterHydrate: context => {
         const experiment: Experiment = context.store.experiment;
+        for (const [identifier, coordinateSystem] of Object.entries(
+          experiment.coordinateSystems
+        )) {
+          experiment.coordinateSystems[identifier] =
+            withRootTransformToBrainDefault(coordinateSystem);
+        }
         detachProbeInterfaceProbes(experiment.probeInterfaceProbes);
         (
           context.store as unknown as HydratedCurrentExperimentStore

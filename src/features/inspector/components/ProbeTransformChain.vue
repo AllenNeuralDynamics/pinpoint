@@ -9,7 +9,7 @@ const { chain, disable, offSurfaceNodeIndexes } = defineProps<{
   disable: boolean;
   offSurfaceNodeIndexes: number[];
 }>();
-const emit = defineEmits<{ commit: [] }>();
+const emit = defineEmits<{ commit: [nodeIndex: number] }>();
 
 const { t } = useI18n();
 
@@ -42,14 +42,14 @@ const visibleNodes = computed(() =>
             :disable="disable"
             :label="t('probeInspector.position')"
             :node="node"
-            @commit="emit('commit')"
+            @commit="emit('commit', index)"
           />
           <ProbeTransformValueRow
             component="rotation"
             :disable="disable"
             :label="t('probeInspector.rotation')"
             :node="node"
-            @commit="emit('commit')"
+            @commit="emit('commit', index)"
           />
         </div>
       </q-item-section>

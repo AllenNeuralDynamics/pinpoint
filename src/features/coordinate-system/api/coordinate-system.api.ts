@@ -79,19 +79,35 @@ export function buildCoordinateSystemNode(
  * @param name Display name of the coordinate system.
  * @param chain Transform chain, applied in order.
  * @param offsetByReferenceCoordinate Whether the chain is offset by the experiment reference coordinate.
+ * @param applyRootTransformToBrain Whether the first transform is applied to atlas geometry.
  */
 export function buildCoordinateSystem(
   name: string,
   chain: CoordinateSystemNode[],
-  offsetByReferenceCoordinate = false
+  offsetByReferenceCoordinate = false,
+  applyRootTransformToBrain = false
 ): CoordinateSystem {
   return {
     inspectableKind: "coordinateSystem",
     id: crypto.randomUUID(),
     name,
     offsetByReferenceCoordinate,
+    applyRootTransformToBrain,
     chain
   };
+}
+
+/**
+ * Set a missing root brain transform setting in place on serialized coordinate systems.
+ * @param coordinateSystem Serialized coordinate system to normalize.
+ */
+export function withRootTransformToBrainDefault<T extends object>(
+  coordinateSystem: T
+): T {
+  if (!Object.hasOwn(coordinateSystem, "applyRootTransformToBrain")) {
+    Object.assign(coordinateSystem, { applyRootTransformToBrain: false });
+  }
+  return coordinateSystem;
 }
 
 /**
@@ -350,6 +366,7 @@ export function isCoordinateSystem(value: unknown): value is CoordinateSystem {
     isSafeObjectKey(value.id) &&
     typeof value.name === "string" &&
     typeof value.offsetByReferenceCoordinate === "boolean" &&
+    typeof value.applyRootTransformToBrain === "boolean" &&
     Array.isArray(value.chain) &&
     value.chain.every(isCoordinateSystemNode)
   );

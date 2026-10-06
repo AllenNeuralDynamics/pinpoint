@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isReactive, reactive } from "vue";
+import { isReactive, reactive, toRaw } from "vue";
 import {
   addCameraPose,
   addProbe,
@@ -539,6 +539,25 @@ describe("updateInternedCoordinateSystem", () => {
       "Tip"
     );
   });
+
+  it("copies nested Vue proxies when updating the interned definition", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const coordinateSystem = makeCoordinateSystem();
+    internCoordinateSystem(experiment, coordinateSystem);
+    const reactiveCoordinateSystem = reactive({
+      ...coordinateSystem,
+      chain: reactive(structuredClone(coordinateSystem.chain))
+    });
+    expect(isReactive(toRaw(reactiveCoordinateSystem).chain)).toBe(true);
+    reactiveCoordinateSystem.chain[0]!.rotation[0]!.value = 0.25;
+
+    updateInternedCoordinateSystem(experiment, reactiveCoordinateSystem);
+
+    expect(
+      experiment.coordinateSystems[coordinateSystem.id]!.chain[0]!.rotation[0]!
+        .value
+    ).toBe(0.25);
+  });
 });
 
 describe("removeInternCoordinateSystem", () => {
@@ -581,6 +600,33 @@ describe("removeInternCoordinateSystem", () => {
 });
 
 describe("setProbeCoordinateSystem", () => {
+  it("reframes every probe sharing a root when its definition is re-interned", () => {
+    const experiment = buildExperiment("Shared root", makeAtlas(), [0, 0, 0]);
+    const system = makeCoordinateSystem({ applyRootTransformToBrain: true });
+    for (const value of [
+      ...system.chain[0]!.position,
+      ...system.chain[0]!.rotation
+    ])
+      value.mode = "fixed";
+    system.chain[0]!.rotation[0].value = Math.PI / 12;
+    const first = makeProbe();
+    const second = makeProbe();
+    addProbe(experiment, first);
+    addProbe(experiment, second);
+    setProbeCoordinateSystem(experiment, first, system);
+    setProbeCoordinateSystem(experiment, second, system);
+    system.chain[0]!.rotation[0].value = Math.PI / 6;
+
+    setProbeCoordinateSystem(experiment, first, system);
+
+    for (const probe of [first, second]) {
+      expect(probe.rotation[0]).toBeCloseTo(0, 5);
+      expect(probe.rotation[1]).toBeCloseTo(0, 5);
+      expect(probe.rotation[2]).toBeCloseTo(Math.PI / 6, 5);
+      expect(probe.tipPosition).toEqual([0, 0, 0]);
+    }
+  });
+
   it("repoints the probe to the new coordinate system's identifier", () => {
     const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
     const oldSystem = makeCoordinateSystem();
@@ -605,6 +651,25 @@ describe("setProbeCoordinateSystem", () => {
     setProbeCoordinateSystem(experiment, probe, newSystem);
 
     expect(experiment.coordinateSystems["other-id"]).toEqual(newSystem);
+  });
+
+  it("accepts a definition with nested Vue proxies", () => {
+    const experiment = buildExperiment("Exp", makeAtlas(), [0, 0, 0]);
+    const probe = makeProbe();
+    addProbe(experiment, probe);
+    const coordinateSystem = makeCoordinateSystem({ id: "nested-proxies" });
+    const reactiveCoordinateSystem = reactive({
+      ...coordinateSystem,
+      chain: reactive(structuredClone(coordinateSystem.chain))
+    });
+    expect(isReactive(toRaw(reactiveCoordinateSystem).chain)).toBe(true);
+
+    setProbeCoordinateSystem(experiment, probe, reactiveCoordinateSystem);
+
+    expect(probe.coordinateSystemIdentifier).toBe(coordinateSystem.id);
+    expect(experiment.coordinateSystems[coordinateSystem.id]).toEqual(
+      coordinateSystem
+    );
   });
 
   it("drops the old entry once nothing else references it", () => {

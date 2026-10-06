@@ -23,7 +23,7 @@ import {
 } from "@babylonjs/core";
 import type { Experiment } from "@/features/experiment";
 import { setMaterialDiffuseColor } from "./material.api";
-import { buildAtlasRootNode } from "./structures.api";
+import { buildSceneWorldRootNode } from "./structures.api";
 import { asrToVector3, vector3ToAsr } from "./coordinate-transforms.api";
 import {
   buildCollisionBody,
@@ -232,7 +232,7 @@ export async function buildSceneObjectNode(
     buildSceneEntityName(sceneObject.id, "object", "node"),
     scene
   );
-  node.parent = buildAtlasRootNode(scene);
+  node.parent = buildSceneWorldRootNode(scene);
   const scaleNode = buildSceneObjectScaleNode(node, sceneObject.id);
 
   const result = await ImportMeshAsync(modelFile, scene, {});
@@ -358,7 +358,7 @@ export async function syncSceneObjects(
   colliderFailedIds: string[];
   colliderChangedIds: string[];
 }> {
-  const atlasRootNode = buildAtlasRootNode(scene);
+  const atlasRootNode = buildSceneWorldRootNode(scene);
   const sceneObjectsById = new Map(
     experiment.sceneObjects.map(sceneObject => [sceneObject.id, sceneObject])
   );

@@ -1,10 +1,11 @@
 import { defineStore } from "pinia";
-import type { CoordinateSystem } from "@/features/coordinate-system";
 import {
+  type CoordinateSystem,
   buildCoordinateSystem,
   buildCoordinateSystemNode,
   buildCoordinateSystemValue,
-  buildFixedCoordinateSystemValue
+  buildFixedCoordinateSystemValue,
+  withRootTransformToBrainDefault
 } from "@/features/coordinate-system";
 import { ref } from "vue";
 
@@ -154,5 +155,16 @@ export const useCoordinateSystemLibraryStore = defineStore(
     const actions = { add, remove, reorder };
     return { ...state, ...actions };
   },
-  { persist: true }
+  {
+    persist: {
+      afterHydrate: context => {
+        const library = (
+          context.store as unknown as { library: CoordinateSystem[] }
+        ).library;
+        for (const [index, coordinateSystem] of library.entries()) {
+          library[index] = withRootTransformToBrainDefault(coordinateSystem);
+        }
+      }
+    }
+  }
 );

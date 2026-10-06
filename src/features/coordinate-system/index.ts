@@ -8,6 +8,10 @@ export type {
 } from "./model/coordinate-system.model";
 export type { CoordinateSystemSolution } from "./api/forward-kinematics.api";
 export {
+  getCoordinateSystemBrainTransform,
+  transformCoordinateSystemPose
+} from "./api/root-frame.api";
+export {
   isCoordinateSystemSolutionAtPose,
   solveCoordinateSystemChain
 } from "./api/forward-kinematics.api";
@@ -33,7 +37,8 @@ export {
   reorderCoordinateSystemTransform,
   setCoordinateSystemAxisValue,
   setCoordinateSystemSlotAxis,
-  setCoordinateSystemSurfaceNode
+  setCoordinateSystemSurfaceNode,
+  withRootTransformToBrainDefault
 } from "./api/coordinate-system.api";
 export type { InverseKinematicsSolveRequest } from "./composable/useInverseKinematicsSolver";
 export { useInverseKinematicsSolver } from "./composable/useInverseKinematicsSolver";

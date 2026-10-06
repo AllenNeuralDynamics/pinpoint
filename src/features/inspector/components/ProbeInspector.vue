@@ -46,6 +46,7 @@ import ProbeTransformChain from "./ProbeTransformChain.vue";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import {
   setProbeCoordinateSystem,
+  updateInternedCoordinateSystem,
   setProbeInterface
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -721,8 +722,25 @@ function onSurfaceClick(): void {
   void moveToSurface();
 }
 
-/** Re-solve the working chain onto the probe and re-check its on-surface nodes. */
-function applySolve(): void {
+/**
+ * Commit a chain edit, keeping the probe stationary when editing its brain-transform root.
+ * @param nodeIndex Index of the edited node, when supplied by the chain editor.
+ */
+function applySolve(nodeIndex?: number): void {
+  const coordinateSystem = selectedCoordinateSystem.value;
+  const root = coordinateSystem?.chain[0];
+  const workingRoot = chain.value[0];
+  if (
+    nodeIndex === 0 &&
+    coordinateSystem?.applyRootTransformToBrain &&
+    root &&
+    workingRoot
+  ) {
+    updateInternedCoordinateSystem(currentExperimentStore.experiment, {
+      ...coordinateSystem,
+      chain: [workingRoot, ...coordinateSystem.chain.slice(1)]
+    });
+  }
   const node = directNode.value;
   const solution = node
     ? solveDirectNode(node)

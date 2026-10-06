@@ -55,5 +55,9 @@ export interface CoordinateSystem {
 
   /** If the whole chain is offset by the experiment's reference coordinate. */
   offsetByReferenceCoordinate: boolean;
+
+  /** If atlas geometry is displayed in the fixed root frame. */
+  applyRootTransformToBrain: boolean;
+
   chain: CoordinateSystemNode[];
 }

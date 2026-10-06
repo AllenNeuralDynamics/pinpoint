@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { reactive, toRaw } from "vue";
 import {
   addCoordinateSystemTransform,
   applyCoordinateSystemChainValues,
@@ -14,7 +15,8 @@ import {
   reorderCoordinateSystemTransform,
   setCoordinateSystemAxisValue,
   setCoordinateSystemSlotAxis,
-  setCoordinateSystemSurfaceNode
+  setCoordinateSystemSurfaceNode,
+  withRootTransformToBrainDefault
 } from "./coordinate-system.api";
 import type {
   CoordinateSystemValue,
@@ -400,6 +402,37 @@ describe("buildCoordinateSystem", () => {
   });
 });
 
+describe("withRootTransformToBrainDefault", () => {
+  it("sets the previous false behavior when the setting is absent", () => {
+    const coordinateSystem = buildCoordinateSystem("CCF", []);
+    delete (coordinateSystem as Partial<typeof coordinateSystem>)
+      .applyRootTransformToBrain;
+
+    expect(withRootTransformToBrainDefault(coordinateSystem)).toMatchObject({
+      applyRootTransformToBrain: false
+    });
+  });
+
+  it("defaults a reactive definition in place without embedding nested proxies", () => {
+    const coordinateSystem = reactive(buildCoordinateSystem("CCF", []));
+    delete (coordinateSystem as Partial<typeof coordinateSystem>)
+      .applyRootTransformToBrain;
+    const result = withRootTransformToBrainDefault(coordinateSystem);
+    expect(result).toBe(coordinateSystem);
+    expect(() => structuredClone(toRaw(result))).not.toThrow();
+    expect(result.applyRootTransformToBrain).toBe(false);
+  });
+
+  it("preserves an explicit setting", () => {
+    const coordinateSystem = buildCoordinateSystem("CCF", [], false, true);
+
+    expect(withRootTransformToBrainDefault(coordinateSystem)).toBe(
+      coordinateSystem
+    );
+    expect(coordinateSystem.applyRootTransformToBrain).toBe(true);
+  });
+});
+
 describe("isCoordinateSystem", () => {
   function makeNode(
     position: [
@@ -429,6 +462,15 @@ describe("isCoordinateSystem", () => {
     const coordinateSystem = buildCoordinateSystem("CCF", [makeNode()]);
 
     expect(isCoordinateSystem(coordinateSystem)).toBe(true);
+    expect(coordinateSystem.applyRootTransformToBrain).toBe(false);
+  });
+
+  it("rejects a coordinate system without a root-transform setting", () => {
+    const coordinateSystem = buildCoordinateSystem("CCF", [makeNode()]);
+    delete (coordinateSystem as Partial<typeof coordinateSystem>)
+      .applyRootTransformToBrain;
+
+    expect(isCoordinateSystem(coordinateSystem)).toBe(false);
   });
 
   it("rejects a wrong inspectableKind", () => {

@@ -192,6 +192,45 @@ describe("CoordinateSystemInspector", () => {
     expect(coordinateSystem.offsetByReferenceCoordinate).toBe(true);
   });
 
+  it("shows the brain-transform option only on the root and updates the system", async () => {
+    const { wrapper, coordinateSystem } = mountInspector(
+      makeCoordinateSystem({
+        chain: [
+          makeCoordinateSystem().chain[0]!,
+          makeCoordinateSystem().chain[0]!
+        ]
+      })
+    );
+    const [rootNode, childNode] = wrapper.findAllComponents(
+      CoordinateSystemNodeInspector
+    );
+
+    expect(
+      rootNode!
+        .findAllComponents({ name: "QToggle" })
+        .some(toggle => toggle.props("label") === t.applyRootTransformToBrain)
+    ).toBe(true);
+    expect(
+      childNode!
+        .findAllComponents({ name: "QToggle" })
+        .some(toggle => toggle.props("label") === t.applyRootTransformToBrain)
+    ).toBe(false);
+
+    expect(
+      findToggle(rootNode!, t.applyRootTransformToBrain).props("disable")
+    ).toBe(true);
+    for (const value of [
+      ...coordinateSystem.chain[0]!.position,
+      ...coordinateSystem.chain[0]!.rotation
+    ]) {
+      value.mode = "user";
+    }
+    await wrapper.vm.$nextTick();
+    await findToggle(rootNode!, t.applyRootTransformToBrain).setValue(true);
+
+    expect(coordinateSystem.applyRootTransformToBrain).toBe(true);
+  });
+
   it("toggling the surface toggle updates the first node", async () => {
     const { wrapper, coordinateSystem } = mountInspector();
 

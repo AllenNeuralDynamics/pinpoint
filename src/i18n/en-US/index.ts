@@ -307,6 +307,9 @@ export default {
     name: "Name",
     addTransform: "Add Transform",
     offsetByReferenceCoordinate: "Offset by reference coordinate",
+    applyRootTransformToBrain: "Apply root transform to brain",
+    rootTransformHint:
+      "Use fixed or user values in the root. Shows the inverse root transform on the brain in a fixed frame, keeping downstream probe controls unchanged.",
     nodeName: "Transform name",
     newTransformName: "Transform {index}",
     surfaceCoordinate: "Surface coordinate",

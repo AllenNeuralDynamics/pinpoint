@@ -12,8 +12,8 @@ import {
   VertexData
 } from "@babylonjs/core";
 import {
-  removeAllStructures,
   setAtlasCenterOffset,
+  removeAllStructures,
   setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "./structures.api";

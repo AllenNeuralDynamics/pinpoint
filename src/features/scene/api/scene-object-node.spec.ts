@@ -56,7 +56,7 @@ describe("buildSceneObjectNode", () => {
     expect(built!.colliderFailed).toBe(false);
     const node = built!.node;
     expect(node.name).toBe(`${sceneObject.id}_object_node`);
-    expect(node.parent!.name).toBe("atlasRoot_node");
+    expect(node.parent!.name).toBe("sceneWorldRoot_node");
 
     const meshes = getSceneObjectMeshes(scene, sceneObject.id);
     expect(meshes).toHaveLength(1);

@@ -15,6 +15,7 @@ import { useBabylonRuntimeService } from "../composable/useBabylonRuntimeService
 import { useCameraPoseSync } from "../composable/useCameraPoseSync";
 import {
   setAtlasCenterOffset,
+  setAtlasBrainTransform,
   setStructureInteriorsHidden,
   syncStructuresVisibility
 } from "../api/structures.api";
@@ -237,6 +238,26 @@ const selectedCoordinateSystem = computed(() =>
     : null
 );
 
+/** Coordinate system defining the fixed atlas display frame. */
+const brainTransformCoordinateSystem = computed(() => {
+  const selected = currentExperiment.selectedInspectable;
+  if (selected?.inspectableKind === "coordinateSystem") return selected;
+  const probe =
+    selected?.inspectableKind === "probe"
+      ? selected
+      : currentExperiment.probes.find(
+          probe =>
+            probe.coordinateSystemIdentifier &&
+            currentExperiment.coordinateSystems[
+              probe.coordinateSystemIdentifier
+            ]?.applyRootTransformToBrain
+        );
+  return probe?.coordinateSystemIdentifier
+    ? (currentExperiment.coordinateSystems[probe.coordinateSystemIdentifier] ??
+        null)
+    : null;
+});
+
 /**
  * Are the axis guides drawn: the user's own toggle, or forced on while a coordinate system is
  * selected, since `setSceneEntitiesHidden` strips every other orientation cue from the scene.
@@ -416,6 +437,16 @@ watchEffect(() => {
   if (!scene) return;
 
   setAtlasCenterOffset(scene, getAtlasCenter(currentExperiment.atlas));
+});
+
+watchEffect(() => {
+  const scene = runtime.scene.value;
+  if (!scene) return;
+  setAtlasBrainTransform(
+    scene,
+    brainTransformCoordinateSystem.value,
+    currentExperiment.referenceCoordinate
+  );
 });
 
 // Axis guide and gimbal axis label renderers belong to the scene that created them.

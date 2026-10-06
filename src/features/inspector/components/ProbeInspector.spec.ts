@@ -17,6 +17,8 @@ import {
   makeSceneModel
 } from "@/test/fixtures";
 import {
+  getCoordinateSystemBrainTransform,
+  transformCoordinateSystemPose,
   buildCoordinateSystem,
   buildCoordinateSystemNode,
   buildCoordinateSystemValue,
@@ -470,6 +472,135 @@ describe("ProbeInspector", () => {
   });
 
   describe("coordinate system transform chain", () => {
+    it("commits a user root pitch to the brain without moving the probe", async () => {
+      const { wrapper, pinia, probe, store } = mountInspector(
+        makeProbe({ tipPosition: [6, 5, 4] })
+      );
+      const root = buildCoordinateSystemNode(
+        "Brain",
+        [
+          buildFixedCoordinateSystemValue(),
+          buildFixedCoordinateSystemValue(),
+          buildFixedCoordinateSystemValue()
+        ],
+        [
+          buildCoordinateSystemValue("Brain pitch", 0, "user"),
+          buildFixedCoordinateSystemValue(),
+          buildFixedCoordinateSystemValue()
+        ]
+      );
+      const system = buildCoordinateSystem(
+        "Brain setup",
+        [root, makeCoordinateSystem().chain[0]!],
+        false,
+        true
+      );
+      useCoordinateSystemLibraryStore(pinia).add(system);
+      selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
+        "update:modelValue",
+        system.id
+      );
+      await flushPromises();
+      const tipBefore = [...probe.tipPosition];
+      const rotationBefore = [...probe.rotation];
+
+      await editAndBlur(fieldByLabel(wrapper, "Brain pitch"), "15");
+      await flushPromises();
+
+      expect(
+        store.coordinateSystems[system.id]!.chain[0]!.rotation[0]!.value
+      ).toBeCloseTo(Math.PI / 12);
+      const displayed = transformCoordinateSystemPose(
+        probe,
+        getCoordinateSystemBrainTransform(
+          store.coordinateSystems[system.id]!,
+          store.referenceCoordinate
+        )
+      );
+      displayed.tipPosition.forEach((value, axis) =>
+        expect(value).toBeCloseTo(tipBefore[axis]!, 4)
+      );
+      displayed.rotation.forEach((value, axis) =>
+        expect(value).toBeCloseTo(rotationBefore[axis]!, 4)
+      );
+    });
+
+    it.each([false, true])(
+      "keeps an untilted surface point fixed when depth and pitch are edited (previous brain root: %s)",
+      async previouslyTilted => {
+        const entry: [number, number, number] = [3, 4, 5];
+        vi.mocked(useProbeSurface).mockReturnValue({
+          findTargets: vi.fn().mockResolvedValue({
+            insideMillimeters: entry,
+            axisMillimeters: null,
+            dorsoventralMillimeters: null
+          }),
+          isOnSurface: vi.fn().mockResolvedValue(true)
+        });
+        const { wrapper, pinia, probe, store } = mountInspector(
+          makeProbe({ tipPosition: [3, 6, 5], rotation: [0, 0, Math.PI / 2] })
+        );
+        if (previouslyTilted) {
+          const root = buildCoordinateSystemNode(
+            "Brain",
+            [
+              buildFixedCoordinateSystemValue(),
+              buildFixedCoordinateSystemValue(),
+              buildFixedCoordinateSystemValue()
+            ],
+            [
+              buildFixedCoordinateSystemValue("", Math.PI / 12),
+              buildFixedCoordinateSystemValue(),
+              buildFixedCoordinateSystemValue()
+            ]
+          );
+          const previous = buildCoordinateSystem(
+            "Previously tilted",
+            [root, makeCoordinateSystem().chain[0]!],
+            true,
+            true
+          );
+          useCoordinateSystemLibraryStore(pinia).add(previous);
+          selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
+            "update:modelValue",
+            previous.id
+          );
+          await flushPromises();
+        }
+        const system = useCoordinateSystemLibraryStore(pinia).library[0]!;
+        expect(system.applyRootTransformToBrain).toBe(false);
+        selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
+          "update:modelValue",
+          system.id
+        );
+        await flushPromises();
+        expect(
+          Number(fieldByLabel(wrapper, "Depth").props("modelValue"))
+        ).toBeCloseTo(-2, 3);
+        await editAndBlur(fieldByLabel(wrapper, "Depth"), "-5");
+        await flushPromises();
+        probe.tipPosition.forEach((value, axis) =>
+          expect(value).toBeCloseTo([3, 9, 5][axis]!, 3)
+        );
+        await editAndBlur(fieldByLabel(wrapper, "Pitch"), "75");
+        await flushPromises();
+        const angle = (75 * Math.PI) / 180;
+        const expectedTip = [
+          3 - 5 * Math.cos(angle),
+          4 + 5 * Math.sin(angle),
+          5
+        ];
+        probe.tipPosition.forEach((value, axis) =>
+          expect(value).toBeCloseTo(expectedTip[axis]!, 3)
+        );
+        expect(probe.rotation[2]).toBeCloseTo(angle, 4);
+        store.probeSurfaceMarker!.position.forEach((value, axis) =>
+          expect(value).toBeCloseTo(entry[axis]!, 3)
+        );
+        expect(store.probeGhost).toBeNull();
+      }
+    );
+
     it("renders one transform group per node of the selected coordinate system", async () => {
       const { wrapper, pinia } = mountInspector();
       const store = useCoordinateSystemLibraryStore(pinia);

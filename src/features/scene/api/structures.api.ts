@@ -7,7 +7,9 @@ import type {
 import {
   Color3,
   DracoDecoder,
+  Matrix,
   Mesh,
+  Quaternion,
   StandardMaterial,
   TransformNode,
   Vector3,
@@ -15,6 +17,8 @@ import {
   VertexData
 } from "@babylonjs/core";
 import axios from "axios";
+import type { CoordinateSystem } from "@/features/coordinate-system";
+import { getCoordinateSystemBrainTransform } from "@/features/coordinate-system";
 import type { Atlas, StructureEntity } from "@/features/atlas";
 import { isSameAtlas } from "@/features/atlas";
 import { asrToBabylon } from "./coordinate-transforms.api";
@@ -32,6 +36,8 @@ interface DecodedMeshData {
 /** Atlas a scene's structure meshes were built for, stamped on the atlas root. */
 interface AtlasRootMetadata {
   structureAtlas?: Atlas;
+  center?: [number, number, number];
+  brainTransform?: Matrix;
 }
 
 const ATLAS_ROOT_NODE_NAME = "atlasRoot_node";
@@ -82,7 +88,12 @@ export function setAtlasCenterOffset(
   centerCoordinate: [number, number, number]
 ) {
   const atlasRootNode = buildAtlasRootNode(scene);
-  atlasRootNode.position = asrToBabylon(centerCoordinate).negate();
+  const metadata = (atlasRootNode.metadata ??= {}) as AtlasRootMetadata;
+  metadata.center = [...centerCoordinate];
+  applyAtlasRootFrame(atlasRootNode);
+  buildSceneWorldRootNode(scene).position.copyFrom(
+    asrToBabylon(centerCoordinate).negate()
+  );
 }
 
 /**
@@ -176,6 +187,62 @@ export async function syncStructuresVisibility(
 
   const failure = results.find(result => result.status === "rejected");
   if (failure) throw failure.reason;
+}
+
+/**
+ * Express native atlas geometry and probe poses in the fixed root's display frame.
+ * @param scene Scene whose atlas frame should change.
+ * @param coordinateSystem Coordinate system defining the frame, or null for the native atlas frame.
+ * @param referenceCoordinate Experiment reference origin in ASR millimeters.
+ */
+export function setAtlasBrainTransform(
+  scene: Scene,
+  coordinateSystem: CoordinateSystem | null,
+  referenceCoordinate: [number, number, number] | null
+): void {
+  const root = buildAtlasRootNode(scene);
+  const metadata = (root.metadata ??= {}) as AtlasRootMetadata;
+  metadata.brainTransform = getCoordinateSystemBrainTransform(
+    coordinateSystem,
+    referenceCoordinate
+  );
+  applyAtlasRootFrame(root);
+}
+
+/**
+ * Build the stationary scene-object frame, independent of the atlas orientation.
+ * @param scene Scene containing the world frame.
+ */
+export function buildSceneWorldRootNode(scene: Scene): TransformNode {
+  const existing = scene.getTransformNodeByName("sceneWorldRoot_node");
+  if (existing) return existing;
+  const root = new TransformNode("sceneWorldRoot_node", scene);
+  root.rotation.x = Math.PI;
+  const metadata = buildAtlasRootNode(scene)
+    .metadata as AtlasRootMetadata | null;
+  root.position.copyFrom(asrToBabylon(metadata?.center ?? [0, 0, 0]).negate());
+  return root;
+}
+
+/**
+ * Compose the fixed display frame with the atlas's centering and axis convention.
+ * @param root Atlas root holding its center and display-frame metadata.
+ */
+function applyAtlasRootFrame(root: TransformNode): void {
+  const metadata = root.metadata as AtlasRootMetadata;
+  const center = asrToBabylon(metadata.center ?? [0, 0, 0]).negate();
+  if (!metadata.brainTransform || metadata.brainTransform.isIdentity()) {
+    root.rotationQuaternion = null;
+    root.rotation.set(Math.PI, 0, 0);
+    root.position.copyFrom(center);
+    return;
+  }
+  const frame = (metadata.brainTransform ?? Matrix.Identity())
+    .multiply(Matrix.RotationX(Math.PI))
+    .multiply(Matrix.Translation(center.x, center.y, center.z));
+  const rotation = Quaternion.Identity();
+  frame.decompose(undefined, rotation, root.position);
+  root.rotationQuaternion = rotation;
 }
 
 /**
