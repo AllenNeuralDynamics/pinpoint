@@ -105,12 +105,13 @@ describe("syncCoordinateSystemGimbals", () => {
     const { scene, selectionOutlineLayer } = makeTestSceneWithGizmo();
     const system = buildCoordinateSystem(
       "Fixture",
-      [
-        makeNode("Brain", [4, 5, 6], [Math.PI / 4, 0.2, 0.3]),
-        makeNode("Probe", [1, 2, 3])
-      ],
+      [makeNode("Probe", [1, 2, 3])],
       false,
-      true
+      {
+        ...makeNode("Brain", [4, 5, 6], [Math.PI / 4, 0.2, 0.3]),
+        kind: "brain",
+        shared: false
+      }
     );
     setAtlasBrainTransform(scene, system, null);
     syncCoordinateSystemGimbals(
@@ -123,10 +124,10 @@ describe("syncCoordinateSystemGimbals", () => {
       makeProbeGeometry()
     );
     const brainGimbal = scene.getTransformNodeByName(
-      "coordinateSystemGimbal_0_node"
+      "coordinateSystemGimbal_-1_node"
     )!;
     const probeGimbal = scene.getTransformNodeByName(
-      "coordinateSystemGimbal_1_node"
+      "coordinateSystemGimbal_0_node"
     )!;
     expectVectorCloseTo(
       brainGimbal.computeWorldMatrix(true).getTranslation(),

@@ -1,6 +1,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { MeshBuilder, Vector3 } from "@babylonjs/core";
 import {
+  getCoordinateSystemSlots,
+  getCoordinateSystemChain,
+  buildFixedCoordinateSystemValue,
   buildCoordinateSystemNode,
   buildCoordinateSystem,
   buildCoordinateSystemValue,
@@ -100,6 +103,47 @@ function expectedPoint(
 }
 
 /**
+ * Apply independent projected inclinations using Rodrigues' formula and scalar axial roll.
+ * @param point Probe-local XYZ point.
+ * @param angles Sagittal/ML tilt, coronal/AP tilt, and roll in radians.
+ * @param depth Translation along the insertion axis.
+ */
+function expectedAnatomicalCorner(
+  point: Triple,
+  [sagittal, coronal, roll]: Triple,
+  depth: number
+): Triple {
+  const [x, y, z] = point;
+  const rotated: Triple = [
+    Math.cos(roll) * x - Math.sin(roll) * y,
+    -(z + depth),
+    Math.sin(roll) * x + Math.cos(roll) * y
+  ];
+  const forward: Triple = [-Math.tan(sagittal), -1, -Math.tan(coronal)];
+  const length = Math.hypot(...forward);
+  const [fx, fy, fz] = forward.map(value => value / length) as Triple;
+  const cross: Triple = [-fz, 0, fx];
+  const [vx, vy, vz] = rotated;
+  const firstCross: Triple = [
+    -cross[2] * vy,
+    cross[2] * vx - cross[0] * vz,
+    cross[0] * vy
+  ];
+  const secondCross: Triple = [
+    -cross[2] * firstCross[1],
+    cross[2] * firstCross[0] - cross[0] * firstCross[2],
+    cross[0] * firstCross[1]
+  ];
+  return rotated.map(
+    (value, axis) =>
+      value +
+      firstCross[axis]! +
+      secondCross[axis]! / (1 - fy) +
+      [2 + REFERENCE[2], -3 + REFERENCE[1], 4 + REFERENCE[0]][axis]!
+  ) as Triple;
+}
+
+/**
  * Check every corner of a tip-anchored rectangular probe through the real scene pose sync.
  * @param chain Chain whose forward solution drives the probe.
  * @param expected Independently calculated XYZ corner positions in atlas space.
@@ -151,7 +195,7 @@ function expectRenderedCorners(
     makeProbeGeometry()
   );
   const gimbal = scene.getTransformNodeByName(
-    `coordinateSystemGimbal_${chain.length - 1}_node`
+    `coordinateSystemGimbal_${(brainSystem?.chain.length ?? chain.length) - 1}_node`
   )!;
   for (const [index, [x, y, z]] of CORNERS.entries()) {
     const actual = Vector3.TransformCoordinates(
@@ -214,6 +258,76 @@ describe("rectangular probe transform-chain geometry", () => {
     }
   ];
 
+  it.each([
+    [0, 0, 0],
+    [Math.PI / 12, 0, 0],
+    [0, -Math.PI / 9, 0],
+    [Math.PI / 12, -Math.PI / 9, Math.PI / 6],
+    [-0.4, 0.5, -0.7],
+    [1.4, -1.3, 0.8]
+  ] as Triple[])(
+    "places all eight corners for sagittal %s / coronal %s / roll %s",
+    (...angles) => {
+      const surface = node([2, -3, 4], [Math.PI / 2, 0, 0]);
+      surface.onSurface = true;
+      surface.rotationInput = "anatomical";
+      const depth = buildCoordinateSystemNode(
+        "Depth",
+        [
+          buildFixedCoordinateSystemValue(),
+          buildFixedCoordinateSystemValue(),
+          buildCoordinateSystemValue("Depth", -2)
+        ],
+        [
+          buildFixedCoordinateSystemValue(),
+          buildFixedCoordinateSystemValue(),
+          buildFixedCoordinateSystemValue()
+        ]
+      );
+      const system = buildCoordinateSystem(
+        "Anatomical",
+        [surface, depth],
+        true
+      );
+      for (const pitch of [0, Math.PI / 12]) {
+        system.brainTransform.rotation[0].value = pitch;
+        const slots = getCoordinateSystemSlots(surface, "rotation");
+        slots.forEach((slot, axis) => {
+          slot.value.value = angles[axis]!;
+        });
+        const chain = getCoordinateSystemChain(system);
+        const target = solveCoordinateSystemChain(chain, REFERENCE);
+        expectRenderedCorners(
+          chain,
+          CORNERS.map(corner => expectedAnatomicalCorner(corner, angles, -2)),
+          system
+        );
+        const surfacePosition = target.nodePositions[1]!;
+        surface.rotation.forEach((entry, axis) => {
+          entry.value = axis === 0 ? Math.PI / 2 : 0;
+        });
+        depth.position[2].value = 0;
+        expect(
+          solveCoordinateSystemChainInverse(
+            chain,
+            { ...target, surfacePosition },
+            REFERENCE,
+            SETTLED_SOLVE_STARTS
+          )
+        ).toBe("converged");
+        getCoordinateSystemSlots(surface, "rotation").forEach((slot, axis) =>
+          expect(slot.value.value).toBeCloseTo(angles[axis]!, 5)
+        );
+        expect(depth.position[2].value).toBeCloseTo(-2, 5);
+        expectRenderedCorners(
+          chain,
+          CORNERS.map(corner => expectedAnatomicalCorner(corner, angles, -2)),
+          system
+        );
+      }
+    }
+  );
+
   it.each(cases)("places all eight corners for $name", ({ chain }) => {
     expectRenderedCorners(
       chain,
@@ -225,14 +339,13 @@ describe("rectangular probe transform-chain geometry", () => {
     "keeps $name unchanged in the display frame with an additional fixed 15 degree pitch in atlas space",
     ({ chain }) => {
       const root = node([0, 0, 0], [Math.PI / 12, 0, 0]);
-      const system = buildCoordinateSystem(
-        "Tilted brain",
-        [root, ...chain],
-        true,
-        true
-      );
+      const system = buildCoordinateSystem("Tilted brain", chain, true, {
+        ...root,
+        kind: "brain",
+        shared: false
+      });
       expectRenderedCorners(
-        system.chain,
+        [system.brainTransform, ...system.chain],
         CORNERS.map(corner => expectedPoint(corner, chain)),
         system
       );
@@ -246,13 +359,13 @@ describe("rectangular probe transform-chain geometry", () => {
       const downstream = [node([2, -3, 4], [0.4, -0.6, 0.3])];
       const system = buildCoordinateSystem(
         "Root frame",
-        [root, ...downstream],
+        downstream,
         offsetByReferenceCoordinate,
-        true
+        { ...root, kind: "brain", shared: false }
       );
       const reference = offsetByReferenceCoordinate ? REFERENCE : null;
       const { scene } = expectRenderedCorners(
-        system.chain,
+        [system.brainTransform, ...system.chain],
         CORNERS.map(corner => expectedPoint(corner, downstream, reference)),
         system
       );
@@ -306,7 +419,12 @@ describe("rectangular probe transform-chain geometry", () => {
       surface.rotation[0].value = (75 * Math.PI) / 180;
       const expectedSurface = node([2, -3, 4], [(75 * Math.PI) / 180, 0, 0]);
       const expectedDepth = node([0, 0, -5], [0, 0, 0]);
-      const system = buildCoordinateSystem("Tilted surface", chain, true, true);
+      const system = buildCoordinateSystem(
+        "Tilted surface",
+        chain.slice(1),
+        true,
+        { ...chain[0]!, kind: "brain", shared: false }
+      );
       expectRenderedCorners(
         chain,
         CORNERS.map(corner =>
@@ -323,15 +441,14 @@ describe("rectangular probe transform-chain geometry", () => {
       node([2, -3, 4], [0.4, -0.6, 0.3]),
       node([0, 0, -2], [0, 0, 0])
     ];
-    const system = buildCoordinateSystem(
-      "Fixed frame",
-      [root, ...downstream],
-      true,
-      true
-    );
+    const system = buildCoordinateSystem("Fixed frame", downstream, true, {
+      ...root,
+      kind: "brain",
+      shared: false
+    });
     const { scene, probe, experiment, gizmoManager, box } =
       expectRenderedCorners(
-        system.chain,
+        [system.brainTransform, ...system.chain],
         CORNERS.map(corner => expectedPoint(corner, downstream)),
         system
       );
@@ -350,7 +467,10 @@ describe("rectangular probe transform-chain geometry", () => {
         (entry, axis) => (entry.value = rotation[axis]!)
       );
       downstream[1]!.position[2].value = depth;
-      const solution = solveCoordinateSystemChain(system.chain, REFERENCE);
+      const solution = solveCoordinateSystemChain(
+        [system.brainTransform, ...system.chain],
+        REFERENCE
+      );
       probe.tipPosition = solution.tipPosition;
       probe.rotation = solution.rotation;
       syncProbes(
@@ -395,12 +515,11 @@ describe("rectangular probe transform-chain geometry", () => {
       )
     );
     const root = node([0, 0, 0], [Math.PI / 12, 0, 0]);
-    const system = buildCoordinateSystem(
-      "Tilted brain",
-      [root, ...downstream],
-      true,
-      true
-    );
+    const system = buildCoordinateSystem("Tilted brain", downstream, true, {
+      ...root,
+      kind: "brain",
+      shared: false
+    });
     setProbeCoordinateSystem(experiment, probe, system);
     for (const pitch of [Math.PI / 12, Math.PI / 6, -Math.PI / 12]) {
       root.rotation[0].value = pitch;
@@ -421,7 +540,9 @@ describe("rectangular probe transform-chain geometry", () => {
         );
         expect(
           inBrain.equalsWithEpsilon(
-            Vector3.FromArray(expectedPoint([x, y, z], system.chain)),
+            Vector3.FromArray(
+              expectedPoint([x, y, z], [system.brainTransform, ...system.chain])
+            ),
             1e-5
           )
         ).toBe(true);
@@ -478,9 +599,9 @@ describe("rectangular probe transform-chain geometry", () => {
       expectRenderedCorners(chain, expected);
       const system = buildCoordinateSystem(
         "Surface with fixed root",
-        chain,
+        chain.slice(1),
         true,
-        true
+        { ...chain[0]!, kind: "brain", shared: false }
       );
       const { scene, selectionOutlineLayer, probe } = expectRenderedCorners(
         chain,

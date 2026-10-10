@@ -250,7 +250,7 @@ const brainTransformCoordinateSystem = computed(() => {
             probe.coordinateSystemIdentifier &&
             currentExperiment.coordinateSystems[
               probe.coordinateSystemIdentifier
-            ]?.applyRootTransformToBrain
+            ]
         );
   return probe?.coordinateSystemIdentifier
     ? (currentExperiment.coordinateSystems[probe.coordinateSystemIdentifier] ??
@@ -287,7 +287,10 @@ const focusedGimbalAxisLabels = computed<[string, string, string] | null>(
     const nodeIndex = currentExperiment.focusedCoordinateSystemNodeIndex;
     if (!coordinateSystem || nodeIndex === null) return null;
 
-    const node = coordinateSystem.chain[nodeIndex];
+    const node =
+      nodeIndex === -1
+        ? coordinateSystem.brainTransform
+        : coordinateSystem.chain[nodeIndex];
     if (!node) return null;
 
     const texts: [string, string, string] = [
@@ -295,6 +298,11 @@ const focusedGimbalAxisLabels = computed<[string, string, string] | null>(
       t("axis.y"),
       t("axis.z")
     ];
+    if (
+      node.rotationInput === "anatomical" &&
+      currentExperiment.focusedCoordinateSystemComponent === "rotation"
+    )
+      return texts;
     for (const { axis, value } of getCoordinateSystemSlots(
       node,
       currentExperiment.focusedCoordinateSystemComponent

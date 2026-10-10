@@ -11,7 +11,8 @@ import {
 } from "@babylonjs/core";
 import {
   type CoordinateSystem,
-  getCoordinateSystemAxisValue
+  getCoordinateSystemAxisValue,
+  getCoordinateSystemChain
 } from "@/features/coordinate-system";
 import type { ProbeContour } from "@/features/probe";
 import { asrToVector3 } from "./coordinate-transforms.api";
@@ -179,7 +180,10 @@ export function syncCoordinateSystemGimbals(
   );
 
   let parent: TransformNode = root;
-  for (const [index, node] of coordinateSystem.chain.entries()) {
+  for (const [chainIndex, node] of getCoordinateSystemChain(
+    coordinateSystem
+  ).entries()) {
+    const index = chainIndex - 1;
     const position = new Vector3(
       getCoordinateSystemAxisValue(node, "position", 0),
       getCoordinateSystemAxisValue(node, "position", 1),

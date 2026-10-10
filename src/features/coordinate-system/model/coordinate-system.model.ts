@@ -40,8 +40,17 @@ export interface CoordinateSystemNode {
   /** Order the values are shown in, as display slot -> axis index. */
   rotationDisplayOrder: AxisOrder;
 
+  /** Optional anatomical input controls; stored rotation values remain Euler angles. */
+  rotationInput?: "anatomical";
+
   /** If this node is on the surface of the brain. */
   onSurface: boolean;
+}
+
+/** Fixed atlas-frame transform, shared through the library when locked. */
+export interface BrainTransformNode extends CoordinateSystemNode {
+  kind: "brain";
+  shared: boolean;
 }
 
 /** Which triple of a coordinate system node a value belongs to. */
@@ -56,8 +65,8 @@ export interface CoordinateSystem {
   /** If the whole chain is offset by the experiment's reference coordinate. */
   offsetByReferenceCoordinate: boolean;
 
-  /** If atlas geometry is displayed in the fixed root frame. */
-  applyRootTransformToBrain: boolean;
+  /** Fixed root preceding the adjustable transform chain. */
+  brainTransform: BrainTransformNode;
 
   chain: CoordinateSystemNode[];
 }

@@ -19,13 +19,10 @@ const AXIS_MESSAGE_KEYS = ["axis.x", "axis.y", "axis.z"] as const;
 
 const { node } = defineProps<{
   node: CoordinateSystemNode;
-  isRoot: boolean;
-  rootTransformAppliedToBrain: boolean;
 }>();
 
 const emit = defineEmits<{
   "update:onSurface": [onSurface: boolean];
-  updateRootTransform: [enabled: boolean];
   focus: [component: CoordinateSystemNodeComponent];
   delete: [];
   dragStart: [event: DragEvent];
@@ -40,10 +37,6 @@ const rotationUnits = useCoordinateSystemUnits("rotation");
 
 const isPositionDialogOpen = ref(false);
 const isRotationDialogOpen = ref(false);
-
-const hasFreeRootValues = computed(() =>
-  [...node.position, ...node.rotation].some(value => value.mode === "free")
-);
 
 const name = computed({
   get: () => node.name,
@@ -137,17 +130,6 @@ function openValues(component: CoordinateSystemNodeComponent): void {
           v-model="isOnSurface"
           :label="t('coordinateSystemInspector.surfaceCoordinate')"
         />
-        <div v-if="isRoot">
-          <q-toggle
-            :model-value="rootTransformAppliedToBrain"
-            :disable="hasFreeRootValues && !rootTransformAppliedToBrain"
-            :label="t('coordinateSystemInspector.applyRootTransformToBrain')"
-            @update:model-value="emit('updateRootTransform', $event)"
-          />
-          <div class="text-caption text-grey-7 q-ml-sm">
-            {{ t("coordinateSystemInspector.rootTransformHint") }}
-          </div>
-        </div>
         <div class="row items-center no-wrap q-gutter-x-sm">
           <div class="summary-label text-body2">
             {{ t("coordinateSystemInspector.position") }}

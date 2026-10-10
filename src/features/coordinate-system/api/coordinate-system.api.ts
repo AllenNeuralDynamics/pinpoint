@@ -1,4 +1,6 @@
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type {
+  BrainTransformNode,
   CoordinateSystem,
   CoordinateSystemNode,
   CoordinateSystemNodeComponent,
@@ -79,35 +81,73 @@ export function buildCoordinateSystemNode(
  * @param name Display name of the coordinate system.
  * @param chain Transform chain, applied in order.
  * @param offsetByReferenceCoordinate Whether the chain is offset by the experiment reference coordinate.
- * @param applyRootTransformToBrain Whether the first transform is applied to atlas geometry.
+ * @param brainTransform Fixed brain root preceding the chain.
  */
 export function buildCoordinateSystem(
   name: string,
   chain: CoordinateSystemNode[],
   offsetByReferenceCoordinate = false,
-  applyRootTransformToBrain = false
+  brainTransform = buildBrainTransformNode()
 ): CoordinateSystem {
   return {
     inspectableKind: "coordinateSystem",
     id: crypto.randomUUID(),
     name,
     offsetByReferenceCoordinate,
-    applyRootTransformToBrain,
+    brainTransform,
     chain
   };
 }
 
+/** Build an identity brain root with six fixed values and library sharing enabled. */
+export function buildBrainTransformNode(): BrainTransformNode {
+  return {
+    ...buildCoordinateSystemNode(
+      "",
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue()
+      ],
+      [
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue(),
+        buildFixedCoordinateSystemValue()
+      ]
+    ),
+    kind: "brain",
+    shared: true
+  };
+}
+
 /**
- * Set a missing root brain transform setting in place on serialized coordinate systems.
- * @param coordinateSystem Serialized coordinate system to normalize.
+ * Read the complete transform chain, including its fixed brain root.
+ * @param coordinateSystem Coordinate system to evaluate.
  */
-export function withRootTransformToBrainDefault<T extends object>(
-  coordinateSystem: T
-): T {
-  if (!Object.hasOwn(coordinateSystem, "applyRootTransformToBrain")) {
-    Object.assign(coordinateSystem, { applyRootTransformToBrain: false });
-  }
-  return coordinateSystem;
+export function getCoordinateSystemChain(
+  coordinateSystem: CoordinateSystem
+): CoordinateSystemNode[] {
+  return [coordinateSystem.brainTransform, ...coordinateSystem.chain];
+}
+
+/**
+ * Check the required fixed brain-root shape.
+ * @param value Value to check.
+ */
+export function isBrainTransformNode(
+  value: unknown
+): value is BrainTransformNode {
+  return (
+    isCoordinateSystemNode(value) &&
+    "kind" in value &&
+    value.kind === "brain" &&
+    "shared" in value &&
+    typeof value.shared === "boolean" &&
+    !value.onSurface &&
+    [...value.position, ...value.rotation].every(
+      entry => entry.mode === "fixed"
+    )
+  );
 }
 
 /**
@@ -208,7 +248,7 @@ export function setCoordinateSystemSurfaceNode(
 }
 
 /**
- * A node's values in display order, each paired with the axis it drives.
+ * Read editable display slots, converting anatomical input angles to stored Euler values.
  * @param node Coordinate system node to read.
  * @param component Whether to read the position or the rotation triple.
  */
@@ -217,7 +257,87 @@ export function getCoordinateSystemSlots(
   component: CoordinateSystemNodeComponent
 ): { axis: AxisIndex; value: CoordinateSystemValue }[] {
   const { values, order } = getComponentPair(node, component);
-  return order.map(axis => ({ axis, value: values[axis]! }));
+  return order.map(axis => ({
+    axis,
+    value:
+      component === "rotation" && node.rotationInput === "anatomical"
+        ? {
+            ...values[axis]!,
+            get value() {
+              return readAnatomicalRotation(node)[axis]!;
+            },
+            set value(value: number) {
+              const angles = readAnatomicalRotation(node);
+              angles[axis] = value;
+              writeAnatomicalRotation(node, angles);
+            }
+          }
+        : values[axis]!
+  }));
+}
+
+/**
+ * Read projected sagittal/ML and coronal/AP tilts from vertical, and axial roll.
+ * @param node Node whose stored Euler rotation to read.
+ */
+function readAnatomicalRotation(
+  node: CoordinateSystemNode
+): [number, number, number] {
+  const rotation = Matrix.RotationYawPitchRoll(
+    node.rotation[1].value,
+    node.rotation[0].value,
+    node.rotation[2].value
+  );
+  const direction = Vector3.TransformNormal(Vector3.Forward(), rotation);
+  const sagittal = Math.atan2(-direction.x, -direction.y);
+  const coronal = Math.atan2(-direction.z, -direction.y);
+  const baseline = anatomicalRotationMatrix([sagittal, coronal, 0]);
+  const axial = rotation.multiply(baseline.invert());
+  return [sagittal, coronal, Math.atan2(axial.m[1]!, axial.m[0]!)];
+}
+
+/**
+ * Write anatomical input angles as the Euler rotation used by the solver.
+ * @param node Node to update in place.
+ * @param angles Sagittal/ML tilt, coronal/AP tilt, and axial roll in radians.
+ */
+function writeAnatomicalRotation(
+  node: CoordinateSystemNode,
+  angles: [number, number, number]
+): void {
+  const rotation = Quaternion.FromRotationMatrix(
+    anatomicalRotationMatrix(angles)
+  ).toEulerAngles();
+  for (const axis of [0, 1, 2])
+    node.rotation[axis]!.value = rotation.asArray()[axis]!;
+}
+
+/**
+ * Orient the probe's insertion axis by two projected tilts and apply local axial roll.
+ * @param angles Sagittal/ML tilt, coronal/AP tilt, and axial roll in radians.
+ */
+function anatomicalRotationMatrix([sagittal, coronal, roll]: [
+  number,
+  number,
+  number
+]): Matrix {
+  const direction = new Vector3(
+    -Math.tan(sagittal),
+    -1,
+    -Math.tan(coronal)
+  ).normalize();
+  if (Math.cos(sagittal) < 0 && Math.cos(coronal) < 0)
+    direction.negateInPlace();
+  const alignment = Quaternion.FromUnitVectorsToRef(
+    Vector3.Down(),
+    direction,
+    Quaternion.Identity()
+  );
+  const matrix = Matrix.Identity();
+  alignment.toRotationMatrix(matrix);
+  return Matrix.RotationZ(roll)
+    .multiply(Matrix.RotationX(Math.PI / 2))
+    .multiply(matrix);
 }
 
 /**
@@ -366,7 +486,7 @@ export function isCoordinateSystem(value: unknown): value is CoordinateSystem {
     isSafeObjectKey(value.id) &&
     typeof value.name === "string" &&
     typeof value.offsetByReferenceCoordinate === "boolean" &&
-    typeof value.applyRootTransformToBrain === "boolean" &&
+    isBrainTransformNode(value.brainTransform) &&
     Array.isArray(value.chain) &&
     value.chain.every(isCoordinateSystemNode)
   );
@@ -385,7 +505,12 @@ function isCoordinateSystemNode(value: unknown): value is CoordinateSystemNode {
     isCoordinateSystemValueTriple(value.rotation) &&
     isAxisOrder(value.positionDisplayOrder) &&
     isAxisOrder(value.rotationDisplayOrder) &&
-    typeof value.onSurface === "boolean"
+    typeof value.onSurface === "boolean" &&
+    (value.rotationInput === undefined ||
+      (value.rotationInput === "anatomical" &&
+        (value.rotation as CoordinateSystemValue[]).every(
+          entry => entry.mode === "free"
+        )))
   );
 }
 

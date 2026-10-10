@@ -30,6 +30,7 @@ import {
 import { SliceCanvas, useProbeSurface } from "@/features/slice";
 import {
   applyCoordinateSystemChainValues,
+  getCoordinateSystemChain,
   type CoordinateSystemNode,
   type CoordinateSystemSolution,
   type CoordinateSystemSolveStatus,
@@ -46,7 +47,6 @@ import ProbeTransformChain from "./ProbeTransformChain.vue";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import {
   setProbeCoordinateSystem,
-  updateInternedCoordinateSystem,
   setProbeInterface
 } from "@/features/experiment";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
@@ -72,11 +72,10 @@ interface ShankAlignmentOption {
   attrs: { "aria-label": string };
 }
 
-// A library coordinate system's id paired with its name, or null for the
-// Default option. `emit-value` keeps the model the id.
+// A library coordinate system's id paired with its name.
 interface CoordinateSystemOption {
   label: string;
-  value: string | null;
+  value: string;
 }
 
 /** Why a solve or surface check fired, which sets a solve's budget and what it writes. */
@@ -218,12 +217,16 @@ const probeTypeOptions = computed<ProbeTypeOption[]>(() =>
 const coordinateSystemIdentifier = computed({
   get: () => probe.coordinateSystemIdentifier,
   set: (value: string | null) => {
+    const preset = coordinateSystemLibraryStore.surfaceDepthPresets.find(
+      preset => preset.id === value
+    );
     const coordinateSystem =
-      value === null
-        ? null
-        : (coordinateSystemLibraryStore.library.find(
-            ({ id }) => id === value
-          ) ?? null);
+      coordinateSystemLibraryStore.library.find(({ id }) => id === value) ??
+      (preset
+        ? coordinateSystemLibraryStore.getSurfaceDepthCoordinateSystem(
+            preset.anatomical
+          )
+        : null);
     if (value !== null && !coordinateSystem) return;
 
     setProbeCoordinateSystem(
@@ -244,13 +247,16 @@ const selectedCoordinateSystem = computed(() =>
 );
 
 const coordinateSystemOptions = computed<CoordinateSystemOption[]>(() => {
-  const options: CoordinateSystemOption[] = [
-    { label: t("probeInspector.defaultCoordinateSystem"), value: null },
-    ...coordinateSystemLibraryStore.library.map(({ id, name }) => ({
+  const options: CoordinateSystemOption[] =
+    coordinateSystemLibraryStore.library.map(({ id, name }) => ({
       label: name,
       value: id
-    }))
-  ];
+    }));
+  options.push(
+    ...coordinateSystemLibraryStore.missingSurfaceDepthPresets.map(
+      ({ id, name }) => ({ label: name, value: id })
+    )
+  );
   const selected = selectedCoordinateSystem.value;
   if (selected && !options.some(({ value }) => value === selected.id)) {
     options.push({ label: selected.name, value: selected.id });
@@ -265,7 +271,7 @@ const referenceOffset = computed(() =>
     : null
 );
 
-/** Origin the Default option's position inputs are relative to, in atlas ASR mm. */
+/** Reference origin for position inputs on probes without an assigned coordinate system. */
 const defaultPositionOffset = computed(
   () => currentExperimentStore.referenceCoordinate
 );
@@ -275,8 +281,14 @@ const defaultPositionOffset = computed(
  * invertible from the probe's pose.
  */
 const directNode = computed(() => {
-  const [node] = chain.value;
-  if (chain.value.length !== 1 || !node) return null;
+  const [root, node] = chain.value;
+  if (
+    chain.value.length !== 2 ||
+    !root ||
+    !node ||
+    [...root.position, ...root.rotation].some(({ value }) => value !== 0)
+  )
+    return null;
   return [...node.position, ...node.rotation].some(
     ({ mode }) => mode !== "free"
   )
@@ -436,7 +448,7 @@ function solveDirectNode(node: CoordinateSystemNode): CoordinateSystemSolution {
       getCoordinateSystemAxisValue(node, "rotation", 1),
       getCoordinateSystemAxisValue(node, "rotation", 0)
     ],
-    nodePositions: [tipPosition]
+    nodePositions: [[...offset], tipPosition]
   };
 }
 
@@ -618,7 +630,9 @@ function seedChain(): void {
   isSolving = false;
   hasPendingPreview = false;
   chain.value = selectedCoordinateSystem.value
-    ? structuredClone(toRaw(selectedCoordinateSystem.value)).chain
+    ? getCoordinateSystemChain(
+        structuredClone(toRaw(selectedCoordinateSystem.value))
+      )
     : [];
   clearOffSurfaceWarnings();
   // A new probe or chain has not been marched yet. Drop the marker outright rather than through
@@ -722,25 +736,8 @@ function onSurfaceClick(): void {
   void moveToSurface();
 }
 
-/**
- * Commit a chain edit, keeping the probe stationary when editing its brain-transform root.
- * @param nodeIndex Index of the edited node, when supplied by the chain editor.
- */
-function applySolve(nodeIndex?: number): void {
-  const coordinateSystem = selectedCoordinateSystem.value;
-  const root = coordinateSystem?.chain[0];
-  const workingRoot = chain.value[0];
-  if (
-    nodeIndex === 0 &&
-    coordinateSystem?.applyRootTransformToBrain &&
-    root &&
-    workingRoot
-  ) {
-    updateInternedCoordinateSystem(currentExperimentStore.experiment, {
-      ...coordinateSystem,
-      chain: [workingRoot, ...coordinateSystem.chain.slice(1)]
-    });
-  }
+/** Commit a downstream chain edit to the probe pose. */
+function applySolve(): void {
   const node = directNode.value;
   const solution = node
     ? solveDirectNode(node)
@@ -832,9 +829,17 @@ async function checkSurfaceNodes(
 }
 
 // A different probe or a different coordinate system starts from the library's values.
-watch([() => probe.id, () => probe.coordinateSystemIdentifier], seedChain, {
-  immediate: true
-});
+watch(
+  [
+    () => probe.id,
+    () => probe.coordinateSystemIdentifier,
+    () => selectedCoordinateSystem.value?.brainTransform
+  ],
+  seedChain,
+  {
+    immediate: true
+  }
+);
 
 // The scene writes the probe's pose straight into state on every gizmo drag frame. A direct
 // chain mirrors it live and needs no solve. Any other chain solves for it: at 10 Hz while

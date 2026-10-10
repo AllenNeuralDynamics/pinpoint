@@ -42,6 +42,7 @@ import {
   makeTestSceneWithGizmo,
   mountWithQuasar
 } from "@/test/mount-helper";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { usePreferencesStore } from "@/stores/preferences.store";
 import { WORLD_INSPECTABLE } from "../models/inspectable.model";
@@ -573,10 +574,8 @@ describe("SceneCanvas", () => {
   it("uses a selected probe's coordinate system to transform atlas anatomy", async () => {
     const { runtime } = await mountCanvas();
     const store = useCurrentExperimentStore();
-    const coordinateSystem = makeCoordinateSystem({
-      applyRootTransformToBrain: true
-    });
-    coordinateSystem.chain[0]!.rotation[0].value = Math.PI / 12;
+    const coordinateSystem = makeCoordinateSystem();
+    coordinateSystem.brainTransform.rotation[0].value = Math.PI / 12;
     internCoordinateSystem(store.experiment, coordinateSystem);
     store.selectedInspectable = makeProbe({
       coordinateSystemIdentifier: coordinateSystem.id
@@ -597,8 +596,8 @@ describe("SceneCanvas", () => {
     const structure = MeshBuilder.CreateBox("1_structure_mesh", {}, scene);
     structure.parent = buildAtlasRootNode(scene);
     const store = useCurrentExperimentStore();
-    const system = makeCoordinateSystem({ applyRootTransformToBrain: true });
-    system.chain[0]!.rotation[0]!.value = Math.PI / 12;
+    const system = makeCoordinateSystem();
+    system.brainTransform.rotation[0]!.value = Math.PI / 12;
     internCoordinateSystem(store.experiment, system);
     const spec = makeProbeInterfaceProbe();
     internProbeInterfaceProbe(store.experiment, spec);
@@ -643,7 +642,7 @@ describe("SceneCanvas", () => {
         tilted.asArray()
       );
     }
-    store.coordinateSystems[system.id]!.applyRootTransformToBrain = false;
+    store.coordinateSystems[system.id]!.brainTransform.rotation[0].value = 0;
     await flushPromises();
     expect(structure.computeWorldMatrix(true).asArray()).not.toEqual(
       tilted.asArray()
@@ -1474,6 +1473,25 @@ describe("SceneCanvas", () => {
     await flushPromises();
 
     expect(clearGimbalAxisLabels).toHaveBeenCalled();
+  });
+
+  it("keeps spatial XYZ gimbal labels for projected anatomical inputs", async () => {
+    const { runtime } = await mountCanvas();
+    const store = useCurrentExperimentStore();
+    store.selectedInspectable =
+      useCoordinateSystemLibraryStore().getSurfaceDepthCoordinateSystem(true);
+    store.focusedCoordinateSystemNodeIndex = 0;
+    store.focusedCoordinateSystemComponent = "rotation";
+    await flushPromises();
+    expect(vi.mocked(buildGimbalAxisLabels)).toHaveBeenLastCalledWith(
+      expect.anything(),
+      runtime.scene.value!.getTransformNodeByName(
+        "coordinateSystemGimbal_0_node"
+      ),
+      expect.any(Number),
+      ["X", "Y", "Z"],
+      expect.anything()
+    );
   });
 
   it("draws the ghost node while probeGhost is set and removes it when cleared", async () => {

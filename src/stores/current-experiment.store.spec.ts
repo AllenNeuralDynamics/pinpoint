@@ -17,7 +17,11 @@ import {
   internProbeInterfaceProbe,
   setProbeCoordinateSystem
 } from "@/features/experiment";
-import { getCoordinateSystemIdentifier } from "@/features/coordinate-system";
+import {
+  getCoordinateSystemBrainTransform,
+  transformCoordinateSystemPose,
+  getCoordinateSystemIdentifier
+} from "@/features/coordinate-system";
 import { buildProbe, getProbeInterfaceIdentifier } from "@/features/probe";
 import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { WORLD_INSPECTABLE } from "@/features/scene";
@@ -156,7 +160,7 @@ describe("useCurrentExperimentStore", () => {
       expect(Object.keys(persisted)).toEqual(["experiment"]);
     });
 
-    it("defaults the root brain transform setting when hydrating an older experiment", () => {
+    it("rejects a persisted experiment missing its required brain root", () => {
       const experiment = buildExperiment("Saved", makeAtlas(), [0, 0, 0]);
       const coordinateSystem = makeCoordinateSystem();
       internCoordinateSystem(experiment, coordinateSystem);
@@ -164,7 +168,7 @@ describe("useCurrentExperimentStore", () => {
         ...experiment.coordinateSystems[coordinateSystem.id]!
       };
       delete (legacyCoordinateSystem as Partial<typeof coordinateSystem>)
-        .applyRootTransformToBrain;
+        .brainTransform;
       experiment.coordinateSystems[coordinateSystem.id] =
         legacyCoordinateSystem as typeof coordinateSystem;
       localStorage.setItem(
@@ -177,8 +181,7 @@ describe("useCurrentExperimentStore", () => {
 
       expect(
         store.experiment.coordinateSystems[coordinateSystem.id]
-          ?.applyRootTransformToBrain
-      ).toBe(false);
+      ).toBeUndefined();
     });
   });
 
@@ -663,6 +666,55 @@ describe("useCurrentExperimentStore", () => {
   });
 
   describe("coordinate system sync", () => {
+    it("keeps probes in different chains stationary through shared edits, unlocking, and relocking", async () => {
+      const store = useCurrentExperimentStore();
+      const library = useCoordinateSystemLibraryStore();
+      for (const system of library.library) {
+        const probe = makeProbe({
+          tipPosition: [3, 4, 5],
+          rotation: [0.2, -0.3, 0.4]
+        });
+        addProbe(store.experiment, probe);
+        setProbeCoordinateSystem(store.experiment, probe, system);
+      }
+      library.sharedBrainTransform.position[0].value = 2;
+      library.sharedBrainTransform.rotation[0].value = Math.PI / 12;
+      await nextTick();
+      library.setBrainTransformShared(library.library[0]!, false);
+      library.library[0]!.brainTransform.rotation[0].value = -0.2;
+      library.sharedBrainTransform.rotation[0].value = 0.5;
+      await nextTick();
+      expect(
+        store.coordinateSystems[library.library[0]!.id]!.brainTransform
+          .rotation[0].value
+      ).toBe(-0.2);
+      expect(
+        store.coordinateSystems[library.library[1]!.id]!.brainTransform
+          .rotation[0].value
+      ).toBe(0.5);
+      for (const probe of store.probes) {
+        const system =
+          store.coordinateSystems[probe.coordinateSystemIdentifier!]!;
+        const displayed = transformCoordinateSystemPose(
+          probe,
+          getCoordinateSystemBrainTransform(system, store.referenceCoordinate)
+        );
+        displayed.tipPosition.forEach((value, axis) =>
+          expect(value).toBeCloseTo([3, 4, 5][axis]!, 5)
+        );
+        displayed.rotation.forEach((value, axis) =>
+          expect(value).toBeCloseTo([0.2, -0.3, 0.4][axis]!, 5)
+        );
+      }
+      library.setBrainTransformShared(library.library[0]!, true);
+      await nextTick();
+      expect(
+        store.coordinateSystems[library.library[0]!.id]!.brainTransform
+      ).toEqual(
+        store.coordinateSystems[library.library[1]!.id]!.brainTransform
+      );
+    });
+
     it("follows a library edit onto the interned copy", async () => {
       const store = useCurrentExperimentStore();
       const coordinateSystemLibraryStore = useCoordinateSystemLibraryStore();
@@ -678,17 +730,15 @@ describe("useCurrentExperimentStore", () => {
       );
 
       const libraryCoordinateSystem = coordinateSystemLibraryStore.library[1]!;
-      libraryCoordinateSystem.applyRootTransformToBrain = true;
-      libraryCoordinateSystem.chain[0]!.rotation[0]!.value = 0.25;
+      libraryCoordinateSystem.brainTransform.rotation[0].value = 0.25;
       await nextTick();
 
       expect(
-        store.experiment.coordinateSystems[identifier]!
-          .applyRootTransformToBrain
+        store.experiment.coordinateSystems[identifier]!.brainTransform.shared
       ).toBe(true);
       expect(
-        store.experiment.coordinateSystems[identifier]!.chain[0]!.rotation[0]!
-          .value
+        store.experiment.coordinateSystems[identifier]!.brainTransform
+          .rotation[0]!.value
       ).toBe(0.25);
     });
 

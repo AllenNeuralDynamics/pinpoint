@@ -142,6 +142,24 @@ function confirmRemove(coordinateSystem: CoordinateSystem) {
           </q-item>
         </q-list>
       </q-card-section>
+      <q-card-section
+        v-if="coordinateSystemLibraryStore.missingSurfaceDepthPresets.length"
+        class="column q-gutter-y-sm"
+      >
+        <q-btn
+          v-for="preset in coordinateSystemLibraryStore.missingSurfaceDepthPresets"
+          :key="preset.id"
+          icon="add"
+          :label="preset.name"
+          @click="
+            openInInspector(
+              coordinateSystemLibraryStore.getSurfaceDepthCoordinateSystem(
+                preset.anatomical
+              )
+            )
+          "
+        />
+      </q-card-section>
       <q-card-actions align="right">
         <q-btn
           color="primary"

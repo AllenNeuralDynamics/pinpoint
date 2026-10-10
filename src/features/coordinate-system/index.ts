@@ -1,5 +1,6 @@
 export { default as CoordinateSystemLibraryDialog } from "./components/CoordinateSystemLibraryDialog.vue";
 export type {
+  BrainTransformNode,
   CoordinateSystem,
   CoordinateSystemNode,
   CoordinateSystemNodeComponent,
@@ -24,6 +25,9 @@ export {
 export {
   addCoordinateSystemTransform,
   applyCoordinateSystemChainValues,
+  buildBrainTransformNode,
+  getCoordinateSystemChain,
+  isBrainTransformNode,
   buildCoordinateSystem,
   buildCoordinateSystemNode,
   buildCoordinateSystemValue,
@@ -37,8 +41,7 @@ export {
   reorderCoordinateSystemTransform,
   setCoordinateSystemAxisValue,
   setCoordinateSystemSlotAxis,
-  setCoordinateSystemSurfaceNode,
-  withRootTransformToBrainDefault
+  setCoordinateSystemSurfaceNode
 } from "./api/coordinate-system.api";
 export type { InverseKinematicsSolveRequest } from "./composable/useInverseKinematicsSolver";
 export { useInverseKinematicsSolver } from "./composable/useInverseKinematicsSolver";

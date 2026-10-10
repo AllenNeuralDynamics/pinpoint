@@ -22,8 +22,8 @@ import {
   type ProbeSurfaceMarker
 } from "@/features/probe";
 import {
-  type CoordinateSystemNodeComponent,
-  withRootTransformToBrainDefault
+  isCoordinateSystem,
+  type CoordinateSystemNodeComponent
 } from "@/features/coordinate-system";
 import type { Inspectable } from "@/features/scene";
 import { isSameInspectable } from "@/features/scene";
@@ -377,16 +377,24 @@ export const useCurrentExperimentStore = defineStore(
   {
     persist: {
       pick: ["experiment"],
+      serializer: {
+        serialize: JSON.stringify,
+        deserialize: text => {
+          const data = JSON.parse(text);
+          if (
+            !data.experiment?.coordinateSystems ||
+            !Object.values(data.experiment.coordinateSystems).every(
+              isCoordinateSystem
+            )
+          )
+            throw new Error("Invalid experiment coordinate systems");
+          return data;
+        }
+      },
 
       // Re-mark probe interface definitions as raw to prevent tracking.
       afterHydrate: context => {
         const experiment: Experiment = context.store.experiment;
-        for (const [identifier, coordinateSystem] of Object.entries(
-          experiment.coordinateSystems
-        )) {
-          experiment.coordinateSystems[identifier] =
-            withRootTransformToBrainDefault(coordinateSystem);
-        }
         detachProbeInterfaceProbes(experiment.probeInterfaceProbes);
         (
           context.store as unknown as HydratedCurrentExperimentStore

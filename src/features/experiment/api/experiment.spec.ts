@@ -602,20 +602,20 @@ describe("removeInternCoordinateSystem", () => {
 describe("setProbeCoordinateSystem", () => {
   it("reframes every probe sharing a root when its definition is re-interned", () => {
     const experiment = buildExperiment("Shared root", makeAtlas(), [0, 0, 0]);
-    const system = makeCoordinateSystem({ applyRootTransformToBrain: true });
+    const system = makeCoordinateSystem();
     for (const value of [
       ...system.chain[0]!.position,
       ...system.chain[0]!.rotation
     ])
       value.mode = "fixed";
-    system.chain[0]!.rotation[0].value = Math.PI / 12;
+    system.brainTransform.rotation[0].value = Math.PI / 12;
     const first = makeProbe();
     const second = makeProbe();
     addProbe(experiment, first);
     addProbe(experiment, second);
     setProbeCoordinateSystem(experiment, first, system);
     setProbeCoordinateSystem(experiment, second, system);
-    system.chain[0]!.rotation[0].value = Math.PI / 6;
+    system.brainTransform.rotation[0].value = Math.PI / 6;
 
     setProbeCoordinateSystem(experiment, first, system);
 

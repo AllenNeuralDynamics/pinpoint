@@ -83,7 +83,7 @@ describe("CoordinateSystemLibraryDialog", () => {
     const targetItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
     await targetItem.findComponent({ name: "QBtn" }).trigger("click");
 
-    expect(store.library).toHaveLength(2);
+    expect(store.library).toHaveLength(3);
     expect(dialog).toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining(store.library[0]!.name)
@@ -100,7 +100,7 @@ describe("CoordinateSystemLibraryDialog", () => {
     const targetItem = wrapper.findAllComponents({ name: "QItem" })[0]!;
     await targetItem.findComponent({ name: "QBtn" }).trigger("click");
 
-    expect(store.library).toHaveLength(1);
+    expect(store.library).toHaveLength(2);
     expect(store.library.map(({ name }) => name)).not.toContain(target);
   });
 
@@ -151,8 +151,27 @@ describe("CoordinateSystemLibraryDialog", () => {
 
     expect(store.library.map(({ name }) => name)).toEqual([
       "NewScale MIS",
-      "Surface Coordinate & Depth"
+      "Surface Coordinate & Depth",
+      "Surface Coordinate & Depth (Sagittal/Coronal)"
     ]);
+  });
+
+  it("opens a missing anatomical preset from its creation option", async () => {
+    const wrapper = await mountDialog();
+    const store = useCoordinateSystemLibraryStore();
+    store.remove(store.getSurfaceDepthCoordinateSystem(true));
+    await wrapper.vm.$nextTick();
+    const button = wrapper
+      .findAllComponents({ name: "QBtn" })
+      .find(
+        button =>
+          button.props("label") ===
+          enUS.coordinateSystemPresets.surfaceDepthAnatomical
+      )!;
+    await button.trigger("click");
+    expect(useCurrentExperimentStore().selectedInspectable).toBe(
+      store.getSurfaceDepthCoordinateSystem(true)
+    );
   });
 
   it("creates a coordinate system with one adjustable transform and opens it", async () => {
@@ -169,11 +188,11 @@ describe("CoordinateSystemLibraryDialog", () => {
       );
     await addButton!.trigger("click");
 
-    expect(store.library).toHaveLength(3);
-    expect(store.library[2]!.name).toBe("Coordinate System 3");
-    expect(store.library[2]!.chain).toHaveLength(1);
-    expect(store.library[2]!.chain[0]!.position[0]!.mode).toBe("free");
-    expect(currentExperimentStore.selectedInspectable).toBe(store.library[2]);
+    expect(store.library).toHaveLength(4);
+    expect(store.library[3]!.name).toBe("Coordinate System 4");
+    expect(store.library[3]!.chain).toHaveLength(1);
+    expect(store.library[3]!.chain[0]!.position[0]!.mode).toBe("free");
+    expect(currentExperimentStore.selectedInspectable).toBe(store.library[3]);
     expect(wrapper.emitted("ok")).toBeTruthy();
   });
 });

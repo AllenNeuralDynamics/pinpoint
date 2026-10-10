@@ -9,6 +9,7 @@ import {
   setCoordinateSystemSlotAxis
 } from "@/features/coordinate-system";
 import { useDragReorder } from "@/composable/useDragReorder";
+import CoordinateSystemNumericInput from "./CoordinateSystemNumericInput.vue";
 import CoordinateSystemValueInspector from "./CoordinateSystemValueInspector.vue";
 
 const { node, component, label } = defineProps<{
@@ -30,6 +31,9 @@ const {
   reorderCoordinateSystemSlot(node, component, fromIndex, toIndex)
 );
 
+const hasAnatomicalInputs = computed(
+  () => component === "rotation" && node.rotationInput === "anatomical"
+);
 const slots = computed(() => getCoordinateSystemSlots(node, component));
 </script>
 
@@ -55,6 +59,7 @@ const slots = computed(() => getCoordinateSystemSlots(node, component));
             @drop="dropRow(index)"
           >
             <div
+              v-if="!hasAnatomicalInputs"
               class="value-column__handle"
               draggable="true"
               :title="t('coordinateSystemInspector.dragToReorder')"
@@ -63,7 +68,14 @@ const slots = computed(() => getCoordinateSystemSlots(node, component));
             >
               <q-icon name="drag_indicator" size="sm" />
             </div>
+            <CoordinateSystemNumericInput
+              v-if="hasAnatomicalInputs"
+              :entry="slot.value"
+              component="rotation"
+              :label="slot.value.name"
+            />
             <CoordinateSystemValueInspector
+              v-else
               :axis-index="slot.axis"
               :component="component"
               :coordinate-system-value="slot.value"

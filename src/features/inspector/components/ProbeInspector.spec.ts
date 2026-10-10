@@ -472,7 +472,7 @@ describe("ProbeInspector", () => {
   });
 
   describe("coordinate system transform chain", () => {
-    it("commits a user root pitch to the brain without moving the probe", async () => {
+    it("hides the brain root and follows library pitch edits without moving the probe", async () => {
       const { wrapper, pinia, probe, store } = mountInspector(
         makeProbe({ tipPosition: [6, 5, 4] })
       );
@@ -484,16 +484,20 @@ describe("ProbeInspector", () => {
           buildFixedCoordinateSystemValue()
         ],
         [
-          buildCoordinateSystemValue("Brain pitch", 0, "user"),
+          buildFixedCoordinateSystemValue("Brain pitch"),
           buildFixedCoordinateSystemValue(),
           buildFixedCoordinateSystemValue()
         ]
       );
       const system = buildCoordinateSystem(
         "Brain setup",
-        [root, makeCoordinateSystem().chain[0]!],
+        makeCoordinateSystem().chain,
         false,
-        true
+        {
+          ...root,
+          kind: "brain",
+          shared: false
+        }
       );
       useCoordinateSystemLibraryStore(pinia).add(system);
       selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -504,11 +508,18 @@ describe("ProbeInspector", () => {
       const tipBefore = [...probe.tipPosition];
       const rotationBefore = [...probe.rotation];
 
-      await editAndBlur(fieldByLabel(wrapper, "Brain pitch"), "15");
+      expect(
+        wrapper
+          .findAllComponents({ name: "CommittedInput" })
+          .some(field => field.props("label") === "Brain pitch")
+      ).toBe(false);
+      useCoordinateSystemLibraryStore(pinia).library.find(
+        entry => entry.id === system.id
+      )!.brainTransform.rotation[0].value = Math.PI / 12;
       await flushPromises();
 
       expect(
-        store.coordinateSystems[system.id]!.chain[0]!.rotation[0]!.value
+        store.coordinateSystems[system.id]!.brainTransform.rotation[0].value
       ).toBeCloseTo(Math.PI / 12);
       const displayed = transformCoordinateSystemPose(
         probe,
@@ -556,9 +567,13 @@ describe("ProbeInspector", () => {
           );
           const previous = buildCoordinateSystem(
             "Previously tilted",
-            [root, makeCoordinateSystem().chain[0]!],
+            makeCoordinateSystem().chain,
             true,
-            true
+            {
+              ...root,
+              kind: "brain",
+              shared: false
+            }
           );
           useCoordinateSystemLibraryStore(pinia).add(previous);
           selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
@@ -568,7 +583,7 @@ describe("ProbeInspector", () => {
           await flushPromises();
         }
         const system = useCoordinateSystemLibraryStore(pinia).library[0]!;
-        expect(system.applyRootTransformToBrain).toBe(false);
+        expect(system.brainTransform.rotation[0].value).toBe(0);
         selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
           "update:modelValue",
           system.id
@@ -600,6 +615,68 @@ describe("ProbeInspector", () => {
         expect(store.probeGhost).toBeNull();
       }
     );
+
+    it("offers surface/depth presets without a null Default option", () => {
+      const { wrapper } = mountInspector();
+      const options = selectByLabel(wrapper, t.coordinateSystem).props(
+        "options"
+      ) as { label: string; value: string }[];
+      expect(
+        options.some(
+          option => option.value === null || option.label === "Default"
+        )
+      ).toBe(false);
+      expect(
+        options.some(option => option.label === "Surface Coordinate & Depth")
+      ).toBe(true);
+      expect(
+        options.some(
+          option =>
+            option.label === "Surface Coordinate & Depth (Sagittal/Coronal)"
+        )
+      ).toBe(true);
+    });
+
+    it("edits sagittal/coronal inclinations while preserving the surface origin and axial depth", async () => {
+      const { wrapper, pinia, probe } = mountInspector(
+        makeProbe({ tipPosition: [3, 6, 5], rotation: [0, 0, Math.PI / 2] })
+      );
+      const system =
+        useCoordinateSystemLibraryStore(pinia).getSurfaceDepthCoordinateSystem(
+          true
+        );
+      selectByLabel(wrapper, t.coordinateSystem).vm.$emit(
+        "update:modelValue",
+        system.id
+      );
+      await flushPromises();
+      await editAndBlur(fieldByLabel(wrapper, "Sagittal"), "15");
+      await editAndBlur(fieldByLabel(wrapper, "Coronal"), "-20");
+      await flushPromises();
+      expect(
+        Number(fieldByLabel(wrapper, "Sagittal").props("modelValue"))
+      ).toBeCloseTo(15, 3);
+      expect(
+        Number(fieldByLabel(wrapper, "Coronal").props("modelValue"))
+      ).toBeCloseTo(-20, 3);
+      expect(
+        wrapper
+          .findAllComponents({ name: "QInput" })
+          .some(input => input.props("label") === "Yaw")
+      ).toBe(false);
+      const origin = [3, 6, 5];
+      await editAndBlur(fieldByLabel(wrapper, "Depth"), "-2");
+      await flushPromises();
+      const delta = probe.tipPosition.map(
+        (value, axis) => value - origin[axis]!
+      );
+      expect(Math.atan2(delta[2]!, delta[1]!)).toBeCloseTo(Math.PI / 12, 4);
+      expect(Math.atan2(delta[0]!, delta[1]!)).toBeCloseTo(
+        (-20 * Math.PI) / 180,
+        4
+      );
+      expect(Math.hypot(...delta)).toBeCloseTo(2, 4);
+    });
 
     it("renders one transform group per node of the selected coordinate system", async () => {
       const { wrapper, pinia } = mountInspector();

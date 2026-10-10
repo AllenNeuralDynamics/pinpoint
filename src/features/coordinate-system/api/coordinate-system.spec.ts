@@ -1,5 +1,5 @@
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { describe, expect, it } from "vitest";
-import { reactive, toRaw } from "vue";
 import {
   addCoordinateSystemTransform,
   applyCoordinateSystemChainValues,
@@ -15,8 +15,7 @@ import {
   reorderCoordinateSystemTransform,
   setCoordinateSystemAxisValue,
   setCoordinateSystemSlotAxis,
-  setCoordinateSystemSurfaceNode,
-  withRootTransformToBrainDefault
+  setCoordinateSystemSurfaceNode
 } from "./coordinate-system.api";
 import type {
   CoordinateSystemValue,
@@ -402,37 +401,6 @@ describe("buildCoordinateSystem", () => {
   });
 });
 
-describe("withRootTransformToBrainDefault", () => {
-  it("sets the previous false behavior when the setting is absent", () => {
-    const coordinateSystem = buildCoordinateSystem("CCF", []);
-    delete (coordinateSystem as Partial<typeof coordinateSystem>)
-      .applyRootTransformToBrain;
-
-    expect(withRootTransformToBrainDefault(coordinateSystem)).toMatchObject({
-      applyRootTransformToBrain: false
-    });
-  });
-
-  it("defaults a reactive definition in place without embedding nested proxies", () => {
-    const coordinateSystem = reactive(buildCoordinateSystem("CCF", []));
-    delete (coordinateSystem as Partial<typeof coordinateSystem>)
-      .applyRootTransformToBrain;
-    const result = withRootTransformToBrainDefault(coordinateSystem);
-    expect(result).toBe(coordinateSystem);
-    expect(() => structuredClone(toRaw(result))).not.toThrow();
-    expect(result.applyRootTransformToBrain).toBe(false);
-  });
-
-  it("preserves an explicit setting", () => {
-    const coordinateSystem = buildCoordinateSystem("CCF", [], false, true);
-
-    expect(withRootTransformToBrainDefault(coordinateSystem)).toBe(
-      coordinateSystem
-    );
-    expect(coordinateSystem.applyRootTransformToBrain).toBe(true);
-  });
-});
-
 describe("isCoordinateSystem", () => {
   function makeNode(
     position: [
@@ -462,15 +430,30 @@ describe("isCoordinateSystem", () => {
     const coordinateSystem = buildCoordinateSystem("CCF", [makeNode()]);
 
     expect(isCoordinateSystem(coordinateSystem)).toBe(true);
-    expect(coordinateSystem.applyRootTransformToBrain).toBe(false);
+    expect(coordinateSystem.brainTransform.shared).toBe(true);
   });
 
   it("rejects a coordinate system without a root-transform setting", () => {
     const coordinateSystem = buildCoordinateSystem("CCF", [makeNode()]);
     delete (coordinateSystem as Partial<typeof coordinateSystem>)
-      .applyRootTransformToBrain;
+      .brainTransform;
 
     expect(isCoordinateSystem(coordinateSystem)).toBe(false);
+  });
+
+  it.each(["free", "user"] as const)(
+    "rejects a brain root with %s values",
+    mode => {
+      const system = buildCoordinateSystem("Fixture", []);
+      system.brainTransform.rotation[0].mode = mode;
+      expect(isCoordinateSystem(system)).toBe(false);
+    }
+  );
+
+  it("rejects a surface-constrained brain root", () => {
+    const system = buildCoordinateSystem("Fixture", []);
+    system.brainTransform.onSurface = true;
+    expect(isCoordinateSystem(system)).toBe(false);
   });
 
   it("rejects a wrong inspectableKind", () => {
@@ -787,4 +770,66 @@ describe("applyCoordinateSystemChainValues", () => {
     expect(chain[0]!.position[0]!.value).toBe(9);
     expect(chain[1]!.position[0]!.value).toBe(0);
   });
+});
+
+describe("anatomical rotation inputs", () => {
+  it("changes axial roll without changing an inverted insertion direction", () => {
+    const node = buildCoordinateSystemNode(
+      "Surface",
+      [
+        buildCoordinateSystemValue("ML"),
+        buildCoordinateSystemValue("DV"),
+        buildCoordinateSystemValue("AP")
+      ],
+      [
+        buildCoordinateSystemValue("Sagittal", -0.8),
+        buildCoordinateSystemValue("Coronal", 0.4),
+        buildCoordinateSystemValue("Roll", -0.2)
+      ]
+    );
+    node.rotationInput = "anatomical";
+    const before = Vector3.TransformNormal(
+      Vector3.Forward(),
+      Matrix.RotationYawPitchRoll(
+        node.rotation[1].value,
+        node.rotation[0].value,
+        node.rotation[2].value
+      )
+    );
+    const slots = getCoordinateSystemSlots(node, "rotation");
+    slots[2]!.value.value += 0.3;
+    const after = Vector3.TransformNormal(
+      Vector3.Forward(),
+      Matrix.RotationYawPitchRoll(
+        node.rotation[1].value,
+        node.rotation[0].value,
+        node.rotation[2].value
+      )
+    );
+    expect(after.equalsWithEpsilon(before, 1e-5)).toBe(true);
+  });
+
+  it.each(["fixed", "user"] as const)(
+    "rejects anatomical controls with %s Euler constraints",
+    mode => {
+      const system = buildCoordinateSystem("Surface", []);
+      const node = buildCoordinateSystemNode(
+        "Surface",
+        [
+          buildCoordinateSystemValue("ML"),
+          buildCoordinateSystemValue("DV"),
+          buildCoordinateSystemValue("AP")
+        ],
+        [
+          buildCoordinateSystemValue("Sagittal"),
+          buildCoordinateSystemValue("Coronal"),
+          buildCoordinateSystemValue("Roll")
+        ]
+      );
+      node.rotationInput = "anatomical";
+      node.rotation[0].mode = mode;
+      system.chain.push(node);
+      expect(isCoordinateSystem(system)).toBe(false);
+    }
+  );
 });

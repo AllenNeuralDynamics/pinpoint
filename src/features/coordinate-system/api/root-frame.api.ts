@@ -12,11 +12,9 @@ export function getCoordinateSystemBrainTransform(
   coordinateSystem: CoordinateSystem | null,
   referenceCoordinate: [number, number, number] | null
 ): Matrix {
-  const root = coordinateSystem?.applyRootTransformToBrain
-    ? coordinateSystem.chain[0]
-    : null;
-  if (!root) return Matrix.Identity();
-  const [ap, dv, ml] = coordinateSystem?.offsetByReferenceCoordinate
+  if (!coordinateSystem) return Matrix.Identity();
+  const root = coordinateSystem.brainTransform;
+  const [ap, dv, ml] = coordinateSystem.offsetByReferenceCoordinate
     ? (referenceCoordinate ?? [0, 0, 0])
     : [0, 0, 0];
   const frame = Matrix.RotationYawPitchRoll(

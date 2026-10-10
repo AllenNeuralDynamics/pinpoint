@@ -8,9 +8,15 @@ import {
   flushMicrotasks,
   mountWithQuasar
 } from "@/test/mount-helper";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { useProbeLibraryStore } from "@/stores/probe-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getAtlasCenter, getTerminologyRows } from "@/features/atlas";
+import {
+  getCoordinateSystemBrainTransform,
+  isCoordinateSystemSolutionAtPose,
+  transformCoordinateSystemPose
+} from "@/features/coordinate-system";
 import { getInternedProbeInterfaceProbe } from "@/features/experiment";
 import {
   makeProbe,
@@ -155,6 +161,40 @@ describe("SceneHierarchy", () => {
     expect(
       getInternedProbeInterfaceProbe(currentExperiment.experiment, probe!)
     ).toEqual(spec);
+  });
+
+  it("assigns the surface/depth preset to new probes regardless of library order", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const library = useCoordinateSystemLibraryStore(pinia);
+    const system = library.getSurfaceDepthCoordinateSystem();
+    library.reorder(0, 2);
+    library.sharedBrainTransform.rotation[0].value = Math.PI / 12;
+    useProbeLibraryStore(pinia).add(makeProbeInterfaceProbe());
+    const store = useCurrentExperimentStore(pinia);
+    await mountHierarchy(pinia);
+    await pickFirstLibraryProbe();
+    const probe = store.probes[0]!;
+    expect(probe.coordinateSystemIdentifier).toBe(system.id);
+    expect(store.coordinateSystems[system.id]!.chain[0]!.onSurface).toBe(true);
+    expect(
+      store.coordinateSystems[system.id]!.brainTransform.rotation[0].value
+    ).toBe(Math.PI / 12);
+    const displayed = transformCoordinateSystemPose(
+      probe,
+      getCoordinateSystemBrainTransform(
+        store.coordinateSystems[system.id]!,
+        store.referenceCoordinate
+      )
+    );
+    expect(
+      isCoordinateSystemSolutionAtPose(
+        { ...displayed, nodePositions: [] },
+        store.referenceCoordinate,
+        [0, 0, Math.PI / 2],
+        1e-5
+      )
+    ).toBe(true);
   });
 
   it("reuses the same definition id when the same probe is added twice", async () => {

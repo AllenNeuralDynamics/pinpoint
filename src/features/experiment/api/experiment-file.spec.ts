@@ -322,22 +322,19 @@ describe("zipExperiment / unzipExperiment", () => {
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();
   });
 
-  it("defaults an older coordinate system's root brain transform setting to false", () => {
+  it("rejects a coordinate system without its required brain root", () => {
     const experiment = makeFullExperiment();
     const identifier = Object.keys(experiment.coordinateSystems)[0]!;
     const coordinateSystem = experiment.coordinateSystems[identifier]!;
     const legacyCoordinateSystem = { ...coordinateSystem };
     delete (legacyCoordinateSystem as Partial<typeof coordinateSystem>)
-      .applyRootTransformToBrain;
+      .brainTransform;
     experiment.coordinateSystems[identifier] =
       legacyCoordinateSystem as typeof coordinateSystem;
 
     const archive = unzipExperiment(zipRawExperiment(experiment));
 
-    expect(
-      archive?.experiment.coordinateSystems[identifier]
-        ?.applyRootTransformToBrain
-    ).toBe(false);
+    expect(archive).toBeNull();
   });
 
   it("returns null when a coordinate system's root brain transform setting is invalid", () => {
@@ -346,7 +343,7 @@ describe("zipExperiment / unzipExperiment", () => {
     const coordinateSystem = experiment.coordinateSystems[identifier]!;
     experiment.coordinateSystems[identifier] = {
       ...coordinateSystem,
-      applyRootTransformToBrain: "false" as unknown as boolean
+      brainTransform: null as unknown as typeof coordinateSystem.brainTransform
     };
 
     expect(unzipExperiment(zipRawExperiment(experiment))).toBeNull();

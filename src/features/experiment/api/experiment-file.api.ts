@@ -13,8 +13,7 @@ import { getExperimentModelIds } from "./experiment.api";
 import { isAtlas } from "@/features/atlas";
 import {
   getCoordinateSystemIdentifier,
-  isCoordinateSystem,
-  withRootTransformToBrainDefault
+  isCoordinateSystem
 } from "@/features/coordinate-system";
 import { isCameraPose } from "./camera-pose.api";
 import {
@@ -80,18 +79,6 @@ function parseExperimentFile(text: string): Experiment | null {
     data = JSON.parse(text);
   } catch {
     return null;
-  }
-
-  if (isRecord(data) && isRecord(data.coordinateSystems)) {
-    data = {
-      ...data,
-      coordinateSystems: Object.fromEntries(
-        Object.entries(data.coordinateSystems).map(([identifier, value]) => [
-          identifier,
-          isRecord(value) ? withRootTransformToBrainDefault(value) : value
-        ])
-      )
-    };
   }
 
   return isExperiment(data) ? data : null;

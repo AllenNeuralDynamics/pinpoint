@@ -11,11 +11,11 @@ describe("useCoordinateSystemLibraryStore", () => {
     localStorage.removeItem("coordinate-system-library");
   });
 
-  it("defaults old library entries' root brain transform setting during hydration", () => {
+  it("rejects invalid persisted library data", () => {
     const coordinateSystem = makeCoordinateSystem();
     const legacyCoordinateSystem = { ...coordinateSystem };
     delete (legacyCoordinateSystem as Partial<typeof coordinateSystem>)
-      .applyRootTransformToBrain;
+      .brainTransform;
     localStorage.setItem(
       "coordinate-system-library",
       JSON.stringify({ library: [legacyCoordinateSystem] })
@@ -27,8 +27,83 @@ describe("useCoordinateSystemLibraryStore", () => {
     setActivePinia(pinia);
     const store = useCoordinateSystemLibraryStore();
 
-    expect(store.library).toHaveLength(1);
-    expect(store.library[0]!.applyRootTransformToBrain).toBe(false);
+    expect(store.library).toHaveLength(3);
+    expect(store.library[0]!.brainTransform).toBe(store.sharedBrainTransform);
+  });
+
+  it("shares edits across seeds and new chains, detaches by value, and relocks to shared values", () => {
+    const store = useCoordinateSystemLibraryStore();
+    const [first, second] = store.library;
+    store.sharedBrainTransform.rotation[0].value = Math.PI / 12;
+    expect(first!.brainTransform).toBe(second!.brainTransform);
+    const added = makeCoordinateSystem();
+    store.add(added);
+    expect(store.library[3]!.brainTransform).toBe(store.sharedBrainTransform);
+
+    store.setBrainTransformShared(first!, false);
+    expect(first!.brainTransform.rotation[0].value).toBe(Math.PI / 12);
+    expect(first!.brainTransform).not.toBe(store.sharedBrainTransform);
+    first!.brainTransform.position[0].value = 3;
+    store.sharedBrainTransform.rotation[0].value = Math.PI / 6;
+    expect(first!.brainTransform.rotation[0].value).toBe(Math.PI / 12);
+    expect(second!.brainTransform.position[0].value).toBe(0);
+    expect(second!.brainTransform.rotation[0].value).toBe(Math.PI / 6);
+
+    store.setBrainTransformShared(first!, true);
+    expect(first!.brainTransform).toBe(store.sharedBrainTransform);
+    expect(first!.brainTransform.position[0].value).toBe(0);
+    expect(first!.brainTransform.rotation[0].value).toBe(Math.PI / 6);
+  });
+
+  it("restores sharing after persistence while preserving independent roots", () => {
+    const original = useCoordinateSystemLibraryStore();
+    original.sharedBrainTransform.rotation[0].value = Math.PI / 12;
+    original.setBrainTransformShared(original.library[0]!, false);
+    original.library[0]!.brainTransform.position[0].value = 3;
+    localStorage.setItem(
+      "coordinate-system-library",
+      JSON.stringify(original.$state)
+    );
+    const pinia = createPinia();
+    pinia.use(piniaPluginPersistedstate);
+    createApp({}).use(pinia);
+    setActivePinia(pinia);
+    const restored = useCoordinateSystemLibraryStore();
+    expect(restored.library[1]!.brainTransform).toBe(
+      restored.sharedBrainTransform
+    );
+    expect(restored.library[0]!.brainTransform).not.toBe(
+      restored.sharedBrainTransform
+    );
+    expect(restored.library[0]!.brainTransform.position[0].value).toBe(3);
+    restored.sharedBrainTransform.rotation[0].value = 0.5;
+    expect(restored.library[1]!.brainTransform.rotation[0].value).toBe(0.5);
+    expect(restored.library[0]!.brainTransform.rotation[0].value).toBe(
+      Math.PI / 12
+    );
+  });
+
+  it("uses the surface/depth preset by identity through renaming and reordering", () => {
+    const store = useCoordinateSystemLibraryStore();
+    const original = store.getSurfaceDepthCoordinateSystem();
+    original.name = "My setup";
+    store.reorder(0, 2);
+    expect(store.getSurfaceDepthCoordinateSystem()).toBe(original);
+    store.remove(original);
+    const replacement = store.getSurfaceDepthCoordinateSystem();
+    expect(replacement.brainTransform).toBe(store.sharedBrainTransform);
+    expect(replacement.chain[0]!.onSurface).toBe(true);
+    expect(replacement.chain[1]!.position[2].mode).toBe("free");
+  });
+
+  it("makes the anatomical preset available on explicit selection after its removal", () => {
+    const store = useCoordinateSystemLibraryStore();
+    const initial = store.getSurfaceDepthCoordinateSystem(true);
+    store.remove(initial);
+    const replacement = store.getSurfaceDepthCoordinateSystem(true);
+    expect(replacement.chain[0]!.rotationInput).toBe("anatomical");
+    expect(replacement.brainTransform).toBe(store.sharedBrainTransform);
+    expect(store.getSurfaceDepthCoordinateSystem(true)).toBe(replacement);
   });
 
   describe("remove", () => {
@@ -38,7 +113,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       store.remove(target);
 
-      expect(store.library).toHaveLength(1);
+      expect(store.library).toHaveLength(2);
       expect(store.library).not.toContain(target);
     });
 
@@ -48,7 +123,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       store.remove({ ...target, name: "Renamed" });
 
-      expect(store.library).toHaveLength(1);
+      expect(store.library).toHaveLength(2);
       expect(store.library).not.toContain(target);
     });
 
@@ -57,19 +132,19 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       store.remove(makeCoordinateSystem());
 
-      expect(store.library).toHaveLength(2);
+      expect(store.library).toHaveLength(3);
     });
   });
 
   describe("add", () => {
-    it("appends after the two seeds", () => {
+    it("appends after the three seeds", () => {
       const store = useCoordinateSystemLibraryStore();
       const coordinateSystem = makeCoordinateSystem();
 
       store.add(coordinateSystem);
 
-      expect(store.library).toHaveLength(3);
-      expect(store.library[2]!.id).toBe(coordinateSystem.id);
+      expect(store.library).toHaveLength(4);
+      expect(store.library[3]!.id).toBe(coordinateSystem.id);
     });
 
     it("is a no-op when an entry with the same id is already present", () => {
@@ -78,7 +153,7 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       store.add(makeCoordinateSystem({ id: existingId }));
 
-      expect(store.library).toHaveLength(2);
+      expect(store.library).toHaveLength(3);
     });
   });
 
@@ -90,7 +165,8 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       expect(store.library.map(({ name }) => name)).toEqual([
         "NewScale MIS",
-        "Surface Coordinate & Depth"
+        "Surface Coordinate & Depth",
+        "Surface Coordinate & Depth (Sagittal/Coronal)"
       ]);
     });
 
@@ -101,7 +177,8 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       expect(store.library.map(({ name }) => name)).toEqual([
         "NewScale MIS",
-        "Surface Coordinate & Depth"
+        "Surface Coordinate & Depth",
+        "Surface Coordinate & Depth (Sagittal/Coronal)"
       ]);
     });
 
@@ -112,7 +189,8 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       expect(store.library.map(({ name }) => name)).toEqual([
         "Surface Coordinate & Depth",
-        "NewScale MIS"
+        "NewScale MIS",
+        "Surface Coordinate & Depth (Sagittal/Coronal)"
       ]);
     });
 
@@ -123,7 +201,8 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       expect(store.library.map(({ name }) => name)).toEqual([
         "Surface Coordinate & Depth",
-        "NewScale MIS"
+        "NewScale MIS",
+        "Surface Coordinate & Depth (Sagittal/Coronal)"
       ]);
     });
 
@@ -134,18 +213,20 @@ describe("useCoordinateSystemLibraryStore", () => {
 
       expect(store.library.map(({ name }) => name)).toEqual([
         "NewScale MIS",
-        "Surface Coordinate & Depth"
+        "Surface Coordinate & Depth",
+        "Surface Coordinate & Depth (Sagittal/Coronal)"
       ]);
     });
   });
 
   describe("seeded library", () => {
-    it("recreates the two seeds by name, in order", () => {
+    it("recreates the three seeds by name, in order", () => {
       const store = useCoordinateSystemLibraryStore();
 
       expect(store.library.map(({ name }) => name)).toEqual([
         "Surface Coordinate & Depth",
-        "NewScale MIS"
+        "NewScale MIS",
+        "Surface Coordinate & Depth (Sagittal/Coronal)"
       ]);
     });
 

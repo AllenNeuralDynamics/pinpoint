@@ -11,6 +11,7 @@ import {
 } from "@/features/coordinate-system";
 import { createWrapperRegistry, mountWithQuasar } from "@/test/mount-helper";
 import { makeCoordinateSystem } from "@/test/fixtures";
+import { useCoordinateSystemLibraryStore } from "@/stores/coordinate-system-library.store";
 import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { getTerminologyRows } from "@/features/atlas";
 import enUS from "@/i18n/en-US";
@@ -192,43 +193,71 @@ describe("CoordinateSystemInspector", () => {
     expect(coordinateSystem.offsetByReferenceCoordinate).toBe(true);
   });
 
-  it("shows the brain-transform option only on the root and updates the system", async () => {
-    const { wrapper, coordinateSystem } = mountInspector(
-      makeCoordinateSystem({
-        chain: [
-          makeCoordinateSystem().chain[0]!,
-          makeCoordinateSystem().chain[0]!
-        ]
-      })
-    );
-    const [rootNode, childNode] = wrapper.findAllComponents(
-      CoordinateSystemNodeInspector
-    );
-
+  it("shows a distinct brain root with six fixed values and a sharing control", async () => {
+    const { wrapper, coordinateSystem } = mountInspector();
+    expect(wrapper.text()).toContain(t.brainTransform);
     expect(
-      rootNode!
-        .findAllComponents({ name: "QToggle" })
-        .some(toggle => toggle.props("label") === t.applyRootTransformToBrain)
+      [
+        ...coordinateSystem.brainTransform.position,
+        ...coordinateSystem.brainTransform.rotation
+      ].every(value => value.mode === "fixed" && value.value === 0)
     ).toBe(true);
+    const lock = wrapper.find(`button[aria-label="${t.unlockBrainTransform}"]`);
+    await lock.trigger("click");
+    expect(coordinateSystem.brainTransform.shared).toBe(false);
+    await wrapper
+      .find(`button[aria-label="${t.lockBrainTransform}"]`)
+      .trigger("click");
+    expect(coordinateSystem.brainTransform.shared).toBe(true);
+  });
+
+  it("edits fixed brain values in display units without exposing mode or deletion controls", async () => {
+    const { wrapper, coordinateSystem } = mountInspector();
+    const brain = wrapper.findComponent({ name: "BrainTransformInspector" });
+    await editAndBlur(fieldByLabel(brain, axis.pitch), "15");
+    expect(coordinateSystem.brainTransform.rotation[0].value).toBeCloseTo(
+      Math.PI / 12
+    );
+    expect(coordinateSystem.brainTransform.rotation[0].mode).toBe("fixed");
+    expect(brain.findAllComponents({ name: "QToggle" })).toHaveLength(0);
+    expect(brain.find('[draggable="true"]').exists()).toBe(false);
     expect(
-      childNode!
-        .findAllComponents({ name: "QToggle" })
-        .some(toggle => toggle.props("label") === t.applyRootTransformToBrain)
+      brain
+        .findAllComponents({ name: "QBtn" })
+        .some(button => button.props("icon") === "delete")
     ).toBe(false);
+    const helpButton = brain.find(
+      `button[aria-label="${t.brainTransformHelp}"]`
+    );
+    await helpButton.trigger("mouseenter");
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(document.body.textContent).toContain(t.brainTransformHelp);
+    await helpButton.trigger("mouseleave");
+  });
 
+  it("edits anatomical inputs in the chain editor as projected angles", async () => {
+    const { wrapper } = mountInspector();
+    const system =
+      useCoordinateSystemLibraryStore().getSurfaceDepthCoordinateSystem(true);
+    await wrapper.setProps({ coordinateSystem: system });
+    const surface = wrapper.findAllComponents(
+      CoordinateSystemNodeInspector
+    )[0]!;
+    await openValueDialog(surface, t.rotation);
+    await editAndBlur(fieldByLabel(wrapper, axis.sagittal), "15");
+    await editAndBlur(fieldByLabel(wrapper, axis.coronal), "-20");
     expect(
-      findToggle(rootNode!, t.applyRootTransformToBrain).props("disable")
+      Number(fieldByLabel(wrapper, axis.sagittal).props("modelValue"))
+    ).toBeCloseTo(15, 3);
+    expect(
+      Number(fieldByLabel(wrapper, axis.coronal).props("modelValue"))
+    ).toBeCloseTo(-20, 3);
+    expect(
+      wrapper.findAllComponents(CoordinateSystemValueInspector)
+    ).toHaveLength(0);
+    expect(
+      system.chain[0]!.rotation.every(entry => entry.mode === "free")
     ).toBe(true);
-    for (const value of [
-      ...coordinateSystem.chain[0]!.position,
-      ...coordinateSystem.chain[0]!.rotation
-    ]) {
-      value.mode = "user";
-    }
-    await wrapper.vm.$nextTick();
-    await findToggle(rootNode!, t.applyRootTransformToBrain).setValue(true);
-
-    expect(coordinateSystem.applyRootTransformToBrain).toBe(true);
   });
 
   it("toggling the surface toggle updates the first node", async () => {

@@ -45,7 +45,9 @@ export default {
     z: "Z",
     roll: "Roll",
     yaw: "Yaw",
-    pitch: "Pitch"
+    pitch: "Pitch",
+    sagittal: "Sagittal",
+    coronal: "Coronal"
   },
   newExperiment: {
     title: "New Experiment",
@@ -221,7 +223,6 @@ export default {
     name: "Name",
     probeType: "Probe Type",
     coordinateSystem: "Coordinate System",
-    defaultCoordinateSystem: "Default",
     solvePose: "Solve pose",
     solvePoseCaption:
       "Re-solve the coordinate system for this pose, keeping its orientation and putting the surface node back on the atlas.",
@@ -303,13 +304,23 @@ export default {
     ambientOcclusion: "Ambient Occlusion",
     backToPreferences: "Back to Preferences"
   },
+  coordinateSystemPresets: {
+    surfaceDepth: "Surface Coordinate & Depth",
+    surfaceDepthAnatomical: "Surface Coordinate & Depth (Sagittal/Coronal)",
+    surface: "Surface Coordinate",
+    depth: "Depth"
+  },
   coordinateSystemInspector: {
     name: "Name",
     addTransform: "Add Transform",
     offsetByReferenceCoordinate: "Offset by reference coordinate",
-    applyRootTransformToBrain: "Apply root transform to brain",
-    rootTransformHint:
-      "Use fixed or user values in the root. Shows the inverse root transform on the brain in a fixed frame, keeping downstream probe controls unchanged.",
+    brainTransform: "Brain Transform Node",
+    brainTransformHelp:
+      "This node is used to adjust the position or rotation of the brain relative to the probe origin. Use this when your setup requires tilting or moving the mouse head off the bregma-lambda plane.",
+    unlockBrainTransform:
+      "Shared across the library. Unlock to edit this chain independently.",
+    lockBrainTransform:
+      "Independent transform. Lock to adopt the shared library values.",
     nodeName: "Transform name",
     newTransformName: "Transform {index}",
     surfaceCoordinate: "Surface coordinate",

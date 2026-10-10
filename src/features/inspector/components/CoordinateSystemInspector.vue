@@ -13,6 +13,7 @@ import { useCurrentExperimentStore } from "@/stores/current-experiment.store";
 import { useDragReorder } from "@/composable/useDragReorder";
 import { useValidationRules } from "@/composable/useValidationRules";
 import CommittedInput from "@/components/CommittedInput.vue";
+import BrainTransformInspector from "./BrainTransformInspector.vue";
 import CoordinateSystemNodeInspector from "./CoordinateSystemNodeInspector.vue";
 
 const { coordinateSystem } = defineProps<{
@@ -110,6 +111,10 @@ onUnmounted(() => {
       "
     />
     <q-list class="col scroll" separator>
+      <BrainTransformInspector
+        :coordinate-system="coordinateSystem"
+        @focus="focusNode(-1, $event)"
+      />
       <CoordinateSystemNodeInspector
         v-for="(node, index) of coordinateSystem.chain"
         :key="index"
@@ -119,19 +124,12 @@ onUnmounted(() => {
             dropTargetIndex === index && draggedIndex !== index
         }"
         :node="node"
-        :is-root="index === 0"
-        :root-transform-applied-to-brain="
-          coordinateSystem.applyRootTransformToBrain
-        "
         @delete="removeTransform(index)"
         @drag-end="endDrag"
         @drag-start="startDrag(index, $event)"
         @dragover="dragOverRow(index, $event)"
         @drop="dropRow(index)"
         @focus="focusNode(index, $event)"
-        @update-root-transform="
-          coordinateSystem.applyRootTransformToBrain = $event
-        "
         @update:on-surface="
           setCoordinateSystemSurfaceNode(coordinateSystem, index, $event)
         "
