@@ -106,6 +106,69 @@ describe("useCoordinateSystemLibraryStore", () => {
     expect(store.getSurfaceDepthCoordinateSystem(true)).toBe(replacement);
   });
 
+  it.each([false, true])(
+    "reuses a compatible saved chain with another ID (anatomical: %s)",
+    anatomical => {
+      const store = useCoordinateSystemLibraryStore();
+      const existing = store.getSurfaceDepthCoordinateSystem(anatomical);
+      existing.id = crypto.randomUUID();
+      existing.name = "My edited setup";
+      existing.chain[0]!.position[0].value = 3;
+      existing.chain[0]!.rotation[0].value = 0;
+      store.setBrainTransformShared(existing, false);
+      existing.brainTransform.rotation[0].value = 0.25;
+      const before = JSON.stringify(store.$state);
+
+      expect(
+        store.missingSurfaceDepthPresets.some(
+          preset => preset.anatomical === anatomical
+        )
+      ).toBe(false);
+      expect(store.getSurfaceDepthCoordinateSystem(anatomical)).toBe(existing);
+      expect(store.getSurfaceDepthCoordinateSystem(anatomical)).toBe(existing);
+      expect(JSON.stringify(store.$state)).toBe(before);
+    }
+  );
+
+  it("does not recreate a removed generated copy when a compatible saved chain remains", () => {
+    const store = useCoordinateSystemLibraryStore();
+    const generated = store.getSurfaceDepthCoordinateSystem();
+    const saved = store.add({
+      ...JSON.parse(JSON.stringify(generated)),
+      id: crypto.randomUUID()
+    });
+    store.remove(generated);
+    const count = store.library.length;
+
+    expect(store.getSurfaceDepthCoordinateSystem()).toBe(saved);
+    expect(
+      store.missingSurfaceDepthPresets.some(preset => !preset.anatomical)
+    ).toBe(false);
+    expect(store.library).toHaveLength(count);
+  });
+
+  it.each(["surface", "depth", "offset"] as const)(
+    "creates a preset when an existing chain has incompatible %s constraints",
+    incompatible => {
+      const store = useCoordinateSystemLibraryStore();
+      const existing = store.getSurfaceDepthCoordinateSystem();
+      existing.id = crypto.randomUUID();
+      if (incompatible === "surface")
+        existing.chain[0]!.position[0].mode = "fixed";
+      if (incompatible === "depth") existing.chain[1]!.position[0].value = 2;
+      if (incompatible === "offset")
+        existing.offsetByReferenceCoordinate = false;
+
+      expect(
+        store.missingSurfaceDepthPresets.some(preset => !preset.anatomical)
+      ).toBe(true);
+      const created = store.getSurfaceDepthCoordinateSystem();
+      expect(created).not.toBe(existing);
+      expect(store.library).toContain(existing);
+      expect(store.getSurfaceDepthCoordinateSystem()).toBe(created);
+    }
+  );
+
   describe("remove", () => {
     it("drops the matching seeded entry", () => {
       const store = useCoordinateSystemLibraryStore();

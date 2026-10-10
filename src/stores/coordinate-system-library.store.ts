@@ -105,7 +105,7 @@ export const useCoordinateSystemLibraryStore = defineStore(
     );
     const missingSurfaceDepthPresets = computed(() =>
       surfaceDepthPresets.value.filter(
-        preset => !library.value.some(system => system.id === preset.id)
+        preset => !findSurfaceDepthSystem(library.value, preset)
       )
     );
 
@@ -118,7 +118,7 @@ export const useCoordinateSystemLibraryStore = defineStore(
     ): CoordinateSystem {
       const preset = SURFACE_DEPTH_PRESETS[anatomical ? 1 : 0];
       return (
-        library.value.find(system => system.id === preset.id) ??
+        findSurfaceDepthSystem(library.value, preset) ??
         add(buildSurfaceDepthSystem(preset))
       );
     }
@@ -228,6 +228,39 @@ export const useCoordinateSystemLibraryStore = defineStore(
     }
   }
 );
+
+/**
+ * Find a preset by identity or an existing compatible surface/depth chain.
+ * @param library Coordinate systems to search without modifying them.
+ * @param preset Preset identity and rotation input convention.
+ */
+function findSurfaceDepthSystem(
+  library: CoordinateSystem[],
+  preset: { id: string; anatomical: boolean }
+): CoordinateSystem | undefined {
+  return (
+    library.find(system => system.id === preset.id) ??
+    library.find(system => {
+      const [surface, depth] = system.chain;
+      return (
+        system.offsetByReferenceCoordinate &&
+        system.chain.length === 2 &&
+        surface &&
+        depth &&
+        surface.onSurface &&
+        !depth.onSurface &&
+        (surface.rotationInput === "anatomical") === preset.anatomical &&
+        [...surface.position, ...surface.rotation].every(
+          entry => entry.mode === "free"
+        ) &&
+        depth.position[2].mode === "free" &&
+        [...depth.position.slice(0, 2), ...depth.rotation].every(
+          entry => entry.mode === "fixed" && entry.value === 0
+        )
+      );
+    })
+  );
+}
 
 /**
  * Build a localized surface/depth preset with the chosen rotation inputs.
